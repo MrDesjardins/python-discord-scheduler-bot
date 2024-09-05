@@ -56,13 +56,17 @@ def load_from_file(filename):
 
 
 class DayOfWeek(Enum):
-    monday = 1
-    tuesday = 2
-    wednesday = 3
-    thursday = 4
-    friday = 5
-    saturday = 6
-    sunday = 7
+    monday = 0
+    tuesday = 1
+    wednesday = 2
+    thursday = 3
+    friday = 4
+    saturday = 5
+    sunday = 6
+
+
+days_of_week = ['Monday', 'Tuesday', 'Wednesday',
+                'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 
 class CacheItem:
@@ -153,6 +157,12 @@ class SimpleUser:
 
     def __str__(self):
         return f"User ID: {self.user_id}, Display Name: {self.display_name}"
+
+
+class SimpleUserHour:
+    def __init__(self, user: SimpleUser, hour):
+        self.simpleUser = SimpleUser
+        self.hour = hour
 
 
 # This dictionary will store votes to an array of user
@@ -267,7 +277,9 @@ async def send_daily_question():
     """
     Send only once every day the question for each guild who has the bot
     """
-    current_date = datetime.now().strftime("%Y%m%d")
+    now = datetime.now()
+    current_date = now.strftime("%Y%m%d")
+    day_of_week_number = now.weekday()  # 0 is Monday, 6 is Sunday
     for guild in bot.guilds:
         channelId = await getCache(False, f"Guild_Channel:{guild.id}")
         if channelId is None:
@@ -280,8 +292,10 @@ async def send_daily_question():
             message: discord.Message = await channel.send(poll_message)
             for reaction in reactions:
                 await message.add_reaction(reaction)
+            auto_assign_user_to_daily_question(
+                guild.id, message.id, day_of_week_number)
             setCache(
-                False, f"DailyMessageSentInChannel:{channel.id}:{current_date}", True, ALWAYS_TTL)
+                False, f"DailyMessageSentInChannel:{channelId}:{current_date}", True, ALWAYS_TTL)
         else:
             print(f"Daily message already sent in guild {guild.name}")
 
@@ -365,7 +379,8 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         return  # Ignore reactions from bots
 
     # Check if the message is older than 24 hours
-    if message.created_at < datetime.now(timezone.utc) - timedelta(days=1):
+    #if message.created_at < datetime.now(timezone.utc) - timedelta(days=1):
+    if not is_today(message.created_at):
         await user.send("You can't vote on a message that is older than 24 hours.")
 
     # Cache all users for this message's reactions to avoid redundant API calls
@@ -465,12 +480,28 @@ async def update_vote_message(message: discord.Message, vote_for_message: Dict[s
 @app_commands.describe(day="The day of the week")
 @app_commands.describe(hourday="The time of the day")
 async def setSchedule(interaction: discord.Interaction, day: DayOfWeek, hourday: app_commands.Choice[int]):
-    await interaction.response.send_message(f"Set for {hourday.name} and {repr(day)}")
+    simpleUser = SimpleUser(
+        interaction.user.id, interaction.user.display_name, getUserRankEmoji(interaction.user))
+
+    list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}")
+    if list_users is None:
+        list_users = []
+    list_users.append(SimpleUserHour(simpleUser, hourday.value))
+    setCache(
+        False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}", list_users, ALWAYS_TTL)
+    await interaction.response.send_message(f"Set for {hourday.name} and {days_of_week[day.value]}")
 
 
 @bot.tree.command(name="removeautoschedule")
 @app_commands.describe(day="The day of the week")
 async def removeSchedule(interaction: discord.Interaction, day: DayOfWeek):
+    list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}")
+    if list_users is None:
+        list_users = []
+    my_list = list(filter(lambda x: x.simpleUser.id !=
+                   interaction.user.id, list_users))
+    setCache(
+        False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}", my_list, ALWAYS_TTL)
     await interaction.response.send_message(f"Remove for {repr(day)}")
 
 
@@ -505,6 +536,27 @@ def getUserRankEmoji(user: discord.Member) -> str:
     print("No rank found")
     return EMOJI_COPPER
 
+
+async def auto_assign_user_to_daily_question(guild_id: int, message_id: int, day_of_week_number: int):
+    # Get the list of user and their hour for the specific day of the week
+    list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{guild_id}:{day_of_week_number}")
+    reaction_users_cache_key = f"ReactionUsers:{message_id}"
+
+    message_votes = get_empty_votes() # Start with nothing for the day
+
+    # Loop for the user+hours
+    for userHour in list_users:
+        # Assign for each hour the user
+        message_votes[userHour.hour].append(userHour.simpleUser)
+
+    setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+
+def is_today(date_time):
+    # Get today's date
+    today_utc =  datetime.now(timezone.utc).date()
+    date_time_utc = date_time.date()
+    
+    return date_time_utc == today_utc
 
 bot.run(TOKEN)
 
