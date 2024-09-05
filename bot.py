@@ -6,16 +6,20 @@ from discord.ext import commands, tasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from discord.ext.commands import Bot
 import pytz
-from typing import List, Dict
+from typing import List, Dict, Callable, Awaitable, Union, Optional
 from types import MappingProxyType
 from copy import deepcopy
 import asyncio
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import time
 from enum import Enum
+import atexit
+import dill as pickle
+import inspect
 load_dotenv()
+ALWAYS_TTL = 60*60*24*365*10
 TOKEN = os.getenv('BOT_TOKEN')
-CHANNEL_ID = int(os.getenv('CHANNEL_ID'))
+CACHE_FILE = "cache.txt"
 
 EMOJI_CHAMPION = "<:Champion:1279550703311917208>"
 EMOJI_DIAMOND = "<:Diamond:1279550706373623883> "
@@ -36,7 +40,19 @@ intents.guild_reactions = True  # Enable the guild reactions intent
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 print(f"Token: {TOKEN}")
-print(f"Channel ID: {CHANNEL_ID}")
+
+
+def save_to_file(obj, filename):
+    with open(filename, 'wb') as file:
+        pickle.dump(obj, file)
+
+
+def load_from_file(filename):
+    try:
+        with open(filename, 'rb') as file:
+            return pickle.load(file)
+    except FileNotFoundError:
+        return None
 
 
 class DayOfWeek(Enum):
@@ -99,6 +115,10 @@ class TTLCache:
 
     def start_cleanup(self):
         asyncio.create_task(self._cleanup())
+
+    def initialize(self, values):
+        if values:
+            self.cache = values
 
 
 class RateLimiter:
@@ -168,13 +188,23 @@ emoji_to_time = {
     '3️⃣': '3am'
 }
 
-poll_message = f"What time will you play today ?\n⚠️Time in Eastern Time. If you are Pacific adds 3, Central adds 2.\nReact with all the time you plan to be available."
+poll_message = f"What time will you play today ?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /setautoschedule to set recurrent day and hours."
 reactions = ['4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣',
              '9️⃣', '🔟', '🕚', '🕛', '1️⃣', '2️⃣', '3️⃣']
 
 # Scheduler to send daily message
 scheduler = AsyncIOScheduler()
-cache = TTLCache(default_ttl=60)  # Cache with 60 seconds TTL
+memoryCache = TTLCache(default_ttl=60)  # Cache with 60 seconds TTL
+dataCache = TTLCache(default_ttl=60)  # Cache with 60 seconds TTL
+
+# previous_cache_content = load_from_file(CACHE_FILE)
+# if previous_cache_content is None:
+#     print("No cache data found")
+# else:
+#     cache.cache = previous_cache_content
+#     print("Cache loaded from file")
+
+
 rate_limiter = RateLimiter(interval_seconds=2)
 
 
@@ -188,24 +218,39 @@ async def reaction_worker():
         finally:
             bot.reaction_queue.task_done()
 
+dataCache.initialize(load_from_file(CACHE_FILE))
+
 
 @bot.event
 async def on_ready():
-    print(f'{bot.user} has connected to Discord! Getting channel {CHANNEL_ID}')
+    print(f'{bot.user} has connected to Discord!')
     print(f'Bot latency: {bot.latency} seconds')
     for guild in bot.guilds:
         print(f"Checking in guild: {guild.name} ({guild.id})")
-        channel = bot.get_channel(CHANNEL_ID)
+        print(
+            f"\tGuild {guild.name} has {len(guild.members)} members, setting the commands")
+        guildObj = discord.Object(id=guild.id)
+        bot.tree.copy_global_to(guild=guildObj)
+        await bot.tree.sync(guild=guildObj)
+        print("\tChecking if the guild has a channel set")
+        channelId = await getCache(False, f"Guild_Channel:{guild.id}")
+        if channelId is None:
+            print(f"\tChannel ID not found for guild {guild.name}")
+            continue
+
+        channel = bot.get_channel(channelId)
 
         if channel:
             permissions = check_bot_permissions(channel)
-            print(f"Bot permissions in channel {CHANNEL_ID}: {permissions}")
+            print(
+                f"\tBot permissions in channel {channel.name}: {permissions}")
         else:
-            print(f"Channel ID {CHANNEL_ID} not found in guild {guild.name}")
+            print(f"\tChannel ID {channelId} not found in guild {guild.name}")
 
     # Waiting the commands
     print("Waiting for commands to load")
     synced = await bot.tree.sync()
+
     print(f"Synced {len(synced)} commands.")
 
     # Start the reaction worker
@@ -215,15 +260,30 @@ async def on_ready():
     # pacific = pytz.timezone('America/Los_Angeles')
     # scheduler.add_job(send_daily_question, 'cron', hour=15, minute=0, timezone=pacific)
     # scheduler.start()
-    # await send_daily_question()  # Test
+    await send_daily_question()  # Test
 
 
-# Function to send the poll message
 async def send_daily_question():
-    channel: discord.TextChannel = bot.get_channel(CHANNEL_ID)
-    message: discord.Message = await channel.send(poll_message)
-    for reaction in reactions:
-        await message.add_reaction(reaction)
+    """
+    Send only once every day the question for each guild who has the bot
+    """
+    current_date = datetime.now().strftime("%Y%m%d")
+    for guild in bot.guilds:
+        channelId = await getCache(False, f"Guild_Channel:{guild.id}")
+        if channelId is None:
+            print(f"Channel ID not found for guild {guild.name}")
+            continue
+
+        message_sent = await getCache(False, f"DailyMessageSentInChannel:{channelId}:{current_date}")
+        if message_sent is None:
+            channel: discord.TextChannel = bot.get_channel(channelId)
+            message: discord.Message = await channel.send(poll_message)
+            for reaction in reactions:
+                await message.add_reaction(reaction)
+            setCache(
+                False, f"DailyMessageSentInChannel:{channel.id}:{current_date}", True, ALWAYS_TTL)
+        else:
+            print(f"Daily message already sent in guild {guild.name}")
 
 
 def check_bot_permissions(channel: discord.TextChannel) -> dict:
@@ -253,65 +313,49 @@ async def on_raw_reaction_remove(reaction:  discord.RawReactionActionEvent):
     await bot.reaction_queue.put((reaction, True))
 
 
+async def getCache(inMemory: bool, key: str, fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None):
+    if inMemory:
+        cache = memoryCache
+    else:
+        cache = dataCache
+    value = cache.get(key)
+    if not value:
+        if fetch_function:
+            # Check if the fetch function is asynchronous
+            result = fetch_function()
+            if inspect.isawaitable(result):
+                value = await result
+            else:
+                value = result
+            if value:
+                cache.set(key, value)
+            else:
+                print(f"Value {key} not found by api")
+    else:
+        print(f"Value {key} found in cache")
+    return value
+
+
+def setCache(inMemory: bool, key: str, value: any, cache_seconds: Optional[int] = None):
+    if inMemory:
+        memoryCache.set(key, value, cache_seconds)
+    else:
+        dataCache.set(key, value, cache_seconds)
+        save_to_file(dataCache.cache, CACHE_FILE)
+
+
 async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool):
     print("Start Adjusting reaction")
-    channel = cache.get(f"Channel:{reaction.channel_id}")
-    if not channel:
-        channel = await bot.fetch_channel(reaction.channel_id)
-        if channel:
-            print(f"Channel {reaction.channel_id} found and setting in cache")
-            cache.set(f"Channel:{reaction.channel_id}", channel, ttl=30*60)
-        else:
-            print(f"Channel {reaction.channel_id} not found by api")
-    else:
-        print(f"Channel {reaction.channel_id} found in cache")
-    if not channel:
-        print(f"Channel {reaction.channel_id} not found")
-        return
-
-    message = cache.get(f"Message:{reaction.message_id}")
-    if not message:
-        message = await channel.fetch_message(reaction.message_id)
-        if message:
-            print(f"Message {reaction.message_id} found and setting in cache")
-            cache.set(f"Message:{reaction.message_id}", message,  ttl=10)
-        else:
-            print(f"Message {reaction.message_id} not found by api")
-    else:
-        print(f"Message {reaction.message_id} found in cache")
-
-    user = cache.get(f"User:{reaction.user_id}")
-    if not user:
-        user = await bot.fetch_user(reaction.user_id)
-        if user:
-            print(f"User {reaction.user_id} found and setting in cache")
-            cache.set(f"User:{reaction.user_id}", user, ttl=10*60)
-        else:
-            print(f"User {reaction.user_id} not found by api")
-    else:
-        print(f"User {reaction.user_id} found in cache")
-
-    guild = cache.get(f"Guild:{reaction.guild_id}")
-    if not guild:
-        guild = bot.get_guild(reaction.guild_id)
-        if guild:
-            print(f"Guild {reaction.guild_id} found and setting in cache")
-            cache.set(f"Guild:{reaction.guild_id}", user, ttl=10*60)
-        else:
-            print(f"Guild {reaction.guild_id} not found by api")
-    else:
-        print(f"Guild {reaction.guild_id} found in cache")
-
-    member = cache.get(f"Member:{user.id}")
-    if not member:
-        member = await guild.fetch_member(user.id)
-        if member:
-            print(f"Member {user.id} found and setting in cache")
-            cache.set(f"Member:{user.id}", user, ttl=10*60)
-        else:
-            print(f"Member {user.id} not found by api")
-    else:
-        print(f"Member {user.id} found in cache")
+    channel = await getCache(
+        True, f"Channel:{reaction.channel_id}", lambda: bot.fetch_channel(reaction.channel_id))
+    message: discord.Message = await getCache(True, f"Message:{reaction.message_id}",
+                                              lambda: channel.fetch_message(reaction.message_id))
+    user: discord.User = await getCache(True, f"User:{reaction.user_id}",
+                                        lambda: bot.fetch_user(reaction.user_id))
+    guild = await getCache(True, f"Guild:{reaction.guild_id}",
+                           lambda: bot.get_guild(reaction.guild_id))
+    member = await getCache(True, f"Member:{reaction.guild_id}",
+                            lambda: guild.fetch_member(user.id))
 
     if not channel or not message or not user or not guild or not member:
         print("End-Before Adjusting reaction")
@@ -320,9 +364,13 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
     if user.bot:
         return  # Ignore reactions from bots
 
+    # Check if the message is older than 24 hours
+    if message.created_at < datetime.now(timezone.utc) - timedelta(days=1):
+        await user.send("You can't vote on a message that is older than 24 hours.")
+
     # Cache all users for this message's reactions to avoid redundant API calls
     reaction_users_cache_key = f"ReactionUsers:{message.id}"
-    message_votes = cache.get(reaction_users_cache_key)
+    message_votes = await getCache(False, reaction_users_cache_key)
     if not message_votes:
         message_votes = get_empty_votes()
         # Iterate over each reaction in the message only if it's not cached
@@ -334,7 +382,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                     message_votes[time_voted].append(
                         SimpleUser(user.id, user.display_name, getUserRankEmoji(member)))
         print(f"Setting reaction users for message {message.id} in cache")
-        cache.set(reaction_users_cache_key, message_votes, ttl=10*60)
+        setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
     else:
         print(f"Using cached reaction users for message {message.id}")
         time_voted = emoji_to_time.get(str(reaction.emoji))
@@ -354,12 +402,16 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
             # Add the user to the message votes
             time_voted = emoji_to_time.get(str(reaction.emoji))
             if time_voted:
-                message_votes[time_voted].append(
-                    SimpleUser(user.id, user.display_name, getUserRankEmoji(member)))
-                print(
-                    f"Updating reaction users for message {message.id} in cache")
+                if any(user.id == u.user_id for u in message_votes[time_voted]):
+                    print(
+                        f"User {user.id} already voted for {time_voted} in message {message.id}")
+                else:
+                    message_votes[time_voted].append(
+                        SimpleUser(user.id, user.display_name, getUserRankEmoji(member)))
+                    print(
+                        f"Updating reaction users for message {message.id} in cache")
         # Always update the cache
-        cache.set(reaction_users_cache_key, message_votes, ttl=10*60)
+        setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
 
     print("End Adjusting reaction")
     # await rate_limiter(update_vote_message, message, message_votes)
@@ -388,18 +440,18 @@ async def update_vote_message(message: discord.Message, vote_for_message: Dict[s
     app_commands.Choice(name='1 am', value=1),
     app_commands.Choice(name='2 am', value=2),
     app_commands.Choice(name='3 am', value=3),
-    app_commands.Choice(name='4 am', value=4),
-    app_commands.Choice(name='5 am', value=5),
-    app_commands.Choice(name='6 am', value=6),
-    app_commands.Choice(name='7 am', value=7),
-    app_commands.Choice(name='8 am', value=8),
-    app_commands.Choice(name='9 am', value=9),
-    app_commands.Choice(name='10 am', value=10),
-    app_commands.Choice(name='11 am', value=11),
-    app_commands.Choice(name='12 pm', value=12),
-    app_commands.Choice(name='1 pm', value=13),
-    app_commands.Choice(name='2 pm', value=14),
-    app_commands.Choice(name='3 pm', value=15),
+    # app_commands.Choice(name='4 am', value=4),
+    # app_commands.Choice(name='5 am', value=5),
+    # app_commands.Choice(name='6 am', value=6),
+    # app_commands.Choice(name='7 am', value=7),
+    # app_commands.Choice(name='8 am', value=8),
+    # app_commands.Choice(name='9 am', value=9),
+    # app_commands.Choice(name='10 am', value=10),
+    # app_commands.Choice(name='11 am', value=11),
+    # app_commands.Choice(name='12 pm', value=12),
+    # app_commands.Choice(name='1 pm', value=13),
+    # app_commands.Choice(name='2 pm', value=14),
+    # app_commands.Choice(name='3 pm', value=15),
     app_commands.Choice(name='4 pm', value=16),
     app_commands.Choice(name='5 pm', value=17),
     app_commands.Choice(name='6 pm', value=18),
@@ -420,6 +472,14 @@ async def setSchedule(interaction: discord.Interaction, day: DayOfWeek, hourday:
 @app_commands.describe(day="The day of the week")
 async def removeSchedule(interaction: discord.Interaction, day: DayOfWeek):
     await interaction.response.send_message(f"Remove for {repr(day)}")
+
+
+@bot.tree.command(name="setschedulerchannel")
+@commands.has_permissions(administrator=True)
+async def setDailyChannel(interaction: discord.Interaction, channel: discord.TextChannel):
+    guild_id = interaction.guild.id
+    setCache(False, f"Guild_Channel:{guild_id}", channel.id, ALWAYS_TTL)
+    await interaction.response.send_message(f"Confirmed to send a daily message into #{channel.name}.")
 
 
 def getUserRankEmoji(user: discord.Member) -> str:
@@ -447,3 +507,12 @@ def getUserRankEmoji(user: discord.Member) -> str:
 
 
 bot.run(TOKEN)
+
+
+def on_exit():
+    print("Script is exiting, saving the object...")
+    save_to_file(dataCache.cache, CACHE_FILE)
+
+
+# Register the on_exit function to be called when the script exits
+atexit.register(on_exit)
