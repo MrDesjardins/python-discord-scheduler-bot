@@ -16,8 +16,8 @@ In your application, navigate to the "Bot" tab.
 
 ## Invite the Bot to Your Server:
 
-Navigate to the "OAuth2" tab and then "URL Generator".
-Under "Scopes", select:
+Navigate to the `OAuth2` tab and then `URL Generator`.
+Under `Scopes` select:
 
 1. `bot`
 2. `applications.commands`
@@ -36,6 +36,18 @@ Copy the generated URL and open it in your browser to invite the bot to your des
 https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=76864&integration_type=0&scope=bot
 ```
 
+## Selecting a Channel
+
+The bot needs to send daily messages to a specific channel. To configure, an administrator must call `/channel`.
+
+## Setting a Schedule
+
+User can react to a message every day or can use the `/addschedule` command to set a schedule. The command allows selecting day of the weeks and many hours.
+
+## Removing a Schedule
+
+Once a user set a schedule, they can remove it using the `/removeschedule` command or calling the `/addschedule` which will override the previous schedule.
+
 # Developer
 
 ## .Env file
@@ -45,7 +57,6 @@ environment variable for your private deployment.
 
 ```
 BOT_TOKEN=<bot token>
-CHANNEL_ID=<channel id>
 ```
 
 ## Running the bot in Dev:

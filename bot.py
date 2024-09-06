@@ -11,17 +11,18 @@ from datetime import datetime, timedelta, date, timezone
 from deps.siege import getUserRankEmoji
 from deps.cache import getCache, setCache, ALWAYS_TTL
 from deps.models import SimpleUser, SimpleUserHour, get_empty_votes, emoji_to_time, days_of_week, DayOfWeek
-
+import pytz
 load_dotenv()
 
 TOKEN = os.getenv('BOT_TOKEN')
 
-COMMAND_SCHEDULE_SET = "setautoschedule"
-COMMAND_SCHEDULE_REMOVE = "removeautoschedule"
+COMMAND_SCHEDULE_SET = "addschedule"
+COMMAND_SCHEDULE_REMOVE = "removeschedule"
+COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
 
 intents = discord.Intents.default()
 intents.messages = True  # Enable the messages intent
-# intents.members = True  # Enable the messages intent
+intents.members = True  # Enable the messages intent
 intents.reactions = True  # Enable the reactions intent
 intents.message_content = True  # Enable the message content intent
 intents.guild_reactions = True  # Enable the guild reactions intent
@@ -29,7 +30,6 @@ intents.guild_reactions = True  # Enable the guild reactions intent
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 print(f"Token: {TOKEN}")
-
 
 class RateLimiter:
     def __init__(self, interval_seconds):
@@ -61,16 +61,6 @@ reactions = ['4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣',
 
 # Scheduler to send daily message
 scheduler = AsyncIOScheduler()
-
-
-# previous_cache_content = load_from_file(CACHE_FILE)
-# if previous_cache_content is None:
-#     print("No cache data found")
-# else:
-#     cache.cache = previous_cache_content
-#     print("Cache loaded from file")
-
-
 rate_limiter = RateLimiter(interval_seconds=2)
 
 
@@ -92,7 +82,7 @@ async def on_ready():
     for guild in bot.guilds:
         print(f"Checking in guild: {guild.name} ({guild.id})")
         print(
-            f"\tGuild {guild.name} has {guild.approximate_member_count} members, setting the commands")
+            f"\tGuild {guild.name} has {guild.member_count} members, setting the commands")
         guildObj = discord.Object(id=guild.id)
         bot.tree.copy_global_to(guild=guildObj)
         await bot.tree.sync(guild=guildObj)
@@ -111,12 +101,12 @@ async def on_ready():
         else:
             print(f"\tChannel ID {channelId} not found in guild {guild.name}")
 
-        # DEbug
-        list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{guild.id}:0")
+        # Debug
+        list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{guild.id}:{datetime.now().weekday()}")
         if list_users:
             for userHour in list_users:
                 print(
-                    f"User {userHour.simpleUser.user_id} will play at {userHour.hour}")
+                    f"User {userHour.simpleUser.display_name} will play at {userHour.hour}")
 
     # Waiting the commands
     print("Waiting for commands to load")
@@ -128,10 +118,11 @@ async def on_ready():
     bot.reaction_queue = asyncio.Queue()
     bot.loop.create_task(reaction_worker())
     # Schedule the daily question to be sent every day
-    # pacific = pytz.timezone('America/Los_Angeles')
-    # scheduler.add_job(send_daily_question, 'cron', hour=15, minute=0, timezone=pacific)
-    # scheduler.start()
-    await send_daily_question()  # Test
+    pacific = pytz.timezone('America/Los_Angeles')
+    scheduler.add_job(send_daily_question, 'cron', hour=10, minute=0, timezone=pacific)
+    scheduler.start()
+    # Run it for today (won't duplicate)
+    await send_daily_question() 
 
 
 async def send_daily_question():
@@ -392,7 +383,7 @@ async def removeSchedule(interaction: discord.Interaction, day: DayOfWeek):
     await interaction.response.send_message(f"Remove for {repr(day)}")
 
 
-@bot.tree.command(name="setschedulerchannel")
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SELECTION)
 @commands.has_permissions(administrator=True)
 async def setDailyChannel(interaction: discord.Interaction, channel: discord.TextChannel):
     guild_id = interaction.guild.id
@@ -413,9 +404,6 @@ async def auto_assign_user_to_daily_question(guild_id: int, message_id: int, day
         message_votes[userHour.hour].append(userHour.simpleUser)
 
     setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
-
-
-
 
 
 bot.run(TOKEN)
