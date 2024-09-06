@@ -1,5 +1,6 @@
 import discord
 from discord import app_commands
+from discord.ui import Select, View
 import os
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
@@ -161,7 +162,7 @@ class SimpleUser:
 
 class SimpleUserHour:
     def __init__(self, user: SimpleUser, hour):
-        self.simpleUser = SimpleUser
+        self.simpleUser = user
         self.hour = hour
 
 
@@ -238,7 +239,7 @@ async def on_ready():
     for guild in bot.guilds:
         print(f"Checking in guild: {guild.name} ({guild.id})")
         print(
-            f"\tGuild {guild.name} has {len(guild.members)} members, setting the commands")
+            f"\tGuild {guild.name} has {guild.approximate_member_count} members, setting the commands")
         guildObj = discord.Object(id=guild.id)
         bot.tree.copy_global_to(guild=guildObj)
         await bot.tree.sync(guild=guildObj)
@@ -256,6 +257,13 @@ async def on_ready():
                 f"\tBot permissions in channel {channel.name}: {permissions}")
         else:
             print(f"\tChannel ID {channelId} not found in guild {guild.name}")
+
+        # DEbug
+        list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{guild.id}:0")
+        if list_users:
+            for userHour in list_users:
+                print(
+                    f"User {userHour.simpleUser.user_id} will play at {userHour.hour}")
 
     # Waiting the commands
     print("Waiting for commands to load")
@@ -379,7 +387,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         return  # Ignore reactions from bots
 
     # Check if the message is older than 24 hours
-    #if message.created_at < datetime.now(timezone.utc) - timedelta(days=1):
+    # if message.created_at < datetime.now(timezone.utc) - timedelta(days=1):
     if not is_today(message.created_at):
         await user.send("You can't vote on a message that is older than 24 hours.")
 
@@ -450,46 +458,110 @@ async def update_vote_message(message: discord.Message, vote_for_message: Dict[s
     await message.edit(content=vote_message)
 
 
-@bot.tree.command(name="setautoschedule")
-@app_commands.choices(hourday=[
-    app_commands.Choice(name='1 am', value=1),
-    app_commands.Choice(name='2 am', value=2),
-    app_commands.Choice(name='3 am', value=3),
-    # app_commands.Choice(name='4 am', value=4),
-    # app_commands.Choice(name='5 am', value=5),
-    # app_commands.Choice(name='6 am', value=6),
-    # app_commands.Choice(name='7 am', value=7),
-    # app_commands.Choice(name='8 am', value=8),
-    # app_commands.Choice(name='9 am', value=9),
-    # app_commands.Choice(name='10 am', value=10),
-    # app_commands.Choice(name='11 am', value=11),
-    # app_commands.Choice(name='12 pm', value=12),
-    # app_commands.Choice(name='1 pm', value=13),
-    # app_commands.Choice(name='2 pm', value=14),
-    # app_commands.Choice(name='3 pm', value=15),
-    app_commands.Choice(name='4 pm', value=16),
-    app_commands.Choice(name='5 pm', value=17),
-    app_commands.Choice(name='6 pm', value=18),
-    app_commands.Choice(name='7 pm', value=19),
-    app_commands.Choice(name='8 pm', value=20),
-    app_commands.Choice(name='9 pm', value=21),
-    app_commands.Choice(name='10 pm', value=22),
-    app_commands.Choice(name='11 pm', value=23),
-    app_commands.Choice(name='12 am', value=24)
-])
-@app_commands.describe(day="The day of the week")
-@app_commands.describe(hourday="The time of the day")
-async def setSchedule(interaction: discord.Interaction, day: DayOfWeek, hourday: app_commands.Choice[int]):
-    simpleUser = SimpleUser(
-        interaction.user.id, interaction.user.display_name, getUserRankEmoji(interaction.user))
+class CombinedView(View):
+    def __init__(self):
+        super().__init__()
 
-    list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}")
-    if list_users is None:
-        list_users = []
-    list_users.append(SimpleUserHour(simpleUser, hourday.value))
-    setCache(
-        False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}", list_users, ALWAYS_TTL)
-    await interaction.response.send_message(f"Set for {hourday.name} and {days_of_week[day.value]}")
+        # First question select menu
+        self.first_select = Select(
+            placeholder="Days of the weeks:",
+            options=[
+                discord.SelectOption(
+                    value="0", label=days_of_week[0]),
+                discord.SelectOption(
+                    value="1", label=days_of_week[1]),
+                discord.SelectOption(
+                    value="2", label=days_of_week[2]),
+                discord.SelectOption(
+                    value="3", label=days_of_week[3]),
+                discord.SelectOption(
+                    value="4", label=days_of_week[4]),
+                discord.SelectOption(
+                    value="5", label=days_of_week[5]),
+                discord.SelectOption(
+                    value="6", label=days_of_week[6]),
+            ],
+            custom_id="in_days",
+            min_values=1, max_values=7
+        )
+        self.add_item(self.first_select)
+
+        self.second_select = Select(
+            placeholder="Time of the Day:",
+            options=[
+                discord.SelectOption(
+                    value="4", label="4 pm", description="4 am Eastern Time"),
+                discord.SelectOption(
+                    value="5", label="5 pm", description="5 am Eastern Time"),
+                discord.SelectOption(
+                    value="6", label="6 pm", description="6 am Eastern Time"),
+                discord.SelectOption(
+                    value="7", label="7 pm", description="7 am Eastern Time"),
+                discord.SelectOption(
+                    value="8", label="8 pm", description="8 am Eastern Time"),
+                discord.SelectOption(
+                    value="9", label="9 pm", description="9 am Eastern Time"),
+                discord.SelectOption(
+                    value="10", label="10 pm", description="10 am Eastern Time"),
+                discord.SelectOption(
+                    value="11", label="11 pm", description="11 am Eastern Time"),
+                discord.SelectOption(
+                    value="12", label="12 am", description="12 am Eastern Time"),
+                discord.SelectOption(
+                    value="1", label="1 am", description="1 am Eastern Time"),
+                discord.SelectOption(
+                    value="2", label="2 am", description="2 am Eastern Time"),
+                discord.SelectOption(
+                    value="3", label="3 am", description="3 am Eastern Time")
+            ],
+            custom_id="in_hours",
+            min_values=1, max_values=12
+        )
+        self.add_item(self.second_select)
+        # Track if both selects have been answered
+        self.first_response = None
+        self.second_response = None
+
+    # This function handles the callback when any select is interacted with
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Capture the response for the fruit question
+        if interaction.data["custom_id"] == "in_days":
+            self.first_response = self.first_select.values
+            await interaction.response.send_message(f"Days Saved", ephemeral=True)
+
+        # Capture the response for the color question
+        elif interaction.data["custom_id"] == "in_hours":
+            self.second_response = self.second_select.values
+            await interaction.response.send_message(f"Hours Saved", ephemeral=True)
+
+        # If both responses are present, finalize the interaction
+        if self.first_response and self.second_response:
+            # Save user responses
+            simpleUser = SimpleUser(
+                interaction.user.id, interaction.user.display_name, getUserRankEmoji(interaction.user))
+
+            for day in self.first_response:
+                list_users = []
+                for hour in self.second_response:
+                    list_users.append(SimpleUserHour(simpleUser, hour))
+                setCache(
+                    False, f"GuildUserAutoDay:{interaction.guild_id}:{day}", list_users, ALWAYS_TTL)
+
+            # Send final confirmation message with the saved data
+            await interaction.followup.send(
+                f"Your schedule has been saved.",
+                ephemeral=True
+            )
+            return True
+
+        return False
+
+
+@bot.tree.command(name="setautoschedule")
+async def setSchedule(interaction: discord.Interaction):
+    view = CombinedView()
+
+    await interaction.response.send_message(f"Choose your day and hour", view=view, ephemeral=True)
 
 
 @bot.tree.command(name="removeautoschedule")
@@ -542,7 +614,7 @@ async def auto_assign_user_to_daily_question(guild_id: int, message_id: int, day
     list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{guild_id}:{day_of_week_number}")
     reaction_users_cache_key = f"ReactionUsers:{message_id}"
 
-    message_votes = get_empty_votes() # Start with nothing for the day
+    message_votes = get_empty_votes()  # Start with nothing for the day
 
     # Loop for the user+hours
     for userHour in list_users:
@@ -551,12 +623,14 @@ async def auto_assign_user_to_daily_question(guild_id: int, message_id: int, day
 
     setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
 
+
 def is_today(date_time):
     # Get today's date
-    today_utc =  datetime.now(timezone.utc).date()
+    today_utc = datetime.now(timezone.utc).date()
     date_time_utc = date_time.date()
-    
+
     return date_time_utc == today_utc
+
 
 bot.run(TOKEN)
 
