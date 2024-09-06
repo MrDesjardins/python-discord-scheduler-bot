@@ -5,31 +5,19 @@ import os
 from dotenv import load_dotenv
 from discord.ext import commands, tasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from discord.ext.commands import Bot
-import pytz
-from typing import List, Dict, Callable, Awaitable, Union, Optional
-from types import MappingProxyType
-from copy import deepcopy
+from typing import List, Dict, Union
 import asyncio
 from datetime import datetime, timedelta, date, timezone
-import time
-from enum import Enum
-import atexit
-import dill as pickle
-import inspect
-load_dotenv()
-ALWAYS_TTL = 60*60*24*365*10
-TOKEN = os.getenv('BOT_TOKEN')
-CACHE_FILE = "cache.txt"
+from deps.siege import getUserRankEmoji
+from deps.cache import getCache, setCache, ALWAYS_TTL
+from deps.models import SimpleUser, SimpleUserHour, get_empty_votes, emoji_to_time, days_of_week, DayOfWeek
 
-EMOJI_CHAMPION = "<:Champion:1279550703311917208>"
-EMOJI_DIAMOND = "<:Diamond:1279550706373623883> "
-EMOJI_EMERALD = "<:Emerald:1279550712233197619> "
-EMOJI_PLATINUM = "<:Platinum:1279550709616087052>"
-EMOJI_GOLD = "<:Gold:1279550707971915776> "
-EMOJI_SILVER = "<:Silver:1279550710941483038"
-EMOJI_BRONZE = "<:Bronze:1279550704427597826> "
-EMOJI_COPPER = "<:Copper:1279550705551802399> "
+load_dotenv()
+
+TOKEN = os.getenv('BOT_TOKEN')
+
+COMMAND_SCHEDULE_SET = "setautoschedule"
+COMMAND_SCHEDULE_REMOVE = "removeautoschedule"
 
 intents = discord.Intents.default()
 intents.messages = True  # Enable the messages intent
@@ -41,89 +29,6 @@ intents.guild_reactions = True  # Enable the guild reactions intent
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 print(f"Token: {TOKEN}")
-
-
-def save_to_file(obj, filename):
-    with open(filename, 'wb') as file:
-        pickle.dump(obj, file)
-
-
-def load_from_file(filename):
-    try:
-        with open(filename, 'rb') as file:
-            return pickle.load(file)
-    except FileNotFoundError:
-        return None
-
-
-class DayOfWeek(Enum):
-    monday = 0
-    tuesday = 1
-    wednesday = 2
-    thursday = 3
-    friday = 4
-    saturday = 5
-    sunday = 6
-
-
-days_of_week = ['Monday', 'Tuesday', 'Wednesday',
-                'Thursday', 'Friday', 'Saturday', 'Sunday']
-
-
-class CacheItem:
-    def __init__(self, value, ttl):
-        self.value = value
-        self.expiry = time.time() + ttl
-
-
-class TTLCache:
-    def __init__(self, default_ttl=60):
-        self.cache = {}
-        self.default_ttl = default_ttl
-        self.lock = asyncio.Lock()
-
-    def _is_expired(self, key):
-        item = self.cache.get(key, None)
-        if not item:
-            return True
-        if time.time() > item.expiry:
-            del self.cache[key]
-            return True
-        return False
-
-    def set(self, key, value, ttl=None):
-        if ttl is None:
-            ttl = self.default_ttl
-        self.cache[key] = CacheItem(value, ttl)
-
-    def get(self, key):
-        if self._is_expired(key):
-            return None
-        return self.cache.get(key).value
-
-    def delete(self, key):
-        if key in self.cache:
-            del self.cache[key]
-
-    def clear(self):
-        self.cache.clear()
-
-    async def _cleanup(self):
-        while True:
-            expired_keys = []
-            for key in list(self.cache.keys()):
-                if self._is_expired(key):
-                    expired_keys.append(key)
-            for key in expired_keys:
-                del self.cache[key]
-            await asyncio.sleep(1)  # Adjust the sleep time as needed
-
-    def start_cleanup(self):
-        asyncio.create_task(self._cleanup())
-
-    def initialize(self, values):
-        if values:
-            self.cache = values
 
 
 class RateLimiter:
@@ -150,63 +55,13 @@ class RateLimiter:
         await self._call_function(func, *args, **kwargs)
 
 
-class SimpleUser:
-    def __init__(self, user_id, display_name, rank_emoji):
-        self.user_id = user_id
-        self.display_name = display_name
-        self.rank_emoji = rank_emoji
-
-    def __str__(self):
-        return f"User ID: {self.user_id}, Display Name: {self.display_name}"
-
-
-class SimpleUserHour:
-    def __init__(self, user: SimpleUser, hour):
-        self.simpleUser = user
-        self.hour = hour
-
-
-# This dictionary will store votes to an array of user
-def get_empty_votes():
-    return {
-        '4pm': [],
-        '5pm': [],
-        '6pm': [],
-        '7pm': [],
-        '8pm': [],
-        '9pm': [],
-        '10pm': [],
-        '11pm': [],
-        '12pm': [],
-        '1am': [],
-        '2am': [],
-        '3am': [],
-    }
-
-
-emoji_to_time = {
-    '4️⃣': '4pm',
-    '5️⃣': '5pm',
-    '6️⃣': '6pm',
-    '7️⃣': '7pm',
-    '8️⃣': '8pm',
-    '9️⃣': '9pm',
-    '🔟': '10pm',
-    '🕚': '11pm',
-    '🕛': '12pm',
-    '1️⃣': '1am',
-    '2️⃣': '2am',
-    '3️⃣': '3am'
-}
-
-poll_message = f"What time will you play today ?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /setautoschedule to set recurrent day and hours."
+poll_message = f"What time will you play today ?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_SET} to set recurrent day and hours."
 reactions = ['4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣',
              '9️⃣', '🔟', '🕚', '🕛', '1️⃣', '2️⃣', '3️⃣']
 
 # Scheduler to send daily message
 scheduler = AsyncIOScheduler()
-memoryCache = TTLCache(default_ttl=60)  # Cache with 60 seconds TTL
-dataCache = TTLCache(default_ttl=60)  # Cache with 60 seconds TTL
+
 
 # previous_cache_content = load_from_file(CACHE_FILE)
 # if previous_cache_content is None:
@@ -228,8 +83,6 @@ async def reaction_worker():
             print(f"Error processing reaction: {e}")
         finally:
             bot.reaction_queue.task_done()
-
-dataCache.initialize(load_from_file(CACHE_FILE))
 
 
 @bot.event
@@ -320,50 +173,15 @@ def check_bot_permissions(channel: discord.TextChannel) -> dict:
 
     return permissions
 
-# Handle reactions
-
 
 @bot.event
 async def on_raw_reaction_add(reaction: discord.RawReactionActionEvent):
     await bot.reaction_queue.put((reaction, False))
 
-# Handle removing reactions
-
 
 @bot.event
 async def on_raw_reaction_remove(reaction:  discord.RawReactionActionEvent):
     await bot.reaction_queue.put((reaction, True))
-
-
-async def getCache(inMemory: bool, key: str, fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None):
-    if inMemory:
-        cache = memoryCache
-    else:
-        cache = dataCache
-    value = cache.get(key)
-    if not value:
-        if fetch_function:
-            # Check if the fetch function is asynchronous
-            result = fetch_function()
-            if inspect.isawaitable(result):
-                value = await result
-            else:
-                value = result
-            if value:
-                cache.set(key, value)
-            else:
-                print(f"Value {key} not found by api")
-    else:
-        print(f"Value {key} found in cache")
-    return value
-
-
-def setCache(inMemory: bool, key: str, value: any, cache_seconds: Optional[int] = None):
-    if inMemory:
-        memoryCache.set(key, value, cache_seconds)
-    else:
-        dataCache.set(key, value, cache_seconds)
-        save_to_file(dataCache.cache, CACHE_FILE)
 
 
 async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool):
@@ -387,9 +205,9 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         return  # Ignore reactions from bots
 
     # Check if the message is older than 24 hours
-    # if message.created_at < datetime.now(timezone.utc) - timedelta(days=1):
-    if not is_today(message.created_at):
+    if message.created_at < datetime.now(timezone.utc) - timedelta(days=1):
         await user.send("You can't vote on a message that is older than 24 hours.")
+        return
 
     # Cache all users for this message's reactions to avoid redundant API calls
     reaction_users_cache_key = f"ReactionUsers:{message.id}"
@@ -444,9 +262,6 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
 
 
 async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
-    # channel: discord.TextChannel = bot.get_channel(1279593593639665707)
-    # message: discord.Message = await channel.fetch_message(message.id)
-
     vote_message = poll_message + "\n\nSchedule for " + \
         date.today().strftime("%B %d, %Y") + "\n"
     for time, users in vote_for_message.items():
@@ -557,14 +372,14 @@ class CombinedView(View):
         return False
 
 
-@bot.tree.command(name="setautoschedule")
+@bot.tree.command(name=COMMAND_SCHEDULE_SET)
 async def setSchedule(interaction: discord.Interaction):
     view = CombinedView()
 
     await interaction.response.send_message(f"Choose your day and hour", view=view, ephemeral=True)
 
 
-@bot.tree.command(name="removeautoschedule")
+@bot.tree.command(name=COMMAND_SCHEDULE_REMOVE)
 @app_commands.describe(day="The day of the week")
 async def removeSchedule(interaction: discord.Interaction, day: DayOfWeek):
     list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}")
@@ -585,30 +400,6 @@ async def setDailyChannel(interaction: discord.Interaction, channel: discord.Tex
     await interaction.response.send_message(f"Confirmed to send a daily message into #{channel.name}.")
 
 
-def getUserRankEmoji(user: discord.Member) -> str:
-    # Check the user's roles to determine their rank
-    for role in user.roles:
-        print(f"Checking role {role.name}")
-        if role.name == "Champion":
-            return EMOJI_CHAMPION
-        elif role.name == "Diamond":
-            return EMOJI_DIAMOND
-        elif role.name == "Emerald":
-            return EMOJI_EMERALD
-        elif role.name == "Platinum":
-            return EMOJI_PLATINUM
-        elif role.name == "Gold":
-            return EMOJI_GOLD
-        elif role.name == "Silver":
-            return EMOJI_SILVER
-        elif role.name == "Bronze":
-            return EMOJI_BRONZE
-        elif role.name == "Copper":
-            return EMOJI_COPPER
-    print("No rank found")
-    return EMOJI_COPPER
-
-
 async def auto_assign_user_to_daily_question(guild_id: int, message_id: int, day_of_week_number: int):
     # Get the list of user and their hour for the specific day of the week
     list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{guild_id}:{day_of_week_number}")
@@ -624,21 +415,7 @@ async def auto_assign_user_to_daily_question(guild_id: int, message_id: int, day
     setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
 
 
-def is_today(date_time):
-    # Get today's date
-    today_utc = datetime.now(timezone.utc).date()
-    date_time_utc = date_time.date()
 
-    return date_time_utc == today_utc
 
 
 bot.run(TOKEN)
-
-
-def on_exit():
-    print("Script is exiting, saving the object...")
-    save_to_file(dataCache.cache, CACHE_FILE)
-
-
-# Register the on_exit function to be called when the script exits
-atexit.register(on_exit)
