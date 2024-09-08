@@ -1,20 +1,41 @@
-# Discord
+# Bot Commands
 
-## Set Up a Discord Bot Account
+## Selecting a Channel
+
+The bot needs to send daily messages to a specific channel. To configure, an administrator must call `/channel`.
+
+## Setting a Schedule
+
+User can react to a message every day or can use the `/addschedule` command to set a schedule. The command allows selecting day of the weeks and many hours. If the user executes the command multiple times, the previous schedule will be overridden.
+
+## Removing a Schedule
+
+Once a user set a schedule, they can remove it using the `/removeschedule` command or calling the `/addschedule` which will override the previous schedule.
+
+## See a Schedule
+
+`seeschedule` command will show the current schedule of the user.
+
+# Discord Administration
+
+## Discord Configuration
+
+### Set Up a Discord Bot Account
 
 Create a Discord Application:
 
 1. https://discord.com/developers/applications
 2. Click on "New Application" and give it a name.
+3. Currently, this application has two applications: `GameTimeScheduler` and `GameTimeScheduler_Dev`. The first one is for production and the second one is for development.
 
-## Create a Bot:
+### Create a Bot:
 
 In your application, navigate to the "Bot" tab.
 
 1. Click "Add Bot" and confirm.
 2. Under "TOKEN", click "Copy" to get your bot's token. Keep this token secure!
 
-## Invite the Bot to Your Server:
+### Invite the Bot to Your Server:
 
 Navigate to the `OAuth2` tab and then `URL Generator`.
 Under `Scopes` select:
@@ -33,22 +54,13 @@ Under "Bot Permissions", select the necessary permissions:
 Copy the generated URL and open it in your browser to invite the bot to your desired server.
 
 ```sh
+# Production Bot
 https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=76864&integration_type=0&scope=bot
+
+# Dev Bot
+https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=76864&integration_type=0&scope=bot
 ```
-
-## Selecting a Channel
-
-The bot needs to send daily messages to a specific channel. To configure, an administrator must call `/channel`.
-
-## Setting a Schedule
-
-User can react to a message every day or can use the `/addschedule` command to set a schedule. The command allows selecting day of the weeks and many hours.
-
-## Removing a Schedule
-
-Once a user set a schedule, they can remove it using the `/removeschedule` command or calling the `/addschedule` which will override the previous schedule.
-
-# Developer
+# Local Development Configuration
 
 ## .Env file
 
@@ -56,7 +68,9 @@ The .env file should contain the following in development. These values should b
 environment variable for your private deployment.
 
 ```
+ENV=dev # or prod
 BOT_TOKEN=<bot token>
+BOT_TOKEN_DEV=<bot token>
 ```
 
 ## Running the bot in Dev:
@@ -68,7 +82,7 @@ source .venv/bin/activate
 python3 bot.py
 ```
 
-## Environment and Dependencies
+## Python Environment and Dependencies
 
 Here are few commands to set up the environment and dependencies.
 

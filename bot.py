@@ -10,14 +10,17 @@ import asyncio
 from datetime import datetime, timedelta, date, timezone
 from deps.siege import getUserRankEmoji
 from deps.cache import getCache, setCache, ALWAYS_TTL
-from deps.models import SimpleUser, SimpleUserHour, get_empty_votes, emoji_to_time, days_of_week, DayOfWeek
+from deps.models import SimpleUser, SimpleUserHour, get_empty_votes, emoji_to_time, days_of_week, DayOfWeek, supported_times
 import pytz
+from deps.ratelimiter import RateLimiter
 load_dotenv()
 
-TOKEN = os.getenv('BOT_TOKEN')
+ENV = os.getenv('ENV')
+TOKEN = os.getenv('BOT_TOKEN_DEV') if ENV == 'dev' else os.getenv('BOT_TOKEN')
 
 COMMAND_SCHEDULE_SET = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
+COMMAND_SCHEDULE_SEE = "seeschedule"
 COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
 
 intents = discord.Intents.default()
@@ -30,29 +33,6 @@ intents.guild_reactions = True  # Enable the guild reactions intent
 bot = commands.Bot(command_prefix='/', intents=intents)
 
 print(f"Token: {TOKEN}")
-
-class RateLimiter:
-    def __init__(self, interval_seconds):
-        self.interval_seconds = interval_seconds
-        self.last_called = datetime.min
-        self.lock = asyncio.Lock()
-
-    async def _call_function(self, func, *args, **kwargs):
-        async with self.lock:
-            now = datetime.now()
-            if now - self.last_called < timedelta(seconds=self.interval_seconds):
-                print(f'Skipping function {func.__name__} at {now}')
-                return  # Skip execution if within the interval
-            self.last_called = now
-            # Ensure func is awaited correctly
-            print(f'Calling function {func.__name__} at {now}')
-            # if asyncio.iscoroutinefunction(func):
-            await func(*args, **kwargs)
-            # else:
-            #     func(*args, **kwargs)
-
-    async def __call__(self, func, *args, **kwargs):
-        await self._call_function(func, *args, **kwargs)
 
 
 poll_message = f"What time will you play today ?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_SET} to set recurrent day and hours."
@@ -85,8 +65,8 @@ async def on_ready():
             f"\tGuild {guild.name} has {guild.member_count} members, setting the commands")
         guildObj = discord.Object(id=guild.id)
         bot.tree.copy_global_to(guild=guildObj)
-        await bot.tree.sync(guild=guildObj)
-        print("\tChecking if the guild has a channel set")
+        synced = await bot.tree.sync(guild=guildObj)
+        print(f"Synced {len(synced)} commands for guild {guild.name}.")
         channelId = await getCache(False, f"Guild_Channel:{guild.id}")
         if channelId is None:
             print(f"\tChannel ID not found for guild {guild.name}")
@@ -109,20 +89,20 @@ async def on_ready():
                     f"User {userHour.simpleUser.display_name} will play at {userHour.hour}")
 
     # Waiting the commands
-    print("Waiting for commands to load")
-    synced = await bot.tree.sync()
-
-    print(f"Synced {len(synced)} commands.")
+    # print("Waiting for commands to load")
+    # synced = await bot.tree.sync()
+    # print(f"Synced {len(synced)} commands.")
 
     # Start the reaction worker
     bot.reaction_queue = asyncio.Queue()
     bot.loop.create_task(reaction_worker())
     # Schedule the daily question to be sent every day
     pacific = pytz.timezone('America/Los_Angeles')
-    scheduler.add_job(send_daily_question, 'cron', hour=10, minute=0, timezone=pacific)
+    scheduler.add_job(send_daily_question, 'cron',
+                      hour=10, minute=0, timezone=pacific)
     scheduler.start()
     # Run it for today (won't duplicate)
-    await send_daily_question() 
+    await send_daily_question()
 
 
 async def send_daily_question():
@@ -144,7 +124,7 @@ async def send_daily_question():
             message: discord.Message = await channel.send(poll_message)
             for reaction in reactions:
                 await message.add_reaction(reaction)
-            auto_assign_user_to_daily_question(
+            await auto_assign_user_to_daily_question(
                 guild.id, message.id, day_of_week_number)
             setCache(
                 False, f"DailyMessageSentInChannel:{channelId}:{current_date}", True, ALWAYS_TTL)
@@ -294,32 +274,9 @@ class CombinedView(View):
 
         self.second_select = Select(
             placeholder="Time of the Day:",
-            options=[
-                discord.SelectOption(
-                    value="4", label="4 pm", description="4 am Eastern Time"),
-                discord.SelectOption(
-                    value="5", label="5 pm", description="5 am Eastern Time"),
-                discord.SelectOption(
-                    value="6", label="6 pm", description="6 am Eastern Time"),
-                discord.SelectOption(
-                    value="7", label="7 pm", description="7 am Eastern Time"),
-                discord.SelectOption(
-                    value="8", label="8 pm", description="8 am Eastern Time"),
-                discord.SelectOption(
-                    value="9", label="9 pm", description="9 am Eastern Time"),
-                discord.SelectOption(
-                    value="10", label="10 pm", description="10 am Eastern Time"),
-                discord.SelectOption(
-                    value="11", label="11 pm", description="11 am Eastern Time"),
-                discord.SelectOption(
-                    value="12", label="12 am", description="12 am Eastern Time"),
-                discord.SelectOption(
-                    value="1", label="1 am", description="1 am Eastern Time"),
-                discord.SelectOption(
-                    value="2", label="2 am", description="2 am Eastern Time"),
-                discord.SelectOption(
-                    value="3", label="3 am", description="3 am Eastern Time")
-            ],
+            options=list(map(lambda x:
+                             discord.SelectOption(
+                                 value=x.value, label=x.label, description=x.description), supported_times)),
             custom_id="in_hours",
             min_values=1, max_values=12
         )
@@ -355,7 +312,7 @@ class CombinedView(View):
 
             # Send final confirmation message with the saved data
             await interaction.followup.send(
-                f"Your schedule has been saved.",
+                f"Your schedule has been saved. You can see your schedule with /{COMMAND_SCHEDULE_SEE} or remove it with /{COMMAND_SCHEDULE_REMOVE}",
                 ephemeral=True
             )
             return True
@@ -367,7 +324,7 @@ class CombinedView(View):
 async def setSchedule(interaction: discord.Interaction):
     view = CombinedView()
 
-    await interaction.response.send_message(f"Choose your day and hour", view=view, ephemeral=True)
+    await interaction.response.send_message(f"Choose your day and hour. If you already have a schedule, this new one will override your previous one.", view=view, ephemeral=True)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_REMOVE)
@@ -381,6 +338,22 @@ async def removeSchedule(interaction: discord.Interaction, day: DayOfWeek):
     setCache(
         False, f"GuildUserAutoDay:{interaction.guild_id}:{day.value}", my_list, ALWAYS_TTL)
     await interaction.response.send_message(f"Remove for {repr(day)}")
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_SEE)
+async def seeSchedule(interaction: discord.Interaction):
+    response = ''
+    for day in range(len(days_of_week)):
+        list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{interaction.guild_id}:{day}")
+        print(list_users)
+        if list_users is not None:
+            for userHour in list_users:
+                if userHour.simpleUser.user_id == interaction.user.id:
+                    response += f"{days_of_week[day]}: {userHour.hour}\n"
+    if response == '':
+        response = "No schedule found"
+
+    await interaction.response.send_message(response)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SELECTION)
