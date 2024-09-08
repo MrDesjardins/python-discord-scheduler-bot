@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class DayOfWeek(Enum):
+    """ Represents the days of the week """
     monday = 0
     tuesday = 1
     wednesday = 2
@@ -11,68 +12,23 @@ class DayOfWeek(Enum):
     sunday = 6
 
 
-days_of_week = ['Monday', 'Tuesday', 'Wednesday',
-                'Thursday', 'Friday', 'Saturday', 'Sunday']
-
-
 class TimeLabel:
-    def __init__(self, value, label, description):
+    """ Contains the value of the supported time with label and description
+    Mainly used for the dropdown menu in the discord bot
+    """
+
+    def __init__(self, value: str, label: str, description: str):
         self.value = value
         self.label = label
         self.description = description
 
 
-supported_times = [
-    TimeLabel('4', '4 pm', "4 pm Eastern Time"),
-    TimeLabel('5', '5 pm', "5 pm Eastern Time"),
-    TimeLabel('6', '6 pm', "6 pm Eastern Time"),
-    TimeLabel('7', '7 pm', "7 pm Eastern Time"),
-    TimeLabel('8', '8 pm', "8 pm Eastern Time"),
-    TimeLabel('9', '9 pm', "9 pm Eastern Time"),
-    TimeLabel('10', '10 pm', "10 pm Eastern Time"),
-    TimeLabel('11', '11 pm', "11 pm Eastern Time"),
-    TimeLabel('12', '12 pm', "12 pm Eastern Time"),
-    TimeLabel('1', '1 am', "1 am Eastern Time"),
-    TimeLabel('2', '2 am', "2 am Eastern Time"),
-    TimeLabel('3', '3 am', "3 am Eastern Time")
-]
-
-
-def get_empty_votes():
-    return {
-        '4pm': [],
-        '5pm': [],
-        '6pm': [],
-        '7pm': [],
-        '8pm': [],
-        '9pm': [],
-        '10pm': [],
-        '11pm': [],
-        '12pm': [],
-        '1am': [],
-        '2am': [],
-        '3am': [],
-    }
-
-
-emoji_to_time = {
-    '4️⃣': '4pm',
-    '5️⃣': '5pm',
-    '6️⃣': '6pm',
-    '7️⃣': '7pm',
-    '8️⃣': '8pm',
-    '9️⃣': '9pm',
-    '🔟': '10pm',
-    '🕚': '11pm',
-    '🕛': '12pm',
-    '1️⃣': '1am',
-    '2️⃣': '2am',
-    '3️⃣': '3am'
-}
-
-
 class SimpleUser:
-    def __init__(self, user_id, display_name, rank_emoji):
+    """ Represent the value for a user of Discord without the full object that has functions performing API request 
+    The goal is avoiding the number of Disrcord API requests by caching information about the user
+    """
+
+    def __init__(self, user_id: int, display_name: str, rank_emoji: str):
         self.user_id = user_id
         self.display_name = display_name
         self.rank_emoji = rank_emoji
@@ -82,6 +38,9 @@ class SimpleUser:
 
 
 class SimpleUserHour:
-    def __init__(self, user: SimpleUser, hour):
+    """ Represent for bot's purpose, a user and the hour they voted for
+    """
+
+    def __init__(self, user: SimpleUser, hour: int):
         self.simpleUser = user
         self.hour = hour

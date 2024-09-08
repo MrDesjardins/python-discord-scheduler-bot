@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta
 import asyncio
 
+
 class RateLimiter:
+    """ The rate limiter wraps function avoiding frequent calls. Useful to avoid spamming the Discord API
+    """
+
     def __init__(self, interval_seconds):
         self.interval_seconds = interval_seconds
         self.last_called = datetime.min

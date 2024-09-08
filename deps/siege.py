@@ -10,7 +10,9 @@ EMOJI_COPPER = "<:Copper:1279550705551802399> "
 
 
 def getUserRankEmoji(user: discord.Member) -> str:
-    # Check the user's roles to determine their rank
+    """ Check the user's roles to determine their rank
+    The function assumes a specific 8 roles with 8 emojis which might not be the case for your server
+    """
     for role in user.roles:
         print(f"Checking role {role.name}")
         if role.name == "Champion":

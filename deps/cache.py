@@ -1,27 +1,34 @@
 
 import asyncio
 import time
-from typing import Callable, Awaitable, Union, Optional
+from typing import Callable, Awaitable, List, Union, Optional, Any
 import inspect
 import dill as pickle
 import atexit
 
 CACHE_FILE = "cache.txt"
 ALWAYS_TTL = 60*60*24*365*10
+DEFAULT_TTL = 60
+
 
 class CacheItem:
-    def __init__(self, value, ttl):
+    """Represents an item in the cache with an expiry time"""
+
+    def __init__(self, value: Any, ttl_in_seconds: int):
         self.value = value
-        self.expiry = time.time() + ttl
+        self.expiry = time.time() + ttl_in_seconds
 
 
 class TTLCache:
-    def __init__(self, default_ttl=60):
-        self.cache = {}
-        self.default_ttl = default_ttl
+    """A simple in-memory cache with time-to-live (TTL) support"""
+
+    def __init__(self, default_ttl_in_seconds=60):
+        self.cache: dict[str, Any] = {}
+        self.default_ttl = default_ttl_in_seconds
         self.lock = asyncio.Lock()
 
-    def _is_expired(self, key):
+    def _is_expired(self, key: str) -> bool:
+        """Check if the cache item with the given key is expired"""
         item = self.cache.get(key, None)
         if not item:
             return True
@@ -30,43 +37,46 @@ class TTLCache:
             return True
         return False
 
-    def set(self, key, value, ttl=None):
+    def set(self, key: str, value: Any, ttl: Optional[str] = None):
         if ttl is None:
             ttl = self.default_ttl
         self.cache[key] = CacheItem(value, ttl)
 
-    def get(self, key):
+    def get(self, key: str) -> Union[Optional[Any]]:
         if self._is_expired(key):
             return None
         return self.cache.get(key).value
 
-    def delete(self, key):
+    def delete(self, key: str) -> None:
         if key in self.cache:
             del self.cache[key]
 
-    def clear(self):
+    def clear(self) -> None:
         self.cache.clear()
 
-    async def _cleanup(self):
+    async def _cleanup(self) -> None:
         while True:
-            expired_keys = []
+            expired_keys: List[str] = []
             for key in list(self.cache.keys()):
                 if self._is_expired(key):
                     expired_keys.append(key)
             for key in expired_keys:
                 del self.cache[key]
-            await asyncio.sleep(1)  # Adjust the sleep time as needed
+            await asyncio.sleep(100)  # Adjust the sleep time as needed
 
-    def start_cleanup(self):
+    def start_cleanup(self) -> None:
         asyncio.create_task(self._cleanup())
 
-    def initialize(self, values):
+    def initialize(self, values: dict[str, Any]) -> None:
+        """ Initialize the cache from the data persistent storage """
         if values:
             self.cache = values
 
 
-
-async def getCache(inMemory: bool, key: str, fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None):
+async def getCache(inMemory: bool, key: str, fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None) -> Any:
+    """ Get the value from the cache from the in-memory or data cache 
+    If the value is not in the cache, calls the fetch function to get the value and set it into the cache
+    """
     if inMemory:
         cache = memoryCache
     else:
@@ -82,14 +92,13 @@ async def getCache(inMemory: bool, key: str, fetch_function: Optional[Union[Call
                 value = result
             if value:
                 cache.set(key, value)
-    #         else:
-    #             print(f"Value {key} not found by api")
-    # else:
-    #     print(f"Value {key} found in cache")
     return value
 
 
-def setCache(inMemory: bool, key: str, value: any, cache_seconds: Optional[int] = None):
+def setCache(inMemory: bool, key: str, value: Any, cache_seconds: Optional[int] = None):
+    """ Set the value in the cache in the in-memory or data cache 
+    If the cache is on disk, the data goes into the file as well
+    """
     if inMemory:
         memoryCache.set(key, value, cache_seconds)
     else:
@@ -97,12 +106,13 @@ def setCache(inMemory: bool, key: str, value: any, cache_seconds: Optional[int] 
         save_to_file(dataCache.cache, CACHE_FILE)
 
 
-def save_to_file(obj, filename):
+def save_to_file(obj: dict[str, any], filename: str) -> None:
+    """ Binary saving of the content of the object to the file """
     with open(filename, 'wb') as file:
         pickle.dump(obj, file)
 
 
-def load_from_file(filename):
+def load_from_file(filename: str) -> Optional[dict[str, any]]:
     try:
         with open(filename, 'rb') as file:
             return pickle.load(file)
@@ -110,13 +120,14 @@ def load_from_file(filename):
         return None
 
 
-def on_exit():
+def on_exit() -> None:
+    """ Ensure when leaving the script that we save the data to a file """
     print("Script is exiting, saving the object...")
     save_to_file(dataCache.cache, CACHE_FILE)
 
 
-memoryCache = TTLCache(default_ttl=60)  # Cache with 60 seconds TTL
-dataCache = TTLCache(default_ttl=60)  # Cache with 60 seconds TTL
+memoryCache = TTLCache(default_ttl_in_seconds=DEFAULT_TTL)
+dataCache = TTLCache(default_ttl_in_seconds=DEFAULT_TTL)
 dataCache.initialize(load_from_file(CACHE_FILE))
 
 # Register the on_exit function to be called when the script exits

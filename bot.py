@@ -10,9 +10,10 @@ import asyncio
 from datetime import datetime, timedelta, date, timezone
 from deps.siege import getUserRankEmoji
 from deps.cache import getCache, setCache, ALWAYS_TTL
-from deps.models import SimpleUser, SimpleUserHour, get_empty_votes, emoji_to_time, days_of_week, DayOfWeek, supported_times
+from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
+from deps.values import emoji_to_time, days_of_week, supported_times
+from deps.functions import get_empty_votes
 import pytz
-from deps.ratelimiter import RateLimiter
 load_dotenv()
 
 ENV = os.getenv('ENV')
@@ -32,6 +33,7 @@ intents.guild_reactions = True  # Enable the guild reactions intent
 
 bot = commands.Bot(command_prefix='/', intents=intents)
 
+print(f"Env: {ENV}")
 print(f"Token: {TOKEN}")
 
 
@@ -41,7 +43,6 @@ reactions = ['4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣',
 
 # Scheduler to send daily message
 scheduler = AsyncIOScheduler()
-rate_limiter = RateLimiter(interval_seconds=2)
 
 
 async def reaction_worker():
