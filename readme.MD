@@ -102,3 +102,18 @@ python3 -m pip install -r requirements.txt
 # Save Requirements
 python3 -m pip freeze > requirements.txt
 ```
+
+# Installation with Azure App Service Free Plan
+
+1. Create an account to https://portal.azure.com/
+1. Open Deployment Center, configure the Git hub repository
+1. Set environment variable (`ENV` and `BOT_TOKEN`) under `settings` and `environment variables`
+1. `python3 -m venv .venv`
+1. `source .venv/bin/activate`
+1. `python3 -m pip install -r requirements.txt`
+1. `python3 bot.py`
+
+
+# Alternative Hosting Solutions
+The free plan of [PythonAnywhere](https://www.pythonanywhere.com) does not allow the Discord.py communication on port 443.
+

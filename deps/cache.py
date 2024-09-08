@@ -10,6 +10,15 @@ CACHE_FILE = "cache.txt"
 ALWAYS_TTL = 60*60*24*365*10
 DEFAULT_TTL = 60
 
+KEY_DAILY_MSG = "DailyMessageSentInChannel"
+KEY_REACTION_USERS = "ReactionUsers"
+KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleDay"
+KEY_GUILD_CHANNEL = "GuildAdminConfigChannel"
+KEY_MESSAGE = "Message"
+KEY_USER = "User"
+KEY_GUILD = "Guild"
+KEY_MEMBER = "Member"
+
 
 class CacheItem:
     """Represents an item in the cache with an expiry time"""
@@ -50,6 +59,14 @@ class TTLCache:
     def delete(self, key: str) -> None:
         if key in self.cache:
             del self.cache[key]
+
+    def delete_by_prefix(self, prefix: str) -> int:
+        counter = 0
+        keys_to_delete = [key for key in self.cache if key.startswith(prefix)]
+        for key in keys_to_delete:
+            del self.cache[key]
+            counter += 1
+        return counter
 
     def clear(self) -> None:
         self.cache.clear()
@@ -104,6 +121,25 @@ def setCache(inMemory: bool, key: str, value: Any, cache_seconds: Optional[int] 
     else:
         dataCache.set(key, value, cache_seconds)
         save_to_file(dataCache.cache, CACHE_FILE)
+
+
+def reset_cache_for_guid(guild_id: int) -> None:
+    """ Reset the cache for the given GUID """
+    prefixes = [f"{KEY_DAILY_MSG}:{guild_id}",
+                f"{KEY_REACTION_USERS}:{guild_id}",
+                f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}",
+                f"{KEY_GUILD_CHANNEL}:{guild_id}",
+                f"{KEY_MESSAGE}:{guild_id}",
+                f"{KEY_USER}:{guild_id}",
+                f"{KEY_GUILD}:{guild_id}",
+                f"{KEY_MEMBER}:{guild_id}",
+                ]
+    for prefix in prefixes:
+        del_memory_count = memoryCache.delete_by_prefix(prefix)
+        del_file_count = dataCache.delete_by_prefix(prefix)
+        print(
+            f"Deleted {del_memory_count} from memory and {del_file_count} from file for prefix {prefix}")
+    save_to_file(dataCache.cache, CACHE_FILE)
 
 
 def save_to_file(obj: dict[str, any], filename: str) -> None:
