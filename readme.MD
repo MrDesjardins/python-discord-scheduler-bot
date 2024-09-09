@@ -118,6 +118,9 @@ python3 -m pip freeze > requirements.txt
 1. `ssh pi@10.0.0.192`
 1. Clone the repository
 1. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
+1. Create the Python environment `python3 -m venv .venv`
+1. Activate the Python environment `source .venv/bin/activate`
+1. Install the dependencies `python3 -m pip install -r requirements.txt` 
 1. Edit the environment variables file `/etc/environment` (require sudo)
 ```sh
 ENV=prod
@@ -128,6 +131,12 @@ BOT_TOKEN=<bot token>
 sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
 sudo systemctl enable gametimescheduler.service
 sudo systemctl start gametimescheduler.service
+```
+
+## Debugging
+If the service does not start, you can check the status of the service with the following command:
+```sh
+sudo systemctl status gametimescheduler.service
 ```
 
 # Alternative Hosting Solutions

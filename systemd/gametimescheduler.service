@@ -2,8 +2,9 @@
 Description=Discord Scheduler Bot
 
 [Service]
+WorkingDirectory=/home/pi/python-discord-scheduler-bot
 EnvironmentFile=/etc/environment
-ExecStart=/home/pi/python-discord-scheduler-bot/do.sh
+ExecStart=/home/pi/python-discord-scheduler-bot/.venv/bin/python3 /home/pi/python-discord-scheduler-bot/bot.py
 Restart=on-failure
 User=pi
 Group=pi
