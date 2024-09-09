@@ -118,7 +118,7 @@ python3 -m pip freeze > requirements.txt
 1. `ssh pi@10.0.0.192`
 1. Clone the repository
 1. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
-1. Create a new bash file in `~` called `do.sh` and make it executable:
+1. Create a new bash file in `~` called `do.sh` and make it executable. The goal is to set the environment variables and run the script.
 ```sh
 cd ~
 touch do.sh
@@ -128,9 +128,7 @@ chmod +x do.sh
 ```sh
 export ENV=prod
 export BOT_TOKEN=<bot token>
-cd python-discord-scheduler-bot
-source .venv/bin/activate
-python3 bot.py
+./python-discord-scheduler-bot/do.sh
 ```
 7. Install the dependencies
 1. Go in the code directory: `cd python-discord-scheduler-bot`
@@ -142,9 +140,9 @@ python3 -m pip install -r requirements.txt
 ```
 10. Set the Raspberry Pi to run the script on boot
 ```sh
-crontab -e 
-# Add:
-@reboot ~/do.sh
+sudo nano /etc/rc.local
+# Add before the exit 0
+/home/pi/do.sh &
 ```
 
 # Alternative Hosting Solutions
