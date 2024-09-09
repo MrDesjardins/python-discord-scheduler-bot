@@ -85,7 +85,8 @@ async def on_ready():
             print_log(
                 f"\tBot permissions in channel {channel.name}: {permissions}")
         else:
-            print_error_log(f"\tChannel ID {channel_id} not found in guild {guild.name}")
+            print_error_log(
+                f"\tChannel ID {channel_id} not found in guild {guild.name}")
 
         # Debug
         list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild.id}:{datetime.now().weekday()}")
@@ -94,52 +95,56 @@ async def on_ready():
                 print_log(
                     f"User {user_hours.simpleUser.display_name} will play at {user_hours.hour}")
 
-    # Waiting the commands
-    # print_log("Waiting for commands to load")
-    # synced = await bot.tree.sync()
-    # print_log(f"Synced {len(synced)} commands.")
-
-    # Start the reaction worker
+    # Start the reaction worker. The queue ensure that one reaction is handled at a time, sequentially
+    # It avoids parallel processing of the same message, ensure the cache is filled by the previous reaction
     bot.reaction_queue = asyncio.Queue()
     bot.loop.create_task(reaction_worker())
+
     # Schedule the daily question to be sent every day
     pacific = pytz.timezone('America/Los_Angeles')
-    scheduler.add_job(send_daily_question, 'cron',
+    scheduler.add_job(send_daily_question_to_all_guild, 'cron',
                       hour=10, minute=0, timezone=pacific)
     scheduler.start()
     # Run it for today (won't duplicate)
-    await send_daily_question()
+    await send_daily_question_to_all_guild()
 
 
-async def send_daily_question():
+async def send_daily_question_to_all_guild():
     """
     Send only once every day the question for each guild who has the bot
     """
     print_log("Sending daily schedule message")
+    for guild in bot.guilds:
+        await send_daily_question_to_a_guild(guild)
+
+
+async def send_daily_question_to_a_guild(guild: discord.Guild):
+    """
+    Send the daily schedule question to a specific guild
+    """
     now = datetime.now()
     current_date = now.strftime("%Y%m%d")
     day_of_week_number = now.weekday()  # 0 is Monday, 6 is Sunday
-    for guild in bot.guilds:
-        channelId = await getCache(False, f"{KEY_GUILD_CHANNEL}:{guild.id}")
-        if channelId is None:
-            print_error_log(
-                f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
-            continue
+    channelId = await getCache(False, f"{KEY_GUILD_CHANNEL}:{guild.id}")
+    if channelId is None:
+        print_error_log(
+            f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
+        return
 
-        message_sent = await getCache(False, f"{KEY_DAILY_MSG}:{guild.id}{channelId}:{current_date}")
-        if message_sent is None:
-            channel: discord.TextChannel = bot.get_channel(channelId)
-            message: discord.Message = await channel.send(poll_message)
-            for reaction in reactions:
-                await message.add_reaction(reaction)
-            await auto_assign_user_to_daily_question(
-                guild.id, message.id, channelId, day_of_week_number)
-            setCache(
-                False, f"{KEY_DAILY_MSG}:{guild.id}:{channelId}:{current_date}", True, ALWAYS_TTL)
-            print_log(f"\t✅ Daily message sent in guild {guild.name}")
-        else:
-            print_error_log(
-                f"\t❌ Daily message already sent in guild {guild.name}. Skipping.")
+    message_sent = await getCache(False, f"{KEY_DAILY_MSG}:{guild.id}{channelId}:{current_date}")
+    if message_sent is None:
+        channel: discord.TextChannel = bot.get_channel(channelId)
+        message: discord.Message = await channel.send(poll_message)
+        for reaction in reactions:
+            await message.add_reaction(reaction)
+        await auto_assign_user_to_daily_question(
+            guild.id, message.id, channelId, day_of_week_number)
+        setCache(
+            False, f"{KEY_DAILY_MSG}:{guild.id}:{channelId}:{current_date}", True, ALWAYS_TTL)
+        print_log(f"\t✅ Daily message sent in guild {guild.name}")
+    else:
+        print_error_log(
+            f"\t❌ Daily message already sent in guild {guild.name}. Skipping.")
 
 
 def check_bot_permissions(channel: discord.TextChannel) -> dict:
@@ -361,7 +366,7 @@ async def seeSchedule(interaction: discord.Interaction):
                 if userHour.simpleUser.user_id == interaction.user.id:
                     response += f"{days_of_week[day]}: {userHour.hour}\n"
     if response == '':
-        response = "No schedule found"
+        response = f"No schedule found, uses the command /{COMMAND_SCHEDULE_SET} to configure a recurrent schedule."
 
     await interaction.response.send_message(response)
 
@@ -371,7 +376,8 @@ async def seeSchedule(interaction: discord.Interaction):
 async def setDailyChannel(interaction: discord.Interaction, channel: discord.TextChannel):
     guild_id = interaction.guild.id
     setCache(False, f"{KEY_GUILD_CHANNEL}:{guild_id}", channel.id, ALWAYS_TTL)
-    await interaction.response.send_message(f"Confirmed to send a daily message into #{channel.name}.")
+    await interaction.response.send_message(f"Confirmed to send a daily schedule message into #{channel.name}.")
+    await send_daily_question_to_a_guild(interaction.guild)
 
 
 @bot.tree.command(name=COMMAND_RESET_CACHE)
@@ -384,17 +390,18 @@ async def reset_cache(interaction: discord.Interaction):
 
 async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, message_id: int, day_of_week_number: int):
     # Get the list of user and their hour for the specific day of the week
-    list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"GuildUserAutoDay:{guild_id}:{day_of_week_number}")
+    list_users: Union[List[SimpleUserHour] | None] = await getCache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}")
     reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
 
     message_votes = get_empty_votes()  # Start with nothing for the day
 
     # Loop for the user+hours
-    for userHour in list_users:
-        # Assign for each hour the user
-        message_votes[userHour.hour].append(userHour.simpleUser)
+    if list_users is not None:
+        for userHour in list_users:
+            # Assign for each hour the user
+            message_votes[userHour.hour].append(userHour.simpleUser)
 
-    setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+        setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
 
 
 bot.run(TOKEN)
