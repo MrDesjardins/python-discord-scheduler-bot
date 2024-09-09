@@ -27,3 +27,6 @@ def print_log(message: str) -> None:
 
 def print_error_log(message: str) -> None:
     logger.error(message)
+    
+def print_warning_log(message: str) -> None:
+    logger.warning(message)

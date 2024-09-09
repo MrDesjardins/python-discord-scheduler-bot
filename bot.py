@@ -13,7 +13,7 @@ from deps.cache import getCache, setCache, reset_cache_for_guid, ALWAYS_TTL, KEY
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
 from deps.values import emoji_to_time, days_of_week, supported_times
 from deps.functions import get_empty_votes
-from deps.log import print_log, print_error_log
+from deps.log import print_log, print_error_log, print_warning_log
 import pytz
 
 
@@ -41,12 +41,16 @@ print_log(f"Env: {ENV}")
 print_log(f"Token: {TOKEN}")
 
 
-poll_message = f"What time will you play today ?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_SET} to set recurrent day and hours."
 reactions = ['4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣',
              '9️⃣', '🔟', '🕚', '🕛', '1️⃣', '2️⃣', '3️⃣']
 
 # Scheduler to send daily message
 scheduler = AsyncIOScheduler()
+
+
+def get_poll_message():
+    current_date = date.today().strftime("%B %d, %Y")
+    return f"What time will you play today ({current_date})?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_SET} to set recurrent day and hours."
 
 
 async def reaction_worker():
@@ -85,7 +89,7 @@ async def on_ready():
             print_log(
                 f"\tBot permissions in channel {channel.name}: {permissions}")
         else:
-            print_error_log(
+            print_warning_log(
                 f"\tChannel ID {channel_id} not found in guild {guild.name}")
 
         # Debug
@@ -131,10 +135,10 @@ async def send_daily_question_to_a_guild(guild: discord.Guild):
             f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
         return
 
-    message_sent = await getCache(False, f"{KEY_DAILY_MSG}:{guild.id}{channelId}:{current_date}")
+    message_sent = await getCache(False, f"{KEY_DAILY_MSG}:{guild.id}:{channelId}:{current_date}")
     if message_sent is None:
         channel: discord.TextChannel = bot.get_channel(channelId)
-        message: discord.Message = await channel.send(poll_message)
+        message: discord.Message = await channel.send(get_poll_message())
         for reaction in reactions:
             await message.add_reaction(reaction)
         await auto_assign_user_to_daily_question(
@@ -143,7 +147,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild):
             False, f"{KEY_DAILY_MSG}:{guild.id}:{channelId}:{current_date}", True, ALWAYS_TTL)
         print_log(f"\t✅ Daily message sent in guild {guild.name}")
     else:
-        print_error_log(
+        print_warning_log(
             f"\t❌ Daily message already sent in guild {guild.name}. Skipping.")
 
 
@@ -207,7 +211,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                 users = [u async for u in react.users() if not u.bot]
                 for user in users:
                     message_votes[time_voted].append(
-                        SimpleUser(user.id, user.display_name, getUserRankEmoji(member)))
+                        SimpleUser(user.id, member.display_name, getUserRankEmoji(member)))
         print_log(f"Setting reaction users for message {message.id} in cache")
         setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
     else:
@@ -234,7 +238,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                         f"User {user.id} already voted for {time_voted} in message {message.id}")
                 else:
                     message_votes[time_voted].append(
-                        SimpleUser(user.id, user.display_name, getUserRankEmoji(member)))
+                        SimpleUser(user.id, member.display_name, getUserRankEmoji(member)))
                     print_log(
                         f"Updating reaction users for message {message.id} in cache")
         # Always update the cache
@@ -248,7 +252,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
 
 
 async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
-    vote_message = poll_message + "\n\nSchedule for " + \
+    vote_message = get_poll_message() + "\n\nSchedule for " + \
         date.today().strftime("%B %d, %Y") + "\n"
     for time, users in vote_for_message.items():
         if users:
