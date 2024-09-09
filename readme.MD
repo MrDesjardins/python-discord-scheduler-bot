@@ -118,31 +118,16 @@ python3 -m pip freeze > requirements.txt
 1. `ssh pi@10.0.0.192`
 1. Clone the repository
 1. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
-1. Create a new bash file in `~` called `do.sh` and make it executable. The goal is to set the environment variables and run the script.
+1. Edit the environment variables file `/etc/environment` (require sudo)
 ```sh
-cd ~
-touch do.sh
-chmod +x do.sh
+ENV=prod
+BOT_TOKEN=<bot token>
 ```
-1. Add in the `do.sh` the following lines:
+6. Install the systemd that will run the bot at startup
 ```sh
-export ENV=prod
-export BOT_TOKEN=<bot token>
-./python-discord-scheduler-bot/do.sh
-```
-7. Install the dependencies
-1. Go in the code directory: `cd python-discord-scheduler-bot`
-1. Install the dependencies
-```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python3 -m pip install -r requirements.txt
-```
-10. Set the Raspberry Pi to run the script on boot
-```sh
-sudo nano /etc/rc.local
-# Add before the exit 0
-/home/pi/do.sh &
+sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
+sudo systemctl enable gametimescheduler.service
+sudo systemctl start gametimescheduler.service
 ```
 
 # Alternative Hosting Solutions

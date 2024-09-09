@@ -1,0 +1,12 @@
+[Unit]
+Description=Discord Scheduler Bot
+
+[Service]
+EnvironmentFile=/etc/environment
+ExecStart=/home/pi/python-discord-scheduler-bot/do.sh
+Restart=on-failure
+User=pi
+Group=pi
+
+[Install]
+WantedBy=multi-user.target
