@@ -1,20 +1,29 @@
+# What is this Bot doing?
+
+1. The bot sends a daily message to a specific channel of the guild asking the user when they plan to play the game. It uses reaction by emoji for user to specify many range of hours that they plan to play.
+2. The bot allows a user to specify a recurrent schedule.
+
 # Bot Commands
 
-## Selecting a Channel
+## `channel` (Admin only)
 
-The bot needs to send daily messages to a specific channel. To configure, an administrator must call `/channel`.
+The bot needs to send daily messages to a specific channel of the guild. An administrator must call `/channel` and specify which channel the bot will send a daily message. Without this configuration, the bot will skip the guild daily message.
 
-## Setting a Schedule
+## `addschedule`
 
 User can react to a message every day or can use the `/addschedule` command to set a schedule. The command allows selecting day of the weeks and many hours. If the user executes the command multiple times, the previous schedule will be overridden.
 
-## Removing a Schedule
+## `removeschedule`
 
 Once a user set a schedule, they can remove it using the `/removeschedule` command or calling the `/addschedule` which will override the previous schedule.
 
-## See a Schedule
+## `seeschedule`
 
 `seeschedule` command will show the current schedule of the user.
+
+## `resetcache` (Admin only)
+
+Reset the cache for the administration guild.
 
 # Discord Administration
 
@@ -103,17 +112,41 @@ python3 -m pip install -r requirements.txt
 python3 -m pip freeze > requirements.txt
 ```
 
-# Installation with Azure App Service Free Plan
+# Installation on a Raspberry Pi
 
-1. Create an account to https://portal.azure.com/
-1. Open Deployment Center, configure the Git hub repository
-1. Set environment variable (`ENV` and `BOT_TOKEN`) under `settings` and `environment variables`
-1. `python3 -m venv .venv`
-1. `source .venv/bin/activate`
-1. `python3 -m pip install -r requirements.txt`
-1. `python3 bot.py`
-
+1. SSH into the Raspberry Pi
+1. `ssh pi@10.0.0.192`
+1. Clone the repository
+1. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
+1. Create a new bash file in `~` called `do.sh` and make it executable:
+```sh
+cd ~
+touch do.sh
+chmod +x do.sh
+```
+1. Add in the `do.sh` the following lines:
+```sh
+export ENV=prod
+export BOT_TOKEN=<bot token>
+cd python-discord-scheduler-bot
+source .venv/bin/activate
+python3 bot.py
+```
+7. Install the dependencies
+1. Go in the code directory: `cd python-discord-scheduler-bot`
+1. Install the dependencies
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt
+```
+10. Set the Raspberry Pi to run the script on boot
+```sh
+crontab -e 
+# Add:
+@reboot ~/do.sh
+```
 
 # Alternative Hosting Solutions
-The free plan of [PythonAnywhere](https://www.pythonanywhere.com) does not allow the Discord.py communication on port 443.
-
+1. The free plan of [PythonAnywhere](https://www.pythonanywhere.com) does not allow the Discord.py communication on port 443.
+2. [Azure Web App](https://azure.microsoft.com/en-us/products/app-service) free plan does not have "always on" which means the bot cannot remain always active.
