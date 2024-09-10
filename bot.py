@@ -202,6 +202,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
     # Cache all users for this message's reactions to avoid redundant API calls
     reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild.id}:{channel.id}:{message.id}"
     message_votes = await getCache(False, reaction_users_cache_key)
+    # In the case there is no vote in the cache, we need to populate it with all the potential votes
     if not message_votes:
         message_votes = get_empty_votes()
         # Iterate over each reaction in the message only if it's not cached
@@ -213,36 +214,35 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                     message_votes[time_voted].append(
                         SimpleUser(user.id, member.display_name, getUserRankEmoji(member)))
         print_log(f"Setting reaction users for message {message.id} in cache")
-        setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+
+    print_log(f"Updating for the current reaction {message.id}")
+    time_voted = emoji_to_time.get(str(reaction.emoji))
+    if remove:
+        # Remove the user from the message votes
+        for time_v, value in message_votes.items():
+            print_log(f"Checking time {time_v}")
+            print_log(value)
+            if time_v == time_voted:
+                for single_vote in value:
+                    if user.id == single_vote.user_id:
+                        print_log(
+                            f"Found in {message.id} entry of the user for reaction {reaction.emoji}. Removing.")
+                        message_votes[time_voted].remove(single_vote)
+                        break
     else:
-        print_log(f"Using cached reaction users for message {message.id}")
+        # Add the user to the message votes
         time_voted = emoji_to_time.get(str(reaction.emoji))
-        if remove:
-            # Remove the user from the message votes
-            for time_v, value in message_votes.items():
-                print_log(f"Checking time {time_v}")
-                print_log(value)
-                if time_v == time_voted:
-                    for single_vote in value:
-                        if user.id == single_vote.user_id:
-                            print_log(
-                                f"Found in {message.id} entry of the user for reaction {reaction.emoji}. Removing.")
-                            message_votes[time_voted].remove(single_vote)
-                            break
-        else:
-            # Add the user to the message votes
-            time_voted = emoji_to_time.get(str(reaction.emoji))
-            if time_voted:
-                if any(user.id == u.user_id for u in message_votes[time_voted]):
-                    print_log(
-                        f"User {user.id} already voted for {time_voted} in message {message.id}")
-                else:
-                    message_votes[time_voted].append(
-                        SimpleUser(user.id, member.display_name, getUserRankEmoji(member)))
-                    print_log(
-                        f"Updating reaction users for message {message.id} in cache")
-        # Always update the cache
-        setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+        if time_voted:
+            if any(user.id == u.user_id for u in message_votes[time_voted]):
+                print_log(
+                    f"User {user.id} already voted for {time_voted} in message {message.id}")
+            else:
+                message_votes[time_voted].append(
+                    SimpleUser(user.id, member.display_name, getUserRankEmoji(member)))
+                print_log(
+                    f"Updating reaction users for message {message.id} in cache")
+    # Always update the cache
+    setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
 
     print_log("End Adjusting reaction")
     # await rate_limiter(update_vote_message, message, message_votes)
