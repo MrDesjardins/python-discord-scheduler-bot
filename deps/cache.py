@@ -5,7 +5,7 @@ from typing import Callable, Awaitable, List, Union, Optional, Any
 import inspect
 import dill as pickle
 import atexit
-
+import threading
 CACHE_FILE = "cache.txt"
 ALWAYS_TTL = 60*60*24*365*10
 DEFAULT_TTL = 60
@@ -82,7 +82,13 @@ class TTLCache:
             await asyncio.sleep(100)  # Adjust the sleep time as needed
 
     def start_cleanup(self) -> None:
-        asyncio.create_task(self._cleanup())
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # No running event loop
+            loop = asyncio.new_event_loop()
+            threading.Thread(target=loop.run_forever, daemon=True).start()
+        
+        asyncio.run_coroutine_threadsafe(self._cleanup(), loop)
 
     def initialize(self, values: dict[str, Any]) -> None:
         """ Initialize the cache from the data persistent storage """
@@ -165,6 +171,8 @@ def on_exit() -> None:
 memoryCache = TTLCache(default_ttl_in_seconds=DEFAULT_TTL)
 dataCache = TTLCache(default_ttl_in_seconds=DEFAULT_TTL)
 dataCache.initialize(load_from_file(CACHE_FILE))
+memoryCache.start_cleanup()
+dataCache.start_cleanup()
 
 # Register the on_exit function to be called when the script exits
 atexit.register(on_exit)

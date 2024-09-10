@@ -1,20 +1,32 @@
+from deps.values import emoji_to_time
+from deps.models import TimeLabel
+
 
 def get_empty_votes():
     """ Returns an empty votes dictionary.
     Used to initialize the votes cache for a single day.
     Each array contains SimpleUser
+    Result is { '3pm': [], '4pm': [], ... }
     """
-    return {
-        '4pm': [],
-        '5pm': [],
-        '6pm': [],
-        '7pm': [],
-        '8pm': [],
-        '9pm': [],
-        '10pm': [],
-        '11pm': [],
-        '12pm': [],
-        '1am': [],
-        '2am': [],
-        '3am': [],
-    }
+    return {time: [] for time in emoji_to_time.values()}
+
+
+def get_reactions():
+    """
+    Returns a list of all the emojis that can be used to vote.
+    """
+    return list(emoji_to_time.keys())
+
+
+def get_supported_time():
+    """
+    Returns a list of TimeLabel objects that represent the supported times.
+    """
+    supported_times = []
+    for time in emoji_to_time.values():
+        short_label = time[:-2]  # Extracts the numeric part of the time
+        display_label = time
+        description = f"{time} Eastern Time"
+        supported_times.append(
+            TimeLabel(short_label, display_label, description))
+    return supported_times

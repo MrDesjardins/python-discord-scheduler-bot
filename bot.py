@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ui import Select, View
 import os
 from dotenv import load_dotenv
-from discord.ext import commands, tasks
+from discord.ext import commands
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from typing import List, Dict, Union
 import asyncio
@@ -11,8 +11,8 @@ from datetime import datetime, timedelta, date, timezone
 from deps.siege import getUserRankEmoji
 from deps.cache import getCache, setCache, reset_cache_for_guid, ALWAYS_TTL, KEY_DAILY_MSG, KEY_REACTION_USERS, KEY_GUILD_USERS_AUTO_SCHEDULE, KEY_GUILD_CHANNEL, KEY_MESSAGE, KEY_USER, KEY_GUILD, KEY_MEMBER
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
-from deps.values import emoji_to_time, days_of_week, supported_times
-from deps.functions import get_empty_votes
+from deps.values import emoji_to_time, days_of_week
+from deps.functions import get_empty_votes, get_reactions, get_supported_time
 from deps.log import print_log, print_error_log, print_warning_log
 import pytz
 
@@ -21,6 +21,7 @@ load_dotenv()
 
 ENV = os.getenv('ENV')
 TOKEN = os.getenv('BOT_TOKEN_DEV') if ENV == 'dev' else os.getenv('BOT_TOKEN')
+HOUR_SEND_DAILY_MESSAGE = 8
 
 COMMAND_SCHEDULE_SET = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
@@ -40,9 +41,8 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 print_log(f"Env: {ENV}")
 print_log(f"Token: {TOKEN}")
 
-
-reactions = ['4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣',
-             '9️⃣', '🔟', '🕚', '🕛', '1️⃣', '2️⃣', '3️⃣']
+reactions = get_reactions()
+supported_times = get_supported_time()
 
 # Scheduler to send daily message
 scheduler = AsyncIOScheduler()
@@ -107,7 +107,7 @@ async def on_ready():
     # Schedule the daily question to be sent every day
     pacific = pytz.timezone('America/Los_Angeles')
     scheduler.add_job(send_daily_question_to_all_guild, 'cron',
-                      hour=10, minute=0, timezone=pacific)
+                      hour=HOUR_SEND_DAILY_MESSAGE, minute=0, timezone=pacific)
     scheduler.start()
     # Run it for today (won't duplicate)
     await send_daily_question_to_all_guild()
