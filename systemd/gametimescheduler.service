@@ -1,5 +1,6 @@
 [Unit]
 Description=Discord Scheduler Bot
+After=network.target
 
 [Service]
 WorkingDirectory=/home/pi/python-discord-scheduler-bot

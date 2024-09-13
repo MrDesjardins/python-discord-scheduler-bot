@@ -27,6 +27,7 @@ COMMAND_SCHEDULE_SET = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
 COMMAND_SCHEDULE_SEE = "seeschedule"
 COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
+COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
 COMMAND_RESET_CACHE = "resetcache"
 
 intents = discord.Intents.default()
@@ -382,6 +383,55 @@ async def setDailyChannel(interaction: discord.Interaction, channel: discord.Tex
     setCache(False, f"{KEY_GUILD_CHANNEL}:{guild_id}", channel.id, ALWAYS_TTL)
     await interaction.response.send_message(f"Confirmed to send a daily schedule message into #{channel.name}.")
     await send_daily_question_to_a_guild(interaction.guild)
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_REFRESH_FROM_REACTION)
+@commands.has_permissions(administrator=True)
+async def refresh_from_reaction(interaction: discord.Interaction):
+    guild_id = interaction.guild.id
+    # Fetch the last message from the channel
+    channel = interaction.channel
+    today_message = get_poll_message()[:10]
+    async for message in channel.history(limit=20):
+        if message.content.startswith(today_message):
+            last_message = message
+            break  # Since we're only interested in the last message, we can break after the first
+
+    if last_message is None:
+        await interaction.response.send_message("No messages found in this channel.")
+        return
+    
+    await interaction.response.defer()
+
+    # Cache all users for this message's reactions to avoid redundant API calls
+    reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild_id}:{channel.id}:{last_message.id}"
+    message_votes = await getCache(False, reaction_users_cache_key)
+    if not message_votes:
+        message_votes = get_empty_votes()
+
+    message: discord.Message = await getCache(True, f"{KEY_MESSAGE}:{guild_id}:{channel.id}:{last_message.id}",
+                                              lambda: channel.fetch_message(last_message.id))
+    # Check if there are reactions
+    if message.reactions:
+        for reaction in message.reactions:
+            # Get users who reacted
+            users = [user async for user in reaction.users()]
+            for user in users:
+                # Check if the user is a bot
+                if user.bot:
+                    continue
+                # Check if the user already reacted
+                if any(user.id == u.user_id for u in message_votes[emoji_to_time.get(str(reaction.emoji))]):
+                    continue
+                # Add the user to the message votes
+                message_votes[emoji_to_time.get(str(reaction.emoji))].append(
+                    SimpleUser(user.id, user.display_name, getUserRankEmoji(user)))
+        # Always update the cache
+        setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+        await update_vote_message(message, message_votes)
+        await interaction.followup.send(f'Updated from the reaction')
+    else:
+        await interaction.followup.send("No reactions on the last message.")
 
 
 @bot.tree.command(name=COMMAND_RESET_CACHE)
