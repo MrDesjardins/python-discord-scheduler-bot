@@ -1,5 +1,6 @@
 from deps.values import emoji_to_time
 from deps.models import TimeLabel
+from discord import app_commands
 
 
 def get_empty_votes():
@@ -29,4 +30,17 @@ def get_supported_time():
         description = f"{time} Eastern Time"
         supported_times.append(
             TimeLabel(short_label, display_label, description))
+    return supported_times
+
+
+def get_time_choices():
+    """
+    Returns a list of OptionChoice objects that represent the supported times.
+    """
+    supported_times = []
+    for time in emoji_to_time.values():
+        short_label = time
+        display_label = time
+        supported_times.append(
+            app_commands.Choice(name=short_label, value=display_label))
     return supported_times

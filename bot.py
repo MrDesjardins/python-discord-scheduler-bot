@@ -12,7 +12,7 @@ from deps.siege import getUserRankEmoji
 from deps.cache import getCache, setCache, reset_cache_for_guid, ALWAYS_TTL, KEY_DAILY_MSG, KEY_REACTION_USERS, KEY_GUILD_USERS_AUTO_SCHEDULE, KEY_GUILD_CHANNEL, KEY_MESSAGE, KEY_USER, KEY_GUILD, KEY_MEMBER
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
 from deps.values import emoji_to_time, days_of_week
-from deps.functions import get_empty_votes, get_reactions, get_supported_time
+from deps.functions import get_empty_votes, get_reactions, get_supported_time, get_time_choices
 from deps.log import print_log, print_error_log, print_warning_log
 import pytz
 
@@ -23,9 +23,10 @@ ENV = os.getenv('ENV')
 TOKEN = os.getenv('BOT_TOKEN_DEV') if ENV == 'dev' else os.getenv('BOT_TOKEN')
 HOUR_SEND_DAILY_MESSAGE = 8
 
-COMMAND_SCHEDULE_SET = "addschedule"
+COMMAND_SCHEDULE_ADD = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
 COMMAND_SCHEDULE_SEE = "seeschedule"
+COMMAND_SCHEDULE_ADD_USER = "adduserschedule"
 COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
 COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
 COMMAND_RESET_CACHE = "resetcache"
@@ -51,7 +52,7 @@ scheduler = AsyncIOScheduler()
 
 def get_poll_message():
     current_date = date.today().strftime("%B %d, %Y")
-    return f"What time will you play today ({current_date})?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_SET} to set recurrent day and hours."
+    return f"What time will you play today ({current_date})?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_ADD} to set recurrent day and hours."
 
 
 async def reaction_worker():
@@ -149,7 +150,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild):
         print_log(f"\t✅ Daily message sent in guild {guild.name}")
     else:
         print_warning_log(
-            f"\t❌ Daily message already sent in guild {guild.name}. Skipping.")
+            f"\t⚠️ Daily message already sent in guild {guild.name}. Skipping.")
 
 
 def check_bot_permissions(channel: discord.TextChannel) -> dict:
@@ -176,6 +177,7 @@ async def on_raw_reaction_remove(reaction:  discord.RawReactionActionEvent):
 
 
 async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool):
+
     print_log("Start Adjusting reaction")
     channel = await getCache(
         True, f"Channel:{reaction.channel_id}", lambda: bot.fetch_channel(reaction.channel_id))
@@ -200,6 +202,15 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         await user.send("You can't vote on a message that is older than 24 hours.")
         return
 
+    reaction_emoji = reaction.emoji
+
+    # Ensure no one is adding additional reactions
+    emoji_from_list = emoji_to_time.get(str(reaction_emoji))
+    if emoji_from_list is None:
+        await message.remove_reaction(reaction_emoji, member)
+        await user.send("You cannot add reaction beside the one provided.")
+        return
+
     # Cache all users for this message's reactions to avoid redundant API calls
     reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild.id}:{channel.id}:{message.id}"
     message_votes = await getCache(False, reaction_users_cache_key)
@@ -217,7 +228,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         print_log(f"Setting reaction users for message {message.id} in cache")
 
     print_log(f"Updating for the current reaction {message.id}")
-    time_voted = emoji_to_time.get(str(reaction.emoji))
+    time_voted = emoji_to_time.get(str(reaction_emoji))
     if remove:
         # Remove the user from the message votes
         for time_v, value in message_votes.items():
@@ -227,12 +238,12 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                 for single_vote in value:
                     if user.id == single_vote.user_id:
                         print_log(
-                            f"Found in {message.id} entry of the user for reaction {reaction.emoji}. Removing.")
+                            f"Found in {message.id} entry of the user for reaction {reaction_emoji}. Removing.")
                         message_votes[time_voted].remove(single_vote)
                         break
     else:
         # Add the user to the message votes
-        time_voted = emoji_to_time.get(str(reaction.emoji))
+        time_voted = emoji_to_time.get(str(reaction_emoji))
         if time_voted:
             if any(user.id == u.user_id for u in message_votes[time_voted]):
                 print_log(
@@ -340,7 +351,7 @@ class CombinedView(View):
         return False
 
 
-@bot.tree.command(name=COMMAND_SCHEDULE_SET)
+@bot.tree.command(name=COMMAND_SCHEDULE_ADD)
 async def setSchedule(interaction: discord.Interaction):
     view = CombinedView()
 
@@ -371,7 +382,7 @@ async def seeSchedule(interaction: discord.Interaction):
                 if userHour.simpleUser.user_id == interaction.user.id:
                     response += f"{days_of_week[day]}: {userHour.hour}\n"
     if response == '':
-        response = f"No schedule found, uses the command /{COMMAND_SCHEDULE_SET} to configure a recurrent schedule."
+        response = f"No schedule found, uses the command /{COMMAND_SCHEDULE_ADD} to configure a recurrent schedule."
 
     await interaction.response.send_message(response)
 
@@ -400,7 +411,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
     if last_message is None:
         await interaction.response.send_message("No messages found in this channel.")
         return
-    
+
     await interaction.response.defer()
 
     # Cache all users for this message's reactions to avoid redundant API calls
@@ -440,6 +451,41 @@ async def reset_cache(interaction: discord.Interaction):
     guild_id = interaction.guild.id
     reset_cache_for_guid(guild_id)
     await interaction.response.send_message(f"Cached flushed")
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_ADD_USER)
+@commands.has_permissions(administrator=True)
+@app_commands.choices(time_voted=get_time_choices())
+async def set_schedule_user_today(interaction: discord.Interaction, member: discord.Member, time_voted: app_commands.Choice[str]):
+    guild_id = interaction.guild.id
+    channel_id = interaction.channel.id
+    channel = await getCache(
+        True, f"Channel:{interaction.channel_id}", lambda: bot.fetch_channel(channel_id))
+
+    today_message = get_poll_message()[:10]
+    async for message in channel.history(limit=20):
+        if message.content.startswith(today_message):
+            last_message = message
+            break  # Since we're only interested in the last message, we can break after the first
+    if last_message is None:
+        await interaction.response.send_message("No messages found in this channel.")
+        return
+    message_id = last_message.id
+    message: discord.Message = await getCache(True, f"{KEY_MESSAGE}:{interaction.guild_id}:{channel_id}:{message_id}",
+                                              lambda: channel.fetch_message(message_id))
+    reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
+    message_votes = await getCache(False, reaction_users_cache_key)
+    if not message_votes:
+        message_votes = get_empty_votes()
+
+    simpleUser = SimpleUser(
+        member.id, member.display_name, getUserRankEmoji(member))
+    message_votes[time_voted.value].append(simpleUser)
+
+    # Always update the cache
+    setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+
+    await update_vote_message(message, message_votes)
 
 
 async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, message_id: int, day_of_week_number: int):

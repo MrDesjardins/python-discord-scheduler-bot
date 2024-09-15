@@ -78,8 +78,9 @@ class TTLCache:
                 if self._is_expired(key):
                     expired_keys.append(key)
             for key in expired_keys:
-                del self.cache[key]
-            await asyncio.sleep(100)  # Adjust the sleep time as needed
+                if key in self.cache:
+                    del self.cache[key]
+            await asyncio.sleep(1000)  # Adjust the sleep time as needed
 
     def start_cleanup(self) -> None:
         try:
