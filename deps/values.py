@@ -15,3 +15,14 @@ emoji_to_time = {
     '1️⃣': '1am',
     '2️⃣': '2am',
 }
+
+supported_times_str = set(emoji_to_time.values())
+
+COMMAND_SCHEDULE_ADD = "addschedule"
+COMMAND_SCHEDULE_REMOVE = "removeschedule"
+COMMAND_SCHEDULE_SEE = "seeschedule"
+COMMAND_SCHEDULE_ADD_USER = "adduserschedule"
+COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
+COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
+COMMAND_RESET_CACHE = "resetcache"
+COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "voicechannel"

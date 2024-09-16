@@ -3,16 +3,16 @@ from discord import app_commands
 from discord.ui import Select, View
 import os
 from dotenv import load_dotenv
-from discord.ext import commands
+from discord.ext import commands, tasks
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from typing import List, Dict, Union
 import asyncio
 from datetime import datetime, timedelta, date, timezone
 from deps.siege import getUserRankEmoji
-from deps.cache import getCache, setCache, reset_cache_for_guid, ALWAYS_TTL, KEY_DAILY_MSG, KEY_REACTION_USERS, KEY_GUILD_USERS_AUTO_SCHEDULE, KEY_GUILD_CHANNEL, KEY_MESSAGE, KEY_USER, KEY_GUILD, KEY_MEMBER
+from deps.cache import getCache, setCache, reset_cache_for_guid, ALWAYS_TTL, KEY_DAILY_MSG, KEY_REACTION_USERS, KEY_GUILD_USERS_AUTO_SCHEDULE, KEY_GUILD_TEXT_CHANNEL, KEY_MESSAGE, KEY_USER, KEY_GUILD, KEY_MEMBER, KEY_GUILD_VOICE_CHANNEL
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
-from deps.values import emoji_to_time, days_of_week
-from deps.functions import get_empty_votes, get_reactions, get_supported_time, get_time_choices
+from deps.values import supported_times_str, emoji_to_time, days_of_week, COMMAND_SCHEDULE_ADD, COMMAND_SCHEDULE_REMOVE, COMMAND_SCHEDULE_SEE, COMMAND_SCHEDULE_ADD_USER, COMMAND_SCHEDULE_CHANNEL_SELECTION, COMMAND_SCHEDULE_REFRESH_FROM_REACTION, COMMAND_RESET_CACHE, COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION
+from deps.functions import get_current_hour_eastern, get_empty_votes, get_reactions, get_supported_time_time_label, get_time_choices, get_last_schedule_message
 from deps.log import print_log, print_error_log, print_warning_log
 import pytz
 
@@ -30,6 +30,7 @@ COMMAND_SCHEDULE_ADD_USER = "adduserschedule"
 COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
 COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
 COMMAND_RESET_CACHE = "resetcache"
+COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "voicechannel"
 
 intents = discord.Intents.default()
 intents.messages = True  # Enable the messages intent
@@ -37,6 +38,7 @@ intents.members = True  # Enable the messages intent
 intents.reactions = True  # Enable the reactions intent
 intents.message_content = True  # Enable the message content intent
 intents.guild_reactions = True  # Enable the guild reactions intent
+intents.voice_states = True  # Enable voice states to track who is in voice channel
 
 bot = commands.Bot(command_prefix='/', intents=intents)
 
@@ -44,15 +46,10 @@ print_log(f"Env: {ENV}")
 print_log(f"Token: {TOKEN}")
 
 reactions = get_reactions()
-supported_times = get_supported_time()
+supported_times_time_label = get_supported_time_time_label()
 
 # Scheduler to send daily message
 scheduler = AsyncIOScheduler()
-
-
-def get_poll_message():
-    current_date = date.today().strftime("%B %d, %Y")
-    return f"What time will you play today ({current_date})?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_ADD} to set recurrent day and hours."
 
 
 async def reaction_worker():
@@ -78,7 +75,7 @@ async def on_ready():
         bot.tree.copy_global_to(guild=guildObj)
         synced = await bot.tree.sync(guild=guildObj)
         print_log(f"\tSynced {len(synced)} commands for guild {guild.name}.")
-        channel_id = await getCache(False, f"{KEY_GUILD_CHANNEL}:{guild.id}")
+        channel_id = await getCache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild.id}")
         if channel_id is None:
             print_log(
                 f"\tThe administrator of the guild {guild.name} did not configure the channel to send the daily message.")
@@ -111,6 +108,9 @@ async def on_ready():
     scheduler.add_job(send_daily_question_to_all_guild, 'cron',
                       hour=HOUR_SEND_DAILY_MESSAGE, minute=0, timezone=pacific)
     scheduler.start()
+
+    check_voice_channel.start()  # Start the background task
+
     # Run it for today (won't duplicate)
     await send_daily_question_to_all_guild()
 
@@ -131,7 +131,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild):
     now = datetime.now()
     current_date = now.strftime("%Y%m%d")
     day_of_week_number = now.weekday()  # 0 is Monday, 6 is Sunday
-    channelId = await getCache(False, f"{KEY_GUILD_CHANNEL}:{guild.id}")
+    channelId = await getCache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild.id}")
     if channelId is None:
         print_error_log(
             f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
@@ -307,7 +307,7 @@ class CombinedView(View):
             placeholder="Time of the Day:",
             options=list(map(lambda x:
                              discord.SelectOption(
-                                 value=x.value, label=x.label, description=x.description), supported_times)),
+                                 value=x.value, label=x.label, description=x.description), supported_times_time_label)),
             custom_id="in_hours",
             min_values=1, max_values=12
         )
@@ -391,7 +391,8 @@ async def seeSchedule(interaction: discord.Interaction):
 @commands.has_permissions(administrator=True)
 async def setDailyChannel(interaction: discord.Interaction, channel: discord.TextChannel):
     guild_id = interaction.guild.id
-    setCache(False, f"{KEY_GUILD_CHANNEL}:{guild_id}", channel.id, ALWAYS_TTL)
+    setCache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}",
+             channel.id, ALWAYS_TTL)
     await interaction.response.send_message(f"Confirmed to send a daily schedule message into #{channel.name}.")
     await send_daily_question_to_a_guild(interaction.guild)
 
@@ -402,11 +403,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
     guild_id = interaction.guild.id
     # Fetch the last message from the channel
     channel = interaction.channel
-    today_message = get_poll_message()[:10]
-    async for message in channel.history(limit=20):
-        if message.content.startswith(today_message):
-            last_message = message
-            break  # Since we're only interested in the last message, we can break after the first
+    last_message = await get_last_schedule_message(channel)
 
     if last_message is None:
         await interaction.response.send_message("No messages found in this channel.")
@@ -462,11 +459,7 @@ async def set_schedule_user_today(interaction: discord.Interaction, member: disc
     channel = await getCache(
         True, f"Channel:{interaction.channel_id}", lambda: bot.fetch_channel(channel_id))
 
-    today_message = get_poll_message()[:10]
-    async for message in channel.history(limit=20):
-        if message.content.startswith(today_message):
-            last_message = message
-            break  # Since we're only interested in the last message, we can break after the first
+    last_message = await get_last_schedule_message(channel)
     if last_message is None:
         await interaction.response.send_message("No messages found in this channel.")
         return
@@ -502,6 +495,106 @@ async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, mes
             message_votes[userHour.hour].append(userHour.simpleUser)
 
         setCache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION)
+@commands.has_permissions(administrator=True)
+async def setDailyChannel(interaction: discord.Interaction, channel: discord.VoiceChannel):
+    guild_id = interaction.guild.id
+    setCache(False, f"{KEY_GUILD_VOICE_CHANNEL}:{guild_id}",
+             channel.id, ALWAYS_TTL)
+    await interaction.response.send_message(f"Confirmed to list to #{channel.name}.")
+
+
+@tasks.loop(minutes=16)
+async def check_voice_channel():
+    """
+    Run when the bot start and every X minutes to update the cache of the users in the voice channel and update the schedule
+    """
+    for guild in bot.guilds:
+        guild_id = guild.id
+        text_channel_id = await getCache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
+        if text_channel_id is None:
+            print_warning_log(
+                f"Text channel not set for guild {guild.name}. Skipping.")
+            continue
+        voice_channel_id = await getCache(False, f"{KEY_GUILD_VOICE_CHANNEL}:{guild_id}")
+        if voice_channel_id is None:
+            print_warning_log(
+                f"Voice channel not set for guild {guild.name}. Skipping.")
+            continue
+        text_channel = discord.utils.get(
+            guild.text_channels, id=text_channel_id)
+        if text_channel is None:
+            print_warning_log(
+                f"Text channel configured but not found in the guild {guild.name}. Skipping.")
+            continue
+        voice_channel = discord.utils.get(
+            guild.voice_channels, id=voice_channel_id)
+        if voice_channel is None:
+            print_warning_log(
+                f"Voice channel configured but not found in the guild {guild.name}. Skipping.")
+            continue
+
+        users_in_channel = voice_channel.members  # List of users in the voice channel
+        for user in users_in_channel:
+            # Check if the user is a bot
+            if user.bot:
+                continue
+            # Check if the user already reacted
+            current_hour_str = get_current_hour_eastern()
+            if current_hour_str not in supported_times_str:
+                # We support a limited amount of hours because of emoji constraints
+                continue
+            last_message = await get_last_schedule_message(text_channel)
+            if last_message is None:
+                print_warning_log(
+                    f"No message found in the channel {text_channel.name}. Skipping.")
+                continue
+            reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild_id}:{text_channel_id}:{last_message.id}"
+            message_votes = await getCache(False, reaction_users_cache_key)
+            if not message_votes:
+                message_votes = get_empty_votes()
+            if any(user.id == u.user_id for u in message_votes[current_hour_str]):
+                # User already voted for the current hour
+                continue
+            # Add the user to the message votes
+            message_votes[current_hour_str].append(
+                SimpleUser(user.id, user.display_name, getUserRankEmoji(user)))
+            # Always update the cache
+            setCache(False, reaction_users_cache_key,
+                     message_votes, ALWAYS_TTL)
+            update_vote_message(last_message, message_votes)
+        print_log(f"Updated voice channel cache for {guild.name}")
+
+
+@check_voice_channel.before_loop
+async def before_check_voice_channel():
+    await bot.wait_until_ready()  # Ensure the bot is ready before starting the loop
+
+
+# @bot.event
+# async def on_voice_state_update(member, before, after):
+#     """
+#     Check if the user is the only one in the voice channel
+#     """
+#     for guild in bot.guilds:
+#         guild_id = guild.id
+#         voice_channel_id = await getCache(False, f"{KEY_GUILD_VOICE_CHANNEL}:{guild_id}")
+#         if voice_channel_id is None:
+#             print_warning_log(
+#                 f"Voice channel not set for guild {guild.name}. Skipping.")
+#             continue
+#         text_channel_id = await getCache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
+#         if text_channel_id is None:
+#             print_warning_log(
+#                 f"Text channel not set for guild {guild.name}. Skipping.")
+#             continue
+#         # Check if the user joined a voice channel
+#         if after.channel is not None and after.channel.id == voice_channel_id:
+#             # Check if the user is the only one in the voice channel
+#             if len(after.channel.members) == 1:
+#                 await member.send(f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>.")
 
 
 bot.run(TOKEN)

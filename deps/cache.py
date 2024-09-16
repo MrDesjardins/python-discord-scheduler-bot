@@ -13,7 +13,8 @@ DEFAULT_TTL = 60
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsers"
 KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleDay"
-KEY_GUILD_CHANNEL = "GuildAdminConfigChannel"
+KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigChannel"
+KEY_GUILD_VOICE_CHANNEL = "GuildAdminConfigVoiceChannel"
 KEY_MESSAGE = "Message"
 KEY_USER = "User"
 KEY_GUILD = "Guild"
@@ -135,7 +136,7 @@ def reset_cache_for_guid(guild_id: int) -> None:
     prefixes = [f"{KEY_DAILY_MSG}:{guild_id}",
                 f"{KEY_REACTION_USERS}:{guild_id}",
                 f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}",
-                f"{KEY_GUILD_CHANNEL}:{guild_id}",
+                f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}",
                 f"{KEY_MESSAGE}:{guild_id}",
                 f"{KEY_USER}:{guild_id}",
                 f"{KEY_GUILD}:{guild_id}",
