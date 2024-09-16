@@ -26,6 +26,7 @@ HOUR_SEND_DAILY_MESSAGE = 8
 COMMAND_SCHEDULE_ADD = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
 COMMAND_SCHEDULE_SEE = "seeschedule"
+COMMAND_SCHEDULE_APPLY = "applyschedule"
 COMMAND_SCHEDULE_ADD_USER = "adduserschedule"
 COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
 COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
@@ -139,7 +140,9 @@ async def send_daily_question_to_a_guild(guild: discord.Guild):
 
     message_sent = await get_cache(False, f"{KEY_DAILY_MSG}:{guild.id}:{channel_id}:{current_date}")
     if message_sent is None:
-        channel: discord.TextChannel = bot.get_channel(channel_id)
+        # channel: discord.TextChannel = bot.get_channel(channel_id)
+        channel = await get_cache(
+            True, f"Channel:{channel_id}", lambda: bot.fetch_channel(channel_id))
         message: discord.Message = await channel.send(get_poll_message())
         for reaction in reactions:
             await message.add_reaction(reaction)
@@ -510,6 +513,8 @@ async def set_schedule_user_today(interaction: discord.Interaction, member: disc
 
 
 async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, message_id: int, day_of_week_number: int):
+    print_log(
+        f"Auto assign user to daily question for guild {guild_id}, message_id {message_id}, day_of_week_number {day_of_week_number}")
     # Get the list of user and their hour for the specific day of the week
     list_users: Union[List[SimpleUserHour] | None] = await get_cache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}")
     reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
@@ -518,11 +523,19 @@ async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, mes
 
     # Loop for the user+hours
     if list_users is not None:
+        print_log(
+            f"Found {len(list_users)} users for the day {day_of_week_number}")
         for userHour in list_users:
             # Assign for each hour the user
             message_votes[userHour.hour].append(userHour.simple_user)
 
         set_cache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
+
+        channel = await get_cache(
+            True, f"Channel:{channel_id}", lambda: bot.fetch_channel(channel_id))
+
+        last_message = await get_last_schedule_message(channel)
+        await update_vote_message(last_message, message_votes)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION)
@@ -535,6 +548,35 @@ async def set_voice_channel(interaction: discord.Interaction, channel: discord.V
     set_cache(False, f"{KEY_GUILD_VOICE_CHANNEL}:{guild_id}",
               channel.id, ALWAYS_TTL)
     await interaction.response.send_message(f"Confirmed to list to #{channel.name}.")
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_APPLY)
+@commands.has_permissions(administrator=True)
+async def apply_schedule(interaction: discord.Interaction):
+    await interaction.response.defer()
+    """
+    Apply the schedule for user who scheduled using the /addschedule command
+    Should not have to use it, but admin can trigger the sync
+    """
+    guild_id = interaction.guild.id
+    channel_id = await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
+    if channel_id is None:
+        print_warning_log(
+            f"No text channel in guild {interaction.guild.name}. Skipping.")
+        await interaction.followup.send("Text channel not set.")
+        return
+
+    channel: discord.TextChannel = bot.get_channel(channel_id)
+    last_message: discord.Message = await get_last_schedule_message(channel)
+    if last_message is None:
+        print_warning_log(
+            f"No message found in the channel {channel.name}. Skipping.")
+        await interaction.followup.send(f"Cannot find a schedule message #{channel.name}.")
+
+    days_of_week = datetime.now().weekday()
+    await auto_assign_user_to_daily_question(guild_id, channel_id, last_message.id, days_of_week)
+
+    await interaction.followup.send(f"Update message in #{channel.name}.")
 
 
 @tasks.loop(minutes=16)
