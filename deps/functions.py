@@ -29,8 +29,9 @@ def get_supported_time_time_label():
     """
     supported_times = []
     for time in emoji_to_time.values():
-        short_label = time[:-2]  # Extracts the numeric part of the time
-        display_label = time
+        # time[:-2]  # Extracts the numeric part of the time
+        short_label = time  # E.g. 2pm
+        display_label = time  # E.g. 2pm
         description = f"{time} Eastern Time"
         supported_times.append(
             TimeLabel(short_label, display_label, description))

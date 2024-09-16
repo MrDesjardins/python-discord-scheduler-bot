@@ -41,6 +41,6 @@ class SimpleUserHour:
     """ Represent for bot's purpose, a user and the hour they voted for
     """
 
-    def __init__(self, user: SimpleUser, hour: int):
-        self.simpleUser = user
+    def __init__(self, user: SimpleUser, hour: str):
+        self.simple_user = user
         self.hour = hour

@@ -1,18 +1,20 @@
 
+""" Cache value for the bot. It acts as the persistent storage for the bot to store the data that needs to be kept between restarts."""
 import asyncio
 import time
 from typing import Callable, Awaitable, List, Union, Optional, Any
 import inspect
-import dill as pickle
 import atexit
 import threading
+import dill as pickle
+
 CACHE_FILE = "cache.txt"
 ALWAYS_TTL = 60*60*24*365*10
 DEFAULT_TTL = 60
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsers"
-KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleDay"
+KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleByDay"
 KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigChannel"
 KEY_GUILD_VOICE_CHANNEL = "GuildAdminConfigVoiceChannel"
 KEY_MESSAGE = "Message"
@@ -48,20 +50,24 @@ class TTLCache:
         return False
 
     def set(self, key: str, value: Any, ttl: Optional[str] = None):
+        """Set the value in the cache with an optional TTL"""
         if ttl is None:
             ttl = self.default_ttl
         self.cache[key] = CacheItem(value, ttl)
 
     def get(self, key: str) -> Union[Optional[Any]]:
+        """Get the value from the cache if it exists and is not expired"""
         if self._is_expired(key):
             return None
         return self.cache.get(key).value
 
     def delete(self, key: str) -> None:
+        """Delete the value from the cache"""
         if key in self.cache:
             del self.cache[key]
 
     def delete_by_prefix(self, prefix: str) -> int:
+        """Delete all keys that start with the given prefix"""
         counter = 0
         keys_to_delete = [key for key in self.cache if key.startswith(prefix)]
         for key in keys_to_delete:
@@ -70,9 +76,11 @@ class TTLCache:
         return counter
 
     def clear(self) -> None:
+        """Delete ALL the cache"""
         self.cache.clear()
 
     async def _cleanup(self) -> None:
+        """ Remove expired key. """
         while True:
             expired_keys: List[str] = []
             for key in list(self.cache.keys()):
@@ -84,12 +92,13 @@ class TTLCache:
             await asyncio.sleep(1000)  # Adjust the sleep time as needed
 
     def start_cleanup(self) -> None:
+        """ Start the task to clean up in the background. """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:  # No running event loop
             loop = asyncio.new_event_loop()
             threading.Thread(target=loop.run_forever, daemon=True).start()
-        
+
         asyncio.run_coroutine_threadsafe(self._cleanup(), loop)
 
     def initialize(self, values: dict[str, Any]) -> None:
@@ -98,7 +107,7 @@ class TTLCache:
             self.cache = values
 
 
-async def getCache(inMemory: bool, key: str, fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None) -> Any:
+async def get_cache(inMemory: bool, key: str, fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None) -> Any:
     """ Get the value from the cache from the in-memory or data cache 
     If the value is not in the cache, calls the fetch function to get the value and set it into the cache
     """
@@ -120,7 +129,7 @@ async def getCache(inMemory: bool, key: str, fetch_function: Optional[Union[Call
     return value
 
 
-def setCache(inMemory: bool, key: str, value: Any, cache_seconds: Optional[int] = None):
+def set_cache(inMemory: bool, key: str, value: Any, cache_seconds: Optional[int] = None):
     """ Set the value in the cache in the in-memory or data cache 
     If the cache is on disk, the data goes into the file as well
     """
@@ -157,6 +166,7 @@ def save_to_file(obj: dict[str, any], filename: str) -> None:
 
 
 def load_from_file(filename: str) -> Optional[dict[str, any]]:
+    """ Load the object from the file """
     try:
         with open(filename, 'rb') as file:
             return pickle.load(file)
