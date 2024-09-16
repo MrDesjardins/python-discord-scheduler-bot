@@ -584,6 +584,7 @@ async def check_voice_channel():
     """
     Run when the bot start and every X minutes to update the cache of the users in the voice channel and update the schedule
     """
+    print_log("Checking voice channel to sync the schedule")
     for guild in bot.guilds:
         guild_id = guild.id
         text_channel_id = await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
@@ -626,17 +627,22 @@ async def check_voice_channel():
             current_hour_str = get_current_hour_eastern()
             if current_hour_str not in supported_times_str:
                 # We support a limited amount of hours because of emoji constraints
+                print_log(
+                    f"Current hour {current_hour_str} not supported. Skipping.")
                 continue
             if any(user.id == u.user_id for u in message_votes[current_hour_str]):
                 # User already voted for the current hour
+                print_log(
+                    f"User {user.id} already voted for {current_hour_str} in message {last_message.id}")
                 continue
             # Add the user to the message votes
             message_votes[current_hour_str].append(
                 SimpleUser(user.id, user.display_name, getUserRankEmoji(user)))
 
-            # Always update the cache
-            set_cache(False, reaction_users_cache_key,
-                      message_votes, ALWAYS_TTL)
+        print_log(f"Updating voice channel cache for {guild.name} and updating the message")
+        # Always update the cache
+        set_cache(False, reaction_users_cache_key,
+                    message_votes, ALWAYS_TTL)
         await update_vote_message(last_message, message_votes)
         print_log(f"Updated voice channel cache for {guild.name}")
 
