@@ -1,12 +1,17 @@
 [Unit]
 Description=Discord Scheduler Bot
 After=network.target
+Requires=network.target
+Requires=local-fs.target
+After=local-fs.target
 
 [Service]
 WorkingDirectory=/home/pi/python-discord-scheduler-bot
 EnvironmentFile=/etc/environment
 ExecStart=/home/pi/python-discord-scheduler-bot/.venv/bin/python3 /home/pi/python-discord-scheduler-bot/bot.py
+ExecStartPre=/bin/sleep 10
 Restart=on-failure
+RestartSec=10
 User=pi
 Group=pi
 
