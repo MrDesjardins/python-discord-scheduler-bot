@@ -9,6 +9,10 @@
 
 The bot needs to send daily messages to a specific channel of the guild. An administrator must call `/channel` and specify which channel the bot will send a daily message. Without this configuration, the bot will skip the guild daily message.
 
+## `voicechannel` (Admin only)
+
+The bot needs to know which voice channel to check for the guild. An administrator must call `/voicechannel` and specify which channel the bot check activity. Without this configuration, the bot will skip the voice participation.
+
 ## `addschedule`
 
 User can react to a message every day or can use the `/addschedule` command to set a schedule. The command allows selecting day of the weeks and many hours. If the user executes the command multiple times, the previous schedule will be overridden.
@@ -24,6 +28,10 @@ Once a user set a schedule, they can remove it using the `/removeschedule` comma
 ## `resetcache` (Admin only)
 
 Reset the cache for the administration guild.
+
+## `adduserschedule` (Admin only)
+
+An administrator can add a schedule (hours) for a user for the current day.
 
 # Discord Administration
 

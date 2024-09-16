@@ -12,7 +12,7 @@ from deps.siege import getUserRankEmoji
 from deps.cache import getCache, setCache, reset_cache_for_guid, ALWAYS_TTL, KEY_DAILY_MSG, KEY_REACTION_USERS, KEY_GUILD_USERS_AUTO_SCHEDULE, KEY_GUILD_TEXT_CHANNEL, KEY_MESSAGE, KEY_USER, KEY_GUILD, KEY_MEMBER, KEY_GUILD_VOICE_CHANNEL
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
 from deps.values import supported_times_str, emoji_to_time, days_of_week, COMMAND_SCHEDULE_ADD, COMMAND_SCHEDULE_REMOVE, COMMAND_SCHEDULE_SEE, COMMAND_SCHEDULE_ADD_USER, COMMAND_SCHEDULE_CHANNEL_SELECTION, COMMAND_SCHEDULE_REFRESH_FROM_REACTION, COMMAND_RESET_CACHE, COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION
-from deps.functions import get_current_hour_eastern, get_empty_votes, get_reactions, get_supported_time_time_label, get_time_choices, get_last_schedule_message
+from deps.functions import get_current_hour_eastern, get_empty_votes, get_reactions, get_supported_time_time_label, get_time_choices, get_last_schedule_message, get_poll_message
 from deps.log import print_log, print_error_log, print_warning_log
 import pytz
 
@@ -561,10 +561,11 @@ async def check_voice_channel():
             # Add the user to the message votes
             message_votes[current_hour_str].append(
                 SimpleUser(user.id, user.display_name, getUserRankEmoji(user)))
-            # Always update the cache
-            setCache(False, reaction_users_cache_key,
-                     message_votes, ALWAYS_TTL)
-            update_vote_message(last_message, message_votes)
+            
+        # Always update the cache
+        setCache(False, reaction_users_cache_key,
+                    message_votes, ALWAYS_TTL)
+        await update_vote_message(last_message, message_votes)
         print_log(f"Updated voice channel cache for {guild.name}")
 
 
