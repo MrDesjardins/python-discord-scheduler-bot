@@ -384,7 +384,7 @@ async def remove_user_schedule(interaction: discord.Interaction, day: DayOfWeek)
                    interaction.user.id, list_users))
     set_cache(
         False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{interaction.guild_id}:{day.value}", my_list, ALWAYS_TTL)
-    await interaction.response.send_message(f"Remove for {repr(day)}")
+    await interaction.response.send_message(f"Remove for {repr(day)}", ephemeral=True)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_SEE)
@@ -415,7 +415,7 @@ async def set_text_channel(interaction: discord.Interaction, channel: discord.Te
     guild_id = interaction.guild.id
     set_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}",
               channel.id, ALWAYS_TTL)
-    await interaction.response.send_message(f"Confirmed to send a daily schedule message into #{channel.name}.")
+    await interaction.response.send_message(f"Confirmed to send a daily schedule message into #{channel.name}.", ephemeral=True)
     await send_daily_question_to_a_guild(interaction.guild)
 
 
@@ -431,7 +431,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
     last_message = await get_last_schedule_message(channel)
 
     if last_message is None:
-        await interaction.response.send_message("No messages found in this channel.")
+        await interaction.response.send_message("No messages found in this channel.", ephemeral=True)
         return
 
     await interaction.response.defer()
@@ -462,9 +462,9 @@ async def refresh_from_reaction(interaction: discord.Interaction):
         # Always update the cache
         set_cache(False, reaction_users_cache_key, message_votes, ALWAYS_TTL)
         await update_vote_message(message, message_votes)
-        await interaction.followup.send('Updated from the reaction')
+        await interaction.followup.send('Updated from the reaction', ephemeral=True)
     else:
-        await interaction.followup.send("No reactions on the last message.")
+        await interaction.followup.send("No reactions on the last message.", ephemeral=True)
 
 
 @bot.tree.command(name=COMMAND_RESET_CACHE)
@@ -475,7 +475,7 @@ async def reset_cache(interaction: discord.Interaction):
     """
     guild_id = interaction.guild.id
     reset_cache_for_guid(guild_id)
-    await interaction.response.send_message("Cached flushed")
+    await interaction.response.send_message("Cached flushed", ephemeral=True)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_ADD_USER)
@@ -492,7 +492,7 @@ async def set_schedule_user_today(interaction: discord.Interaction, member: disc
 
     last_message = await get_last_schedule_message(channel)
     if last_message is None:
-        await interaction.response.send_message("No messages found in this channel.")
+        await interaction.response.send_message("No messages found in this channel.", ephemeral=True)
         return
     message_id = last_message.id
     message: discord.Message = await get_cache(True, f"{KEY_MESSAGE}:{interaction.guild_id}:{channel_id}:{message_id}",
@@ -547,7 +547,7 @@ async def set_voice_channel(interaction: discord.Interaction, channel: discord.V
     guild_id = interaction.guild.id
     set_cache(False, f"{KEY_GUILD_VOICE_CHANNEL}:{guild_id}",
               channel.id, ALWAYS_TTL)
-    await interaction.response.send_message(f"Confirmed to list to #{channel.name}.")
+    await interaction.response.send_message(f"Confirmed to list to #{channel.name}.", ephemeral=True)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_APPLY)
@@ -563,7 +563,7 @@ async def apply_schedule(interaction: discord.Interaction):
     if channel_id is None:
         print_warning_log(
             f"No text channel in guild {interaction.guild.name}. Skipping.")
-        await interaction.followup.send("Text channel not set.")
+        await interaction.followup.send("Text channel not set.", ephemeral=True)
         return
 
     channel: discord.TextChannel = bot.get_channel(channel_id)
@@ -571,12 +571,12 @@ async def apply_schedule(interaction: discord.Interaction):
     if last_message is None:
         print_warning_log(
             f"No message found in the channel {channel.name}. Skipping.")
-        await interaction.followup.send(f"Cannot find a schedule message #{channel.name}.")
+        await interaction.followup.send(f"Cannot find a schedule message #{channel.name}.", ephemeral=True)
 
     days_of_week = datetime.now().weekday()
     await auto_assign_user_to_daily_question(guild_id, channel_id, last_message.id, days_of_week)
 
-    await interaction.followup.send(f"Update message in #{channel.name}.")
+    await interaction.followup.send(f"Update message in #{channel.name}.", ephemeral=True)
 
 
 @tasks.loop(minutes=16)
