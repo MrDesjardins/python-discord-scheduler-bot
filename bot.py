@@ -195,6 +195,11 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
     member = await get_cache(True, f"{KEY_MEMBER}:{reaction.guild_id}:{reaction.channel_id}:{reaction.user_id}",
                              lambda: guild.fetch_member(user.id))
 
+    # We do not act on message that are not in the Guild's text channel
+    message_id_for_bot = await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{reaction.guild_id}")
+    if message_id_for_bot is None or message_id_for_bot != reaction.channel_id:
+        return;
+
     if not channel or not message or not user or not guild or not member:
         print_log("End-Before Adjusting reaction")
         return
