@@ -408,7 +408,7 @@ async def see_user_own_schedule(interaction: discord.Interaction):
     if response == '':
         response = f"No schedule found, uses the command /{COMMAND_SCHEDULE_ADD} to configure a recurrent schedule."
 
-    await interaction.response.send_message(response)
+    await interaction.response.send_message(response, ephemeral=True)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SELECTION)
