@@ -116,7 +116,7 @@ async def on_ready():
     scheduler.start()
 
     check_voice_channel.start()  # Start the background task
-    
+
     # Run it for today (won't duplicate)
     await send_daily_question_to_all_guild()
 
@@ -128,7 +128,9 @@ async def fix_schedule(guild_id: int):
             for user_hours in list_users:
                 if user_hours.hour == "12pm":
                     user_hours.hour = "12am"
-            set_cache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}", list_users, ALWAYS_TTL)
+            set_cache(
+                False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}", list_users, ALWAYS_TTL)
+
 
 async def send_daily_question_to_all_guild():
     """
@@ -154,7 +156,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild, force: bool = Fal
 
     guid_channel_key = f"{KEY_DAILY_MSG}:{guild.id}:{channel_id}:{current_date}"
     message_sent = await get_cache(False, guid_channel_key)
-    if message_sent is None or force==True:
+    if message_sent is None or force == True:
         channel = await get_cache(
             True, f"{KEY_CHANNEL}:{channel_id}", lambda: bot.fetch_channel(channel_id))
         # We might not have in the cache but maybe the message was sent, let's check
@@ -481,7 +483,8 @@ async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, mes
         channel = await get_cache(
             True, f"{KEY_CHANNEL}:{channel_id}", lambda: bot.fetch_channel(channel_id))
 
-        last_message = await get_last_schedule_message(channel)
+        last_message: discord.Message = await get_cache(True, f"{KEY_MESSAGE}:{guild_id}:{channel_id}:{message_id}",
+                                                        lambda: channel.fetch_message(message_id))
         await update_vote_message(last_message, message_votes)
 
 
@@ -544,11 +547,14 @@ async def apply_schedule(interaction: discord.Interaction):
 
     await interaction.followup.send(f"Update message in #{channel.name}.", ephemeral=True)
 
+
 @ bot.tree.command(name=COMMAND_FORCE_SEND)
 @ commands.has_permissions(administrator=True)
 async def force_send_daily(interaction: discord.Interaction):
+    await interaction.response.defer()
     await send_daily_question_to_a_guild(interaction.guild, True)
-    await interaction.response.send_message("Force sending", ephemeral=True)
+    await interaction.followup.send("Force sending", ephemeral=True)
+
 
 @ tasks.loop(minutes=16)
 async def check_voice_channel():
