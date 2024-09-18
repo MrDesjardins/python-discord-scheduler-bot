@@ -65,7 +65,7 @@ async def get_last_schedule_message(channel: Union[discord.TextChannel, discord.
 
     today_message = get_poll_message()[:10]
     async for message in channel.history(limit=20):
-        if message.content.startswith(today_message):
+        if message.content.startswith(today_message) and message.author.bot:
             last_message = message
             return last_message
     return None

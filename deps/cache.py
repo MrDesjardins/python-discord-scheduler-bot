@@ -10,17 +10,19 @@ import dill as pickle
 
 CACHE_FILE = "cache.txt"
 ALWAYS_TTL = 60*60*24*365*10
+THREE_DAY_TTL = 60*60*24*3
 DEFAULT_TTL = 60
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsers"
 KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleByDay"
-KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigChannel"
-KEY_GUILD_VOICE_CHANNEL = "GuildAdminConfigVoiceChannel"
+KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigTextChannel"
+KEY_GUILD_VOICE_CHANNELS = "GuildAdminConfigVoiceChannels"
 KEY_MESSAGE = "Message"
 KEY_USER = "User"
 KEY_GUILD = "Guild"
 KEY_MEMBER = "Member"
+KEY_CHANNEL = "Channel"
 
 
 class CacheItem:
@@ -106,6 +108,13 @@ class TTLCache:
         if values:
             self.cache = values
 
+async def remove_cache(inMemory: bool, key: str) -> None:
+    """ Remove the key from the cache """
+    if inMemory:
+        memoryCache.delete(key)
+    else:
+        dataCache.delete(key)
+        save_to_file(dataCache.cache, CACHE_FILE)
 
 async def get_cache(inMemory: bool, key: str, fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None) -> Any:
     """ Get the value from the cache from the in-memory or data cache 

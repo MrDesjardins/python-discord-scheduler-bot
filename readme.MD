@@ -5,13 +5,17 @@
 
 # Bot Commands
 
-## `channel` (Admin only)
+## `textchannel` (Admin only)
 
-The bot needs to send daily messages to a specific channel of the guild. An administrator must call `/channel` and specify which channel the bot will send a daily message. Without this configuration, the bot will skip the guild daily message.
+The bot needs to send daily messages to a specific channel of the guild. An administrator must call `/textchannel` and specify which channel the bot will send a daily message. Without this configuration, the bot will skip the guild daily message.
 
 ## `voicechannel` (Admin only)
 
-The bot needs to know which voice channel to check for the guild. An administrator must call `/voicechannel` and specify which channel the bot check activity. Without this configuration, the bot will skip the voice participation.
+The bot needs to know which voice channel to check for the guild. An administrator must call `/voicechannel` and specify which channel the bot check activity. Without this configuration, the bot will skip the voice participation. Calling the function many times adds up the voice channels.
+
+## `resetvoicechannel` (Admin only)
+
+An administrator calls `/resetvoicechannel` to remove all voice channels configuration. It is good to reset and add the voice channels again.
 
 ## `addschedule`
 
@@ -23,7 +27,7 @@ Once a user set a schedule, they can remove it using the `/removeschedule` comma
 
 ## `seeschedule`
 
-`seeschedule` command will show the current schedule of the user.
+`/seeschedule` command will show the current schedule of the user.
 
 ## `resetcache` (Admin only)
 
@@ -32,6 +36,14 @@ Reset the cache for the administration guild.
 ## `adduserschedule` (Admin only)
 
 An administrator can add a schedule (hours) for a user for the current day.
+
+## `applyschedule` (Admin only)
+
+An administrator can invoke the `/applyschedule` to force the bot to check the cache for user's schedule and apply it on the current day.
+
+## `refreshschedule` (Admin only)
+
+If the bot is down, the administrator can call `/refreshschedule` to refresh the cache from the reaction of the message.
 
 # Discord Administration
 
