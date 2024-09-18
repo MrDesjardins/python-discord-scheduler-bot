@@ -15,7 +15,8 @@ from deps.functions import get_current_hour_eastern, get_empty_votes, get_reacti
 from deps.log import print_log, print_error_log, print_warning_log
 from deps.ui import FormDayHours
 import pytz
-
+from gtts import gTTS
+import os
 
 load_dotenv()
 
@@ -640,7 +641,76 @@ async def on_voice_state_update(member, before, after):
         if after.channel is not None and after.channel.id in voice_channel_ids:
             # Check if the user is the only one in the voice channel
             if len(after.channel.members) == 1:
-                await member.send(f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>.")
+                await send_notification_voice_channel(guild_id, member, after.channel, text_channel_id)
 
+
+async def send_notification_voice_channel(guild_id: int, member: discord.Member, voice_channel: discord.VoiceChannel, text_channel_id: int) -> None:
+    """
+    Send a notification to the user in the voice channel
+    """
+    # Send DM to the user
+    # await member.send(f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>.")
+
+    list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern())
+    if len(list_simple_users) > 0:
+        other_members = ', '.join(
+            [f'{user.display_name}' for user in list_simple_users])
+        text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play at this time. To see the schedule, check the bot schedule channel."
+    else:
+        # Check next hour
+        list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern(1))
+        if len(list_simple_users) > 0:
+            other_members = ', '.join(
+                [f'{user.display_name}' for user in list_simple_users])
+            text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play in the upcoming hour. To see the schedule, check the bot schedule channel."
+        else:
+            text_message = f"Hello {member.display_name}! Feel free to ping the siege channel to find partners."
+
+    # Convert text to speech using gTTS
+    tts = gTTS(text_message, lang='en')
+    tts.save("welcome.mp3")
+    # Connect to the voice channel
+    if member.guild.voice_client is None:  # Bot isn't already in a channel
+        voice_client = await voice_channel.connect()
+    else:
+        voice_client = member.guild.voice_client
+
+    # Play the audio
+    audio_source = discord.FFmpegPCMAudio("welcome.mp3")
+    voice_client.play(audio_source)
+
+    # Wait for the audio to finish playing
+    while voice_client.is_playing():
+        await discord.utils.sleep_until(datetime.now() + timedelta(seconds=1))
+
+    # Disconnect after playing the audio
+    await voice_client.disconnect()
+
+    # Clean up the saved audio file
+    os.remove("welcome.mp3")
+
+
+async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str: str) -> List[SimpleUser]:
+    """
+    Get the list of users scheduled for the current day and hour
+    current_hour_str: The current hour in the format "3am"
+    """
+    channel_id = await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
+    channel = await get_cache(
+        True, f"{KEY_CHANNEL}:{channel_id}", lambda: bot.fetch_channel(channel_id))
+
+    last_message = await get_last_schedule_message(channel)
+
+    if last_message is None:
+        return []
+
+    # Cache all users for this message's reactions to avoid redundant API calls
+    reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{last_message.id}"
+    message_votes = await get_cache(False, reaction_users_cache_key)
+    if not message_votes:
+        message_votes = get_empty_votes()
+    if current_hour_str not in message_votes:
+        return []
+    return message_votes[current_hour_str]
 
 bot.run(TOKEN)

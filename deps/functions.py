@@ -5,7 +5,7 @@ from discord import app_commands
 from datetime import datetime, date
 from typing import Union
 import pytz
-
+from typing import Callable, Awaitable, List, Union, Optional, Any
 
 def get_empty_votes():
     """ Returns an empty votes dictionary.
@@ -71,11 +71,14 @@ async def get_last_schedule_message(channel: Union[discord.TextChannel, discord.
     return None
 
 
-def get_current_hour_eastern() -> str:
+def get_current_hour_eastern(add_hour: Optional[int] = None) -> str:
     """
     Returns the current hour in Eastern Time. In the format 3am or 3pm.
     """
     eastern = pytz.timezone('US/Eastern')
-    current_time_eastern = datetime.now(eastern)
+    if add_hour:
+        current_time_eastern = datetime.now(eastern).replace(hour=datetime.now(eastern).hour + add_hour)
+    else:
+        current_time_eastern = datetime.now(eastern)
     # Strip leading zero by converting the hour to an integer before formatting
     return current_time_eastern.strftime('%-I%p').lower() if hasattr(datetime.now(eastern), 'strftime') else current_time_eastern.strftime('%I%p').lstrip('0').lower()
