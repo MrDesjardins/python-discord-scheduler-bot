@@ -82,3 +82,4 @@ def get_current_hour_eastern(add_hour: Optional[int] = None) -> str:
         current_time_eastern = datetime.now(eastern)
     # Strip leading zero by converting the hour to an integer before formatting
     return current_time_eastern.strftime('%-I%p').lower() if hasattr(datetime.now(eastern), 'strftime') else current_time_eastern.strftime('%I%p').lstrip('0').lower()
+

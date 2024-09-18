@@ -7,6 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from typing import List, Dict, Union
 import asyncio
 from datetime import datetime, timedelta, date, timezone
+from deps.date_utils import is_today
 from deps.siege import getUserRankEmoji
 from deps.cache import KEY_CHANNEL, THREE_DAY_TTL, get_cache, remove_cache, set_cache, reset_cache_for_guid, ALWAYS_TTL, KEY_DAILY_MSG, KEY_REACTION_USERS, KEY_GUILD_USERS_AUTO_SCHEDULE, KEY_GUILD_TEXT_CHANNEL, KEY_MESSAGE, KEY_USER, KEY_GUILD, KEY_MEMBER, KEY_GUILD_VOICE_CHANNELS
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
@@ -34,6 +35,7 @@ COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
 COMMAND_RESET_CACHE = "resetcache"
 COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "voicechannel"
 COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "resetvoicechannel"
+COMMAND_FORCE_SEND = "forcesendschedule"
 
 intents = discord.Intents.default()
 intents.messages = True  # Enable the messages intent
@@ -95,6 +97,7 @@ async def on_ready():
                 f"\tChannel ID {channel_id} not found in guild {guild.name}")
 
         # Debug
+        await fix_schedule(guild.id)
         list_users: Union[List[SimpleUserHour] | None] = await get_cache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild.id}:{datetime.now().weekday()}")
         if list_users:
             for user_hours in list_users:
@@ -113,10 +116,19 @@ async def on_ready():
     scheduler.start()
 
     check_voice_channel.start()  # Start the background task
-
+    
     # Run it for today (won't duplicate)
     await send_daily_question_to_all_guild()
 
+
+async def fix_schedule(guild_id: int):
+    for day_of_week_number in range(7):
+        list_users: Union[List[SimpleUserHour] | None] = await get_cache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}")
+        if list_users:
+            for user_hours in list_users:
+                if user_hours.hour == "12pm":
+                    user_hours.hour = "12am"
+            set_cache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}", list_users, ALWAYS_TTL)
 
 async def send_daily_question_to_all_guild():
     """
@@ -127,7 +139,7 @@ async def send_daily_question_to_all_guild():
         await send_daily_question_to_a_guild(guild)
 
 
-async def send_daily_question_to_a_guild(guild: discord.Guild):
+async def send_daily_question_to_a_guild(guild: discord.Guild, force: bool = False):
     """
     Send the daily schedule question to a specific guild
     """
@@ -142,16 +154,17 @@ async def send_daily_question_to_a_guild(guild: discord.Guild):
 
     guid_channel_key = f"{KEY_DAILY_MSG}:{guild.id}:{channel_id}:{current_date}"
     message_sent = await get_cache(False, guid_channel_key)
-    if message_sent is None:
+    if message_sent is None or force==True:
         channel = await get_cache(
             True, f"{KEY_CHANNEL}:{channel_id}", lambda: bot.fetch_channel(channel_id))
         # We might not have in the cache but maybe the message was sent, let's check
         last_message = await get_last_schedule_message(channel)
         if last_message is not None:
-            print_warning_log(
-                f"\t⚠️ Daily message already in Discord for guild {guild.name}. Adding in cache and skipping.")
-            set_cache(False, guid_channel_key, True, THREE_DAY_TTL)
-            return
+            if is_today(last_message.created_at):
+                print_warning_log(
+                    f"\t⚠️ Daily message already in Discord for guild {guild.name}. Adding in cache and skipping.")
+                set_cache(False, guid_channel_key, True, THREE_DAY_TTL)
+                return
         # We never sent the message, so we send it, add the reactions and save it in the cache
         message: discord.Message = await channel.send(get_poll_message())
         for reaction in reactions:
@@ -531,6 +544,11 @@ async def apply_schedule(interaction: discord.Interaction):
 
     await interaction.followup.send(f"Update message in #{channel.name}.", ephemeral=True)
 
+@ bot.tree.command(name=COMMAND_FORCE_SEND)
+@ commands.has_permissions(administrator=True)
+async def force_send_daily(interaction: discord.Interaction):
+    await send_daily_question_to_a_guild(interaction.guild, True)
+    await interaction.response.send_message("Force sending", ephemeral=True)
 
 @ tasks.loop(minutes=16)
 async def check_voice_channel():
@@ -650,7 +668,7 @@ async def send_notification_voice_channel(guild_id: int, member: discord.Member,
     """
     # Send DM to the user
     # await member.send(f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>.")
-
+    return
     list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern())
     if len(list_simple_users) > 0:
         other_members = ', '.join(
