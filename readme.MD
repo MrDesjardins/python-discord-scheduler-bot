@@ -13,6 +13,14 @@ The bot needs to send daily messages to a specific channel of the guild. An admi
 
 The bot needs to know which voice channel to check for the guild. An administrator must call `/voicechannel` and specify which channel the bot check activity. Without this configuration, the bot will skip the voice participation. Calling the function many times adds up the voice channels.
 
+## `seetextchannel` (Admin only)
+
+Allows to see what is the text channel configured for the guild.
+
+## `seevoicechannels` (Admin only)
+
+Allows to see what is the voice channels configured for the guild.
+
 ## `resetvoicechannel` (Admin only)
 
 An administrator calls `/resetvoicechannel` to remove all voice channels configuration. It is good to reset and add the voice channels again.
@@ -89,6 +97,7 @@ https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=7
 # Dev Bot
 https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=76864&integration_type=0&scope=bot
 ```
+
 # Local Development Configuration
 
 ## .Env file
@@ -140,13 +149,22 @@ python3 -m pip freeze > requirements.txt
 1. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
 1. Create the Python environment `python3 -m venv .venv`
 1. Activate the Python environment `source .venv/bin/activate`
-1. Install the dependencies `python3 -m pip install -r requirements.txt` 
+1. Install the dependencies `python3 -m pip install -r requirements.txt`
 1. Edit the environment variables file `/etc/environment` (require sudo)
+
 ```sh
 ENV=prod
 BOT_TOKEN=<bot token>
 ```
-6. Install the systemd that will run the bot at startup
+
+9. Install ffmpeg
+
+```sh
+sudo apt-get install ffmpeg
+```
+
+10. Install the systemd that will run the bot at startup
+
 ```sh
 sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
 sudo systemctl enable gametimescheduler.service
@@ -154,11 +172,14 @@ sudo systemctl start gametimescheduler.service
 ```
 
 ## Debugging
+
 If the service does not start, you can check the status of the service with the following command:
+
 ```sh
 sudo systemctl status gametimescheduler.service
 ```
 
 # Alternative Hosting Solutions
+
 1. The free plan of [PythonAnywhere](https://www.pythonanywhere.com) does not allow the Discord.py communication on port 443.
 2. [Azure Web App](https://azure.microsoft.com/en-us/products/app-service) free plan does not have "always on" which means the bot cannot remain always active.

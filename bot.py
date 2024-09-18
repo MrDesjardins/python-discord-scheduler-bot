@@ -34,6 +34,8 @@ COMMAND_SCHEDULE_CHANNEL_SELECTION = "textchannel"
 COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
 COMMAND_RESET_CACHE = "resetcache"
 COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "voicechannel"
+COMMAND_SCHEDULE_CHANNEL_SEE_VOICE_SELECTION = "seevoicechannels"
+COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION = "seetextchannel"
 COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "resetvoicechannel"
 COMMAND_FORCE_SEND = "forcesendschedule"
 
@@ -383,7 +385,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
         await interaction.response.send_message("No messages found in this channel.", ephemeral=True)
         return
 
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
 
     # Cache all users for this message's reactions to avoid redundant API calls
     reaction_users_cache_key = f"{KEY_REACTION_USERS}:{guild_id}:{channel.id}:{last_message.id}"
@@ -522,7 +524,7 @@ async def reset_voice_channels(interaction: discord.Interaction):
 @ bot.tree.command(name=COMMAND_SCHEDULE_APPLY)
 @ commands.has_permissions(administrator=True)
 async def apply_schedule(interaction: discord.Interaction):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     """
     Apply the schedule for user who scheduled using the /addschedule command
     Should not have to use it, but admin can trigger the sync
@@ -551,9 +553,43 @@ async def apply_schedule(interaction: discord.Interaction):
 @ bot.tree.command(name=COMMAND_FORCE_SEND)
 @ commands.has_permissions(administrator=True)
 async def force_send_daily(interaction: discord.Interaction):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     await send_daily_question_to_a_guild(interaction.guild, True)
     await interaction.followup.send("Force sending", ephemeral=True)
+
+
+@ bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SEE_VOICE_SELECTION)
+@ commands.has_permissions(administrator=True)
+async def see_voice_channels(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild_id = interaction.guild.id
+    voice_ids = await get_cache(False, f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}")
+    if voice_ids is None:
+        print_warning_log(
+            f"No voice channel in guild {interaction.guild.name}. Skipping.")
+        await interaction.followup.send("Voice channel not set.", ephemeral=True)
+        return
+    names = []
+    for voice_id in voice_ids:
+        names.append(voice_id)
+
+    names_txt = ', '.join(map(lambda x: "<#" + str(x) + ">", voice_ids))
+    await interaction.followup.send(f"The voice channels are: {names_txt} ", ephemeral=True)
+
+
+@ bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION)
+@ commands.has_permissions(administrator=True)
+async def see_text_channel(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    guild_id = interaction.guild.id
+    channel_id = await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
+    if channel_id is None:
+        print_warning_log(
+            f"No text channel in guild {interaction.guild.name}. Skipping.")
+        await interaction.followup.send("Text channel not set.", ephemeral=True)
+        return
+
+    await interaction.followup.send(f"The text channel is <#{channel_id}>", ephemeral=True)
 
 
 @ tasks.loop(minutes=16)
@@ -644,7 +680,7 @@ async def before_check_voice_channel():
     await bot.wait_until_ready()
 
 
-@bot.event
+@ bot.event
 async def on_voice_state_update(member, before, after):
     """
     Check if the user is the only one in the voice channel
