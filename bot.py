@@ -619,28 +619,28 @@ async def before_check_voice_channel():
     await bot.wait_until_ready()
 
 
-# @bot.event
-# async def on_voice_state_update(member, before, after):
-#     """
-#     Check if the user is the only one in the voice channel
-#     """
-#     for guild in bot.guilds:
-#         guild_id = guild.id
-#         voice_channel_id = await getCache(False, f"{KEY_GUILD_VOICE_CHANNEL}:{guild_id}")
-#         if voice_channel_id is None:
-#             print_warning_log(
-#                 f"Voice channel not set for guild {guild.name}. Skipping.")
-#             continue
-#         text_channel_id = await getCache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
-#         if text_channel_id is None:
-#             print_warning_log(
-#                 f"Text channel not set for guild {guild.name}. Skipping.")
-#             continue
-#         # Check if the user joined a voice channel
-#         if after.channel is not None and after.channel.id == voice_channel_id:
-#             # Check if the user is the only one in the voice channel
-#             if len(after.channel.members) == 1:
-#                 await member.send(f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>.")
+@bot.event
+async def on_voice_state_update(member, before, after):
+    """
+    Check if the user is the only one in the voice channel
+    """
+    for guild in bot.guilds:
+        guild_id = guild.id
+        voice_channel_ids = await get_cache(False, f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}")
+        if voice_channel_ids is None:
+            print_warning_log(
+                f"Voice channel not set for guild {guild.name}. Skipping.")
+            continue
+        text_channel_id = await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
+        if text_channel_id is None:
+            print_warning_log(
+                f"Text channel not set for guild {guild.name}. Skipping.")
+            continue
+        # Check if the user joined a voice channel
+        if after.channel is not None and after.channel.id in voice_channel_ids:
+            # Check if the user is the only one in the voice channel
+            if len(after.channel.members) == 1:
+                await member.send(f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>.")
 
 
 bot.run(TOKEN)

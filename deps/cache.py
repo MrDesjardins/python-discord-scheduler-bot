@@ -14,7 +14,7 @@ THREE_DAY_TTL = 60*60*24*3
 DEFAULT_TTL = 60
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
-KEY_REACTION_USERS = "ReactionUsers"
+KEY_REACTION_USERS = "ReactionUsersV2"
 KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleByDay"
 KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigTextChannel"
 KEY_GUILD_VOICE_CHANNELS = "GuildAdminConfigVoiceChannels"
