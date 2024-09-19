@@ -1,4 +1,7 @@
+""" Information about Siege """
+
 import discord
+
 EMOJI_CHAMPION = "<:Champion:1279550703311917208>"
 EMOJI_DIAMOND = "<:Diamond:1279550706373623883> "
 EMOJI_EMERALD = "<:Emerald:1279550712233197619> "
@@ -9,8 +12,8 @@ EMOJI_BRONZE = "<:Bronze:1279550704427597826> "
 EMOJI_COPPER = "<:Copper:1279550705551802399> "
 
 
-def getUserRankEmoji(user: discord.Member) -> str:
-    """ Check the user's roles to determine their rank
+def get_user_rank_emoji(user: discord.Member) -> str:
+    """Check the user's roles to determine their rank
     The function assumes a specific 8 roles with 8 emojis which might not be the case for your server
     """
     for role in user.roles:

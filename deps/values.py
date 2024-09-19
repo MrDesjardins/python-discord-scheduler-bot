@@ -1,23 +1,26 @@
-""" Values used in the bot. """
-days_of_week = ['Monday', 'Tuesday', 'Wednesday',
-                'Thursday', 'Friday', 'Saturday', 'Sunday']
+""" Constants used in the bot. """
 
-emoji_to_time = {
-    '3️⃣': '3pm',
-    '4️⃣': '4pm',
-    '5️⃣': '5pm',
-    '6️⃣': '6pm',
-    '7️⃣': '7pm',
-    '8️⃣': '8pm',
-    '9️⃣': '9pm',
-    '🔟': '10pm',
-    '🕚': '11pm',
-    '🕛': '12am',
-    '1️⃣': '1am',
-    '2️⃣': '2am',
+DATE_FORMAT = "%A, %B %d, %Y"
+
+""" Values used in the bot. """
+DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+EMOJI_TO_TIME = {
+    "3️⃣": "3pm",
+    "4️⃣": "4pm",
+    "5️⃣": "5pm",
+    "6️⃣": "6pm",
+    "7️⃣": "7pm",
+    "8️⃣": "8pm",
+    "9️⃣": "9pm",
+    "🔟": "10pm",
+    "🕚": "11pm",
+    "🕛": "12am",
+    "1️⃣": "1am",
+    "2️⃣": "2am",
 }
 
-supported_times_str = set(emoji_to_time.values())
+SUPPORTED_TIMES_STR = set(EMOJI_TO_TIME.values())
 
 COMMAND_SCHEDULE_ADD = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"

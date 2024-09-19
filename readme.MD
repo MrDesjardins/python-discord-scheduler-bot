@@ -179,6 +179,15 @@ If the service does not start, you can check the status of the service with the 
 sudo systemctl status gametimescheduler.service
 ```
 
+
+## Linting
+
+To lint the code, you can use the following command:
+
+```sh
+pylint **/*.py
+```
+
 # Alternative Hosting Solutions
 
 1. The free plan of [PythonAnywhere](https://www.pythonanywhere.com) does not allow the Discord.py communication on port 443.

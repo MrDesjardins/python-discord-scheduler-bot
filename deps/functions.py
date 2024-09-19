@@ -1,26 +1,28 @@
-from deps.values import emoji_to_time, COMMAND_SCHEDULE_ADD
-from deps.models import TimeLabel
+""" Utility functions used by the bot. """
+
+from typing import Union, Optional
+from datetime import datetime, date
+import pytz
 import discord
 from discord import app_commands
-from datetime import datetime, date
-from typing import Union
-import pytz
-from typing import Callable, Awaitable, List, Union, Optional, Any
+from deps.values import EMOJI_TO_TIME, COMMAND_SCHEDULE_ADD, DATE_FORMAT
+from deps.models import TimeLabel
+
 
 def get_empty_votes():
-    """ Returns an empty votes dictionary.
+    """Returns an empty votes dictionary.
     Used to initialize the votes cache for a single day.
     Each array contains SimpleUser
     Result is { '3pm': [], '4pm': [], ... }
     """
-    return {time: [] for time in emoji_to_time.values()}
+    return {time: [] for time in EMOJI_TO_TIME.values()}
 
 
 def get_reactions():
     """
     Returns a list of all the emojis that can be used to vote.
     """
-    return list(emoji_to_time.keys())
+    return list(EMOJI_TO_TIME.keys())
 
 
 def get_supported_time_time_label():
@@ -28,13 +30,12 @@ def get_supported_time_time_label():
     Returns a list of TimeLabel objects that represent the supported times.
     """
     supported_times = []
-    for time in emoji_to_time.values():
+    for time in EMOJI_TO_TIME.values():
         # time[:-2]  # Extracts the numeric part of the time
         short_label = time  # E.g. 2pm
         display_label = time  # E.g. 2pm
         description = f"{time} Eastern Time"
-        supported_times.append(
-            TimeLabel(short_label, display_label, description))
+        supported_times.append(TimeLabel(short_label, display_label, description))
     return supported_times
 
 
@@ -43,16 +44,16 @@ def get_time_choices():
     Returns a list of OptionChoice objects that represent the supported times.
     """
     supported_times = []
-    for time in emoji_to_time.values():
+    for time in EMOJI_TO_TIME.values():
         short_label = time
         display_label = time
-        supported_times.append(
-            app_commands.Choice(name=short_label, value=display_label))
+        supported_times.append(app_commands.Choice(name=short_label, value=display_label))
     return supported_times
 
 
 def get_poll_message():
-    current_date = date.today().strftime("%B %d, %Y")
+    """Get the daily mesage to post"""
+    current_date = date.today().strftime(DATE_FORMAT)
     return f"What time will you play today ({current_date})?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_ADD} to set recurrent day and hours."
 
 
@@ -75,11 +76,14 @@ def get_current_hour_eastern(add_hour: Optional[int] = None) -> str:
     """
     Returns the current hour in Eastern Time. In the format 3am or 3pm.
     """
-    eastern = pytz.timezone('US/Eastern')
+    eastern = pytz.timezone("US/Eastern")
     if add_hour:
         current_time_eastern = datetime.now(eastern).replace(hour=datetime.now(eastern).hour + add_hour)
     else:
         current_time_eastern = datetime.now(eastern)
     # Strip leading zero by converting the hour to an integer before formatting
-    return current_time_eastern.strftime('%-I%p').lower() if hasattr(datetime.now(eastern), 'strftime') else current_time_eastern.strftime('%I%p').lstrip('0').lower()
-
+    return (
+        current_time_eastern.strftime("%-I%p").lower()
+        if hasattr(datetime.now(eastern), "strftime")
+        else current_time_eastern.strftime("%I%p").lstrip("0").lower()
+    )

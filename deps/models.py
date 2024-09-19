@@ -1,19 +1,24 @@
+""" Class, enum and other data structure used in the bot"""
+
+import dataclasses
 from enum import Enum
 
 
 class DayOfWeek(Enum):
-    """ Represents the days of the week """
-    monday = 0
-    tuesday = 1
-    wednesday = 2
-    thursday = 3
-    friday = 4
-    saturday = 5
-    sunday = 6
+    """Represents the days of the week"""
+
+    MONDAY = 0
+    TUESDAY = 1
+    WEDNESDAY = 2
+    THURSDAY = 3
+    FRIDAY = 4
+    SATURDAY = 5
+    SUNDAY = 6
 
 
+@dataclasses.dataclass
 class TimeLabel:
-    """ Contains the value of the supported time with label and description
+    """Contains the value of the supported time with label and description
     Mainly used for the dropdown menu in the discord bot
     """
 
@@ -23,8 +28,9 @@ class TimeLabel:
         self.description = description
 
 
+@dataclasses.dataclass
 class SimpleUser:
-    """ Represent the value for a user of Discord without the full object that has functions performing API request 
+    """Represent the value for a user of Discord without the full object that has functions performing API request
     The goal is avoiding the number of Disrcord API requests by caching information about the user
     """
 
@@ -37,9 +43,9 @@ class SimpleUser:
         return f"User ID: {self.user_id}, Display Name: {self.display_name}"
 
 
+@dataclasses.dataclass
 class SimpleUserHour:
-    """ Represent for bot's purpose, a user and the hour they voted for
-    """
+    """Represent for bot's purpose, a user and the hour they voted for"""
 
     def __init__(self, user: SimpleUser, hour: str):
         self.simple_user = user

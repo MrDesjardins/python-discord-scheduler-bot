@@ -3,8 +3,7 @@ import asyncio
 
 
 class RateLimiter:
-    """ The rate limiter wraps function avoiding frequent calls. Useful to avoid spamming the Discord API
-    """
+    """The rate limiter wraps function avoiding frequent calls. Useful to avoid spamming the Discord API"""
 
     def __init__(self, interval_seconds):
         self.interval_seconds = interval_seconds
@@ -15,11 +14,11 @@ class RateLimiter:
         async with self.lock:
             now = datetime.now()
             if now - self.last_called < timedelta(seconds=self.interval_seconds):
-                print(f'Skipping function {func.__name__} at {now}')
+                print(f"Skipping function {func.__name__} at {now}")
                 return  # Skip execution if within the interval
             self.last_called = now
             # Ensure func is awaited correctly
-            print(f'Calling function {func.__name__} at {now}')
+            print(f"Calling function {func.__name__} at {now}")
             # if asyncio.iscoroutinefunction(func):
             await func(*args, **kwargs)
             # else:
