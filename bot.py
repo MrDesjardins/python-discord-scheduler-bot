@@ -3,6 +3,7 @@
 import os
 from typing import List, Dict, Union
 from datetime import datetime, timedelta, date, timezone
+from zoneinfo import ZoneInfo
 import asyncio
 import discord
 import pytz
@@ -10,7 +11,6 @@ from gtts import gTTS
 from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
     data_access_get_channel,
@@ -86,9 +86,6 @@ print_log(f"Token: {TOKEN}")
 reactions = get_reactions()
 supported_times_time_label = get_supported_time_time_label()
 
-# Scheduler to send daily message
-scheduler = AsyncIOScheduler()
-
 
 async def reaction_worker():
     """Queue reactions sequentially"""
@@ -137,17 +134,6 @@ async def on_ready():
     bot.reaction_queue = asyncio.Queue()
     bot.loop.create_task(reaction_worker())
 
-    # Schedule the daily question to be sent every day
-    pacific = pytz.timezone("America/Los_Angeles")
-    scheduler.add_job(
-        send_daily_question_to_all_guild,
-        "cron",
-        hour=HOUR_SEND_DAILY_MESSAGE,
-        minute=0,
-        timezone=pacific,
-    )
-    scheduler.start()
-
     check_voice_channel.start()  # Start the background task
 
     # Run it for today (won't duplicate)
@@ -167,6 +153,12 @@ async def fix_schedule(guild_id: int):
             data_access_set_users_auto_schedule(guild_id, day_of_week_number, list_users)
 
 
+time_send_daily_message = (
+    datetime.now(ZoneInfo("America/Los_Angeles")).replace(hour=8, minute=30, second=0, microsecond=0).time()
+)
+
+
+@tasks.loop(time=time_send_daily_message)
 async def send_daily_question_to_all_guild():
     """
     Send only once every day the question for each guild who has the bot
@@ -202,7 +194,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild, force: bool = Fal
         message: discord.Message = await channel.send(get_poll_message())
         for reaction in reactions:
             await message.add_reaction(reaction)
-        await auto_assign_user_to_daily_question(guild.id, message.id, channel_id)
+        await auto_assign_user_to_daily_question(guild.id, message, channel_id)
         data_access_set_daily_message(guild_id, channel_id)
         print_log(f"\t✅ Daily message sent in guild {guild.name}")
     else:
@@ -497,9 +489,12 @@ async def set_schedule_user_today(
     await update_vote_message(message, message_votes)
 
 
-async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, message_id: int):
+async def auto_assign_user_to_daily_question(
+    guild_id: int, channel_id: int, message: Union[int, discord.Message]
+) -> None:
     """Take the existing schedules for all user and apply it to the message"""
     day_of_week_number = datetime.now().weekday()  # 0 is Monday, 6 is Sunday
+    message_id = message.id if isinstance(message, discord.Message) else message
     print_log(
         f"Auto assign user to daily question for guild {guild_id}, message_id {message_id}, day_of_week_number {day_of_week_number}"
     )
@@ -519,9 +514,11 @@ async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, mes
             message_votes[user_hour.hour].append(user_hour.simple_user)
 
         data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
-
-        last_message: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
-        await update_vote_message(last_message, message_votes)
+        if isinstance(message, discord.Message):
+            await update_vote_message(message, message_votes)
+        else:
+            last_message: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
+            await update_vote_message(last_message, message_votes)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION)
@@ -574,7 +571,7 @@ async def apply_schedule(interaction: discord.Interaction):
         print_warning_log(f"No message found in the channel {channel.name}. Skipping.")
         await interaction.followup.send(f"Cannot find a schedule message #{channel.name}.", ephemeral=True)
 
-    await auto_assign_user_to_daily_question(guild_id, channel_id, last_message.id)
+    await auto_assign_user_to_daily_question(guild_id, channel_id, last_message)
 
     await interaction.followup.send(f"Update message in #{channel.name}.", ephemeral=True)
 
@@ -744,7 +741,9 @@ async def send_notification_voice_channel(
             other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
             text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play in the upcoming hour. To see the schedule, check the bot schedule channel."
         else:
-            text_message = f"Hello {member.display_name}! Feel free to ping the siege channel to find partners."
+            text_message = (
+                f"Hello {member.display_name}! Feel free to message the rainbox-six-siege channel to find partners."
+            )
 
     # Convert text to speech using gTTS
     tts = gTTS(text_message, lang="en")
