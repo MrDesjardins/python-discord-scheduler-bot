@@ -17,6 +17,7 @@ KEY_USER = "User"
 KEY_GUILD = "Guild"
 KEY_MEMBER = "Member"
 KEY_CHANNEL = "Channel"
+KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
 
 
 async def _fetch_message(channel_id: int, message_id: int) -> discord.Message:
@@ -138,3 +139,12 @@ def data_access_reset_guild_cache(guild_id: int) -> None:
         f"{KEY_MEMBER}:{guild_id}",
     ]
     reset_cache_by_prefixes(prefixes)
+
+async def data_access_get_bot_voice_first_user(guild_id: int) -> bool:
+    """Get the channel by the given channel id"""
+    return await get_cache(False, f"{KEY_GUILD_BOT_VOICE_FIRST_USER}:{guild_id}", lambda: False)
+
+
+def data_access_set_bot_voice_first_user(guild_id: int, enabled: bool) -> None:
+    """Set the channel that the bot will send text"""
+    set_cache(False, f"{KEY_GUILD_BOT_VOICE_FIRST_USER}:{guild_id}", enabled, ALWAYS_TTL)

@@ -6,13 +6,13 @@ from datetime import datetime, timedelta, date, timezone
 from zoneinfo import ZoneInfo
 import asyncio
 import discord
-import pytz
 from gtts import gTTS
 from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
+    data_access_get_bot_voice_first_user,
     data_access_get_channel,
     data_access_get_daily_message,
     data_access_get_guild,
@@ -24,6 +24,7 @@ from deps.data_access import (
     data_access_get_user,
     data_access_get_users_auto_schedule,
     data_access_reset_guild_cache,
+    data_access_set_bot_voice_first_user,
     data_access_set_daily_message,
     data_access_set_guild_text_channel_id,
     data_access_set_guild_voice_channel_ids,
@@ -78,6 +79,7 @@ COMMAND_SCHEDULE_CHANNEL_SEE_VOICE_SELECTION = "seevoicechannels"
 COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION = "seetextchannel"
 COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "resetvoicechannel"
 COMMAND_FORCE_SEND = "forcesendschedule"
+COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
 
 bot = BotSingleton().bot
 print_log(f"Env: {ENV}")
@@ -210,6 +212,7 @@ def check_bot_permissions(channel: discord.TextChannel) -> dict:
         "send_messages": bot_permissions.send_messages,
         "manage_messages": bot_permissions.manage_messages,
         "add_reactions": bot_permissions.add_reactions,
+        "read_message_history": bot_permissions.read_message_history,
     }
 
     return permissions
@@ -725,6 +728,9 @@ async def send_notification_voice_channel(
     """
     Send a notification to the user in the voice channel
     """
+    is_enabled = await data_access_get_bot_voice_first_user(guild_id)
+    if not is_enabled:
+        return
     # Send DM to the user
     # await member.send(
     #     f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>."
@@ -733,18 +739,19 @@ async def send_notification_voice_channel(
     list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern())
     if len(list_simple_users) > 0:
         other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
-        text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play at this time. To see the schedule, check the bot schedule channel."
+        text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play at this time. Check the bot schedule channel."
     else:
         # Check next hour
         list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern(1))
         if len(list_simple_users) > 0:
             other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
-            text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play in the upcoming hour. To see the schedule, check the bot schedule channel."
+            text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play in the upcoming hour. Check the bot schedule channel."
         else:
             text_message = (
                 f"Hello {member.display_name}! Feel free to message the rainbox-six-siege channel to find partners."
             )
 
+    print_log(f"Sending voice message to {member.display_name}")
     # Convert text to speech using gTTS
     tts = gTTS(text_message, lang="en")
     tts.save("welcome.mp3")
@@ -789,6 +796,14 @@ async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str
     if current_hour_str not in message_votes:
         return []
     return message_votes[current_hour_str]
+
+
+@bot.tree.command(name=COMMAND_GUILD_ENABLE_BOT_VOICE)
+@commands.has_permissions(administrator=True)
+async def enable_voice_bot(interaction: discord.Interaction, enable: bool):
+    """Activate or deactivate the bot voice message"""
+    data_access_set_bot_voice_first_user(interaction.guild.id, enable)
+    await interaction.response.send_message(f"The bot status to voice is {enable}", ephemeral=True)
 
 
 bot.run(TOKEN)
