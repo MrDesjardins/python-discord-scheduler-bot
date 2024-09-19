@@ -748,7 +748,7 @@ async def send_notification_voice_channel(
             text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play in the upcoming hour. Check the bot schedule channel."
         else:
             text_message = (
-                f"Hello {member.display_name}! Feel free to message the rainbox-six-siege channel to find partners."
+                f"Hello {member.display_name}! Feel free to message the rainbox six siege channel to find partners."
             )
 
     print_log(f"Sending voice message to {member.display_name}")
