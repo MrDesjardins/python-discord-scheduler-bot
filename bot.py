@@ -200,7 +200,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild, force: bool = Fal
         message: discord.Message = await channel.send(get_poll_message())
         for reaction in reactions:
             await message.add_reaction(reaction)
-        await auto_assign_user_to_daily_question(guild.id, message, channel_id)
+        await auto_assign_user_to_daily_question(guild.id, channel_id, message)
         data_access_set_daily_message(guild_id, channel_id)
         print_log(f"\t✅ Daily message sent in guild {guild.name}")
     else:
@@ -496,12 +496,10 @@ async def set_schedule_user_today(
     await update_vote_message(message, message_votes)
 
 
-async def auto_assign_user_to_daily_question(
-    guild_id: int, channel_id: int, message: Union[int, discord.Message]
-) -> None:
+async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, message: discord.Message) -> None:
     """Take the existing schedules for all user and apply it to the message"""
     day_of_week_number = datetime.now().weekday()  # 0 is Monday, 6 is Sunday
-    message_id = message.id if isinstance(message, discord.Message) else message
+    message_id = message.id
     print_log(
         f"Auto assign user to daily question for guild {guild_id}, message_id {message_id}, day_of_week_number {day_of_week_number}"
     )
@@ -515,7 +513,7 @@ async def auto_assign_user_to_daily_question(
 
     # Loop for the user+hours
     if list_users is not None:
-        print_log(f"Found {len(list_users)} users for the day {day_of_week_number}")
+        print_log(f"Found {len(list_users)} schedules for the day {day_of_week_number}")
         for user_hour in list_users:
             # Assign for each hour the user
             message_votes[user_hour.hour].append(user_hour.simple_user)
