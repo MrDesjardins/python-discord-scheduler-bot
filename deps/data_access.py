@@ -20,12 +20,6 @@ KEY_CHANNEL = "Channel"
 KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
 
 
-async def _fetch_message(channel_id: int, message_id: int) -> discord.Message:
-    """Private function to fetch the message by the given guild and user id"""
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
-    return await channel.fetch_message(message_id)
-
-
 async def _fetch_member(guild_id: int, user_id: int) -> discord.Member:
     """Private function to fetch the member by the given guild and user id"""
     guild: discord.Guild = await data_access_get_guild(guild_id)
@@ -34,31 +28,51 @@ async def _fetch_member(guild_id: int, user_id: int) -> discord.Member:
 
 async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
     """Get the guild by the given guild"""
-    return await get_cache(True, f"{KEY_GUILD}:{guild_id}", lambda: BotSingleton().bot.get_guild(guild_id))
+
+    async def fetch():
+        return BotSingleton().bot.get_guild(guild_id)
+
+    return await get_cache(True, f"{KEY_GUILD}:{guild_id}", fetch)
 
 
 async def data_access_get_message(
     guild_id: discord.Guild, channel_id: int, message_id: int
 ) -> Union[discord.Message, None]:
     """Get the message by the given guild, channel and message id"""
-    return await get_cache(
-        True, f"{KEY_MESSAGE}:{guild_id}:{channel_id}:{message_id}", lambda: _fetch_message(channel_id, message_id)
-    )
+
+    async def fetch():
+        channel: discord.TextChannel = await data_access_get_channel(channel_id)
+        return await channel.fetch_message(message_id)
+
+    return await get_cache(True, f"{KEY_MESSAGE}:{guild_id}:{channel_id}:{message_id}", fetch)
 
 
 async def data_access_get_user(guild_id: discord.Guild, user_id: int) -> Union[discord.User, None]:
     """Get the user by the given guild and user id"""
-    return await get_cache(True, f"{KEY_USER}:{guild_id}:{user_id}", lambda: BotSingleton().bot.get_user(user_id))
+
+    async def fetch():
+        return BotSingleton().bot.get_user(user_id)
+
+    return await get_cache(True, f"{KEY_USER}:{guild_id}:{user_id}", fetch)
 
 
 async def data_access_get_member(guild_id: discord.Guild, user_id: int) -> Union[discord.Member, None]:
     """Get the member by the given guild and user id"""
-    return await get_cache(True, f"{KEY_MEMBER}:{guild_id}:{user_id}", lambda: _fetch_member(guild_id, user_id))
+
+    async def fetch():
+        guild: discord.Guild = await data_access_get_guild(guild_id)
+        return guild.get_member(user_id)
+
+    return await get_cache(True, f"{KEY_MEMBER}:{guild_id}:{user_id}", fetch)
 
 
 async def data_access_get_channel(channel_id: int) -> Union[discord.TextChannel, None]:
     """Get the channel by the given channel id"""
-    return await get_cache(True, f"{KEY_CHANNEL}:{channel_id}", lambda: BotSingleton().bot.get_channel(channel_id))
+
+    async def fetch():
+        return BotSingleton().bot.get_channel(channel_id)
+
+    return await get_cache(True, f"{KEY_CHANNEL}:{channel_id}", fetch)
 
 
 async def data_access_get_reaction_message(guild_id: int, channel_id: int, message_id: int) -> dict[str, list]:
@@ -139,6 +153,7 @@ def data_access_reset_guild_cache(guild_id: int) -> None:
         f"{KEY_MEMBER}:{guild_id}",
     ]
     reset_cache_by_prefixes(prefixes)
+
 
 async def data_access_get_bot_voice_first_user(guild_id: int) -> bool:
     """Get the channel by the given channel id"""

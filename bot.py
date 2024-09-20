@@ -10,6 +10,7 @@ from gtts import gTTS
 from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
+
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
     data_access_get_bot_voice_first_user,
@@ -137,6 +138,7 @@ async def on_ready():
     bot.loop.create_task(reaction_worker())
 
     check_voice_channel.start()  # Start the background task
+    send_daily_question_to_all_guild.start()  # Start the background task
 
     # Run it for today (won't duplicate)
     await send_daily_question_to_all_guild()
@@ -156,7 +158,9 @@ async def fix_schedule(guild_id: int):
 
 
 time_send_daily_message = (
-    datetime.now(ZoneInfo("America/Los_Angeles")).replace(hour=8, minute=30, second=0, microsecond=0).time()
+    datetime.now(ZoneInfo("America/Los_Angeles"))
+    .replace(hour=HOUR_SEND_DAILY_MESSAGE, minute=30, second=0, microsecond=0)
+    .time()
 )
 
 

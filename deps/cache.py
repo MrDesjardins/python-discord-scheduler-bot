@@ -1,4 +1,5 @@
 """ Cache value for the bot. It acts as the persistent storage for the bot to store the data that needs to be kept between restarts."""
+
 import dataclasses
 import asyncio
 import time
@@ -12,6 +13,7 @@ CACHE_FILE = "cache.txt"
 ALWAYS_TTL = 60 * 60 * 24 * 365 * 10
 THREE_DAY_TTL = 60 * 60 * 24 * 3
 DEFAULT_TTL = 60
+
 
 @dataclasses.dataclass
 class CacheItem:
@@ -113,21 +115,17 @@ async def get_cache(
     """Get the value from the cache from the in-memory or data cache
     If the value is not in the cache, calls the fetch function to get the value and set it into the cache
     """
-    if in_memory:
-        cache = memoryCache
-    else:
-        cache = dataCache
+    cache = memoryCache if in_memory else dataCache
     value = cache.get(key)
-    if not value:
-        if fetch_function:
-            # Check if the fetch function is asynchronous
-            result = fetch_function()
-            if inspect.isawaitable(result):
-                value = await result
-            else:
-                value = result
-            if value:
-                cache.set(key, value)
+    if not value and fetch_function:
+        # Check if the fetch function itself is an async function
+        if inspect.iscoroutinefunction(fetch_function):
+            value = await fetch_function()
+        else:
+            value = fetch_function()
+
+        if value:
+            cache.set(key, value)
     return value
 
 
