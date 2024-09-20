@@ -11,6 +11,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
+from deps.analytic_gatherer import EVENT_CONNECT, EVENT_DISCONNECT, log_activity
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
     data_access_get_bot_voice_first_user,
@@ -85,6 +86,7 @@ COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
 bot = BotSingleton().bot
 print_log(f"Env: {ENV}")
 print_log(f"Token: {TOKEN}")
+
 
 reactions = get_reactions()
 supported_times_time_label = get_supported_time_time_label()
@@ -700,10 +702,13 @@ async def before_check_voice_channel():
 
 
 @bot.event
-async def on_voice_state_update(member, before, after):
+async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
     """
     Check if the user is the only one in the voice channel
     """
+    if member.bot:
+        return  # Ignore bot
+
     for guild in bot.guilds:
         guild_id = guild.id
         voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
@@ -714,6 +719,15 @@ async def on_voice_state_update(member, before, after):
         if text_channel_id is None:
             print_warning_log(f"Text channel not set for guild {guild.name}. Skipping.")
             continue
+
+        # Log user activity
+        try:
+            channel_id = after.channel.id if after.channel is not None else before.channel.id
+            event = EVENT_CONNECT if after.channel is not None else EVENT_DISCONNECT
+            log_activity(member.id, member.display_name, channel_id, guild_id, event)
+        except Exception as e:
+            print_error_log(f"Error logging user activity: {e}")
+
         # Check if the user joined a voice channel
         if after.channel is not None and after.channel.id in voice_channel_ids:
             # Check if the user is the only one in the voice channel

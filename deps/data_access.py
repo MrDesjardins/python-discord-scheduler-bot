@@ -25,7 +25,6 @@ async def _fetch_member(guild_id: int, user_id: int) -> discord.Member:
     guild: discord.Guild = await data_access_get_guild(guild_id)
     return guild.get_member(user_id)
 
-
 async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
     """Get the guild by the given guild"""
 

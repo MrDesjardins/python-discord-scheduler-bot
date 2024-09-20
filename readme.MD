@@ -163,7 +163,13 @@ BOT_TOKEN=<bot token>
 sudo apt-get install ffmpeg
 ```
 
-10. Install the systemd that will run the bot at startup
+10. Install SqlLite3
+
+```sh
+sudo apt install sqlite3
+```
+
+11. Install the systemd that will run the bot at startup
 
 ```sh
 sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
@@ -179,7 +185,6 @@ If the service does not start, you can check the status of the service with the 
 sudo systemctl status gametimescheduler.service
 ```
 
-
 ## Linting
 
 To lint the code, you can use the following command:
@@ -188,7 +193,14 @@ To lint the code, you can use the following command:
 pylint **/*.py
 ```
 
-# Alternative Hosting Solutions
+# Analytic Data
 
-1. The free plan of [PythonAnywhere](https://www.pythonanywhere.com) does not allow the Discord.py communication on port 443.
-2. [Azure Web App](https://azure.microsoft.com/en-us/products/app-service) free plan does not have "always on" which means the bot cannot remain always active.
+The bot listen to the voice channels selected by the administrator and store the data in a database. The analytic concerns the user, the channel, the time in/out. The goal is establishing pattern which
+may help in the future scheduling and also see if how we may predict the user's activity and suggest partners.
+
+Information are in the `user_activity.db` database. You can access the database using the following command which download the database in the current directory and open it.
+
+```sh
+analytics/transfer.sh
+sqlite3 user_activity.db
+```
