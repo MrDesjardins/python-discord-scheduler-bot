@@ -2,28 +2,20 @@
 Create Fake Data for Testing Analytics
 """
 
-import sys
-import os
 from datetime import datetime
 
 
-# Add the 'deps' folder to the Python path
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-deps_path = os.path.join(project_root, "deps")
-sys.path.append(deps_path)
-
 # pylint: disable=import-error
 # pylint: disable=wrong-import-position
-from analytic_gatherer import (
+from deps.analytic_gatherer import (
     EVENT_CONNECT,
     EVENT_DISCONNECT,
-    calculate_time_spent_from_db,
     compute_users_weights,
     delete_all_tables,
     fetch_user_activity,
     log_activity,
 )
-from analytic_visualizer import display_graph_network_relationship
+from deps.analytic_visualizer import display_graph_cluster_people
 
 CHANNEL1_ID = 100
 CHANNEL2_ID = 200
@@ -62,5 +54,7 @@ print(user_weights)
 # User 3 and user 4 spent 1 minutes together: 60 seconds
 
 # Redo with the database:
-calculate_time_spent_from_db()
-display_graph_network_relationship()
+# calculate_time_spent_from_db(6000, 0)
+# display_graph_network_relationship()
+
+display_graph_cluster_people()

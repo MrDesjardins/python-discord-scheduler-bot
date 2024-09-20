@@ -5,7 +5,7 @@ Module to gather user activity data and calculate the time spent together
 from datetime import datetime
 from typing import Dict, Tuple
 
-from analytic import cursor, conn, EVENT_CONNECT, EVENT_DISCONNECT
+from deps.analytic import cursor, conn, EVENT_CONNECT, EVENT_DISCONNECT
 
 
 def delete_all_tables() -> None:
@@ -42,16 +42,19 @@ def log_activity(user_id, user_display_name, channel_id, guild_id, event, time=d
     conn.commit()
 
 
-def fetch_user_activity():
+def fetch_user_activity(from_day: int = 3600, to_day: int = 0):
     """
     Fetch all connect and disconnect events from the user_activity table
     """
-    query = """
-    SELECT user_id, channel_id, event, timestamp
-    FROM user_activity
-    ORDER BY channel_id, timestamp
-    """
-    cursor.execute(query)
+    cursor.execute(
+        """
+        SELECT user_id, channel_id, event, timestamp
+        FROM user_activity
+        WHERE timestamp >= datetime('now', ? ) AND timestamp <= datetime('now', ?)
+        ORDER BY channel_id, timestamp
+        """,
+        (f"-{from_day} days", f"-{to_day} days"),
+    )
     return cursor.fetchall()
 
 
@@ -76,14 +79,14 @@ def flush_user_weights():
 
 
 # Function to calculate time spent together and insert weights
-def calculate_time_spent_from_db():
+def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:
     """
     Function to calculate time spent together and insert weights
     """
     flush_user_weights()
 
     # Fetch all user activity data, ordered by room and timestamp
-    activity_data = fetch_user_activity()
+    activity_data = fetch_user_activity(from_day, to_day)
 
     user_weights = compute_users_weights(activity_data)
 

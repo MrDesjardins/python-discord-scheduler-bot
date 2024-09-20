@@ -1,6 +1,7 @@
 """ Entry file for the Discord bot """
 
 import os
+import io
 from typing import List, Dict, Union
 from datetime import datetime, timedelta, date, timezone
 from zoneinfo import ZoneInfo
@@ -11,6 +12,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
+from deps.analytic_visualizer import display_graph_cluster_people
 from deps.analytic_gatherer import EVENT_CONNECT, EVENT_DISCONNECT, log_activity
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
@@ -82,6 +84,7 @@ COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION = "seetextchannel"
 COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "resetvoicechannel"
 COMMAND_FORCE_SEND = "forcesendschedule"
 COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
+COMMAND_SHOW_COMMUNITY = "showcommunity"
 
 bot = BotSingleton().bot
 print_log(f"Env: {ENV}")
@@ -820,6 +823,17 @@ async def enable_voice_bot(interaction: discord.Interaction, enable: bool):
     """Activate or deactivate the bot voice message"""
     data_access_set_bot_voice_first_user(interaction.guild.id, enable)
     await interaction.response.send_message(f"The bot status to voice is {enable}", ephemeral=True)
+
+
+@bot.tree.command(name=COMMAND_SHOW_COMMUNITY)
+@commands.has_permissions(administrator=True)
+async def community_show_image(interaction: discord.Interaction, from_day_ago: int = 90, to_day_ago: int = 0):
+    """Activate or deactivate the bot voice message"""
+    img_bytes = display_graph_cluster_people(False)
+    bytesio = io.BytesIO(img_bytes)
+    bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
+    file = discord.File(fp=bytesio, filename="plot.png")
+    await interaction.response.send_message(file=file, ephemeral=True)
 
 
 bot.run(TOKEN)
