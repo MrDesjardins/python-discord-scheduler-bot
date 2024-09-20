@@ -2,53 +2,23 @@
 Module to gather user activity data and calculate the time spent together
 """
 
-import sqlite3
 from datetime import datetime
+from typing import Dict, Tuple
 
-EVENT_CONNECT = "connect"
-EVENT_DISCONNECT = "disconnect"
+from analytic import cursor, conn, EVENT_CONNECT, EVENT_DISCONNECT
 
-# Connect to SQLite database (it will create the database file if it doesn't exist)
-conn = sqlite3.connect("user_activity.db")
-cursor = conn.cursor()
 
-# Create the tables
-cursor.execute(
+def delete_all_tables() -> None:
     """
-CREATE TABLE IF NOT EXISTS user_info (
-    id INTEGER PRIMARY KEY,
-    display_name TEXT NOT NULL
-)
-"""
-)
-
-cursor.execute(
-    f"""
-CREATE TABLE IF NOT EXISTS user_activity (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    channel_id INTEGER NOT NULL,
-    guild_id INTEGER NOT NULL,
-    event TEXT CHECK(event IN ('{EVENT_CONNECT}', '{EVENT_DISCONNECT}')) NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(user_id) REFERENCES user_info(id)
-)
-"""
-)
-cursor.execute(
+    Delete all tables
     """
-CREATE TABLE  IF NOT EXISTS user_weights (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_a TEXT NOT NULL,
-    user_b TEXT NOT NULL,
-    channel_id TEXT NOT NULL,
-    weight REAL NOT NULL
-);
-"""
-)
+    cursor.execute("DELETE FROM user_info")
+    cursor.execute("DELETE FROM user_activity")
+    cursor.execute("DELETE FROM user_weights")
+    conn.commit()
 
 
-def log_activity(user_id, user_display_name, channel_id, guild_id, event) -> None:
+def log_activity(user_id, user_display_name, channel_id, guild_id, event, time=datetime.now()) -> None:
     """
     Log a user activity in the database
     """
@@ -67,7 +37,7 @@ def log_activity(user_id, user_display_name, channel_id, guild_id, event) -> Non
     INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
     VALUES (?, ?, ?, ?, ?)
     """,
-        (user_id, channel_id, guild_id, event, datetime.now()),
+        (user_id, channel_id, guild_id, event, time),
     )
     conn.commit()
 
@@ -106,7 +76,7 @@ def flush_user_weights():
 
 
 # Function to calculate time spent together and insert weights
-def calculate_time_spent():
+def calculate_time_spent_from_db():
     """
     Function to calculate time spent together and insert weights
     """
@@ -115,8 +85,28 @@ def calculate_time_spent():
     # Fetch all user activity data, ordered by room and timestamp
     activity_data = fetch_user_activity()
 
+    user_weights = compute_users_weights(activity_data)
+
+    # Insert accumulated weights into the user_weights table
+    for (user_a, user_b, channel_id), total_weight in user_weights.items():
+        cursor.execute(
+            """
+        INSERT INTO user_weights (user_a, user_b, channel_id, weight)
+        VALUES (?, ?, ?, ?)
+        """,
+            (user_a, user_b, channel_id, total_weight),
+        )
+    conn.commit()
+
+
+def compute_users_weights(activity_data) -> Dict[Tuple[int, int, int], int]:
+    """
+    Compute the weights of users in the same channel in seconds
+    """
     # Dictionary to store connection times of users in rooms
-    user_connections = {}  # { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }
+    user_connections: Dict[int, Dict[int, (int, int)]] = (
+        {}
+    )  # { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }
 
     # Iterate over the activity data and populate user_connections
     for user_id, channel_id, event, timestamp in activity_data:
@@ -128,15 +118,15 @@ def calculate_time_spent():
         if user_id not in user_connections[channel_id]:
             user_connections[channel_id][user_id] = []
 
-        if event == "connect":
+        if event == EVENT_CONNECT:
             # Log the connection time
             user_connections[channel_id][user_id].append([timestamp, None])  # Connect time with None for disconnect
-        elif event == "disconnect" and user_connections[channel_id][user_id]:
+        elif event == EVENT_DISCONNECT and user_connections[channel_id][user_id]:
             # Update the latest disconnect time for the most recent connect entry
             user_connections[channel_id][user_id][-1][1] = timestamp
 
     # Now calculate overlapping time between users in the same room
-    user_weights = {}  # { (user_a, user_b, channel_id): total_weight }
+    user_weights: Dict[Tuple[int, int, int], int] = {}  # { (user_a, user_b, channel_id): total_weight }
 
     for channel_id, users in user_connections.items():
         user_ids = list(users.keys())
@@ -162,14 +152,4 @@ def calculate_time_spent():
                         user_weights[key] += total_overlap_time
                     else:
                         user_weights[key] = total_overlap_time
-
-    # Insert accumulated weights into the user_weights table
-    for (user_a, user_b, channel_id), total_weight in user_weights.items():
-        cursor.execute(
-            """
-        INSERT INTO user_weights (user_a, user_b, channel_id, weight)
-        VALUES (?, ?, ?, ?)
-        """,
-            (user_a, user_b, channel_id, total_weight),
-        )
-    conn.commit()
+    return user_weights

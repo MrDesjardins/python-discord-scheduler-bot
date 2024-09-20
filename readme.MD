@@ -193,6 +193,14 @@ To lint the code, you can use the following command:
 pylint **/*.py
 ```
 
+# Deployment
+
+The best way to code and publish a new version is to code, push in GitHub, and then pull the code in the Raspberry Pi. The script `deployment/update.sh` does the fetching, install the dependencies and restart the service.
+
+```sh
+deployment/update.sh
+```
+
 # Analytic Data
 
 The bot listen to the voice channels selected by the administrator and store the data in a database. The analytic concerns the user, the channel, the time in/out. The goal is establishing pattern which
