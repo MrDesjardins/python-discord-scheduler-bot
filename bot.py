@@ -829,7 +829,7 @@ async def enable_voice_bot(interaction: discord.Interaction, enable: bool):
 @commands.has_permissions(administrator=True)
 async def community_show_image(interaction: discord.Interaction, from_day_ago: int = 90, to_day_ago: int = 0):
     """Activate or deactivate the bot voice message"""
-    img_bytes = display_graph_cluster_people(False)
+    img_bytes = display_graph_cluster_people(False, from_day_ago, to_day_ago)
     bytesio = io.BytesIO(img_bytes)
     bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
     file = discord.File(fp=bytesio, filename="plot.png")

@@ -69,8 +69,7 @@ def display_graph_network_relationship(show: bool = True, from_day: int = 3600, 
     # Show plot
     plt.title("User Relationship Graph (Edge Tickness = More Time Together)")
     plt.axis("off")  # Turn off the axis
-    if show:
-        plt.show()
+    return _plot_return(plt, show)
 
 
 def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
@@ -118,8 +117,10 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     normalized_weights = nx.get_edge_attributes(graph_network, "weight")
     nx.draw_networkx_edges(graph_network, pos, width=[w / 10 for w in normalized_weights.values()])
 
-    # Draw labels for users (nodes)
-    nx.draw_networkx_labels(graph_network, pos, font_size=12, font_family="sans-serif")
+    # Draw labels for users (nodes), adjusted to be above the nodes
+    label_pos = {node: (x, y + 0.05) for node, (x, y) in pos.items()}  # Adjust y-coordinate
+    nx.draw_networkx_labels(graph_network, label_pos, labels={node: node for node in graph_network.nodes()}, font_size=12, font_family="sans-serif")
+
 
     # Draw edge labels (normalized weights)
     nx.draw_networkx_edge_labels(graph_network, pos, edge_labels={k: f"{v:.2f}" for k, v in normalized_weights.items()})
@@ -128,11 +129,19 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     plt.title("User Relationship Graph with Clusters (Edge Tickness = More Time Together)")
     plt.axis("off")  # Turn off the axis
     plt.legend()
+    return _plot_return(plt, show)
+
+
+def _plot_return(plot: plt, show: bool = True):
+    """
+    Return an image or the bytes of the iamge
+    """
     if show:
-        plt.show()
+        plot.show()
+        return None
     else:
         buf = io.BytesIO()
-        plt.savefig(buf, format="png")
+        plot.savefig(buf, format="png")
         buf.seek(0)
 
         # Get the bytes data
