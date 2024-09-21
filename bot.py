@@ -725,9 +725,21 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
 
         # Log user activity
         try:
-            channel_id = after.channel.id if after.channel is not None else before.channel.id
-            event = EVENT_CONNECT if after.channel is not None else EVENT_DISCONNECT
-            log_activity(member.id, member.display_name, channel_id, guild_id, event)
+            if before.channel is None and after.channel is not None:
+                # User joined a voice channel
+                channel_id = after.channel.id
+                event = EVENT_CONNECT
+                log_activity(member.id, member.display_name, channel_id, guild_id, event, datetime.now())
+            elif before.channel is not None and after.channel is None:
+                # User left a voice channel
+                channel_id = before.channel.id
+                event = EVENT_DISCONNECT
+                log_activity(member.id, member.display_name, channel_id, guild_id, event, datetime.now())
+            elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
+                log_activity(
+                    member.id, member.display_name, before.channel.id, guild_id, EVENT_DISCONNECT, datetime.now()
+                )
+                log_activity(member.id, member.display_name, after.channel.id, guild_id, EVENT_CONNECT, datetime.now())
         except Exception as e:
             print_error_log(f"Error logging user activity: {e}")
 

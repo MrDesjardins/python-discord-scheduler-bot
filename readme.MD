@@ -53,6 +53,16 @@ An administrator can invoke the `/applyschedule` to force the bot to check the c
 
 If the bot is down, the administrator can call `/refreshschedule` to refresh the cache from the reaction of the message.
 
+## `forcesendschedule` (Admin only)
+
+Force sending the daily question regardless if it was already sent or not (in the cache). Useful if the cache has the value that the message was sent but it crashed and the message was never sent.
+
+## `enablebotvoice` (Admin only)
+Turn on and off the feature that the bot goes into the voice channel to send a voice mesage to the first user.
+
+## `showcommunity` (Admin only)
+Generate an image that is a network graph of the useer and with whom they play the most. 
+
 # Discord Administration
 
 ## Discord Configuration
@@ -143,33 +153,47 @@ python3 -m pip freeze > requirements.txt
 
 # Installation on a Raspberry Pi
 
-1. SSH into the Raspberry Pi
-1. `ssh pi@10.0.0.192`
-1. Clone the repository
-1. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
-1. Create the Python environment `python3 -m venv .venv`
-1. Activate the Python environment `source .venv/bin/activate`
-1. Install the dependencies `python3 -m pip install -r requirements.txt`
-1. Edit the environment variables file `/etc/environment` (require sudo)
+1. Update the sources list for apt packages (required in some Raspberry Pi to get Python3) by editing `/etc/apt/sources.list`
+
+```
+deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi
+```
+
+2. Upgrade apt packages `sudo apt-get update` and upgrade `sudo apt-get upgrade`
+3. SSH into the Raspberry Pi
+4. `ssh pi@10.0.0.192`
+5. Clone the repository
+6. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
+7. Create the Python environment `python3 -m venv .venv`
+8. Activate the Python environment `source .venv/bin/activate`
+9. Install the dependencies `python3 -m pip install -r requirements.txt`
+10. Edit the environment variables file `/etc/environment` (require sudo)
 
 ```sh
 ENV=prod
 BOT_TOKEN=<bot token>
 ```
 
-9. Install ffmpeg
+9. Install ffmpeg for the audio
 
 ```sh
 sudo apt-get install ffmpeg
 ```
 
-10. Install SqlLite3
+10. Install SqlLite3 for analytic
 
 ```sh
 sudo apt install sqlite3
 ```
 
-11. Install the systemd that will run the bot at startup
+11. Install OpenBLAS for numpy used in the generation of relation analytic between user. This might require other dependencies and must have the latest APT packages.
+
+```sh
+sudo apt-get install libopenblas-base
+sudo apt-get install libjpeg-dev zlib1g-dev libtiff-dev libopenjp2-7-dev
+```
+
+12. Install the systemd that will run the bot at startup
 
 ```sh
 sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
@@ -203,8 +227,7 @@ deployment/update.sh
 
 # Analytic Data
 
-The bot listen to the voice channels selected by the administrator and store the data in a database. The analytic concerns the user, the channel, the time in/out. The goal is establishing pattern which
-may help in the future scheduling and also see if how we may predict the user's activity and suggest partners.
+The bot listen to the voice channels selected by the administrator and store the data in a database. The analytic concerns the user, the channel, the time in/out. The goal is establishing pattern which may help in the future scheduling and also see if how we may predict the user's activity and suggest partners.
 
 Information are in the `user_activity.db` database. You can access the database using the following command which download the database in the current directory and open it.
 
@@ -212,3 +235,5 @@ Information are in the `user_activity.db` database. You can access the database 
 analytics/transfer.sh
 sqlite3 user_activity.db
 ```
+
+You can also while developing using the test script with `python3 test_analytics_fake_date.py` which will use the local database and generate fake data. You can see the data but also the generated images.
