@@ -113,7 +113,7 @@ def compute_users_weights(activity_data) -> Dict[Tuple[int, int, int], int]:
 
     # Iterate over the activity data and populate user_connections
     for user_id, channel_id, event, timestamp in activity_data:
-        # timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f") # String to datetime
 
         if channel_id not in user_connections:
             user_connections[channel_id] = {}
