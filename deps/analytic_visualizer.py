@@ -7,9 +7,9 @@ import io
 # pylint: disable=import-error
 import networkx as nx
 import matplotlib.pyplot as plt
+import community as community_louvain
 from deps.analytic_gatherer import calculate_time_spent_from_db
 from deps.analytic import cursor
-import community as community_louvain
 
 
 def _get_data(from_day, to_day) -> list:
@@ -119,8 +119,13 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
 
     # Draw labels for users (nodes), adjusted to be above the nodes
     label_pos = {node: (x, y + 0.05) for node, (x, y) in pos.items()}  # Adjust y-coordinate
-    nx.draw_networkx_labels(graph_network, label_pos, labels={node: node for node in graph_network.nodes()}, font_size=12, font_family="sans-serif")
-
+    nx.draw_networkx_labels(
+        graph_network,
+        label_pos,
+        labels={node: node for node in graph_network.nodes()},
+        font_size=12,
+        font_family="sans-serif",
+    )
 
     # Draw edge labels (normalized weights)
     nx.draw_networkx_edge_labels(graph_network, pos, edge_labels={k: f"{v:.2f}" for k, v in normalized_weights.items()})
@@ -139,12 +144,12 @@ def _plot_return(plot: plt, show: bool = True):
     if show:
         plot.show()
         return None
-    else:
-        buf = io.BytesIO()
-        plot.savefig(buf, format="png")
-        buf.seek(0)
 
-        # Get the bytes data
-        image_bytes = buf.getvalue()
-        buf.close()
-        return image_bytes
+    buf = io.BytesIO()
+    plot.savefig(buf, format="png")
+    buf.seek(0)
+
+    # Get the bytes data
+    image_bytes = buf.getvalue()
+    buf.close()
+    return image_bytes
