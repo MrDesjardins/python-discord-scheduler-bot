@@ -3,7 +3,7 @@
 import os
 import io
 from typing import List, Dict, Union
-from datetime import datetime, timedelta, date, timezone
+from datetime import datetime, timedelta, date, timezone, time
 from zoneinfo import ZoneInfo
 import asyncio
 import discord
@@ -11,6 +11,7 @@ from gtts import gTTS
 from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
+import pytz
 
 from deps.analytic_visualizer import display_graph_cluster_people
 from deps.analytic_gatherer import EVENT_CONNECT, EVENT_DISCONNECT, log_activity
@@ -162,11 +163,15 @@ async def fix_schedule(guild_id: int):
             data_access_set_users_auto_schedule(guild_id, day_of_week_number, list_users)
 
 
-time_send_daily_message = (
-    datetime.now(ZoneInfo("America/Los_Angeles"))
-    .replace(hour=HOUR_SEND_DAILY_MESSAGE, minute=30, second=0, microsecond=0)
-    .time()
-)
+# local_tz = datetime.now().astimezone().tzinfo
+local_tz = pytz.timezone("America/Los_Angeles")
+time_send_daily_message = time(hour=HOUR_SEND_DAILY_MESSAGE, minute=0, second=0, tzinfo=local_tz)
+
+# time_send_daily_message = (
+#     datetime.now(ZoneInfo("America/Los_Angeles"))
+#     .replace(hour=HOUR_SEND_DAILY_MESSAGE, minute=30, second=0, microsecond=0)
+#     .time()
+# )
 
 
 @tasks.loop(time=time_send_daily_message)
@@ -174,7 +179,7 @@ async def send_daily_question_to_all_guild():
     """
     Send only once every day the question for each guild who has the bot
     """
-    print_log("Sending daily schedule message")
+    print_log(f"Sending daily schedule message, current time {datetime.now()}")
     for guild in bot.guilds:
         await send_daily_question_to_a_guild(guild)
 
@@ -313,7 +318,9 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         time_voted = EMOJI_TO_TIME.get(str(reaction_emoji))
         if time_voted:
             if any(user.id == u.user_id for u in message_votes[time_voted]):
-                print_log(f"User {user.id} already voted for {time_voted} in message {message_id}")
+                print_log(
+                    f"User {user.id} ({member.display_name}) already voted for {time_voted} in message {message_id}"
+                )
             else:
                 message_votes[time_voted].append(SimpleUser(user.id, member.display_name, get_user_rank_emoji(member)))
                 print_log(f"Updating reaction users for message {message_id} in cache")
@@ -331,11 +338,11 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
 async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
     """Update the votes per hour on the bot message"""
     vote_message = get_poll_message() + "\n\nSchedule for " + date.today().strftime(DATE_FORMAT) + "\n"
-    for time, users in vote_for_message.items():
+    for key_time, users in vote_for_message.items():
         if users:
-            vote_message += f"{time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
+            vote_message += f"{key_time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
         else:
-            vote_message += f"{time}: -\n"
+            vote_message += f"{key_time}: -\n"
     print_log(vote_message)
     await message.edit(content=vote_message)
 
@@ -524,11 +531,12 @@ async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, mes
             message_votes[user_hour.hour].append(user_hour.simple_user)
 
         data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
-        if isinstance(message, discord.Message):
-            await update_vote_message(message, message_votes)
-        else:
-            last_message: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
-            await update_vote_message(last_message, message_votes)
+        print_log(f"Updated message {message_id} with the user schedules for the day {day_of_week_number}")
+        print_log(message_votes)
+        await update_vote_message(message, message_votes)
+
+    else:
+        print_log(f"No schedule found for the day {day_of_week_number}")
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION)
