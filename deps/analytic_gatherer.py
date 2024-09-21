@@ -18,7 +18,7 @@ def delete_all_tables() -> None:
     conn.commit()
 
 
-def log_activity(user_id, user_display_name, channel_id, guild_id, event, time=datetime.now()) -> None:
+def log_activity(user_id, user_display_name, channel_id, guild_id, event, time) -> None:
     """
     Log a user activity in the database
     """
@@ -113,7 +113,7 @@ def compute_users_weights(activity_data) -> Dict[Tuple[int, int, int], int]:
 
     # Iterate over the activity data and populate user_connections
     for user_id, channel_id, event, timestamp in activity_data:
-        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+        # timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
 
         if channel_id not in user_connections:
             user_connections[channel_id] = {}
