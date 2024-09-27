@@ -485,13 +485,15 @@ async def set_schedule_user_today(
     """
     An administrator can assign a user to a specific time for the current day
     """
+
+    await interaction.response.defer(ephemeral=True)
     guild_id = interaction.guild.id
-    channel_id = interaction.channel.id
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    channel: discord.TextChannel = data_access_get_guild_text_channel_id(guild_id)
+    channel_id = channel.id
 
     last_message = await get_last_schedule_message(channel)
     if last_message is None:
-        await interaction.response.send_message("No messages found in this channel.", ephemeral=True)
+        await interaction.followup.send("No messages found in this channel.", ephemeral=True)
         return
     message_id = last_message.id
     message: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
@@ -506,6 +508,7 @@ async def set_schedule_user_today(
     data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
 
     await update_vote_message(message, message_votes)
+    await interaction.followup.send("User added", ephemeral=True)
 
 
 async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, message: discord.Message) -> None:

@@ -48,7 +48,7 @@ def fetch_user_activity(from_day: int = 3600, to_day: int = 0):
     """
     cursor.execute(
         """
-        SELECT user_id, channel_id, event, timestamp
+        SELECT user_id, channel_id, event, timestamp, guild_id
         FROM user_activity
         WHERE timestamp >= datetime('now', ? ) AND timestamp <= datetime('now', ?)
         ORDER BY channel_id, timestamp
@@ -112,8 +112,8 @@ def compute_users_weights(activity_data) -> Dict[Tuple[int, int, int], int]:
     )  # { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }
 
     # Iterate over the activity data and populate user_connections
-    for user_id, channel_id, event, timestamp in activity_data:
-        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f") # String to datetime
+    for user_id, channel_id, event, timestamp, guild_id in activity_data:
+        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")  # String to datetime
 
         if channel_id not in user_connections:
             user_connections[channel_id] = {}

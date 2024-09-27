@@ -3,8 +3,6 @@ Common code for the gatherer and analyse
 """
 
 import sqlite3
-from datetime import datetime
-from typing import Dict, Tuple
 
 EVENT_CONNECT = "connect"
 EVENT_DISCONNECT = "disconnect"

@@ -86,6 +86,8 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     # Add edges with normalized weights between users
     for user_a, user_b, weight in data:
         normalized_weight = (weight / max_weight) * 100  # Normalize to max 100
+        user_a = user_a[:8]  # Truncate to 8 characters for better visualization
+        user_b = user_b[:8]  # Truncate to 8 characters for better visualization
         graph_network.add_edge(user_a, user_b, weight=normalized_weight)
 
     # Detect communities using Louvain method
@@ -99,7 +101,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     plt.figure(figsize=(12, 12))
 
     # Position the nodes using the spring layout
-    pos = nx.spring_layout(graph_network)
+    pos = nx.spring_layout(graph_network, scale=None, k=5)
 
     # Draw nodes, coloring by community
     for community_id in communities:
@@ -118,13 +120,14 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     nx.draw_networkx_edges(graph_network, pos, width=[w / 10 for w in normalized_weights.values()])
 
     # Draw labels for users (nodes), adjusted to be above the nodes
-    label_pos = {node: (x, y + 0.05) for node, (x, y) in pos.items()}  # Adjust y-coordinate
+    label_pos = {node: (x, y + 0.15) for node, (x, y) in pos.items()}  # Adjust y-coordinate
     nx.draw_networkx_labels(
         graph_network,
         label_pos,
         labels={node: node for node in graph_network.nodes()},
         font_size=12,
         font_family="sans-serif",
+        font_color="#209ef7",
     )
 
     # Draw edge labels (normalized weights)
