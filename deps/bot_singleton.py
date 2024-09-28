@@ -1,5 +1,6 @@
 """A singleton class for the bot instance"""
 
+import discord
 from discord import Intents
 from discord.ext import commands
 
@@ -24,6 +25,6 @@ class BotSingleton:
         return cls._instance
 
     @property
-    def bot(self):
+    def bot(self) -> discord.Client:
         """Get the bot instance"""
         return self._bot  # pylint: disable=no-member

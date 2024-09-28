@@ -4,7 +4,6 @@ import os
 import io
 from typing import List, Dict, Union
 from datetime import datetime, timedelta, date, timezone, time
-from zoneinfo import ZoneInfo
 import asyncio
 import discord
 from gtts import gTTS
@@ -41,6 +40,7 @@ from deps.siege import get_user_rank_emoji
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
 from deps.values import (
     DATE_FORMAT,
+    MSG_UNIQUE_STRING,
     SUPPORTED_TIMES_STR,
     EMOJI_TO_TIME,
     DAYS_OF_WEEK,
@@ -60,7 +60,6 @@ from deps.functions import (
     get_supported_time_time_label,
     get_time_choices,
     get_last_schedule_message,
-    get_poll_message,
 )
 from deps.log import print_log, print_error_log, print_warning_log
 from deps.ui import FormDayHours
@@ -198,7 +197,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild, force: bool = Fal
     if message_sent is None or force is True:
         channel: discord.TextChannel = await data_access_get_channel(channel_id)
         # We might not have in the cache but maybe the message was sent, let's check
-        last_message = await get_last_schedule_message(channel)
+        last_message = await get_last_schedule_message(bot, channel)
         if last_message is not None:
             if is_today(last_message.created_at):
                 print_warning_log(
@@ -207,7 +206,7 @@ async def send_daily_question_to_a_guild(guild: discord.Guild, force: bool = Fal
                 data_access_set_daily_message(guild_id, channel_id)
                 return
         # We never sent the message, so we send it, add the reactions and save it in the cache
-        message: discord.Message = await channel.send(get_poll_message())
+        message: discord.Message = await channel.send(get_daily_string_message(get_empty_votes()))
         for reaction in reactions:
             await message.add_reaction(reaction)
         await auto_assign_user_to_daily_question(guild.id, channel_id, message)
@@ -332,17 +331,23 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
     await update_vote_message(text_message_reaction, message_votes)
 
 
-# Function to update the vote message
-
-
-async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
-    """Update the votes per hour on the bot message"""
-    vote_message = get_poll_message() + "\n\nSchedule for " + date.today().strftime(DATE_FORMAT) + "\n"
+def get_daily_string_message(vote_for_message: Dict[str, List[SimpleUser]]) -> str:
+    """Create the daily message"""
+    current_date = date.today().strftime(DATE_FORMAT)
+    vote_message = f"{MSG_UNIQUE_STRING} this **{current_date}**?"
+    vote_message += "\n\n**Schedule**\n"
     for key_time, users in vote_for_message.items():
         if users:
             vote_message += f"{key_time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
         else:
             vote_message += f"{key_time}: -\n"
+    vote_message += f"⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
+    return vote_message
+
+
+async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
+    """Update the votes per hour on the bot message"""
+    vote_message = get_daily_string_message(vote_for_message)
     print_log(vote_message)
     await message.edit(content=vote_message)
 
@@ -423,7 +428,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
     # Fetch the last message from the channel
     channel = interaction.channel
     channel_id = channel.id
-    last_message = await get_last_schedule_message(channel)
+    last_message = await get_last_schedule_message(bot, channel)
 
     if last_message is None:
         await interaction.response.send_message("No messages found in this channel.", ephemeral=True)
@@ -491,7 +496,7 @@ async def set_schedule_user_today(
     channel: discord.TextChannel = data_access_get_guild_text_channel_id(guild_id)
     channel_id = channel.id
 
-    last_message = await get_last_schedule_message(channel)
+    last_message = await get_last_schedule_message(bot, channel)
     if last_message is None:
         await interaction.followup.send("No messages found in this channel.", ephemeral=True)
         return
@@ -587,7 +592,7 @@ async def apply_schedule(interaction: discord.Interaction):
         return
 
     channel: discord.TextChannel = await data_access_get_channel(channel_id)
-    last_message: discord.Message = await get_last_schedule_message(channel)
+    last_message: discord.Message = await get_last_schedule_message(bot, channel)
     if last_message is None:
         print_warning_log(f"No message found in the channel {channel.name}. Skipping.")
         await interaction.followup.send(f"Cannot find a schedule message #{channel.name}.", ephemeral=True)
@@ -661,7 +666,7 @@ async def check_voice_channel():
         if text_channel is None:
             print_warning_log(f"Text channel configured but not found in the guild {guild.name}. Skipping.")
             continue
-        last_message = await get_last_schedule_message(text_channel)
+        last_message = await get_last_schedule_message(bot, text_channel)
         if last_message is None:
             print_warning_log(f"No message found in the channel {text_channel.name}. Skipping.")
             continue
@@ -826,7 +831,7 @@ async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str
     channel_id = await data_access_get_guild_text_channel_id(guild_id)
     channel = await data_access_get_channel(channel_id)
 
-    last_message = await get_last_schedule_message(channel)
+    last_message = await get_last_schedule_message(bot, channel)
 
     if last_message is None:
         return []

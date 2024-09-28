@@ -1,12 +1,12 @@
 """ Utility functions used by the bot. """
 
 from typing import Union, Optional
-from datetime import datetime, date
 import pytz
 import discord
 from discord import app_commands
-from deps.values import EMOJI_TO_TIME, COMMAND_SCHEDULE_ADD, DATE_FORMAT
+from deps.values import EMOJI_TO_TIME, MSG_UNIQUE_STRING
 from deps.models import TimeLabel
+from datetime import datetime
 
 
 def get_empty_votes():
@@ -51,22 +51,17 @@ def get_time_choices():
     return supported_times
 
 
-def get_poll_message():
-    """Get the daily mesage to post"""
-    current_date = date.today().strftime(DATE_FORMAT)
-    return f"What time will you play today ({current_date})?\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nReact with all the time you plan to be available. You can use /{COMMAND_SCHEDULE_ADD} to set recurrent day and hours."
-
-
-async def get_last_schedule_message(channel: Union[discord.TextChannel, discord.VoiceChannel, None]):
+async def get_last_schedule_message(
+    bot: discord.Client, channel: Union[discord.TextChannel, discord.VoiceChannel, None]
+):
     """
     Returns the last schedule message id for the given channel.
     """
     if channel is None:
         return None
 
-    today_message = get_poll_message()[:10]
     async for message in channel.history(limit=20):
-        if message.content.startswith(today_message) and message.author.bot:
+        if message.author.bot and message.author == bot.user and message.content.startswith(MSG_UNIQUE_STRING):
             last_message = message
             return last_message
     return None
