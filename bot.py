@@ -121,27 +121,11 @@ async def on_ready():
         else:
             print_warning_log(f"\tChannel ID {channel_id} not found in guild {guild.name}")
 
-        # Debug
-        await fix_schedule(guild.id)
-
     check_voice_channel.start()  # Start the background task
     send_daily_question_to_all_guild.start()  # Start the background task
 
     # Run it for today (won't duplicate)
     await send_daily_question_to_all_guild()
-
-
-async def fix_schedule(guild_id: int):
-    """Temporary function to fix schedule concerning the midnight am/pm issue"""
-    for day_of_week_number in range(7):
-        list_users: Union[List[SimpleUserHour] | None] = await data_access_get_users_auto_schedule(
-            guild_id, day_of_week_number
-        )
-        if list_users:
-            for user_hours in list_users:
-                if user_hours.hour == "12pm":
-                    user_hours.hour = "12am"
-            data_access_set_users_auto_schedule(guild_id, day_of_week_number, list_users)
 
 
 # local_tz = datetime.now().astimezone().tzinfo
