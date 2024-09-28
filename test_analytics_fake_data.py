@@ -61,4 +61,4 @@ print(user_weights)
 # display_graph_network_relationship()
 
 display_graph_cluster_people()
-# display_graph_cluster_people_3d_animated()
+display_graph_cluster_people_3d_animated()

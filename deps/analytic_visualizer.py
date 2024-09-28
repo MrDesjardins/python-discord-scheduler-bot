@@ -234,11 +234,10 @@ def display_graph_cluster_people_3d_animated(show: bool = True, from_day: int = 
         edge_traces.append(edge_trace)
 
     # Create the layout for the 3D plot
+    scene_options = {"showbackground": False}
     layout = go.Layout(
         title="3D Animated User Relationship Graph with Clusters",
-        scene=dict(
-            xaxis=dict(showbackground=False), yaxis=dict(showbackground=False), zaxis=dict(showbackground=False)
-        ),
+        scene=dict(xaxis=scene_options, yaxis=scene_options, zaxis=scene_options),
         showlegend=False,
         hovermode="closest",
         updatemenus=[

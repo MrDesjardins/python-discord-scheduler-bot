@@ -1,12 +1,12 @@
 """ Utility functions used by the bot. """
 
+from datetime import datetime
 from typing import Union, Optional
 import pytz
 import discord
 from discord import app_commands
 from deps.values import EMOJI_TO_TIME, MSG_UNIQUE_STRING
 from deps.models import TimeLabel
-from datetime import datetime
 
 
 def get_empty_votes():
