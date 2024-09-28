@@ -15,7 +15,7 @@ from deps.analytic_gatherer import (
     fetch_user_activity,
     log_activity,
 )
-from deps.analytic_visualizer import display_graph_cluster_people
+from deps.analytic_visualizer import display_graph_cluster_people, display_graph_cluster_people_3d_animated
 
 GENERATE_FAKE_DATA = False
 
@@ -60,4 +60,5 @@ print(user_weights)
 # calculate_time_spent_from_db(6000, 0)
 # display_graph_network_relationship()
 
-display_graph_cluster_people()
+#display_graph_cluster_people()
+display_graph_cluster_people_3d_animated()

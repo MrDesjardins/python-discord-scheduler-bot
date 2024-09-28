@@ -86,26 +86,13 @@ COMMAND_FORCE_SEND = "forcesendschedule"
 COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
 COMMAND_SHOW_COMMUNITY = "showcommunity"
 
-bot = BotSingleton().bot
+bot: discord.Client = BotSingleton().bot
+
 print_log(f"Env: {ENV}")
 print_log(f"Token: {TOKEN}")
 
-
 reactions = get_reactions()
 supported_times_time_label = get_supported_time_time_label()
-
-
-async def reaction_worker():
-    """Queue reactions sequentially"""
-    while True:
-        reaction, remove = await bot.reaction_queue.get()
-        try:
-            await adjust_reaction(reaction, remove)
-        except Exception as e:
-            print_error_log(f"Error processing reaction: {e}")
-        finally:
-            bot.reaction_queue.task_done()
-
 
 @bot.event
 async def on_ready():
@@ -136,11 +123,6 @@ async def on_ready():
 
         # Debug
         await fix_schedule(guild.id)
-
-    # Start the reaction worker. The queue ensure that one reaction is handled at a time, sequentially
-    # It avoids parallel processing of the same message, ensure the cache is filled by the previous reaction
-    bot.reaction_queue = asyncio.Queue()
-    bot.loop.create_task(reaction_worker())
 
     check_voice_channel.start()  # Start the background task
     send_daily_question_to_all_guild.start()  # Start the background task
@@ -234,13 +216,13 @@ def check_bot_permissions(channel: discord.TextChannel) -> dict:
 @bot.event
 async def on_raw_reaction_add(reaction: discord.RawReactionActionEvent):
     """User adds a reaction to a message"""
-    await bot.reaction_queue.put((reaction, False))
+    await adjust_reaction(reaction, False)
 
 
 @bot.event
 async def on_raw_reaction_remove(reaction: discord.RawReactionActionEvent):
     """User removes a reaction to a message"""
-    await bot.reaction_queue.put((reaction, True))
+    await adjust_reaction(reaction, True)
 
 
 async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool):
@@ -334,14 +316,14 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
 def get_daily_string_message(vote_for_message: Dict[str, List[SimpleUser]]) -> str:
     """Create the daily message"""
     current_date = date.today().strftime(DATE_FORMAT)
-    vote_message = f"{MSG_UNIQUE_STRING} this **{current_date}**?"
+    vote_message = f"{MSG_UNIQUE_STRING} today **{current_date}**?"
     vote_message += "\n\n**Schedule**\n"
     for key_time, users in vote_for_message.items():
         if users:
             vote_message += f"{key_time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
         else:
             vote_message += f"{key_time}: -\n"
-    vote_message += f"⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
+    vote_message += f"\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
     return vote_message
 
 
@@ -360,7 +342,7 @@ async def add_user_schedule(interaction: discord.Interaction):
     view = FormDayHours()
 
     await interaction.response.send_message(
-        "Choose your day and hour. If you already have a schedule, this new one will override the previous schedule with the new hours for the day choosen.",
+        "Choose your day and hour. If you already have a schedule, this new one will add on top of the previous schedule with the new hours for the day choosen.",
         view=view,
         ephemeral=True,
     )
@@ -784,19 +766,18 @@ async def send_notification_voice_channel(
     # )
 
     list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern())
+    list_simple_users = list(filter(lambda x: x.user_id != member.id, list_simple_users))
     if len(list_simple_users) > 0:
         other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
-        text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play at this time. Check the bot schedule channel."
+        text_message = f"Hello {member.display_name}! {other_members} are scheduled to play at this time. Check the bot schedule channel."
     else:
         # Check next hour
         list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern(1))
         if len(list_simple_users) > 0:
             other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
-            text_message = f"Hello {member.display_name}! You are alone but {other_members} are scheduled to play in the upcoming hour. Check the bot schedule channel."
+            text_message = f"Hello {member.display_name}! {other_members} are scheduled to play in the upcoming hour. Check the bot schedule channel."
         else:
-            text_message = (
-                f"Hello {member.display_name}! Feel free to message the rainbox six siege channel to find partners."
-            )
+            text_message = f"Hello {member.display_name}! Feel free to message the rainbox six siege channel to find partners and check the bot schedule channel."
 
     print_log(f"Sending voice message to {member.display_name}")
     # Convert text to speech using gTTS
