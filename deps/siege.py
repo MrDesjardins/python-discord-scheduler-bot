@@ -2,6 +2,7 @@
 
 import discord
 
+
 def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> str:
     """
     Check the user's roles to determine their rank

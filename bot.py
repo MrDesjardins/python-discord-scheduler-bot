@@ -4,7 +4,6 @@ import os
 import io
 from typing import List, Dict, Union
 from datetime import datetime, timedelta, date, timezone, time
-import asyncio
 import discord
 from gtts import gTTS
 from discord import app_commands
@@ -271,8 +270,6 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
     if remove:
         # Remove the user from the message votes
         for time_v, value in message_votes.items():
-            print_log(f"Checking time {time_v}")
-            print_log(value)
             if time_v == time_voted:
                 for single_vote in value:
                     if user.id == single_vote.user_id:

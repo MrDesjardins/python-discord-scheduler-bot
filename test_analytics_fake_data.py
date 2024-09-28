@@ -60,5 +60,5 @@ print(user_weights)
 # calculate_time_spent_from_db(6000, 0)
 # display_graph_network_relationship()
 
-#display_graph_cluster_people()
-display_graph_cluster_people_3d_animated()
+display_graph_cluster_people()
+# display_graph_cluster_people_3d_animated()
