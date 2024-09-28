@@ -68,7 +68,7 @@ load_dotenv()
 
 ENV = os.getenv("ENV")
 TOKEN = os.getenv("BOT_TOKEN_DEV") if ENV == "dev" else os.getenv("BOT_TOKEN")
-HOUR_SEND_DAILY_MESSAGE = 8
+HOUR_SEND_DAILY_MESSAGE = 7
 
 COMMAND_SCHEDULE_ADD = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
@@ -131,13 +131,6 @@ async def on_ready():
 # local_tz = datetime.now().astimezone().tzinfo
 local_tz = pytz.timezone("America/Los_Angeles")
 time_send_daily_message = time(hour=HOUR_SEND_DAILY_MESSAGE, minute=0, second=0, tzinfo=local_tz)
-
-# time_send_daily_message = (
-#     datetime.now(ZoneInfo("America/Los_Angeles"))
-#     .replace(hour=HOUR_SEND_DAILY_MESSAGE, minute=30, second=0, microsecond=0)
-#     .time()
-# )
-
 
 @tasks.loop(time=time_send_daily_message)
 async def send_daily_question_to_all_guild():
