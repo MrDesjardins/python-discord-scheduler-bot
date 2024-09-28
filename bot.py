@@ -94,6 +94,9 @@ print_log(f"Token: {TOKEN}")
 reactions = get_reactions()
 supported_times_time_label = get_supported_time_time_label()
 
+guild_emoji: Dict[str, Dict[str, str]] = {}
+
+
 @bot.event
 async def on_ready():
     """Main function to run when the bot is ready"""
@@ -120,6 +123,10 @@ async def on_ready():
             print_log(f"\tBot permissions in channel {channel.name}: {permissions}")
         else:
             print_warning_log(f"\tChannel ID {channel_id} not found in guild {guild.name}")
+        guild_emoji[guild.id] = {}
+        for emoji in guild.emojis:
+            guild_emoji[guild.id][emoji.name] = emoji.id
+            print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
 
     check_voice_channel.start()  # Start the background task
     send_daily_question_to_all_guild.start()  # Start the background task
@@ -131,6 +138,7 @@ async def on_ready():
 # local_tz = datetime.now().astimezone().tzinfo
 local_tz = pytz.timezone("America/Los_Angeles")
 time_send_daily_message = time(hour=HOUR_SEND_DAILY_MESSAGE, minute=0, second=0, tzinfo=local_tz)
+
 
 @tasks.loop(time=time_send_daily_message)
 async def send_daily_question_to_all_guild():
@@ -254,7 +262,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                 users = [u async for u in react.users() if not u.bot]
                 for user in users:
                     message_votes[time_voted].append(
-                        SimpleUser(user.id, member.display_name, get_user_rank_emoji(member))
+                        SimpleUser(user.id, member.display_name, get_user_rank_emoji(guild_emoji[guild_id], member))
                     )
         print_log(f"Setting reaction users for message {message_id} in cache")
 
@@ -280,7 +288,9 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                     f"User {user.id} ({member.display_name}) already voted for {time_voted} in message {message_id}"
                 )
             else:
-                message_votes[time_voted].append(SimpleUser(user.id, member.display_name, get_user_rank_emoji(member)))
+                message_votes[time_voted].append(
+                    SimpleUser(user.id, member.display_name, get_user_rank_emoji(guild_emoji[guild_id], member))
+                )
                 print_log(f"Updating reaction users for message {message_id} in cache")
     # Always update the cache
     data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
@@ -288,6 +298,24 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
     print_log("End Adjusting reaction")
     # await rate_limiter(update_vote_message, message, message_votes)
     await update_vote_message(text_message_reaction, message_votes)
+
+
+def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> discord.Embed:
+    """Create the daily message"""
+    current_date = date.today().strftime(DATE_FORMAT)
+    vote_message = f"{MSG_UNIQUE_STRING} today **{current_date}**?"
+    vote_message += "\n\n**Schedule**\n"
+    for key_time, users in vote_for_message.items():
+        if users:
+            vote_message += f"{key_time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
+        else:
+            vote_message += f"{key_time}: -\n"
+
+    embed = discord.Embed(title="Schedule", description=vote_message, color=0x00FF00, timestamp=datetime.now())
+    embed.set_footer(
+        text=f"⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
+    )
+    return embed
 
 
 def get_daily_string_message(vote_for_message: Dict[str, List[SimpleUser]]) -> str:
@@ -306,9 +334,9 @@ def get_daily_string_message(vote_for_message: Dict[str, List[SimpleUser]]) -> s
 
 async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
     """Update the votes per hour on the bot message"""
-    vote_message = get_daily_string_message(vote_for_message)
-    print_log(vote_message)
-    await message.edit(content=vote_message)
+    embed_msg = get_daily_embed_message(vote_for_message)
+    print_log("Updated Message")
+    await message.edit(content="", embed=embed_msg)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_ADD)
@@ -383,6 +411,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
     """
     An administrator can refresh the schedule from the reaction. Good to synchronize users' reaction when the bot was offline.
     """
+    await interaction.response.defer(ephemeral=True)
     guild_id = interaction.guild.id
     # Fetch the last message from the channel
     channel = interaction.channel
@@ -392,8 +421,6 @@ async def refresh_from_reaction(interaction: discord.Interaction):
     if last_message is None:
         await interaction.response.send_message("No messages found in this channel.", ephemeral=True)
         return
-
-    await interaction.response.defer(ephemeral=True)
 
     message_id = last_message.id
     # Cache all users for this message's reactions to avoid redundant API calls
@@ -417,7 +444,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
                     continue
                 # Add the user to the message votes
                 message_votes[EMOJI_TO_TIME.get(str(reaction.emoji))].append(
-                    SimpleUser(user.id, user.display_name, get_user_rank_emoji(user))
+                    SimpleUser(user.id, user.display_name, get_user_rank_emoji(guild_emoji[guild_id], user))
                 )
         # Always update the cache
         data_access_set_reaction_message(guild_id, channel.id, message_id, message_votes)
@@ -465,7 +492,7 @@ async def set_schedule_user_today(
     if not message_votes:
         message_votes = get_empty_votes()
 
-    simple_user = SimpleUser(member.id, member.display_name, get_user_rank_emoji(member))
+    simple_user = SimpleUser(member.id, member.display_name, get_user_rank_emoji(guild_emoji[guild_id], member))
     message_votes[time_voted.value].append(simple_user)
 
     # Always update the cache
@@ -658,7 +685,7 @@ async def check_voice_channel():
                 # Add the user to the message votes
                 found_new_user = True
                 message_votes[current_hour_str].append(
-                    SimpleUser(user.id, user.display_name, get_user_rank_emoji(user))
+                    SimpleUser(user.id, user.display_name, get_user_rank_emoji(guild_emoji[guild_id], user))
                 )
 
         if found_new_user:

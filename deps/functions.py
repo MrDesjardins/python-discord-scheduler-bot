@@ -61,7 +61,11 @@ async def get_last_schedule_message(
         return None
 
     async for message in channel.history(limit=20):
-        if message.author.bot and message.author == bot.user and message.content.startswith(MSG_UNIQUE_STRING):
+        if (
+            message.author.bot
+            and message.author == bot.user
+            and (message.content.startswith(MSG_UNIQUE_STRING) or len(message.embeds) > 0)
+        ):
             last_message = message
             return last_message
     return None

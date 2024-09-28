@@ -9,8 +9,6 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import community as community_louvain
 import plotly.graph_objs as go
-import numpy as np
-
 from deps.analytic_gatherer import calculate_time_spent_from_db
 from deps.analytic import cursor
 
