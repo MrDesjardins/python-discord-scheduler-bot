@@ -847,4 +847,9 @@ async def community_show_image(interaction: discord.Interaction, from_day_ago: i
     await interaction.response.send_message(file=file, ephemeral=True)
 
 
-bot.run(TOKEN)
+def main() -> None:
+    """Start the bot"""
+    bot.run(TOKEN)
+
+if __name__ == "__main__":
+    main()
