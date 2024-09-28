@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """ Entry file for the Discord bot """
 
 import os

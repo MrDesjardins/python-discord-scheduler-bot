@@ -127,7 +127,7 @@ To run the bot in development, you can use the following commands.
 
 ```sh
 source .venv/bin/activate
-python3 bot.py
+python3 bot.py # or ./bot.py
 ```
 
 ## Python Environment and Dependencies
@@ -215,6 +215,7 @@ To lint the code, you can use the following command:
 
 ```sh
 pylint **/*.py
+black **/*.py
 ```
 
 # Deployment
