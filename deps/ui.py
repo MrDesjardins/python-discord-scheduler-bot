@@ -1,5 +1,6 @@
 """ User interface for the bot"""
 
+from typing import Dict
 import discord
 from discord.ui import Select, View
 from deps.data_access import data_access_set_users_auto_schedule
@@ -14,9 +15,9 @@ class FormDayHours(View):
     A view that combines two selects for the user to answer two questions
     """
 
-    def __init__(self):
+    def __init__(self, guild_emoji: Dict[str, Dict[str, str]]):
         super().__init__()
-
+        self.guild_emoji = guild_emoji
         # First question select menu
         self.first_select = Select(
             placeholder="Days of the weeks:",
@@ -68,7 +69,9 @@ class FormDayHours(View):
         if self.first_response and self.second_response:
             # Save user responses
             simple_user = SimpleUser(
-                interaction.user.id, interaction.user.display_name, get_user_rank_emoji(interaction.user)
+                interaction.user.id,
+                interaction.user.display_name,
+                get_user_rank_emoji(self.guild_emoji[interaction.guild_id], interaction.user),
             )
 
             for day in self.first_response:

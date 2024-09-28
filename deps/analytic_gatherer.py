@@ -105,6 +105,7 @@ def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:
 def compute_users_weights(activity_data) -> Dict[Tuple[int, int, int], int]:
     """
     Compute the weights of users in the same channel in seconds
+    The return is (channel_id, user_a, user_b) -> total time in seconds
     """
     # Dictionary to store connection times of users in rooms
     user_connections: Dict[int, Dict[int, (int, int)]] = (

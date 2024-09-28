@@ -11,7 +11,22 @@ def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> st
     for role in user.roles:
         if role.name in ["Champion", "Diamond", "Emerald", "Platinum", "Gold", "Silver", "Bronze", "Copper"]:
             print(f"Role: {role.name} found")
-            return f"<:{role.name}:{guild_emoji[role.name]}>"
+            return get_guil_rank_emoji(guild_emoji, role.name)
+    print("No rank found")
+
+    return get_guil_rank_emoji(guild_emoji, "Copper")
+
+
+def get_guil_rank_emoji(guild_emoji: dict[str, str], emoji_name: str) -> str:
+    """
+    Extract the full emoji code for Discord to use from the emoji name and the guild emoji dictionary
+    which contain the unique ID for the emoji
+    """
+
+    if emoji_name in ["Champion", "Diamond", "Emerald", "Platinum", "Gold", "Silver", "Bronze", "Copper"]:
+        if emoji_name in guild_emoji:
+            emoji_id = guild_emoji[emoji_name]
+            return f"<:{emoji_name}:{emoji_id}>"
     print("No rank found")
 
     return f"<:Copper:{guild_emoji['Copper']}>" if "Copper" in guild_emoji else "N/A"

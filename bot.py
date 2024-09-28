@@ -173,7 +173,8 @@ async def send_daily_question_to_a_guild(guild: discord.Guild, force: bool = Fal
                 data_access_set_daily_message(guild_id, channel_id)
                 return
         # We never sent the message, so we send it, add the reactions and save it in the cache
-        message: discord.Message = await channel.send(get_daily_string_message(get_empty_votes()))
+        embed_msg = get_daily_embed_message(get_empty_votes())
+        message: discord.Message = await channel.send(content="", embed=embed_msg)
         for reaction in reactions:
             await message.add_reaction(reaction)
         await auto_assign_user_to_daily_question(guild.id, channel_id, message)
@@ -342,7 +343,7 @@ async def add_user_schedule(interaction: discord.Interaction):
     """
     Add a schedule for the active user who perform the command
     """
-    view = FormDayHours()
+    view = FormDayHours(guild_emoji)
 
     await interaction.response.send_message(
         "Choose your day and hour. If you already have a schedule, this new one will add on top of the previous schedule with the new hours for the day choosen.",
@@ -850,6 +851,7 @@ async def community_show_image(interaction: discord.Interaction, from_day_ago: i
 def main() -> None:
     """Start the bot"""
     bot.run(TOKEN)
+
 
 if __name__ == "__main__":
     main()
