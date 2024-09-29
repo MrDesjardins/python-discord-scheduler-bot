@@ -30,7 +30,7 @@ def main():
 
 
 def raspberri_pi_menu():
-    options = ["Service Status", "Restart Service", "Upgrade Code"]
+    options = ["Service Status", "Restart Service", "Upgrade Code", "Back"]
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
@@ -39,17 +39,13 @@ def raspberri_pi_menu():
         restart_service(SERVICE_NAME)
     elif menu_entry_index == 2:
         update_code()
-
+    elif menu_entry_index == 3:
+        main()
     main()
 
 
 def local_menu():
-    options = [
-        "Save Dependencies in requirements.txt",
-        "Get Latest DB",
-        "Lint",
-        "Run Scripts",
-    ]
+    options = ["Save Dependencies in requirements.txt", "Get Latest DB", "Lint", "Run Scripts", "Back"]
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
@@ -60,18 +56,22 @@ def local_menu():
         lint_code()
     elif menu_entry_index == 3:
         run_scripts_menu()
+    elif menu_entry_index == 4:
+        main()
 
     main()
 
 
 def run_scripts_menu():
-    options = ["Community 2D", "Community 3D"]
+    options = ["Community 2D", "Community 3D", "Back"]
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
         show_community_2d()
     elif menu_entry_index == 1:
         show_community_3d()
+    elif menu_entry_index == 3:
+        local_menu()
 
     main()
 
