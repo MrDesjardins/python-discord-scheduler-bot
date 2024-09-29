@@ -4,7 +4,14 @@ from typing import List, Union
 from datetime import datetime
 import discord
 from deps.bot_singleton import BotSingleton
-from deps.cache import ALWAYS_TTL, THREE_DAY_TTL, get_cache, remove_cache, reset_cache_by_prefixes, set_cache
+from deps.cache import (
+    ALWAYS_TTL,
+    THREE_DAY_TTL,
+    get_cache,
+    remove_cache,
+    reset_cache_by_prefixes,
+    set_cache,
+)
 from deps.models import SimpleUserHour
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
@@ -114,10 +121,17 @@ async def data_access_get_users_auto_schedule(
 
 def data_access_set_users_auto_schedule(guild_id: int, day_of_week_number: str, users: List[SimpleUserHour]) -> None:
     """Configure the users schedule for a specific day of the week"""
-    set_cache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}", users, ALWAYS_TTL)
+    set_cache(
+        False,
+        f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}",
+        users,
+        ALWAYS_TTL,
+    )
 
 
-async def data_access_get_guild_text_channel_id(guild_id: int) -> Union[discord.TextChannel, None]:
+async def data_access_get_guild_text_channel_id(
+    guild_id: int,
+) -> Union[discord.TextChannel, None]:
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
 
@@ -127,7 +141,9 @@ def data_access_set_guild_text_channel_id(guild_id: int, channel_id: int) -> Non
     set_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
 
 
-async def data_access_get_guild_voice_channel_ids(guild_id: int) -> Union[discord.VoiceChannel, None]:
+async def data_access_get_guild_voice_channel_ids(
+    guild_id: int,
+) -> Union[discord.VoiceChannel, None]:
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}")
 

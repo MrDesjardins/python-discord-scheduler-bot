@@ -3,7 +3,15 @@
 DATE_FORMAT = "%A, %B %d, %Y"
 
 """ Values used in the bot. """
-DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+DAYS_OF_WEEK = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+]
 
 EMOJI_TO_TIME = {
     "3️⃣": "3pm",

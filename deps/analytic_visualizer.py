@@ -132,7 +132,11 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     )
 
     # Draw edge labels (normalized weights)
-    nx.draw_networkx_edge_labels(graph_network, pos, edge_labels={k: f"{v:.2f}" for k, v in normalized_weights.items()})
+    nx.draw_networkx_edge_labels(
+        graph_network,
+        pos,
+        edge_labels={k: f"{v:.2f}" for k, v in normalized_weights.items()},
+    )
 
     # Show plot
     plt.title("User Relationship Graph with Clusters (Edge Tickness = More Time Together)")

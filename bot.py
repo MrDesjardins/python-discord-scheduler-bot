@@ -263,7 +263,11 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                 users = [u async for u in react.users() if not u.bot]
                 for user in users:
                     message_votes[time_voted].append(
-                        SimpleUser(user.id, member.display_name, get_user_rank_emoji(guild_emoji[guild_id], member))
+                        SimpleUser(
+                            user.id,
+                            member.display_name,
+                            get_user_rank_emoji(guild_emoji[guild_id], member),
+                        )
                     )
         print_log(f"Setting reaction users for message {message_id} in cache")
 
@@ -288,7 +292,11 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
                 )
             else:
                 message_votes[time_voted].append(
-                    SimpleUser(user.id, member.display_name, get_user_rank_emoji(guild_emoji[guild_id], member))
+                    SimpleUser(
+                        user.id,
+                        member.display_name,
+                        get_user_rank_emoji(guild_emoji[guild_id], member),
+                    )
                 )
                 print_log(f"Updating reaction users for message {message_id} in cache")
     # Always update the cache
@@ -310,7 +318,12 @@ def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> di
         else:
             vote_message += f"{key_time}: -\n"
 
-    embed = discord.Embed(title="Schedule", description=vote_message, color=0x00FF00, timestamp=datetime.now())
+    embed = discord.Embed(
+        title="Schedule",
+        description=vote_message,
+        color=0x00FF00,
+        timestamp=datetime.now(),
+    )
     embed.set_footer(
         text=f"⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
     )
@@ -443,7 +456,11 @@ async def refresh_from_reaction(interaction: discord.Interaction):
                     continue
                 # Add the user to the message votes
                 message_votes[EMOJI_TO_TIME.get(str(reaction.emoji))].append(
-                    SimpleUser(user.id, user.display_name, get_user_rank_emoji(guild_emoji[guild_id], user))
+                    SimpleUser(
+                        user.id,
+                        user.display_name,
+                        get_user_rank_emoji(guild_emoji[guild_id], user),
+                    )
                 )
         # Always update the cache
         data_access_set_reaction_message(guild_id, channel.id, message_id, message_votes)
@@ -491,7 +508,11 @@ async def set_schedule_user_today(
     if not message_votes:
         message_votes = get_empty_votes()
 
-    simple_user = SimpleUser(member.id, member.display_name, get_user_rank_emoji(guild_emoji[guild_id], member))
+    simple_user = SimpleUser(
+        member.id,
+        member.display_name,
+        get_user_rank_emoji(guild_emoji[guild_id], member),
+    )
     message_votes[time_voted.value].append(simple_user)
 
     # Always update the cache
@@ -684,7 +705,11 @@ async def check_voice_channel():
                 # Add the user to the message votes
                 found_new_user = True
                 message_votes[current_hour_str].append(
-                    SimpleUser(user.id, user.display_name, get_user_rank_emoji(guild_emoji[guild_id], user))
+                    SimpleUser(
+                        user.id,
+                        user.display_name,
+                        get_user_rank_emoji(guild_emoji[guild_id], user),
+                    )
                 )
 
         if found_new_user:
@@ -730,17 +755,43 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                 # User joined a voice channel
                 channel_id = after.channel.id
                 event = EVENT_CONNECT
-                log_activity(member.id, member.display_name, channel_id, guild_id, event, datetime.now())
+                log_activity(
+                    member.id,
+                    member.display_name,
+                    channel_id,
+                    guild_id,
+                    event,
+                    datetime.now(),
+                )
             elif before.channel is not None and after.channel is None:
                 # User left a voice channel
                 channel_id = before.channel.id
                 event = EVENT_DISCONNECT
-                log_activity(member.id, member.display_name, channel_id, guild_id, event, datetime.now())
+                log_activity(
+                    member.id,
+                    member.display_name,
+                    channel_id,
+                    guild_id,
+                    event,
+                    datetime.now(),
+                )
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                 log_activity(
-                    member.id, member.display_name, before.channel.id, guild_id, EVENT_DISCONNECT, datetime.now()
+                    member.id,
+                    member.display_name,
+                    before.channel.id,
+                    guild_id,
+                    EVENT_DISCONNECT,
+                    datetime.now(),
                 )
-                log_activity(member.id, member.display_name, after.channel.id, guild_id, EVENT_CONNECT, datetime.now())
+                log_activity(
+                    member.id,
+                    member.display_name,
+                    after.channel.id,
+                    guild_id,
+                    EVENT_CONNECT,
+                    datetime.now(),
+                )
         except Exception as e:
             print_error_log(f"Error logging user activity: {e}")
 

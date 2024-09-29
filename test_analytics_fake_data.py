@@ -15,7 +15,10 @@ from deps.analytic_gatherer import (
     fetch_user_activity,
     log_activity,
 )
-from deps.analytic_visualizer import display_graph_cluster_people, display_graph_cluster_people_3d_animated
+from deps.analytic_visualizer import (
+    display_graph_cluster_people,
+    display_graph_cluster_people_3d_animated,
+)
 
 GENERATE_FAKE_DATA = False
 
@@ -25,22 +28,120 @@ if GENERATE_FAKE_DATA:
     GUILD_ID = 1000
     delete_all_tables()
 
-    log_activity(1, "user_1", CHANNEL1_ID, GUILD_ID, EVENT_CONNECT, datetime(2024, 9, 20, 13, 18, 0, 6318))
-    log_activity(10, "user_10", CHANNEL2_ID, GUILD_ID, EVENT_CONNECT, datetime(2024, 9, 20, 13, 20, 0, 6318))
-    log_activity(11, "user_11", CHANNEL2_ID, GUILD_ID, EVENT_CONNECT, datetime(2024, 9, 20, 13, 20, 0, 6318))
-    log_activity(2, "user_2", CHANNEL1_ID, GUILD_ID, EVENT_CONNECT, datetime(2024, 9, 20, 13, 20, 0, 6318))
-    log_activity(3, "user_3", CHANNEL1_ID, GUILD_ID, EVENT_CONNECT, datetime(2024, 9, 20, 13, 21, 0, 6318))
+    log_activity(
+        1,
+        "user_1",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 18, 0, 6318),
+    )
+    log_activity(
+        10,
+        "user_10",
+        CHANNEL2_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 20, 0, 6318),
+    )
+    log_activity(
+        11,
+        "user_11",
+        CHANNEL2_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 20, 0, 6318),
+    )
+    log_activity(
+        2,
+        "user_2",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 20, 0, 6318),
+    )
+    log_activity(
+        3,
+        "user_3",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 21, 0, 6318),
+    )
 
-    log_activity(2, "user_2", CHANNEL1_ID, GUILD_ID, EVENT_DISCONNECT, datetime(2024, 9, 20, 13, 30, 0, 6318))
-    log_activity(4, "user_4", CHANNEL1_ID, GUILD_ID, EVENT_CONNECT, datetime(2024, 9, 20, 13, 31, 0, 6318))
-    log_activity(3, "user_3", CHANNEL1_ID, GUILD_ID, EVENT_DISCONNECT, datetime(2024, 9, 20, 13, 32, 0, 6318))
-    log_activity(4, "user_4", CHANNEL1_ID, GUILD_ID, EVENT_DISCONNECT, datetime(2024, 9, 20, 13, 33, 0, 6318))
-    log_activity(1, "user_1", CHANNEL1_ID, GUILD_ID, EVENT_DISCONNECT, datetime(2024, 9, 20, 13, 38, 0, 6318))
+    log_activity(
+        2,
+        "user_2",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_DISCONNECT,
+        datetime(2024, 9, 20, 13, 30, 0, 6318),
+    )
+    log_activity(
+        4,
+        "user_4",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 31, 0, 6318),
+    )
+    log_activity(
+        3,
+        "user_3",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_DISCONNECT,
+        datetime(2024, 9, 20, 13, 32, 0, 6318),
+    )
+    log_activity(
+        4,
+        "user_4",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_DISCONNECT,
+        datetime(2024, 9, 20, 13, 33, 0, 6318),
+    )
+    log_activity(
+        1,
+        "user_1",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_DISCONNECT,
+        datetime(2024, 9, 20, 13, 38, 0, 6318),
+    )
 
-    log_activity(1, "user_1", CHANNEL2_ID, GUILD_ID, EVENT_CONNECT, datetime(2024, 9, 20, 13, 45, 0, 6318))
-    log_activity(10, "user_10", CHANNEL2_ID, GUILD_ID, EVENT_DISCONNECT, datetime(2024, 9, 20, 13, 50, 0, 6318))
-    log_activity(11, "user_11", CHANNEL2_ID, GUILD_ID, EVENT_DISCONNECT, datetime(2024, 9, 20, 13, 50, 0, 6318))
-    log_activity(1, "user_1", CHANNEL2_ID, GUILD_ID, EVENT_DISCONNECT, datetime(2024, 9, 20, 13, 50, 0, 6318))
+    log_activity(
+        1,
+        "user_1",
+        CHANNEL2_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 45, 0, 6318),
+    )
+    log_activity(
+        10,
+        "user_10",
+        CHANNEL2_ID,
+        GUILD_ID,
+        EVENT_DISCONNECT,
+        datetime(2024, 9, 20, 13, 50, 0, 6318),
+    )
+    log_activity(
+        11,
+        "user_11",
+        CHANNEL2_ID,
+        GUILD_ID,
+        EVENT_DISCONNECT,
+        datetime(2024, 9, 20, 13, 50, 0, 6318),
+    )
+    log_activity(
+        1,
+        "user_1",
+        CHANNEL2_ID,
+        GUILD_ID,
+        EVENT_DISCONNECT,
+        datetime(2024, 9, 20, 13, 50, 0, 6318),
+    )
 
 activity_data = fetch_user_activity()
 
