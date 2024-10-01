@@ -6,9 +6,19 @@ import sqlite3
 
 EVENT_CONNECT = "connect"
 EVENT_DISCONNECT = "disconnect"
+database_name = "user_activity.db"
+
+
+def set_database_name(name: str) -> None:
+    """
+    Set the database name
+    """
+    global database_name
+    database_name = name
+
 
 # Connect to SQLite database (it will create the database file if it doesn't exist)
-conn = sqlite3.connect("user_activity.db")
+conn = sqlite3.connect(database_name)
 cursor = conn.cursor()
 
 # Create the tables

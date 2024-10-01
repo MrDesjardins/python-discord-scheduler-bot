@@ -1,5 +1,6 @@
 """ Utility functions used by the bot. """
 
+import subprocess
 from datetime import datetime
 from typing import Union, Optional
 import pytz
@@ -86,3 +87,17 @@ def get_current_hour_eastern(add_hour: Optional[int] = None) -> str:
         if hasattr(datetime.now(eastern), "strftime")
         else current_time_eastern.strftime("%I%p").lstrip("0").lower()
     )
+
+
+def get_sha() -> str:
+    """Get the latest git SHA"""
+    return subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode()
+
+
+def write_git_sha_to_file():
+    """Get the latest git SHA and write it to version.txt"""
+    git_sha = get_sha()
+
+    # Write the SHA to version.txt
+    with open("version.txt", "w", encoding="utf-8") as f:
+        f.write(git_sha)

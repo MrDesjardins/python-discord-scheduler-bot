@@ -238,3 +238,9 @@ sqlite3 user_activity.db
 ```
 
 You can also while developing using the test script with `python3 test_analytics_fake_date.py` which will use the local database and generate fake data. You can see the data but also the generated images.
+
+# Unit Tests
+
+```sh
+python -m unittest discover tests -p "*_test.py"
+``` 

@@ -42,7 +42,7 @@ def log_activity(user_id, user_display_name, channel_id, guild_id, event, time) 
     conn.commit()
 
 
-def fetch_user_activity(from_day: int = 3600, to_day: int = 0):
+def fetch_user_activity(from_day: int = 3600, to_day: int = 0) -> list[tuple[int, int, int, str, int]]:
     """
     Fetch all connect and disconnect events from the user_activity table
     """
@@ -102,13 +102,12 @@ def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:
     conn.commit()
 
 
-def compute_users_weights(activity_data) -> Dict[Tuple[int, int, int], int]:
-    """
-    Compute the weights of users in the same channel in seconds
-    The return is (channel_id, user_a, user_b) -> total time in seconds
-    """
+def calculate_user_connections(
+    activity_data: list[tuple[int, int, int, str, int]]
+) -> Dict[int, Dict[int, Tuple[int, int]]]:
+    """The return is { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }"""
     # Dictionary to store connection times of users in rooms
-    user_connections: Dict[int, Dict[int, (int, int)]] = (
+    user_connections: Dict[int, Dict[int, Tuple[int, int]]] = (
         {}
     )  # { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }
 
@@ -128,6 +127,16 @@ def compute_users_weights(activity_data) -> Dict[Tuple[int, int, int], int]:
         elif event == EVENT_DISCONNECT and user_connections[channel_id][user_id]:
             # Update the latest disconnect time for the most recent connect entry
             user_connections[channel_id][user_id][-1][1] = timestamp
+    return user_connections
+
+
+def compute_users_weights(activity_data: list[tuple[int, int, int, str, int]]) -> Dict[Tuple[int, int, int], int]:
+    """
+    Compute the weights of users in the same channel in seconds
+    The return is (channel_id, user_a, user_b) -> total time in seconds
+    """
+    # Dictionary to store connection times of users in rooms
+    user_connections = calculate_user_connections(activity_data)
 
     # Now calculate overlapping time between users in the same room
     user_weights: Dict[Tuple[int, int, int], int] = {}  # { (user_a, user_b, channel_id): total_weight }

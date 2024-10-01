@@ -57,6 +57,7 @@ from deps.functions import (
     get_current_hour_eastern,
     get_empty_votes,
     get_reactions,
+    get_sha,
     get_supported_time_time_label,
     get_time_choices,
     get_last_schedule_message,
@@ -85,6 +86,7 @@ COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "resetvoicechannel"
 COMMAND_FORCE_SEND = "forcesendschedule"
 COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
 COMMAND_SHOW_COMMUNITY = "showcommunity"
+COMMAND_VERSION = "version"
 
 bot: discord.Client = BotSingleton().bot
 
@@ -897,6 +899,15 @@ async def community_show_image(interaction: discord.Interaction, from_day_ago: i
     bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
     file = discord.File(fp=bytesio, filename="plot.png")
     await interaction.response.send_message(file=file, ephemeral=True)
+
+
+@bot.tree.command(name=COMMAND_VERSION)
+@commands.has_permissions(administrator=True)
+async def show_version(interaction: discord.Interaction):
+    """Show the version of the bot"""
+    await interaction.response.defer(ephemeral=True)
+    sha = get_sha()
+    await interaction.followup.send(f"Version: {sha}", ephemeral=True)
 
 
 def main() -> None:
