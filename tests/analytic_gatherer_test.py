@@ -2,7 +2,7 @@
 
 from datetime import datetime
 import unittest
-from deps.analytic import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.analytic import EVENT_CONNECT, EVENT_DISCONNECT, UserActivity
 from deps.analytic_gatherer import calculate_overlap, calculate_user_connections
 
 
@@ -45,10 +45,12 @@ class TestCalculateUserConnections(unittest.TestCase):
 
     def test_two_users_connection_with_single_connect_disconnect(self):
         activity_data = [
-            (1, 1, EVENT_CONNECT, "2024-09-20 13:18:0.6318", 1),
-            (2, 1, EVENT_CONNECT, "2024-09-20 13:18:1.6318", 1),
-            (1, 1, EVENT_DISCONNECT, "2024-09-20 13:18:3.6318", 1),
-            (2, 1, EVENT_DISCONNECT, "2024-09-20 13:18:4.6318", 1),
+            UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
+            UserActivity(channel_id=1, user_id=2, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:1.6318", guild_id=1),
+            UserActivity(channel_id=1, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:18:3.6318", guild_id=1),
+            UserActivity(
+                channel_id=1, user_id=2, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:18:4.6318", guild_id=1
+            ),
         ]
         result = calculate_user_connections(activity_data)
         self.assertEqual(
@@ -63,12 +65,18 @@ class TestCalculateUserConnections(unittest.TestCase):
 
     def test_two_users_connection_with_many_connect_disconnect(self):
         activity_data = [
-            (1, 1, EVENT_CONNECT, "2024-09-20 13:18:0.6318", 1),
-            (2, 1, EVENT_CONNECT, "2024-09-20 13:18:1.6318", 1),
-            (1, 1, EVENT_DISCONNECT, "2024-09-20 13:18:3.6318", 1),
-            (2, 1, EVENT_DISCONNECT, "2024-09-20 13:18:4.6318", 1),
-            (1, 1, EVENT_CONNECT, "2024-09-20 13:20:1.6318", 1),
-            (1, 1, EVENT_DISCONNECT, "2024-09-20 13:20:10.6318", 1),
+            UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
+            UserActivity(channel_id=1, user_id=2, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:1.6318", guild_id=1),
+            UserActivity(
+                channel_id=1, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:18:3.6318", guild_id=1
+            ),
+            UserActivity(
+                channel_id=1, user_id=2, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:18:4.6318", guild_id=1
+            ),
+            UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:20:1.6318", guild_id=1),
+            UserActivity(
+                channel_id=1, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:20:10.6318", guild_id=1
+            ),
         ]
         result = calculate_user_connections(activity_data)
         self.assertEqual(
@@ -84,32 +92,41 @@ class TestCalculateUserConnections(unittest.TestCase):
             },
         )
 
-    def test_user_connect_and_never_disconnected(self):
+    def test_user_connect_in_two_different_channels(self):
         activity_data = [
-            (1, 1, EVENT_CONNECT, "2024-09-20 13:18:0.6318", 1),
-            (1, 1, EVENT_DISCONNECT, "2024-09-20 13:18:3.6318", 1),
-            (1, 2, EVENT_CONNECT, "2024-09-20 13:28:1.6318", 1),
-            (1, 2, EVENT_DISCONNECT, "2024-09-20 13:28:4.6318", 1),
+            UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
+            UserActivity(
+                channel_id=1, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:19:0.6318", guild_id=1
+            ),
+            UserActivity(
+                channel_id=2, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:28:3.6318", guild_id=1
+            ),
+            UserActivity(
+                channel_id=2, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:29:3.6318", guild_id=1
+            ),
         ]
+
         result = calculate_user_connections(activity_data)
         self.assertEqual(
             result,
             {
                 1: {
                     1: [
-                        [datetime(2024, 9, 20, 13, 18, 0, 631800), datetime(2024, 9, 20, 13, 18, 3, 631800)],
+                        [datetime(2024, 9, 20, 13, 18, 0, 631800), datetime(2024, 9, 20, 13, 19, 0, 631800)],
                     ],
                 },
                 2: {
                     1: [
-                        [datetime(2024, 9, 20, 13, 28, 1, 631800), datetime(2024, 9, 20, 13, 28, 4, 631800)],
+                        [datetime(2024, 9, 20, 13, 28, 3, 631800), datetime(2024, 9, 20, 13, 29, 3, 631800)],
                     ],
                 },
             },
         )
 
     def test_user_connect_disconnected_two_different_channels(self):
-        activity_data = [(1, 1, EVENT_CONNECT, "2024-09-20 13:18:0.6318", 1)]
+        activity_data = [
+            UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
+        ]
         result = calculate_user_connections(activity_data)
         self.assertEqual(
             result,

@@ -5,7 +5,7 @@ Module to gather user activity data and calculate the time spent together
 from datetime import datetime
 from typing import Dict, Tuple
 
-from deps.analytic import cursor, conn, EVENT_CONNECT, EVENT_DISCONNECT
+from deps.analytic import UserActivity, cursor, conn, EVENT_CONNECT, EVENT_DISCONNECT
 
 
 def delete_all_tables() -> None:
@@ -42,7 +42,7 @@ def log_activity(user_id, user_display_name, channel_id, guild_id, event, time) 
     conn.commit()
 
 
-def fetch_user_activity(from_day: int = 3600, to_day: int = 0) -> list[tuple[int, int, int, str, int]]:
+def fetch_user_activity(from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:
     """
     Fetch all connect and disconnect events from the user_activity table
     """
@@ -55,7 +55,8 @@ def fetch_user_activity(from_day: int = 3600, to_day: int = 0) -> list[tuple[int
         """,
         (f"-{from_day} days", f"-{to_day} days"),
     )
-    return cursor.fetchall()
+    # Convert the result to a list of UserActivity objects
+    return [UserActivity(*row) for row in cursor.fetchall()]
 
 
 def calculate_overlap(start1: datetime, end1: datetime, start2: datetime, end2: datetime) -> float:
@@ -102,9 +103,7 @@ def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:
     conn.commit()
 
 
-def calculate_user_connections(
-    activity_data: list[tuple[int, int, int, str, int]]
-) -> Dict[int, Dict[int, Tuple[int, int]]]:
+def calculate_user_connections(activity_data: list[UserActivity]) -> Dict[int, Dict[int, Tuple[int, int]]]:
     """The return is { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }"""
     # Dictionary to store connection times of users in rooms
     user_connections: Dict[int, Dict[int, Tuple[int, int]]] = (
@@ -112,25 +111,27 @@ def calculate_user_connections(
     )  # { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }
 
     # Iterate over the activity data and populate user_connections
-    for user_id, channel_id, event, timestamp, guild_id in activity_data:
-        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")  # String to datetime
+    for activity in activity_data:
+        timestamp = datetime.strptime(activity.timestamp, "%Y-%m-%d %H:%M:%S.%f")  # String to datetime
 
-        if channel_id not in user_connections:
-            user_connections[channel_id] = {}
+        if activity.channel_id not in user_connections:
+            user_connections[activity.channel_id] = {}
 
-        if user_id not in user_connections[channel_id]:
-            user_connections[channel_id][user_id] = []
+        if activity.user_id not in user_connections[activity.channel_id]:
+            user_connections[activity.channel_id][activity.user_id] = []
 
-        if event == EVENT_CONNECT:
+        if activity.event == EVENT_CONNECT:
             # Log the connection time
-            user_connections[channel_id][user_id].append([timestamp, None])  # Connect time with None for disconnect
-        elif event == EVENT_DISCONNECT and user_connections[channel_id][user_id]:
+            user_connections[activity.channel_id][activity.user_id].append(
+                [timestamp, None]
+            )  # Connect time with None for disconnect
+        elif activity.event == EVENT_DISCONNECT and user_connections[activity.channel_id][activity.user_id]:
             # Update the latest disconnect time for the most recent connect entry
-            user_connections[channel_id][user_id][-1][1] = timestamp
+            user_connections[activity.channel_id][activity.user_id][-1][1] = timestamp
     return user_connections
 
 
-def compute_users_weights(activity_data: list[tuple[int, int, int, str, int]]) -> Dict[Tuple[int, int, int], int]:
+def compute_users_weights(activity_data: list[UserActivity]) -> Dict[Tuple[int, int, int], int]:
     """
     Compute the weights of users in the same channel in seconds
     The return is (channel_id, user_a, user_b) -> total time in seconds

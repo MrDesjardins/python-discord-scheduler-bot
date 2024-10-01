@@ -3,6 +3,7 @@ Common code for the gatherer and analyse
 """
 
 import sqlite3
+from dataclasses import dataclass
 
 EVENT_CONNECT = "connect"
 EVENT_DISCONNECT = "disconnect"
@@ -31,6 +32,14 @@ CREATE TABLE IF NOT EXISTS user_info (
 """
 )
 
+
+# Define a dataclass to represent each record
+@dataclass
+class UserInfo:
+    id: int
+    display_name: str
+
+
 cursor.execute(
     f"""
 CREATE TABLE IF NOT EXISTS user_activity (
@@ -44,6 +53,18 @@ CREATE TABLE IF NOT EXISTS user_activity (
 )
 """
 )
+
+
+# Define a dataclass to represent each record
+@dataclass
+class UserActivity:
+    user_id: int
+    channel_id: int
+    event: str
+    timestamp: str
+    guild_id: int
+
+
 cursor.execute(
     """
 CREATE TABLE IF NOT EXISTS user_weights (
@@ -55,3 +76,12 @@ CREATE TABLE IF NOT EXISTS user_weights (
 );
 """
 )
+
+
+# Define a dataclass to represent each record
+@dataclass
+class UserWeight:
+    user_a: str
+    user_b: str
+    channel_id: str
+    weight: float
