@@ -3,7 +3,7 @@
 from datetime import datetime
 import unittest
 from deps.analytic import EVENT_CONNECT, EVENT_DISCONNECT, UserActivity
-from deps.analytic_gatherer import calculate_overlap, calculate_user_connections
+from deps.analytic_gatherer import calculate_overlap, calculate_user_connections, compute_users_weights
 
 
 class TestCalculateOverlap(unittest.TestCase):
@@ -47,7 +47,9 @@ class TestCalculateUserConnections(unittest.TestCase):
         activity_data = [
             UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
             UserActivity(channel_id=1, user_id=2, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:1.6318", guild_id=1),
-            UserActivity(channel_id=1, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:18:3.6318", guild_id=1),
+            UserActivity(
+                channel_id=1, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:18:3.6318", guild_id=1
+            ),
             UserActivity(
                 channel_id=1, user_id=2, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:18:4.6318", guild_id=1
             ),
@@ -98,9 +100,7 @@ class TestCalculateUserConnections(unittest.TestCase):
             UserActivity(
                 channel_id=1, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:19:0.6318", guild_id=1
             ),
-            UserActivity(
-                channel_id=2, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:28:3.6318", guild_id=1
-            ),
+            UserActivity(channel_id=2, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:28:3.6318", guild_id=1),
             UserActivity(
                 channel_id=2, user_id=1, event=EVENT_DISCONNECT, timestamp="2024-09-20 13:29:3.6318", guild_id=1
             ),
@@ -123,7 +123,7 @@ class TestCalculateUserConnections(unittest.TestCase):
             },
         )
 
-    def test_user_connect_disconnected_two_different_channels(self):
+    def test_user_connect_never_disconnected(self):
         activity_data = [
             UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
         ]
@@ -138,6 +138,79 @@ class TestCalculateUserConnections(unittest.TestCase):
                 }
             },
         )
+
+    def test_user_connect_disconnected_two_different_channels(self):
+        activity_data = [
+            UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
+            UserActivity(channel_id=2, user_id=2, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
+        ]
+        result = calculate_user_connections(activity_data)
+        self.assertEqual(
+            result,
+            {
+                1: {
+                    1: [
+                        [datetime(2024, 9, 20, 13, 18, 0, 631800), None],
+                    ],
+                },
+                2: {
+                    2: [
+                        [datetime(2024, 9, 20, 13, 18, 0, 631800), None],
+                    ],
+                },
+            },
+        )
+
+
+class TestComputeUsersWeights(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_two_users_same_channel_single_overlap(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-09-20 13:05:0.6318", 1),
+            UserActivity(2, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+        ]
+        result = compute_users_weights(activity_data)
+        self.assertEqual(result, {(1, 2, 100): 300})
+
+    def test_two_users_same_channel_many_overlap(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:30:0.6318", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-09-20 13:05:0.6318", 1),
+            UserActivity(2, 100, EVENT_DISCONNECT, "2024-09-20 13:06:0.6318", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-09-20 13:15:0.6318", 1),
+            UserActivity(2, 100, EVENT_DISCONNECT, "2024-09-20 13:16:0.6318", 1),
+        ]
+        result = compute_users_weights(activity_data)
+        self.assertEqual(result, {(1, 2, 100): 120})
+
+    def test_two_users_many_channels_no_overlap(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:30:0.6318", 1),
+            UserActivity(2, 200, EVENT_CONNECT, "2024-09-20 13:05:0.6318", 1),
+            UserActivity(2, 200, EVENT_DISCONNECT, "2024-09-20 13:06:0.6318", 1),
+        ]
+        result = compute_users_weights(activity_data)
+        self.assertEqual(result, {})
+
+    def test_two_users_many_channels_many_overlap(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-09-20 13:09:0.6318", 1),
+            UserActivity(2, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+            UserActivity(1, 200, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 200, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+            UserActivity(2, 200, EVENT_CONNECT, "2024-09-20 13:08:0.6318", 1),
+            UserActivity(2, 200, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+        ]
+        result = compute_users_weights(activity_data)
+        self.assertEqual(result, {(1, 2, 100): 60.0, (1, 2, 200): 120.0})
 
 
 if __name__ == "__main__":
