@@ -6,6 +6,7 @@ import io
 import os
 import sys
 import threading
+import unittest
 import black
 from simple_term_menu import TerminalMenu
 from pylint import lint
@@ -41,11 +42,19 @@ def raspberri_pi_menu():
         update_code()
     elif menu_entry_index == 3:
         main()
+        return
     main()
 
 
 def local_menu():
-    options = ["Save Dependencies in requirements.txt", "Get Latest DB", "Lint", "Run Scripts", "Back"]
+    options = [
+        "Save Dependencies in requirements.txt",
+        "Get Latest DB",
+        "Lint",
+        "Run Scripts",
+        "Run Unit Tests",
+        "Back",
+    ]
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
@@ -57,7 +66,10 @@ def local_menu():
     elif menu_entry_index == 3:
         run_scripts_menu()
     elif menu_entry_index == 4:
+        run_unit_tests()
+    elif menu_entry_index == 5:
         main()
+        return
 
     main()
 
@@ -72,6 +84,7 @@ def run_scripts_menu():
         show_community_3d()
     elif menu_entry_index == 3:
         local_menu()
+        return
 
     main()
 
@@ -185,6 +198,30 @@ def save_dependencies() -> None:
         print(f"Script failed with error:\n{e.stderr}")
     except Exception as e:
         print(f"An exception occurred: {e}")
+
+
+def run_unit_tests() -> None:
+    # Create a stream to capture test runner output
+    test_output = io.StringIO()
+
+    # Create a test loader and discover tests from the 'tests' directory
+    loader = unittest.TestLoader()
+    tests = loader.discover("tests", pattern="*_test.py")
+
+    # Create a test runner that outputs to the test_output stream
+    runner = unittest.TextTestRunner(stream=test_output, verbosity=2)
+
+    # Run the tests
+    result = runner.run(tests)
+    # Print captured output
+    print("Test output:")
+    print(test_output.getvalue())
+
+    # Print the overall result
+    if result.wasSuccessful():
+        print("All tests passed.")
+    else:
+        print(f"Tests failed. Failures: {len(result.failures)}. Errors: {len(result.errors)}.")
 
 
 def get_latest_db() -> None:
