@@ -13,6 +13,7 @@ from pylint import lint
 from deps.analytic_visualizer import (
     display_graph_cluster_people,
     display_graph_cluster_people_3d_animated,
+    display_time_relationship,
 )
 
 SERVICE_NAME = "gametimescheduler.service"
@@ -26,8 +27,8 @@ def main():
         raspberri_pi_menu()
     elif menu_entry_index == 1:
         local_menu()
-    elif menu_entry_index == 1:
-        exit(0)
+    elif menu_entry_index == 2:
+        sys.exit(0)
 
 
 def raspberri_pi_menu():
@@ -41,7 +42,6 @@ def raspberri_pi_menu():
     elif menu_entry_index == 2:
         update_code()
     elif menu_entry_index == 3:
-        main()
         return
     main()
 
@@ -68,20 +68,21 @@ def local_menu():
     elif menu_entry_index == 4:
         run_unit_tests()
     elif menu_entry_index == 5:
-        main()
         return
 
     main()
 
 
 def run_scripts_menu():
-    options = ["Community 2D", "Community 3D", "Back"]
+    options = ["Community 2D", "Community 3D", "Relationship Time", "Back"]
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
         show_community_2d()
     elif menu_entry_index == 1:
         show_community_3d()
+    elif menu_entry_index == 2:
+        show_relationship()
     elif menu_entry_index == 3:
         local_menu()
         return
@@ -310,6 +311,10 @@ def show_community_2d() -> None:
 
 def show_community_3d() -> None:
     display_graph_cluster_people_3d_animated()
+
+
+def show_relationship() -> None:
+    display_time_relationship()
 
 
 if __name__ == "__main__":

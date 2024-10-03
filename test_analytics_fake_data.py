@@ -21,8 +21,10 @@ from deps.analytic_visualizer import (
     display_graph_cluster_people_3d_animated,
 )
 
-set_database_name("user_activity.test.db")
-GENERATE_FAKE_DATA = True
+# set_database_name("user_activity.test.db")
+# GENERATE_FAKE_DATA = True
+set_database_name("user_activity.db")
+GENERATE_FAKE_DATA = False
 
 if GENERATE_FAKE_DATA:
     CHANNEL1_ID = 100
@@ -146,7 +148,8 @@ if GENERATE_FAKE_DATA:
     # )
 
 activity_data = fetch_user_activity()
-
+activity_data = filter(lambda x: x.user_id in (357551747146842124, 755175712268353599), activity_data) # Pat, Joe
+[print(d) for d in activity_data]
 user_weights = compute_users_weights(activity_data)
 print(user_weights)
 
