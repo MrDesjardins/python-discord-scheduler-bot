@@ -4,7 +4,7 @@
 import os
 import io
 from typing import List, Dict, Union
-from datetime import datetime, timedelta, date, timezone, time
+from datetime import datetime, timedelta, date, timezone, time, timezone
 import discord
 from gtts import gTTS
 from discord import app_commands
@@ -763,7 +763,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     channel_id,
                     guild_id,
                     event,
-                    datetime.now(),
+                    datetime.now(timezone.utc),
                 )
             elif before.channel is not None and after.channel is None:
                 # User left a voice channel
@@ -775,7 +775,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     channel_id,
                     guild_id,
                     event,
-                    datetime.now(),
+                    datetime.now(timezone.utc),
                 )
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                 log_activity(
@@ -784,7 +784,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     before.channel.id,
                     guild_id,
                     EVENT_DISCONNECT,
-                    datetime.now(),
+                    datetime.now(timezone.utc),
                 )
                 log_activity(
                     member.id,
@@ -792,7 +792,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     after.channel.id,
                     guild_id,
                     EVENT_CONNECT,
-                    datetime.now(),
+                    datetime.now(timezone.utc),
                 )
         except Exception as e:
             print_error_log(f"Error logging user activity: {e}")
