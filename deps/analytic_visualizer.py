@@ -3,16 +3,14 @@ Code to show the relationsip between the users
 """
 
 import io
-
-# pylint: disable=import-error
+from dataclasses import dataclass
+from typing import List, Dict, Tuple
 import networkx as nx
 import matplotlib.pyplot as plt
 import community as community_louvain
 import plotly.graph_objs as go
 from deps.analytic_gatherer import calculate_time_spent_from_db
 from deps.analytic import cursor
-from dataclasses import dataclass
-from datetime import timedelta
 
 
 @dataclass
@@ -22,6 +20,23 @@ class UsersRelationship:
     user1_display_name: str
     user2_display_name: str
     weight: int
+
+
+def get_unidirection_users(data: List[UsersRelationship]) -> Tuple[Dict[str, Dict[str, int]], int]:
+    users_uni_direction: Dict[str, Dict[str, int]] = {}
+    max_weight = 0
+    for user in data:
+        if user.user1_id in users_uni_direction:
+            if user.user2_id in users_uni_direction[user.user1_id]:
+                users_uni_direction[user.user1_id][user.user2_id] = (
+                    users_uni_direction[user.user1_id][user.user2_id] + user.weight
+                )
+            else:
+                users_uni_direction[user.user1_id][user.user2_id] = user.weight
+        else:
+            users_uni_direction[user.user1_id] = {user.user2_id: user.weight}
+        max_weight = max(max_weight, users_uni_direction[user.user1_id][user.user2_id])
+    return (users_uni_direction, max_weight)
 
 
 def _get_data(from_day, to_day) -> list[UsersRelationship]:
@@ -41,46 +56,53 @@ def _get_data(from_day, to_day) -> list[UsersRelationship]:
     return [UsersRelationship(*row) for row in cursor.fetchall()]
 
 
-def display_graph_network_relationship(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
-    """
-    Display the relationship between users in a graph
-    """
-    data = _get_data(from_day, to_day)
-    # Extract weights for normalization
-    weights = [weight for _, _, weight in data]
-    max_weight = max(weights)
+# def display_graph_network_relationship(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+#     """
+#     Display the relationship between users in a graph
+#     """
+#     data = _get_data(from_day, to_day)
 
-    # Create a graph using NetworkX
-    graph_network = nx.Graph()
+#     # Create a graph using NetworkX
+#     graph_network = nx.Graph()
 
-    # Add edges with weights between users
-    for user in data:
-        normalized_weight = (user.weight / max_weight) * 100  # Normalize to max 100
-        graph_network.add_edge(user.user1_display_name, user.user2_display_name, weight=normalized_weight)
+#     # Create a structure that store users unidirectional to add the weight from both sides (user1, user2) and (user2, user1)
+#     (users_uni_direction, max_weight) = get_unidirection_users(data)
 
-    # Draw the graph
-    plt.figure(figsize=(10, 10))
+#     # Get the names of the users
+#     users_name: Dict[int, str] = {}
+#     for user in data:
+#         users_name[user.user1_id] = user.user1_display_name
+#         users_name[user.user2_id] = user.user2_display_name
 
-    # Position the nodes using the spring layout for a better spread
-    pos = nx.spring_layout(graph_network)
+#     # Add edges with weights between users
+#     for user_1_id, value in users_uni_direction.items():
+#         for user_2_id, weight in value.items():
+#             normalized_weight = (weight / max_weight) * 100  # Normalize to max 100
+#             graph_network.add_edge(users_name[user_1_id], users_name[user_2_id], weight=normalized_weight)
 
-    # Draw nodes
-    nx.draw_networkx_nodes(graph_network, pos, node_size=700, node_color="skyblue")
+#     # Draw the graph
+#     plt.figure(figsize=(10, 10))
 
-    # Draw edges, adjusting width based on the weight
-    weights = nx.get_edge_attributes(graph_network, "weight")
-    nx.draw_networkx_edges(graph_network, pos, width=[w / 10 for w in weights.values()])
+#     # Position the nodes using the spring layout for a better spread
+#     pos = nx.spring_layout(graph_network)
 
-    # Draw labels for users (nodes)
-    nx.draw_networkx_labels(graph_network, pos, font_size=12, font_family="sans-serif")
+#     # Draw nodes
+#     nx.draw_networkx_nodes(graph_network, pos, node_size=700, node_color="skyblue")
 
-    # Draw edge labels (weights)
-    nx.draw_networkx_edge_labels(graph_network, pos, edge_labels={k: f"{v:.2f}" for k, v in weights.items()})
+#     # Draw edges, adjusting width based on the weight
+#     weights = nx.get_edge_attributes(graph_network, "weight")
+#     nx.draw_networkx_edges(graph_network, pos, width=[w / 10 for w in weights.values()])
 
-    # Show plot
-    plt.title("User Relationship Graph (Edge Tickness = More Time Together)")
-    plt.axis("off")  # Turn off the axis
-    return _plot_return(plt, show)
+#     # Draw labels for users (nodes)
+#     nx.draw_networkx_labels(graph_network, pos, font_size=12, font_family="sans-serif")
+
+#     # Draw edge labels (weights)
+#     nx.draw_networkx_edge_labels(graph_network, pos, edge_labels={k: f"{v:.2f}" for k, v in weights.items()})
+
+#     # Show plot
+#     plt.title("User Relationship Graph (Edge Tickness = More Time Together)")
+#     plt.axis("off")  # Turn off the axis
+#     return _plot_return(plt, show)
 
 
 def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
@@ -88,18 +110,25 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     Determine the clusters of users and display them in a graph
     """
     data = _get_data(from_day, to_day)
-    weights = [user.weight for user in data]
-    max_weight = max(weights)
 
     # Create a graph using NetworkX
     graph_network = nx.Graph()
 
-    # Add edges with normalized weights between users
+    (users_uni_direction, max_weight) = get_unidirection_users(data)
+
+    # Get the names of the users
+    users_name: Dict[int, str] = {}
     for user in data:
-        normalized_weight = (user.weight / max_weight) * 100  # Normalize to max 100
-        user_a = user.user1_display_name[:8]  # Truncate to 8 characters for better visualization
-        user_b = user.user2_display_name[:8]  # Truncate to 8 characters for better visualization
-        graph_network.add_edge(user_a, user_b, weight=normalized_weight)
+        users_name[user.user1_id] = user.user1_display_name
+        users_name[user.user2_id] = user.user2_display_name
+
+    # Add edges with normalized weights between users
+    for user_1_id, value in users_uni_direction.items():
+        for user_2_id, weight in value.items():
+            normalized_weight = (weight / max_weight) * 100  # Normalize to max 100
+            user_a = users_name[user_1_id][:8]  # Truncate to 8 characters for better visualization
+            user_b = users_name[user_2_id][:8]  # Truncate to 8 characters for better visualization
+            graph_network.add_edge(user_a, user_b, weight=normalized_weight)
 
     # Detect communities using Louvain method
     partition = community_louvain.best_partition(graph_network)
@@ -109,7 +138,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     colors = plt.cm.get_cmap("viridis", len(communities))
 
     # Draw the graph
-    plt.figure(figsize=(12, 12))
+    plt.figure(figsize=(24, 24))
 
     # Position the nodes using the spring layout
     pos = nx.spring_layout(graph_network, scale=None, k=5)
@@ -178,18 +207,25 @@ def display_graph_cluster_people_3d_animated(show: bool = True, from_day: int = 
     Determine the clusters of users and display them in a 3D animated graph
     """
     data = _get_data(from_day, to_day)
-    weights = [user.weight for user in data]
-    max_weight = max(weights)
 
     # Create a graph using NetworkX
     graph_network = nx.Graph()
 
-    # Add edges with normalized weights between users
+    (users_uni_direction, max_weight) = get_unidirection_users(data)
+
+    # Get the names of the users
+    users_name: Dict[int, str] = {}
     for user in data:
-        normalized_weight = (user.weight / max_weight) * 20  # Normalize to max 20 for width
-        user_a = user.user1_display_name[:8]  # Truncate to 8 characters for better visualization
-        user_b = user.user2_display_name[:8]  # Truncate to 8 characters for better visualization
-        graph_network.add_edge(user_a, user_b, weight=normalized_weight)
+        users_name[user.user1_id] = user.user1_display_name
+        users_name[user.user2_id] = user.user2_display_name
+
+    # Add edges with normalized weights between users
+    for user_1_id, value in users_uni_direction.items():
+        for user_2_id, weight in value.items():
+            normalized_weight = (weight / max_weight) * 25  # Normalize to max value
+            user_a = users_name[user_1_id][:8]  # Truncate to 8 characters for better visualization
+            user_b = users_name[user_2_id][:8]  # Truncate to 8 characters for better visualization
+            graph_network.add_edge(user_a, user_b, weight=normalized_weight)
 
     # Detect communities using Louvain method
     partition = community_louvain.best_partition(graph_network)
@@ -268,22 +304,43 @@ def display_graph_cluster_people_3d_animated(show: bool = True, from_day: int = 
 
 
 def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    top = 50
     data = _get_data(from_day, to_day)
+
+    (users_uni_direction, max_weight) = get_unidirection_users(data)
+
+    # Get the names of the users
+    users_name: Dict[int, str] = {}
+    for user in data:
+        users_name[user.user1_id] = user.user1_display_name
+        users_name[user.user2_id] = user.user2_display_name
+
+    data_for_plot = []
+    # Add edges with normalized weights between users
+    for user_1_id, value in users_uni_direction.items():
+        for user_2_id, weight in value.items():
+            data_for_plot.append(
+                {
+                    "user1": users_name[user_1_id],
+                    "user2": users_name[user_2_id],
+                    "weight": weight,
+                }
+            )
     # Sort by weight
-    data.sort(key=lambda x: x.weight, reverse=True)
+    data_for_plot.sort(key=lambda x: x["weight"], reverse=True)
     # Get the top 20
-    data = data[:20]
+    data_for_plot = data_for_plot[:top]
     # Create a bar chart
     plt.figure(figsize=(10, 10))
     # Get the names
-    names = [f"{user.user1_display_name} - {user.user2_display_name}" for user in data]
+    names = [f"{user['user1']} - {user['user2']}" for user in data_for_plot]
     # Get the weights
-    weights = [(user.weight / 3600) for user in data]
+    weights = [(user["weight"] / 3600) for user in data_for_plot]
     # Create the bar chart
     plt.barh(names, weights)
     plt.xlabel("Time spent together")
     plt.ylabel("User pairs")
-    plt.title("Top 10 user pairs with the most time spent together")
+    plt.title(f"Top {top} user pairs with the most time spent together")
     plt.xticks(fontsize=10)  # Reduce x-axis font size if needed
     plt.yticks(fontsize=8)  # Reduce y-axis font size to fit long names
     plt.gca().invert_yaxis()  # Invert the y-axis to have larger weights at the top

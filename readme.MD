@@ -243,4 +243,14 @@ You can also while developing using the test script with `python3 test_analytics
 
 ```sh
 python -m unittest discover tests -p "*_test.py"
+
+# or
+pytest -v -s ./tests
 ``` 
+
+# Coverage Tests
+
+```sh
+coverage run -m pytest -v -s ./tests
+coverage report -m
+```

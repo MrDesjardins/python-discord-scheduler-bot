@@ -4,7 +4,7 @@ Module to gather user activity data and calculate the time spent together
 
 from datetime import datetime
 from typing import Dict, Tuple
-
+from dateutil import parser
 from deps.analytic import UserActivity, cursor, conn, EVENT_CONNECT, EVENT_DISCONNECT
 
 
@@ -112,7 +112,7 @@ def calculate_user_connections(activity_data: list[UserActivity]) -> Dict[int, D
 
     # Iterate over the activity data and populate user_connections
     for activity in activity_data:
-        timestamp = datetime.strptime(activity.timestamp, "%Y-%m-%d %H:%M:%S.%f")  # String to datetime
+        timestamp = parser.parse(activity.timestamp)  # String to datetime
 
         if activity.channel_id not in user_connections:
             user_connections[activity.channel_id] = {}
