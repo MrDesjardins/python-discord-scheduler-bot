@@ -829,6 +829,7 @@ async def send_notification_voice_channel(
     else:
         # Check next hour
         list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern(1))
+        list_simple_users = list(filter(lambda x: x.user_id != member.id, list_simple_users))
         if len(list_simple_users) > 0:
             other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
             text_message = f"Hello {member.display_name}! {other_members} are scheduled to play in the upcoming hour. Check the bot schedule channel."
