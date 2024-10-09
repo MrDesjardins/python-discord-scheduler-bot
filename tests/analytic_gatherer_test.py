@@ -2,8 +2,16 @@
 
 from datetime import datetime
 import unittest
+from unittest.mock import patch
 from deps.analytic import EVENT_CONNECT, EVENT_DISCONNECT, UserActivity
-from deps.analytic_gatherer import calculate_overlap, calculate_user_connections, compute_users_weights
+from deps.analytic_gatherer import (
+    calculate_overlap,
+    calculate_user_connections,
+    compute_users_weights,
+    computer_users_voice_in_out,
+    compute_users_voice_channel_time_sec,
+    users_last_played_over_day,
+)
 
 
 class TestCalculateOverlap(unittest.TestCase):
@@ -211,6 +219,260 @@ class TestComputeUsersWeights(unittest.TestCase):
         ]
         result = compute_users_weights(activity_data)
         self.assertEqual(result, {(1, 2, 100): 60.0, (1, 2, 200): 120.0})
+
+
+class TestComputer_users_voice_in_out(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_single_user_single_channel(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:15:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:20:0.6318", 1),
+        ]
+        result = computer_users_voice_in_out(activity_data)
+
+        self.assertEqual(
+            result,
+            {
+                1: [
+                    (
+                        datetime(2024, 9, 20, 13, 0, 0, 631800),
+                        datetime(2024, 9, 20, 13, 10, 0, 631800),
+                    ),
+                    (
+                        datetime(2024, 9, 20, 13, 15, 0, 631800),
+                        datetime(2024, 9, 20, 13, 20, 0, 631800),
+                    ),
+                ]
+            },
+        )
+
+    def test_many_user_single_channel(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-09-20 13:05:0.6318", 1),
+            UserActivity(2, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+        ]
+        result = computer_users_voice_in_out(activity_data)
+        self.assertEqual(
+            result,
+            {
+                1: [
+                    (
+                        datetime(2024, 9, 20, 13, 0, 0, 631800),
+                        datetime(2024, 9, 20, 13, 10, 0, 631800),
+                    ),
+                ],
+                2: [
+                    (
+                        datetime(2024, 9, 20, 13, 5, 0, 631800),
+                        datetime(2024, 9, 20, 13, 10, 0, 631800),
+                    ),
+                ],
+            },
+        )
+
+    def test_single_user_many_channel(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
+            UserActivity(1, 200, EVENT_CONNECT, "2024-09-20 13:15:0.6318", 1),
+            UserActivity(1, 200, EVENT_DISCONNECT, "2024-09-20 13:20:0.6318", 1),
+        ]
+        result = computer_users_voice_in_out(activity_data)
+
+        self.assertEqual(
+            result,
+            {
+                1: [
+                    (
+                        datetime(2024, 9, 20, 13, 0, 0, 631800),
+                        datetime(2024, 9, 20, 13, 10, 0, 631800),
+                    ),
+                    (
+                        datetime(2024, 9, 20, 13, 15, 0, 631800),
+                        datetime(2024, 9, 20, 13, 20, 0, 631800),
+                    ),
+                ]
+            },
+        )
+
+
+class TestCompute_users_voice_channel_time_sec(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_single_user(self):
+        users_in_out = {
+            1: [
+                (
+                    datetime(2024, 9, 20, 13, 0, 0, 631800),
+                    datetime(2024, 9, 20, 13, 10, 0, 631800),
+                ),
+                (
+                    datetime(2024, 9, 20, 13, 15, 0, 631800),
+                    datetime(2024, 9, 20, 13, 20, 0, 631800),
+                ),
+            ]
+        }
+        result = compute_users_voice_channel_time_sec(users_in_out)
+
+        self.assertEqual(
+            result,
+            {
+                1: 900,
+            },
+        )
+
+    def test_many_user(self):
+        users_in_out = {
+            1: [
+                (
+                    datetime(2024, 9, 20, 13, 0, 0, 631800),
+                    datetime(2024, 9, 20, 13, 10, 0, 631800),
+                ),
+                (
+                    datetime(2024, 9, 20, 13, 15, 0, 631800),
+                    datetime(2024, 9, 20, 13, 20, 0, 631800),
+                ),
+            ],
+            2: [
+                (
+                    datetime(2024, 9, 20, 13, 5, 0, 631800),
+                    datetime(2024, 9, 20, 13, 10, 0, 631800),
+                ),
+            ],
+        }
+        result = compute_users_voice_channel_time_sec(users_in_out)
+
+        self.assertEqual(
+            result,
+            {
+                1: 900,
+                2: 300,
+            },
+        )
+
+    def test_single_user_without_disconnect(self):
+        users_in_out = {
+            1: [
+                (
+                    datetime(2024, 9, 20, 13, 0, 0, 631800),
+                    datetime(2024, 9, 20, 13, 10, 0, 631800),
+                ),
+                (
+                    datetime(2024, 9, 20, 13, 15, 0, 631800),
+                    None,
+                ),
+            ]
+        }
+        result = compute_users_voice_channel_time_sec(users_in_out)
+
+        self.assertEqual(
+            result,
+            {
+                1: 600,
+            },
+        )
+
+
+class TestUsers_last_played_over_day(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    @patch("deps.analytic_gatherer.datetime")
+    def test_single_user_inactive(self, mock_datetime):
+        mock_datetime.now.return_value = datetime(2024, 9, 22, 13, 30, 45)
+        users_in_out = {
+            1: [
+                (
+                    datetime(2024, 9, 20, 13, 0, 0, 631800),
+                    datetime(2024, 9, 20, 13, 10, 0, 631800),
+                ),
+                (
+                    datetime(2024, 9, 20, 13, 15, 0, 631800),
+                    datetime(2024, 9, 20, 13, 20, 0, 631800),
+                ),
+            ]
+        }
+        result = users_last_played_over_day(users_in_out)
+
+        self.assertEqual(
+            result,
+            {
+                1: 2,
+            },
+        )
+
+    @patch("deps.analytic_gatherer.datetime")
+    def test_single_user_active(self, mock_datetime):
+        mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
+        users_in_out = {
+            1: [
+                (
+                    datetime(2024, 9, 20, 13, 0, 0, 631800),
+                    datetime(2024, 9, 20, 13, 10, 0, 631800),
+                ),
+                (
+                    datetime(2024, 9, 20, 13, 15, 0, 631800),
+                    datetime(2024, 9, 20, 13, 20, 0, 631800),
+                ),
+            ]
+        }
+        result = users_last_played_over_day(users_in_out)
+
+        self.assertEqual(
+            result,
+            {},
+        )
+
+    @patch("deps.analytic_gatherer.datetime")
+    def test_single_user_active_data_unordered_recent_last(self, mock_datetime):
+        mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
+        users_in_out = {
+            1: [
+                (
+                    datetime(2024, 9, 10, 13, 0, 0, 631800),
+                    datetime(2024, 9, 10, 13, 10, 0, 631800),
+                ),
+                (
+                    datetime(2024, 9, 20, 13, 15, 0, 631800),
+                    datetime(2024, 9, 20, 13, 20, 0, 631800),
+                ),
+            ]
+        }
+        result = users_last_played_over_day(users_in_out)
+
+        self.assertEqual(
+            result,
+            {},
+        )
+
+    @patch("deps.analytic_gatherer.datetime")
+    def test_single_user_active_data_unordered_recent_firstt(self, mock_datetime):
+        mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
+        users_in_out = {
+            1: [
+                (
+                    datetime(2024, 9, 20, 13, 0, 0, 631800),
+                    datetime(2024, 9, 20, 13, 10, 0, 631800),
+                ),
+                (
+                    datetime(2024, 9, 10, 13, 15, 0, 631800),
+                    datetime(2024, 9, 10, 13, 20, 0, 631800),
+                ),
+            ]
+        }
+        result = users_last_played_over_day(users_in_out)
+
+        self.assertEqual(
+            result,
+            {},
+        )
 
 
 if __name__ == "__main__":

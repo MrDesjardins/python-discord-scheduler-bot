@@ -14,6 +14,8 @@ from deps.analytic_visualizer import (
     display_graph_cluster_people,
     display_graph_cluster_people_3d_animated,
     display_time_relationship,
+    display_time_voice_channel,
+    display_inactive_user,
 )
 
 SERVICE_NAME = "gametimescheduler.service"
@@ -74,16 +76,20 @@ def local_menu():
 
 
 def run_scripts_menu():
-    options = ["Community 2D", "Community 3D", "Relationship Time", "Back"]
+    options = ["Community 2D", "Community 3D", "Relationship Time", "Total Voices Time", "Inactive Users", "Back"]
     terminal_menu = TerminalMenu(options)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
-        show_community_2d()
+        display_graph_cluster_people()
     elif menu_entry_index == 1:
-        show_community_3d()
+        display_graph_cluster_people_3d_animated()
     elif menu_entry_index == 2:
-        show_relationship()
+        display_time_relationship()
     elif menu_entry_index == 3:
+        display_time_voice_channel()
+    elif menu_entry_index == 4:
+        display_inactive_user()
+    elif menu_entry_index == 5:
         local_menu()
         return
 
@@ -303,18 +309,6 @@ def lint_pylint():
         print(f"Pylint exited with status: {e.code}")
     except Exception as e:
         print(f"An exception occurred: {e}")
-
-
-def show_community_2d() -> None:
-    display_graph_cluster_people()
-
-
-def show_community_3d() -> None:
-    display_graph_cluster_people_3d_animated()
-
-
-def show_relationship() -> None:
-    display_time_relationship()
 
 
 if __name__ == "__main__":

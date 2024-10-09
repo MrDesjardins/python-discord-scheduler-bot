@@ -3,13 +3,21 @@ Code to show the relationsip between the users
 """
 
 import io
+import numpy as np
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 import networkx as nx
 import matplotlib.pyplot as plt
 import community as community_louvain
 import plotly.graph_objs as go
-from deps.analytic_gatherer import calculate_time_spent_from_db
+from deps.analytic_gatherer import (
+    calculate_time_spent_from_db,
+    fetch_user_activity,
+    fetch_user_names,
+    computer_users_voice_in_out,
+    compute_users_voice_channel_time_sec,
+    users_last_played_over_day,
+)
 from deps.analytic import cursor
 
 
@@ -345,4 +353,67 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
     plt.yticks(fontsize=8)  # Reduce y-axis font size to fit long names
     plt.gca().invert_yaxis()  # Invert the y-axis to have larger weights at the top
     plt.tight_layout()  # Automatically adjust layout to prevent truncatio
+    return _plot_return(plt, show)
+
+
+def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    top = 50
+    data_user_activity = fetch_user_activity(from_day, to_day)
+    data_user_id_name = fetch_user_names()
+
+    auser_in_outs = computer_users_voice_in_out(data_user_activity)
+    user_times = compute_users_voice_channel_time_sec(auser_in_outs)
+
+    # Convert seconds to hours for all users
+    user_times_in_hours = {user: time_sec / 3600 for user, time_sec in user_times.items()}
+
+    # Sort users by total time in descending order and select the top N
+    sorted_users = sorted(user_times_in_hours.items(), key=lambda x: x[1], reverse=True)[:top]
+
+    # Unpack the sorted list into two lists: one for user names and one for times
+    users, times_in_hours = zip(*sorted_users)
+    users = [data_user_id_name[user_id].display_name for user_id in users]  # Convert user
+
+    # Create the bar plot
+    plt.figure(figsize=(10, 6))
+    plt.bar(users, times_in_hours, color="skyblue")
+
+    # Add labels and title
+    plt.xlabel("Users")
+    plt.ylabel("Total Time (Hours)")
+    plt.title(f"Top {top} Users by Total Voice Channel Time (in Hours)")
+    plt.xticks(rotation=90)  # Rotate user names for better readability
+    plt.tight_layout()  # Adjust layout to fit labels better
+    return _plot_return(plt, show)
+
+
+def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    top = 50
+    data_user_activity = fetch_user_activity(from_day, to_day)
+    data_user_id_name = fetch_user_names()
+
+    auser_in_outs = computer_users_voice_in_out(data_user_activity)
+    user_times = users_last_played_over_day(auser_in_outs)
+
+    # Sort users by total time in descending order and select the top N
+    sorted_users = sorted(user_times.items(), key=lambda x: x[1], reverse=True)[:top]
+
+    # Unpack the sorted list into two lists: one for user names and one for times
+    user_ids, time_day = zip(*sorted_users)
+    user_names = [data_user_id_name[user_id].display_name for user_id in user_ids]  # Convert user
+
+    # Create the bar plot
+    plt.figure(figsize=(10, 6))
+    plt.bar(user_names, time_day, color="skyblue")
+
+    # Add labels and title
+    plt.xlabel("Users")
+    plt.ylabel("Days Inactive")
+    plt.title(f"Top {top} Users Inactive Users (in Days)")
+    plt.xticks(rotation=90)  # Rotate user names for better readability
+    # Ensure Y-axis shows only integers
+    plt.yticks(np.arange(0, max(time_day) + 1, step=1))
+    # Add a horizontal line at 7 days to indicate a threshold
+    plt.axhline(y=7, color="red", linestyle="--", linewidth=2, label="7-Day Threshold")
+    plt.tight_layout()  # Adjust layout to fit labels better
     return _plot_return(plt, show)
