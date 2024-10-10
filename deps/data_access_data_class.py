@@ -1,5 +1,7 @@
 """Data classes for the data access layer"""
+
 from dataclasses import dataclass
+
 
 @dataclass
 class UserInfo:

@@ -20,6 +20,7 @@ def calculate_overlap(start1: datetime, end1: datetime, start2: datetime, end2: 
     overlap = (earliest_end - latest_start).total_seconds()
     return max(0, overlap)  # If overlap is negative, it means no overlap
 
+
 def calculate_user_connections(activity_data: list[UserActivity]) -> Dict[int, Dict[int, Tuple[int, int]]]:
     """The return is { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }"""
     # Dictionary to store connection times of users in rooms
@@ -150,9 +151,9 @@ def users_last_played_over_day(
                 else:
                     if disconnect > last_disconnect:
                         last_disconnect = disconnect
-                    
 
             if last_disconnect is not None:
+                print(F"Now: {now}, Last disconnect: {last_disconnect}")
                 # Calculate the number of days since the last disconnect
                 days_since_last_played = (now - last_disconnect).days
 

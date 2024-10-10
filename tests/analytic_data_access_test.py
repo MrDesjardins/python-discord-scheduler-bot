@@ -22,6 +22,8 @@ from deps.analytic_data_access import (
 
 
 class TestAnalyticDatabase(unittest.TestCase):
+    """Test Analytic Database"""
+
     CHANNEL1_ID = 100
     CHANNEL2_ID = 200
     GUILD_ID = 1000
@@ -31,7 +33,7 @@ class TestAnalyticDatabase(unittest.TestCase):
         delete_all_tables()
 
     def test_two_users_same_channels(self):
-
+        """Insert two users in the same channel and calculate the weight"""
         insert_user_activity(
             10,
             "user_10",
@@ -69,6 +71,7 @@ class TestAnalyticDatabase(unittest.TestCase):
         self.assertEqual(user_weights, {(10, 11, 100): 1800.0})
 
     def test_many_users_same_channel(self):
+        """Insert four users in the same channel and calculate the weight"""
         insert_user_activity(
             2,
             "user_2",

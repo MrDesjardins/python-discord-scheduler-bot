@@ -22,20 +22,22 @@ SERVICE_NAME = "gametimescheduler.service"
 
 
 def main():
-    options = ["Raspberri PI", "Local", "Exit"]
-    terminal_menu = TerminalMenu(options)
+    """First menu"""
+    options = ["[1] Raspberry PI", "[2] Local", "[q] Exit"]
+    terminal_menu = TerminalMenu(options, title="Environment", show_shortcut_hints=True)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
-        raspberri_pi_menu()
+        raspberry_pi_menu()
     elif menu_entry_index == 1:
         local_menu()
     elif menu_entry_index == 2:
         sys.exit(0)
 
 
-def raspberri_pi_menu():
-    options = ["Service Status", "Restart Service", "Upgrade Code", "Back"]
-    terminal_menu = TerminalMenu(options)
+def raspberry_pi_menu():
+    """Menu for actions on the Raspberry PI"""
+    options = ["[1] Service Status", "[2] Restart Service", "[3] Upgrade Code", "[q] Back"]
+    terminal_menu = TerminalMenu(options, title="Raspberry Actions", show_shortcut_hints=True)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
         print_service_status(SERVICE_NAME)
@@ -49,15 +51,17 @@ def raspberri_pi_menu():
 
 
 def local_menu():
+    """Menu for actions on the local development"""
     options = [
-        "Save Dependencies in requirements.txt",
-        "Get Latest DB",
-        "Lint",
-        "Run Scripts",
-        "Run Unit Tests",
-        "Back",
+        "[1] Save Dependencies in requirements.txt",
+        "[2] Get Latest DB",
+        "[3] Lint",
+        "[4] Visualizations",
+        "[5] Run Unit Tests",
+        "[6] Run Coverage Tests",
+        "[q] Back",
     ]
-    terminal_menu = TerminalMenu(options)
+    terminal_menu = TerminalMenu(options, title="Local Dev Actions", show_shortcut_hints=True)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
         save_dependencies()
@@ -66,18 +70,28 @@ def local_menu():
     elif menu_entry_index == 2:
         lint_code()
     elif menu_entry_index == 3:
-        run_scripts_menu()
+        show_visualization_menu()
     elif menu_entry_index == 4:
         run_unit_tests()
     elif menu_entry_index == 5:
+        run_test_coverage()
+    elif menu_entry_index == 6:
         return
 
     main()
 
 
-def run_scripts_menu():
-    options = ["Community 2D", "Community 3D", "Relationship Time", "Total Voices Time", "Inactive Users", "Back"]
-    terminal_menu = TerminalMenu(options)
+def show_visualization_menu():
+    """Menu to choose the visualization"""
+    options = [
+        "[1] Community 2D",
+        "[2] Community 3D",
+        "[3] Relationship Time",
+        "[4] Total Voices Time",
+        "[5] Inactive Users",
+        "[q] Back",
+    ]
+    terminal_menu = TerminalMenu(options, title="Visualizations", show_shortcut_hints=True)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
         display_graph_cluster_people()
@@ -97,6 +111,9 @@ def run_scripts_menu():
 
 
 def print_service_status(service_name: str) -> None:
+    """
+    Print the status of the specified service using systemctl
+    """
     try:
         # Execute the systemctl status command
         result = subprocess.run(
@@ -117,6 +134,9 @@ def print_service_status(service_name: str) -> None:
 
 
 def restart_service(service_name: str) -> None:
+    """
+    Restart the specified service using systemctl
+    """
     try:
         # Execute the systemctl restart command
         result = subprocess.run(
@@ -137,6 +157,12 @@ def restart_service(service_name: str) -> None:
 
 
 def update_code() -> None:
+    """
+    1) Use git to pull the latest changes
+    2) Install dependencies using the virtual environment
+    3) Restart the service
+    4) Check the status of the service
+    """
     try:
         # Get the current directory and the script directory
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -186,6 +212,9 @@ def update_code() -> None:
 
 
 def save_dependencies() -> None:
+    """
+    Save the current dependencies to a requirements.txt file
+    """
     try:
         # Execute the bash script
         result = subprocess.run(
@@ -208,6 +237,9 @@ def save_dependencies() -> None:
 
 
 def run_unit_tests() -> None:
+    """
+    Run the unit tests using the unittest
+    """
     # Create a stream to capture test runner output
     test_output = io.StringIO()
 
@@ -231,7 +263,30 @@ def run_unit_tests() -> None:
         print(f"Tests failed. Failures: {len(result.failures)}. Errors: {len(result.errors)}.")
 
 
+def run_test_coverage() -> None:
+    """Unit Test Code Coverage"""
+    print("Running coverage tests...")
+    try:
+        # Execute the bash script
+        result = subprocess.run(
+            ["coverage", "report", "-m"],  # Specify the shell and script path
+            text=True,  # Return the output as a string
+            capture_output=True,  # Capture stdout and stderr
+            check=True,  # Raise an exception if the script fails
+        )
+        # Check if the script executed successfully
+        if result.returncode == 0:
+            print("Script output:\n", result.stdout)
+        else:
+            print(f"Script failed with error:\n{result.stderr}")
+    except subprocess.CalledProcessError as e:
+        print(f"Script failed with error:\n{e.stderr}")
+    except Exception as e:
+        print(f"An exception occurred: {e}")
+
+
 def get_latest_db() -> None:
+    """Transfer the latest database from the server"""
     try:
         # Execute the bash script
         result = subprocess.run(
@@ -255,6 +310,10 @@ def get_latest_db() -> None:
 
 
 def lint_code() -> None:
+    """
+    1) Run lint black to format the code
+    2) Run PyLint to check for code quality
+    """
     lint_black()
     # Run the linting in a separate thread to avoid the PyLint to close the script
     thread = threading.Thread(target=lint_pylint)
@@ -263,6 +322,7 @@ def lint_code() -> None:
 
 
 def lint_black() -> None:
+    """Run Black to format the code"""
     try:
         print("Running Black...")
         # Use glob to find all Python files to format
@@ -293,6 +353,7 @@ def lint_black() -> None:
 
 
 def lint_pylint():
+    """Run PyLint to check for code quality"""
     try:
         # Use glob to find all Python files
         python_files = glob.glob("**/*.py", recursive=True)

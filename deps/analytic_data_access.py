@@ -7,6 +7,7 @@ from deps.data_access_data_class import UserInfo, UserActivity
 from deps.analytic_database import cursor, conn
 from deps.analytic_functions import compute_users_weights
 
+
 def delete_all_tables() -> None:
     """
     Delete all tables
@@ -72,7 +73,6 @@ def fetch_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserAct
     )
     # Convert the result to a list of UserActivity objects
     return [UserActivity(*row) for row in cursor.fetchall()]
-
 
 
 def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:

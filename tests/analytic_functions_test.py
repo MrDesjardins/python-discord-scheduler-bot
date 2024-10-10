@@ -22,6 +22,7 @@ class TestCalculateOverlap(unittest.TestCase):
         pass
 
     def test_full_overlap(self):
+        """Test full overlap between two time intervals"""
         start1 = datetime(2024, 9, 20, 13, 18, 0, 6318)
         end1 = datetime(2024, 9, 20, 13, 20, 0, 6318)
         start2 = datetime(2024, 9, 20, 13, 18, 0, 6318)
@@ -30,6 +31,7 @@ class TestCalculateOverlap(unittest.TestCase):
         self.assertEqual(result, 120)
 
     def test_no_overlap(self):
+        """Test no overlap between two time intervals"""
         start1 = datetime(2024, 9, 20, 13, 18, 0, 6318)
         end1 = datetime(2024, 9, 20, 13, 20, 0, 6318)
         start2 = datetime(2024, 9, 20, 14, 18, 0, 6318)
@@ -38,6 +40,7 @@ class TestCalculateOverlap(unittest.TestCase):
         self.assertEqual(result, 0)
 
     def test_partial_overlap(self):
+        """Test partial overlap between two time intervals"""
         start1 = datetime(2024, 9, 20, 13, 0, 0, 6318)
         end1 = datetime(2024, 9, 20, 13, 0, 20, 6318)
         start2 = datetime(2024, 9, 20, 13, 0, 10, 6318)
@@ -53,6 +56,7 @@ class TestCalculateUserConnections(unittest.TestCase):
         pass
 
     def test_two_users_connection_with_single_connect_disconnect(self):
+        """Test two users connection with single connect and disconnect"""
         activity_data = [
             UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
             UserActivity(channel_id=1, user_id=2, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:1.6318", guild_id=1),
@@ -75,6 +79,7 @@ class TestCalculateUserConnections(unittest.TestCase):
         )
 
     def test_two_users_connection_with_many_connect_disconnect(self):
+        """Test two users connection with many connect and disconnect"""
         activity_data = [
             UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
             UserActivity(channel_id=1, user_id=2, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:1.6318", guild_id=1),
@@ -104,6 +109,7 @@ class TestCalculateUserConnections(unittest.TestCase):
         )
 
     def test_user_connect_in_two_different_channels(self):
+        """Test user connect in two different channels"""
         activity_data = [
             UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
             UserActivity(
@@ -133,6 +139,7 @@ class TestCalculateUserConnections(unittest.TestCase):
         )
 
     def test_user_connect_never_disconnected(self):
+        """Test user connect but never disconnected"""
         activity_data = [
             UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
         ]
@@ -149,6 +156,7 @@ class TestCalculateUserConnections(unittest.TestCase):
         )
 
     def test_user_connect_disconnected_two_different_channels(self):
+        """Test user connect and disconnected in two different channels"""
         activity_data = [
             UserActivity(channel_id=1, user_id=1, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
             UserActivity(channel_id=2, user_id=2, event=EVENT_CONNECT, timestamp="2024-09-20 13:18:0.6318", guild_id=1),
@@ -172,10 +180,13 @@ class TestCalculateUserConnections(unittest.TestCase):
 
 
 class TestComputeUsersWeights(unittest.TestCase):
+    """Unit test for compute_users_weights function"""
+
     def setUp(self):
         pass
 
     def test_two_users_same_channel_single_overlap(self):
+        """Test two users in the same channel with single overlap"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
@@ -186,6 +197,7 @@ class TestComputeUsersWeights(unittest.TestCase):
         self.assertEqual(result, {(1, 2, 100): 300})
 
     def test_two_users_same_channel_many_overlap(self):
+        """Test two users in the same channel with many overlap"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:30:0.6318", 1),
@@ -198,6 +210,7 @@ class TestComputeUsersWeights(unittest.TestCase):
         self.assertEqual(result, {(1, 2, 100): 120})
 
     def test_two_users_many_channels_no_overlap(self):
+        """Test two users in different channels with no overlap"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:30:0.6318", 1),
@@ -208,6 +221,7 @@ class TestComputeUsersWeights(unittest.TestCase):
         self.assertEqual(result, {})
 
     def test_two_users_many_channels_many_overlap(self):
+        """Test two users in different channels with many overlap"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
@@ -222,11 +236,14 @@ class TestComputeUsersWeights(unittest.TestCase):
         self.assertEqual(result, {(1, 2, 100): 60.0, (1, 2, 200): 120.0})
 
 
-class TestComputer_users_voice_in_out(unittest.TestCase):
+class TestComputerUsersVoiceInOut(unittest.TestCase):
+    """Unit test for computer_users_voice_in_out function"""
+
     def setUp(self):
         pass
 
     def test_single_user_single_channel(self):
+        """Test single user in a single channel"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
@@ -252,6 +269,7 @@ class TestComputer_users_voice_in_out(unittest.TestCase):
         )
 
     def test_many_user_single_channel(self):
+        """Test many users in a single channel"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
@@ -278,6 +296,7 @@ class TestComputer_users_voice_in_out(unittest.TestCase):
         )
 
     def test_single_user_many_channel(self):
+        """Test single user in many channels"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-09-20 13:00:0.6318", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-09-20 13:10:0.6318", 1),
@@ -303,11 +322,11 @@ class TestComputer_users_voice_in_out(unittest.TestCase):
         )
 
 
-class TestCompute_users_voice_channel_time_sec(unittest.TestCase):
-    def setUp(self):
-        pass
+class TestComputeUsersVoiceChannelTimeSec(unittest.TestCase):
+    """Unit test for compute_users_voice_channel_time_sec function"""
 
     def test_single_user(self):
+        """Test single user in a single channel"""
         users_in_out = {
             1: [
                 (
@@ -330,6 +349,7 @@ class TestCompute_users_voice_channel_time_sec(unittest.TestCase):
         )
 
     def test_many_user(self):
+        """Test many users in a single channel"""
         users_in_out = {
             1: [
                 (
@@ -359,6 +379,7 @@ class TestCompute_users_voice_channel_time_sec(unittest.TestCase):
         )
 
     def test_single_user_without_disconnect(self):
+        """Test single user in a single channel without disconnect"""
         users_in_out = {
             1: [
                 (
@@ -381,12 +402,12 @@ class TestCompute_users_voice_channel_time_sec(unittest.TestCase):
         )
 
 
-class TestUsers_last_played_over_day(unittest.TestCase):
-    def setUp(self):
-        pass
+class TestUsersLastPlayedOverDay(unittest.TestCase):
+    """Unit test for users_last_played_over_day function"""
 
     @patch("deps.analytic_functions.datetime")
     def test_single_user_inactive(self, mock_datetime):
+        """Test single user inactive for over a day"""
         mock_datetime.now.return_value = datetime(2024, 9, 22, 13, 30, 45)
         users_in_out = {
             1: [
@@ -411,6 +432,7 @@ class TestUsers_last_played_over_day(unittest.TestCase):
 
     @patch("deps.analytic_functions.datetime")
     def test_single_user_active(self, mock_datetime):
+        """Test single user active"""
         mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
         users_in_out = {
             1: [
@@ -433,6 +455,7 @@ class TestUsers_last_played_over_day(unittest.TestCase):
 
     @patch("deps.analytic_functions.datetime")
     def test_single_user_active_data_unordered_recent_last(self, mock_datetime):
+        """Test single user active data unordered with recent last"""
         mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
         users_in_out = {
             1: [
@@ -455,6 +478,7 @@ class TestUsers_last_played_over_day(unittest.TestCase):
 
     @patch("deps.analytic_functions.datetime")
     def test_single_user_active_data_unordered_recent_firstt(self, mock_datetime):
+        """Test single user active data unordered with recent first"""
         mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
         users_in_out = {
             1: [
