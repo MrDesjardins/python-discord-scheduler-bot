@@ -30,7 +30,7 @@ class TestAnalyticDatabase(unittest.TestCase):
 
     def setUp(self):
         set_database_name("user_activity.test.db")
-        delete_all_tables()
+        # delete_all_tables()
 
     def test_two_users_same_channels(self):
         """Insert two users in the same channel and calculate the weight"""

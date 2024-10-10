@@ -10,16 +10,18 @@ import unittest
 import black
 from simple_term_menu import TerminalMenu
 from pylint import lint
+from deps.analytic_database import set_database_name
 from deps.analytic_visualizer import (
     display_graph_cluster_people,
     display_graph_cluster_people_3d_animated,
     display_time_relationship,
     display_time_voice_channel,
     display_inactive_user,
+    display_user_day_week,
 )
 
 SERVICE_NAME = "gametimescheduler.service"
-
+set_database_name("user_activity.db")
 
 def main():
     """First menu"""
@@ -89,6 +91,7 @@ def show_visualization_menu():
         "[3] Relationship Time",
         "[4] Total Voices Time",
         "[5] Inactive Users",
+        "[6] User per weekday",
         "[q] Back",
     ]
     terminal_menu = TerminalMenu(options, title="Visualizations", show_shortcut_hints=True)
@@ -104,6 +107,8 @@ def show_visualization_menu():
     elif menu_entry_index == 4:
         display_inactive_user()
     elif menu_entry_index == 5:
+        display_user_day_week()
+    elif menu_entry_index == 6:
         local_menu()
         return
 

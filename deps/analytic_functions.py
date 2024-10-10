@@ -3,10 +3,11 @@ Module to gather user activity data and calculate the time spent together
 """
 
 from datetime import datetime, timezone
+import pandas as pd
 from typing import Dict, Tuple, List
 from dateutil import parser
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
-from deps.data_access_data_class import UserActivity
+from deps.data_access_data_class import UserActivity, UserInfo
 
 
 def calculate_overlap(start1: datetime, end1: datetime, start2: datetime, end2: datetime) -> float:
@@ -153,7 +154,7 @@ def users_last_played_over_day(
                         last_disconnect = disconnect
 
             if last_disconnect is not None:
-                print(F"Now: {now}, Last disconnect: {last_disconnect}")
+                print(f"Now: {now}, Last disconnect: {last_disconnect}")
                 # Calculate the number of days since the last disconnect
                 days_since_last_played = (now - last_disconnect).days
 
@@ -162,3 +163,36 @@ def users_last_played_over_day(
                     inactive_users[user_id] = days_since_last_played
 
     return inactive_users
+
+
+def users_by_weekday(users: list[UserActivity], users_id_display: Dict[int, UserInfo]) -> Dict[int, list[UserInfo]]:
+    """
+    Return the users per weekday
+    """
+    data = [
+        {
+            "user_id": activity.user_id,
+            "timestamp": activity.timestamp,
+        }
+        for activity in users
+    ]
+
+    df = pd.DataFrame(data)
+    # Convert the timestamp column to datetime
+    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
+
+    # Extract day of the week (Monday = 0, Sunday = 6)
+    df["day_of_week"] = df["timestamp"].dt.dayofweek
+
+    # Group by day of the week and collect user IDs
+    weekday_group = df.groupby("day_of_week")["user_id"].apply(list).reset_index()
+
+    # Convert DataFrame to list of tuples (day_of_week, list of user_ids)
+    result = [(row["day_of_week"], row["user_id"]) for _, row in weekday_group.iterrows()]
+
+    # Convert user IDs to user display names
+    result = [(day, [users_id_display[user_id] for user_id in user_ids]) for day, user_ids in result]
+
+    # Return the result in a dictionary
+    result = {day: users for day, users in result}
+    return result

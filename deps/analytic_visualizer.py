@@ -6,14 +6,17 @@ import io
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 import numpy as np
+import seaborn as sns
 import networkx as nx
 import matplotlib.pyplot as plt
 import community as community_louvain
 import plotly.graph_objs as go
+from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (
     computer_users_voice_in_out,
     compute_users_voice_channel_time_sec,
     users_last_played_over_day,
+    users_by_weekday,
 )
 from deps.analytic_data_access import fetch_user_activities, fetch_user_names, calculate_time_spent_from_db
 from deps.analytic_database import cursor
@@ -414,4 +417,36 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
     # Add a horizontal line at 7 days to indicate a threshold
     plt.axhline(y=7, color="red", linestyle="--", linewidth=2, label="7-Day Threshold")
     plt.tight_layout()  # Adjust layout to fit labels better
+    return _plot_return(plt, show)
+
+
+def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    data_user_activity: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_names()
+    users_by_weekday_dict: Dict[int, list[UserInfo]] = users_by_weekday(data_user_activity, data_user_id_name)
+    # Get unique users and weekdays
+    weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    user_ids = sorted(data_user_id_name.keys())  # Get a sorted list of user IDs
+    user_names = [data_user_id_name[user_id].display_name for user_id in user_ids]  # Map user IDs to names
+
+    # Initialize an empty matrix (len(users) x 7) for 7 days in a week
+    activity_matrix = np.zeros((len(user_ids), 7))
+
+    # Fill the matrix with user activity counts
+    for weekday, users in users_by_weekday_dict.items():
+        for user_info in users:
+            user_idx = user_ids.index(user_info.id)  # Find the row corresponding to the user
+            activity_matrix[user_idx, weekday] += 1  # Increment the cell for that user and weekday
+    # Divide by 2 all count
+    activity_matrix = np.floor(activity_matrix / 2).astype(int)
+    # Replace all 0 values with NaN for visualization
+    activity_matrix_with_nan = np.where(activity_matrix == 0, np.nan, activity_matrix)
+
+    # Create a heatmap
+    plt.figure(figsize=(20, 20))
+    sns.heatmap(activity_matrix_with_nan, annot=True, fmt="g", cmap="Blues", xticklabels=weekdays, yticklabels=user_names)
+    plt.title("User Activity by Weekday")
+    plt.xlabel("Weekday")
+    plt.ylabel("Users")
+
     return _plot_return(plt, show)

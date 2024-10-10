@@ -1,16 +1,18 @@
 """ Unit tests for the analytic_gatherer module """
 
 from datetime import datetime
+from typing import Dict
 import unittest
 from unittest.mock import patch
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
-from deps.data_access_data_class import UserActivity
+from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (
     calculate_overlap,
     calculate_user_connections,
     compute_users_weights,
     computer_users_voice_in_out,
     compute_users_voice_channel_time_sec,
+    users_by_weekday,
     users_last_played_over_day,
 )
 
@@ -498,6 +500,22 @@ class TestUsersLastPlayedOverDay(unittest.TestCase):
             result,
             {},
         )
+
+
+class TestUsersByWeekday(unittest.TestCase):
+    """Unit test for who play at which day of the week function"""
+
+    def test_many_users_different_day(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
+        ]
+        user_id_names: Dict[int, UserInfo] = {
+            1: UserInfo(1, "user_1"),
+            2: UserInfo(2, "user_2"),
+        }
+        result = users_by_weekday(activity_data, user_id_names)
+        self.assertEqual(result, {2: [UserInfo(id=1, display_name="user_1"), UserInfo(id=2, display_name="user_2")]})
 
 
 if __name__ == "__main__":

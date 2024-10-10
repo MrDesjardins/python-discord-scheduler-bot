@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 import pytz
 
 from deps.analytic_visualizer import display_graph_cluster_people
-from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT, set_database_name
 from deps.analytic_data_access import insert_user_activity
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
@@ -88,6 +88,8 @@ COMMAND_FORCE_SEND = "forcesendschedule"
 COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
 COMMAND_SHOW_COMMUNITY = "showcommunity"
 COMMAND_VERSION = "version"
+
+set_database_name("user_activity.db")
 
 bot: discord.Client = BotSingleton().bot
 
