@@ -3,22 +3,20 @@ Code to show the relationsip between the users
 """
 
 import io
-import numpy as np
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
+import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import community as community_louvain
 import plotly.graph_objs as go
-from deps.analytic_gatherer import (
-    calculate_time_spent_from_db,
-    fetch_user_activity,
-    fetch_user_names,
+from deps.analytic_functions import (
     computer_users_voice_in_out,
     compute_users_voice_channel_time_sec,
     users_last_played_over_day,
 )
-from deps.analytic import cursor
+from deps.analytic_data_access import fetch_user_activities, fetch_user_names, calculate_time_spent_from_db
+from deps.analytic_database import cursor
 
 
 @dataclass
@@ -358,7 +356,7 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
 
 def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     top = 50
-    data_user_activity = fetch_user_activity(from_day, to_day)
+    data_user_activity = fetch_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_names()
 
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
@@ -389,7 +387,7 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
 
 def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     top = 50
-    data_user_activity = fetch_user_activity(from_day, to_day)
+    data_user_activity = fetch_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_names()
 
     auser_in_outs = computer_users_voice_in_out(data_user_activity)

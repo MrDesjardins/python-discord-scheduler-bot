@@ -253,4 +253,6 @@ pytest -v -s ./tests
 ```sh
 coverage run -m pytest -v -s ./tests
 coverage report -m
+coverage lcov 
+coverage html
 ```

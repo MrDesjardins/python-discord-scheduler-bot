@@ -3,8 +3,9 @@
 from datetime import datetime
 import unittest
 from unittest.mock import patch
-from deps.analytic import EVENT_CONNECT, EVENT_DISCONNECT, UserActivity
-from deps.analytic_gatherer import (
+from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.data_access_data_class import UserActivity
+from deps.analytic_functions import (
     calculate_overlap,
     calculate_user_connections,
     compute_users_weights,
@@ -384,7 +385,7 @@ class TestUsers_last_played_over_day(unittest.TestCase):
     def setUp(self):
         pass
 
-    @patch("deps.analytic_gatherer.datetime")
+    @patch("deps.analytic_functions.datetime")
     def test_single_user_inactive(self, mock_datetime):
         mock_datetime.now.return_value = datetime(2024, 9, 22, 13, 30, 45)
         users_in_out = {
@@ -408,7 +409,7 @@ class TestUsers_last_played_over_day(unittest.TestCase):
             },
         )
 
-    @patch("deps.analytic_gatherer.datetime")
+    @patch("deps.analytic_functions.datetime")
     def test_single_user_active(self, mock_datetime):
         mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
         users_in_out = {
@@ -430,7 +431,7 @@ class TestUsers_last_played_over_day(unittest.TestCase):
             {},
         )
 
-    @patch("deps.analytic_gatherer.datetime")
+    @patch("deps.analytic_functions.datetime")
     def test_single_user_active_data_unordered_recent_last(self, mock_datetime):
         mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
         users_in_out = {
@@ -452,7 +453,7 @@ class TestUsers_last_played_over_day(unittest.TestCase):
             {},
         )
 
-    @patch("deps.analytic_gatherer.datetime")
+    @patch("deps.analytic_functions.datetime")
     def test_single_user_active_data_unordered_recent_firstt(self, mock_datetime):
         mock_datetime.now.return_value = datetime(2024, 9, 21, 1, 30, 45)
         users_in_out = {

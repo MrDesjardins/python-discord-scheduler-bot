@@ -4,7 +4,7 @@
 import os
 import io
 from typing import List, Dict, Union
-from datetime import datetime, timedelta, date, timezone, time, timezone
+from datetime import datetime, timedelta, date, time, timezone
 import discord
 from gtts import gTTS
 from discord import app_commands
@@ -13,7 +13,8 @@ from dotenv import load_dotenv
 import pytz
 
 from deps.analytic_visualizer import display_graph_cluster_people
-from deps.analytic_gatherer import EVENT_CONNECT, EVENT_DISCONNECT, log_activity
+from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.analytic_data_access import insert_user_activity
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
     data_access_get_bot_voice_first_user,
@@ -757,7 +758,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                 # User joined a voice channel
                 channel_id = after.channel.id
                 event = EVENT_CONNECT
-                log_activity(
+                insert_user_activity(
                     member.id,
                     member.display_name,
                     channel_id,
@@ -769,7 +770,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                 # User left a voice channel
                 channel_id = before.channel.id
                 event = EVENT_DISCONNECT
-                log_activity(
+                insert_user_activity(
                     member.id,
                     member.display_name,
                     channel_id,
@@ -778,7 +779,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     datetime.now(timezone.utc),
                 )
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
-                log_activity(
+                insert_user_activity(
                     member.id,
                     member.display_name,
                     before.channel.id,
@@ -786,7 +787,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     EVENT_DISCONNECT,
                     datetime.now(timezone.utc),
                 )
-                log_activity(
+                insert_user_activity(
                     member.id,
                     member.display_name,
                     after.channel.id,
