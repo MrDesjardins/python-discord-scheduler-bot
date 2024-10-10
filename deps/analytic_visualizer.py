@@ -438,8 +438,7 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
         for user_info in users:
             user_idx = user_ids.index(user_info.user.id)  # Find the row corresponding to the user
             activity_matrix[user_idx, weekday] = user_info.count
-    # Divide by 2 all count
-    activity_matrix = np.floor(activity_matrix / 2).astype(int)
+
     # Replace all 0 values with NaN for visualization
     activity_matrix_with_nan = np.where(activity_matrix == 0, np.nan, activity_matrix)
 

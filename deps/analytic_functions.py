@@ -188,22 +188,28 @@ def users_by_weekday(
     df["week"] = df["timestamp"].dt.isocalendar().week
     df["day_of_week"] = df["timestamp"].dt.dayofweek
 
-    # Group by week, day_of_week, and user_id to count unique user activities per weekday
-    user_activity_count = df.groupby(["week", "day_of_week", "user_id"]).size().reset_index(name="count")
+    # Group by week, day_of_week, and user_id to get unique user activity per weekday for each week
+    unique_users_per_weekday = df.groupby(["week", "day_of_week", "user_id"]).size().reset_index(name="count")
 
-    # Group by day_of_week and get the user IDs with counts for each weekday
+    # Group by day_of_week and user_id, and count distinct weeks for each user on each day_of_week
+    user_activity_count = (
+        unique_users_per_weekday.groupby(["day_of_week", "user_id"])
+        .agg(distinct_week_count=("week", "nunique"))
+        .reset_index()
+    )
 
+    # Create a dictionary mapping each user_id to their distinct week count
     weekday_group = (
-        user_activity_count.groupby("day_of_week")[["user_id", "count"]]
+        user_activity_count.groupby("day_of_week")
         .apply(
             lambda group: [
-                UserInfoWithCount(users_id_display[user_id], group[group["user_id"] == user_id]["count"].sum())
-                for user_id in group["user_id"].unique()
+                UserInfoWithCount(users_id_display[user_id], row["distinct_week_count"])
+                for user_id, row in group.set_index("user_id").iterrows()
             ]
         )
         .reset_index(name="users")
     )
-    # Convert to a dictionary with day_of_week as keys and list of UserInfoWithCount as values
+    # Convert the result to a dictionary where the key is the day_of_week
     result = {row["day_of_week"]: row["users"] for _, row in weekday_group.iterrows()}
 
     return result
