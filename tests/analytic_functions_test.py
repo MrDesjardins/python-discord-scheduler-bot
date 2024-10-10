@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Dict
 import unittest
 from unittest.mock import patch
+from deps.analytic_models import UserInfoWithCount
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (
@@ -505,7 +506,7 @@ class TestUsersLastPlayedOverDay(unittest.TestCase):
 class TestUsersByWeekday(unittest.TestCase):
     """Unit test for who play at which day of the week function"""
 
-    def test_many_users_different_day(self):
+    def test_many_users_same_day(self):
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
             UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
@@ -515,8 +516,58 @@ class TestUsersByWeekday(unittest.TestCase):
             2: UserInfo(2, "user_2"),
         }
         result = users_by_weekday(activity_data, user_id_names)
-        self.assertEqual(result, {2: [UserInfo(id=1, display_name="user_1"), UserInfo(id=2, display_name="user_2")]})
+        self.assertEqual(
+            result,
+            {
+                2: [
+                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=1),
+                    UserInfoWithCount(user=UserInfo(id=2, display_name="user_2"), count=1),
+                ]
+            },
+        )
 
+    def test_single_user_many_weekday(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-10 13:00:00.6318", 1),
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),
+        ]
+        user_id_names: Dict[int, UserInfo] = {
+            1: UserInfo(1, "user_1"),
+            2: UserInfo(2, "user_2"),
+        }
+        result = users_by_weekday(activity_data, user_id_names)
+        self.assertEqual(
+            result,
+            {
+                2: [UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=1)],
+                3: [
+                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=2),
+                ],
+            },
+        )
+    def test_many_user_many_weekday(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-10 13:00:00.6318", 1),
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),
+        ]
+        user_id_names: Dict[int, UserInfo] = {
+            1: UserInfo(1, "user_1"),
+            2: UserInfo(2, "user_2"),
+        }
+        result = users_by_weekday(activity_data, user_id_names)
+        self.assertEqual(
+            result,
+            {
+                2: [UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=1)],
+                3: [
+                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=2),
+                    UserInfoWithCount(user=UserInfo(id=2, display_name="user_2"), count=1),
+                ],
+            },
+        )
 
 if __name__ == "__main__":
     unittest.main()

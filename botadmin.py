@@ -10,7 +10,6 @@ import unittest
 import black
 from simple_term_menu import TerminalMenu
 from pylint import lint
-from deps.analytic_database import set_database_name
 from deps.analytic_visualizer import (
     display_graph_cluster_people,
     display_graph_cluster_people_3d_animated,
@@ -21,7 +20,7 @@ from deps.analytic_visualizer import (
 )
 
 SERVICE_NAME = "gametimescheduler.service"
-set_database_name("user_activity.db")
+
 
 def main():
     """First menu"""

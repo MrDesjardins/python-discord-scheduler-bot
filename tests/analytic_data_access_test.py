@@ -8,11 +8,7 @@ from datetime import datetime
 
 # pylint: disable=import-error
 # pylint: disable=wrong-import-position
-from deps.analytic_database import (
-    set_database_name,
-    EVENT_CONNECT,
-    EVENT_DISCONNECT,
-)
+from deps.analytic_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.analytic_data_access import (
     compute_users_weights,
     delete_all_tables,
@@ -29,11 +25,16 @@ class TestAnalyticDatabase(unittest.TestCase):
     GUILD_ID = 1000
 
     def setUp(self):
-        set_database_name("user_activity.test.db")
-        # delete_all_tables()
+        database_manager.set_database_name(DATABASE_NAME_TEST)
+        delete_all_tables()
+
+    def tearDown(self):
+        database_manager.set_database_name(DATABASE_NAME)
+        return super().tearDown()
 
     def test_two_users_same_channels(self):
         """Insert two users in the same channel and calculate the weight"""
+
         insert_user_activity(
             10,
             "user_10",

@@ -11,6 +11,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import community as community_louvain
 import plotly.graph_objs as go
+from deps.analytic_models import UserInfoWithCount
 from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (
     computer_users_voice_in_out,
@@ -19,7 +20,7 @@ from deps.analytic_functions import (
     users_by_weekday,
 )
 from deps.analytic_data_access import fetch_user_activities, fetch_user_names, calculate_time_spent_from_db
-from deps.analytic_database import cursor
+from deps.analytic_database import database_manager
 
 
 @dataclass
@@ -54,7 +55,7 @@ def _get_data(from_day, to_day) -> list[UsersRelationship]:
     """
     calculate_time_spent_from_db(from_day, to_day)
     # Fetch the data from the user_weights table
-    cursor.execute(
+    database_manager.get_cursor().execute(
         """
     SELECT ui1.id as user1_id, ui2.id as user2_id, ui1.display_name as user1_display_name, ui2.display_name as user2_display_name, weight 
     FROM user_weights 
@@ -62,7 +63,7 @@ def _get_data(from_day, to_day) -> list[UsersRelationship]:
     left join user_info as ui2 on user_weights.user_b = ui2.id
     """
     )
-    return [UsersRelationship(*row) for row in cursor.fetchall()]
+    return [UsersRelationship(*row) for row in database_manager.get_cursor().fetchall()]
 
 
 # def display_graph_network_relationship(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
@@ -423,7 +424,7 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
 def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     data_user_activity: list[UserActivity] = fetch_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_names()
-    users_by_weekday_dict: Dict[int, list[UserInfo]] = users_by_weekday(data_user_activity, data_user_id_name)
+    users_by_weekday_dict: Dict[int, list[UserInfoWithCount]] = users_by_weekday(data_user_activity, data_user_id_name)
     # Get unique users and weekdays
     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     user_ids = sorted(data_user_id_name.keys())  # Get a sorted list of user IDs
@@ -435,8 +436,8 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
     # Fill the matrix with user activity counts
     for weekday, users in users_by_weekday_dict.items():
         for user_info in users:
-            user_idx = user_ids.index(user_info.id)  # Find the row corresponding to the user
-            activity_matrix[user_idx, weekday] += 1  # Increment the cell for that user and weekday
+            user_idx = user_ids.index(user_info.user.id)  # Find the row corresponding to the user
+            activity_matrix[user_idx, weekday] = user_info.count
     # Divide by 2 all count
     activity_matrix = np.floor(activity_matrix / 2).astype(int)
     # Replace all 0 values with NaN for visualization
@@ -444,7 +445,15 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
 
     # Create a heatmap
     plt.figure(figsize=(20, 20))
-    sns.heatmap(activity_matrix_with_nan, annot=True, fmt="g", cmap="Blues", xticklabels=weekdays, yticklabels=user_names)
+    sns.heatmap(
+        activity_matrix_with_nan,
+        annot=True,
+        fmt="g",
+        cmap="Blues",
+        xticklabels=weekdays,
+        yticklabels=user_names,
+        mask=np.isnan(activity_matrix_with_nan),
+    )
     plt.title("User Activity by Weekday")
     plt.xlabel("Weekday")
     plt.ylabel("Users")

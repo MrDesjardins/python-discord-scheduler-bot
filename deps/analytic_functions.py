@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import pandas as pd
 from typing import Dict, Tuple, List
 from dateutil import parser
+from deps.analytic_models import UserInfoWithCount
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.data_access_data_class import UserActivity, UserInfo
 
@@ -165,7 +166,9 @@ def users_last_played_over_day(
     return inactive_users
 
 
-def users_by_weekday(users: list[UserActivity], users_id_display: Dict[int, UserInfo]) -> Dict[int, list[UserInfo]]:
+def users_by_weekday(
+    users: list[UserActivity], users_id_display: Dict[int, UserInfo]
+) -> Dict[int, list[UserInfoWithCount]]:
     """
     Return the users per weekday
     """
@@ -179,20 +182,28 @@ def users_by_weekday(users: list[UserActivity], users_id_display: Dict[int, User
 
     df = pd.DataFrame(data)
     # Convert the timestamp column to datetime
-    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")
+    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed", errors="coerce")
 
-    # Extract day of the week (Monday = 0, Sunday = 6)
+    # Extract the ISO week number and the weekday (Monday = 0, Sunday = 6)
+    df["week"] = df["timestamp"].dt.isocalendar().week
     df["day_of_week"] = df["timestamp"].dt.dayofweek
 
-    # Group by day of the week and collect user IDs
-    weekday_group = df.groupby("day_of_week")["user_id"].apply(list).reset_index()
+    # Group by week, day_of_week, and user_id to count unique user activities per weekday
+    user_activity_count = df.groupby(["week", "day_of_week", "user_id"]).size().reset_index(name="count")
 
-    # Convert DataFrame to list of tuples (day_of_week, list of user_ids)
-    result = [(row["day_of_week"], row["user_id"]) for _, row in weekday_group.iterrows()]
+    # Group by day_of_week and get the user IDs with counts for each weekday
 
-    # Convert user IDs to user display names
-    result = [(day, [users_id_display[user_id] for user_id in user_ids]) for day, user_ids in result]
+    weekday_group = (
+        user_activity_count.groupby("day_of_week")[["user_id", "count"]]
+        .apply(
+            lambda group: [
+                UserInfoWithCount(users_id_display[user_id], group[group["user_id"] == user_id]["count"].sum())
+                for user_id in group["user_id"].unique()
+            ]
+        )
+        .reset_index(name="users")
+    )
+    # Convert to a dictionary with day_of_week as keys and list of UserInfoWithCount as values
+    result = {row["day_of_week"]: row["users"] for _, row in weekday_group.iterrows()}
 
-    # Return the result in a dictionary
-    result = {day: users for day, users in result}
     return result
