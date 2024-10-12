@@ -34,7 +34,8 @@ class DatabaseManager:
             """
         CREATE TABLE IF NOT EXISTS user_info (
             id INTEGER PRIMARY KEY,
-            display_name TEXT NOT NULL
+            display_name TEXT NOT NULL,
+            time_zone TEXT DEFAULT 'US/Eastern'
         )
         """
         )

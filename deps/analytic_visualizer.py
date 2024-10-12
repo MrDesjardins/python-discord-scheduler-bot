@@ -19,7 +19,7 @@ from deps.analytic_functions import (
     users_last_played_over_day,
     users_by_weekday,
 )
-from deps.analytic_data_access import fetch_user_activities, fetch_user_names, calculate_time_spent_from_db
+from deps.analytic_data_access import fetch_user_activities, fetch_user_info, calculate_time_spent_from_db
 from deps.analytic_database import database_manager
 
 
@@ -361,7 +361,7 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
 def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     top = 50
     data_user_activity = fetch_user_activities(from_day, to_day)
-    data_user_id_name = fetch_user_names()
+    data_user_id_name = fetch_user_info()
 
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
     user_times = compute_users_voice_channel_time_sec(auser_in_outs)
@@ -392,7 +392,7 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
 def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     top = 50
     data_user_activity = fetch_user_activities(from_day, to_day)
-    data_user_id_name = fetch_user_names()
+    data_user_id_name = fetch_user_info()
 
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
     user_times = users_last_played_over_day(auser_in_outs)
@@ -423,7 +423,7 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
 
 def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     data_user_activity: list[UserActivity] = fetch_user_activities(from_day, to_day)
-    data_user_id_name: Dict[int, UserInfo] = fetch_user_names()
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
     users_by_weekday_dict: Dict[int, list[UserInfoWithCount]] = users_by_weekday(data_user_activity, data_user_id_name)
     # Get unique users and weekdays
     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]

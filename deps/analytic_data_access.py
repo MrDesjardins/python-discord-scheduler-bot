@@ -6,6 +6,11 @@ from typing import Dict
 from deps.data_access_data_class import UserInfo, UserActivity
 from deps.analytic_database import database_manager
 from deps.analytic_functions import compute_users_weights
+from deps.cache import (
+    get_cache,
+)
+
+KEY_USER_INFO = "user_info"
 
 
 def delete_all_tables() -> None:
@@ -51,12 +56,26 @@ def insert_user_activity(user_id, user_display_name, channel_id, guild_id, event
     database_manager.get_conn().commit()
 
 
-def fetch_user_names() -> Dict[int, UserInfo]:
+def fetch_user_info() -> Dict[int, UserInfo]:
     """
     Fetch all user names from the user_info table
     """
-    database_manager.get_cursor().execute("SELECT id, display_name FROM user_info")
+    database_manager.get_cursor().execute("SELECT id, display_name, time_zone FROM user_info")
     return {row[0]: UserInfo(*row) for row in database_manager.get_cursor().fetchall()}
+
+
+def fetch_user_info_by_user_id(user_id: int) -> UserInfo:
+    """
+    Fetch a user name from the user_info table
+    """
+
+    def fetch_from_db():
+        database_manager.get_cursor().execute(
+            "SELECT id, display_name, time_zone FROM user_info WHERE id = ?", (user_id,)
+        )
+        return UserInfo(*database_manager.get_cursor().fetchone())
+
+    return get_cache(True, f"{KEY_USER_INFO}:{user_id}", fetch_from_db)
 
 
 def fetch_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:

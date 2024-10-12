@@ -8,13 +8,14 @@ from datetime import datetime, timedelta, date, time, timezone
 import discord
 from gtts import gTTS
 from discord import app_commands
+from discord.abc import Snowflake
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import pytz
 
 from deps.analytic_visualizer import display_graph_cluster_people
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
-from deps.analytic_data_access import insert_user_activity
+from deps.analytic_data_access import fetch_user_info_by_user_id, insert_user_activity
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
     data_access_get_bot_voice_first_user,
@@ -88,6 +89,7 @@ COMMAND_FORCE_SEND = "forcesendschedule"
 COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
 COMMAND_SHOW_COMMUNITY = "showcommunity"
 COMMAND_VERSION = "version"
+COMMAND_USER_TIME_ZONE = "usertimezone"
 
 bot: discord.Client = BotSingleton().bot
 
@@ -109,9 +111,20 @@ async def on_ready():
         print_log(f"Checking in guild: {guild.name} ({guild.id})")
         print_log(f"\tGuild {guild.name} has {guild.member_count} members, setting the commands")
         guild_obj = discord.Object(id=guild.id)
+
+        # commands_reg = await bot.tree.fetch_commands(guild=guild_obj)
+        # for command in commands_reg:
+        #     print_log(f"\tDeleting command {command.name}")
+        #     await bot.tree.remove_command(command=command.name, guild=guild_obj)
+
         bot.tree.copy_global_to(guild=guild_obj)
         synced = await bot.tree.sync(guild=guild_obj)
         print_log(f"\tSynced {len(synced)} commands for guild {guild.name}.")
+
+        commands_reg = await bot.tree.fetch_commands(guild=guild_obj)
+        for command in commands_reg:
+            print_log(f"\t\t/{command.name}")
+
         channel_id = await data_access_get_guild_text_channel_id(guild.id)
         if channel_id is None:
             print_log(
@@ -779,6 +792,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     datetime.now(timezone.utc),
                 )
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
+                # User switched between voice channel
                 insert_user_activity(
                     member.id,
                     member.display_name,
@@ -798,11 +812,21 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
         except Exception as e:
             print_error_log(f"Error logging user activity: {e}")
 
-        # Check if the user joined a voice channel
+        # Check if the user joined a voice channel to send a voice message
         if after.channel is not None and after.channel.id in voice_channel_ids:
             # Check if the user is the only one in the voice channel
             if len(after.channel.members) == 1:
                 await send_notification_voice_channel(guild_id, member, after.channel, text_channel_id)
+
+        # Change the status of the voice channel
+        if after.channel is not None:
+            await update_voice_channel_status(member, after.channel, guild_id)
+
+
+async def update_voice_channel_status(member: discord.Member, voice_channel: discord.VoiceChannel, guild_id: int):
+    # Fetch the user from the database to retrieve the timezone
+    user_info = await fetch_user_info_by_user_id(member.id)
+    # Set the user timezone to the voice channel status
 
 
 async def send_notification_voice_channel(
@@ -910,6 +934,29 @@ async def show_version(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     sha = get_sha()
     await interaction.followup.send(f"Version: {sha}", ephemeral=True)
+
+
+@bot.tree.command(name=COMMAND_USER_TIME_ZONE)
+async def set_user_time_zone(interaction: discord.Interaction):
+    """Command to set the user timezone"""
+
+    # Create buttons for each option
+    valid_time_zone_options = ["US/Eastern", "US/Pacific", "US/Central"]
+    buttons = [discord.ui.Button(label=option, custom_id=option) for option in valid_time_zone_options]
+
+    # Create a view to hold the buttons
+    view = discord.ui.View()
+    for button in buttons:
+        view.add_item(button)
+
+    # Send a message with the buttons
+    await interaction.send("Please select a timezone:", view=view)
+
+    # Wait for a button click
+    interaction = await bot.wait_for("interaction", check=lambda inter: inter.user == interaction.author)
+
+    # Handle the interaction
+    await interaction.response.send_message(f"You selected: {interaction.custom_id}")
 
 
 def main() -> None:
