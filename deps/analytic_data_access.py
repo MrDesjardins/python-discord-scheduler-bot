@@ -2,7 +2,7 @@
 Module to gather user activity data and calculate the time spent together
 """
 
-from typing import Dict
+from typing import Dict, List, Optional
 from deps.data_access_data_class import UserInfo, UserActivity
 from deps.analytic_database import database_manager
 from deps.analytic_functions import compute_users_weights
@@ -64,7 +64,7 @@ def fetch_user_info() -> Dict[int, UserInfo]:
     return {row[0]: UserInfo(*row) for row in database_manager.get_cursor().fetchall()}
 
 
-def fetch_user_info_by_user_id(user_id: int) -> UserInfo:
+async def fetch_user_info_by_user_id(user_id: int) -> Optional[UserInfo]:
     """
     Fetch a user name from the user_info table
     """
@@ -82,7 +82,33 @@ def fetch_user_info_by_user_id(user_id: int) -> UserInfo:
             # Handle the case where no user was found, e.g., return None or raise an exception
             return None  # Or raise an appropriate exception
 
-    return get_cache(True, f"{KEY_USER_INFO}:{user_id}", fetch_from_db)
+    return await get_cache(True, f"{KEY_USER_INFO}:{user_id}", fetch_from_db)
+
+
+def fetch_user_info_by_user_id_list(user_id_list: list[int]) -> List[Optional[UserInfo]]:
+    """
+    Return the list of user info for the given list of user ids.
+    If not user info is found, return None
+    """
+    list_ids = ",".join("?" for _ in user_id_list)
+    database_manager.get_cursor().execute(
+        f"""
+        SELECT id, display_name, time_zone 
+        FROM user_info WHERE id IN ({list_ids})
+        """,
+        user_id_list,  # Pass user_id_list as the parameter values for the ? placeholders
+    )
+    # Fetch all results and store them in a dictionary by user id
+    result = {user.id: user for user in (UserInfo(*row) for row in database_manager.get_cursor().fetchall())}
+
+    result_with_none = []
+    for user_id in user_id_list:
+        user_info = result.get(user_id)
+        if user_info is None:
+            result_with_none.append(None)
+        else:
+            result_with_none.append(user_info)
+    return result_with_none
 
 
 def fetch_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:

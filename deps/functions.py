@@ -101,3 +101,7 @@ def write_git_sha_to_file():
     # Write the SHA to version.txt
     with open("version.txt", "w", encoding="utf-8") as f:
         f.write(git_sha)
+
+def most_common(lst):
+    """ Returns the most common element in a list. """
+    return max(set(lst), key=lst.count)

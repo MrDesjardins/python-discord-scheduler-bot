@@ -7,17 +7,20 @@ from datetime import datetime
 
 
 # pylint: disable=import-error
-# pylint: disable=wrong-import-position
+from deps.data_access_data_class import UserInfo
 from deps.analytic_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
+
+# pylint: disable=import-error
 from deps.analytic_data_access import (
     compute_users_weights,
     delete_all_tables,
     fetch_user_activities,
+    fetch_user_info_by_user_id_list,
     insert_user_activity,
 )
 
 
-class TestAnalyticDatabase(unittest.TestCase):
+class TestUserActivityAnalyticDatabase(unittest.TestCase):
     """Test Analytic Database"""
 
     CHANNEL1_ID = 100
@@ -134,6 +137,35 @@ class TestAnalyticDatabase(unittest.TestCase):
         activity_data = fetch_user_activities()
         user_weights = compute_users_weights(activity_data)
         self.assertEqual(user_weights, {(2, 3, 100): 540.0, (3, 4, 100): 60.0})
+
+
+class TestUserInfoAnalyticDatabase(unittest.TestCase):
+    """
+    Test Analytic Database for User Info
+    """
+
+    def setUp(self):
+        database_manager.set_database_name(DATABASE_NAME_TEST)
+        delete_all_tables()
+
+    def tearDown(self):
+        database_manager.set_database_name(DATABASE_NAME)
+        return super().tearDown()
+
+    def test_user_not_in_user_info_table(self):
+        """
+        Testing when user does not have an entry in the info table
+        """
+        users = fetch_user_info_by_user_id_list([1, 2, 3])
+        self.assertEqual(users, [None, None, None])
+
+    def test_user_in_and_not_in_user_info_table(self):
+        """
+        Testing when 1 user in and 2 does not have an entry in the info table
+        """
+        insert_user_activity(1, "user_1", 1, 1, EVENT_CONNECT, datetime(2024, 9, 20, 13, 20, 0, 6318))
+        users = fetch_user_info_by_user_id_list([1, 2, 3])
+        self.assertEqual(users, [UserInfo(id=1, display_name="user_1", time_zone="US/Eastern"), None, None])
 
 
 if __name__ == "__main__":

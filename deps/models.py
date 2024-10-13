@@ -50,4 +50,3 @@ class SimpleUserHour:
     def __init__(self, user: SimpleUser, hour: str):
         self.simple_user = user
         self.hour = hour
-

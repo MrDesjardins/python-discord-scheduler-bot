@@ -3,7 +3,7 @@
 
 import os
 import io
-from typing import List, Dict, Union
+from typing import List, Dict, Optional, Union
 from datetime import datetime, timedelta, date, time, timezone
 import discord
 from gtts import gTTS
@@ -11,11 +11,17 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import pytz
+from table2ascii import table2ascii as t2a, PresetStyle, Alignment
 
 from deps.data_access_data_class import UserInfo
 from deps.analytic_visualizer import display_graph_cluster_people
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
-from deps.analytic_data_access import data_access_set_usertimezone, fetch_user_info_by_user_id, insert_user_activity
+from deps.analytic_data_access import (
+    data_access_set_usertimezone,
+    fetch_user_info_by_user_id,
+    fetch_user_info_by_user_id_list,
+    insert_user_activity,
+)
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
     data_access_get_bot_voice_first_user,
@@ -63,6 +69,7 @@ from deps.functions import (
     get_supported_time_time_label,
     get_time_choices,
     get_last_schedule_message,
+    most_common,
 )
 from deps.log import print_log, print_error_log, print_warning_log
 from deps.schedule_day_hours_view import ScheduleDayHours
@@ -93,6 +100,7 @@ COMMAND_VERSION = "version"
 COMMAND_SET_USER_TIME_ZONE = "setmytimezone"
 COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "setusertimezone"
 COMMAND_GET_USER_TIME_ZONE = "getusertimezone"
+COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL = "gettimezones"
 
 bot: discord.Client = BotSingleton().bot
 
@@ -821,15 +829,15 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
             if len(after.channel.members) == 1:
                 await send_notification_voice_channel(guild_id, member, after.channel, text_channel_id)
 
-        # Change the status of the voice channel
-        if after.channel is not None:
-            await update_voice_channel_status(member, after.channel, guild_id)
+#         # Change the status of the voice channel
+#         if after.channel is not None:
+#             await update_voice_channel_status(member, after.channel, guild_id)
 
 
-async def update_voice_channel_status(member: discord.Member, voice_channel: discord.VoiceChannel, guild_id: int):
-    # Fetch the user from the database to retrieve the timezone
-    user_info = await fetch_user_info_by_user_id(member.id)
-    # Set the user timezone to the voice channel status
+# async def update_voice_channel_status(member: discord.Member, voice_channel: discord.VoiceChannel, guild_id: int):
+#     # Fetch the user from the database to retrieve the timezone
+#     user_info = await fetch_user_info_by_user_id(member.id)
+#     # Set the user timezone to the voice channel status
 
 
 async def send_notification_voice_channel(
@@ -948,6 +956,7 @@ async def set_user_time_zone(interaction: discord.Interaction):
     # Send a message with the buttons
     await interaction.followup.send("Please select a timezone:", view=view)
 
+
 @commands.has_permissions(administrator=True)
 @bot.tree.command(name=COMMAND_SET_USER_TIME_ZONE_OTHER_USER)
 async def set_user_time_zone_for_other_user(interaction: discord.Interaction, member: discord.Member):
@@ -963,11 +972,45 @@ async def set_user_time_zone_for_other_user(interaction: discord.Interaction, me
 async def get_user_time_zone(interaction: discord.Interaction, member: discord.Member):
     """Get the timezone of a single user"""
     await interaction.response.defer(ephemeral=True)
-    user_info:UserInfo = await fetch_user_info_by_user_id(member.id)
+    user_info: UserInfo = await fetch_user_info_by_user_id(member.id)
     if user_info is None:
         await interaction.followup.send(f"User {member.display_name} has no timezone set.", ephemeral=True)
     else:
-        await interaction.followup.send(f"User {member.display_name} has timezone {user_info.time_zone}", ephemeral=True)
+        await interaction.followup.send(
+            f"User {member.display_name} has timezone {user_info.time_zone}", ephemeral=True
+        )
+
+
+@bot.tree.command(name=COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL)
+async def get_users_time_zone_from_voice_channel(interaction: discord.Interaction, voice_channel: discord.VoiceChannel):
+    """Get the timezone of all users in a voice channel"""
+    await interaction.response.defer(ephemeral=True)
+    users_id = [members.id for members in voice_channel.members]
+    if len(users_id) == 0:
+        await interaction.followup.send("No users in the voice channel.", ephemeral=True)
+        return
+
+    user_infos: Optional[UserInfo] = fetch_user_info_by_user_id_list(users_id)
+    headers = ["Name", "Timezone"]
+    body: List[List[any]] = []
+    for user_info in user_infos:
+        if user_info is None:
+            body.append([user_info.display_name, "No timezone set"])
+        else:
+            body.append([user_info.display_name, user_info.time_zone])
+
+    if len(body) == 0:
+        await interaction.followup.send("Cannot find users timezone.", ephemeral=True)
+        return
+    most_common_tz = most_common([user_info.time_zone for user_info in user_infos])
+    body.append(["Host should be:", most_common_tz])
+    response = t2a(
+        header=headers, body=body, first_col_heading=True, style=PresetStyle.double_thin_box, alignments=Alignment.LEFT
+    )
+    await interaction.followup.send(f"```\n{response}\n```", ephemeral=True)
+
+
+
 
 
 def main() -> None:
