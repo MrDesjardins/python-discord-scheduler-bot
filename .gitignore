@@ -163,3 +163,8 @@ cython_debug/
 
 cache.txt
 *.db
+.coverage
+.env
+.venv
+.pytest_cache
+__pycache__

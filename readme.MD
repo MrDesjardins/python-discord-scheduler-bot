@@ -2,6 +2,48 @@
 
 1. The bot sends a daily message to a specific channel of the guild asking the user when they plan to play the game. It uses reaction by emoji for user to specify many range of hours that they plan to play.
 2. The bot allows a user to specify a recurrent schedule.
+3. The bot a voice message to the first user that joins the voice channel giving who is about to come play (optional).
+4. The bot as administrative features with many statistics and analytic giving hindsight on the user's activity to pro-actively reaching folks.
+5. The bot allows users to know everyone's timezone in a specific voice channel to help identifying the best host.
+
+# Bot in Images
+
+## Daily Message
+The bot sends a daily message to the guild asking the user when they plan to play the game. The user can react to the message with the hours they plan to play. By default, the bot fills the timeline with folks who used the `/addschedule` which allows user to set week day and time in advance. The bot automatically adjust the schedule every 15 minutes by looking at the voice channel and add people in the schedule.
+![Daily Message](readme_assets/daily_message.png)
+
+## Admin Console
+The admin console allows recurrent task in development (local) or in production (Raspberry Pi). The admin can execute tests or run visualizations of the user activity.
+![Admin Menu](readme_assets/botadmin.gif)
+
+## Visualization of User Relationship
+One of the administrative feature is to see the relationship between users. The bot uses the voice channel to see who is playing with whom and generate a network graph.
+
+![2D Relationship](readme_assets/2d_relationship_graph.png)
+
+The visualization is also in 3D.
+
+![3D Relationship](readme_assets/3d_relationship.gif)
+
+## Visualization of the Inactive User
+The bot keeps track of who is joining the voice channels. The bot can generate a visualization of the inactive user.
+
+![Inactive](readme_assets/inactive_users.png)
+
+## Visualization of the Duo
+The bot can analyze who is playing with whom at the same time (in the same voice channel) and create a graph of the most common duo.
+
+![Duo](readme_assets/duo.png)
+
+## Visualization of the Total Voice Time
+The bot can gives you who is the most active in the voice channels.
+
+![Voice Active](readme_assets/total_voice.png)
+
+## Visualization of which Week Day is the Most Active per User
+The bot can generate a matrix of the most active day of the week for each user.
+
+![Weekday Activity](readme_assets/week_day_activity.png)
 
 # Bot Commands
 
@@ -62,6 +104,21 @@ Turn on and off the feature that the bot goes into the voice channel to send a v
 
 ## `showcommunity` (Admin only)
 Generate an image that is a network graph of the useer and with whom they play the most. 
+
+## `version` (Admin only)
+Give the latest SHA of the commit. Helps to ensure that the bot is running the latest version.
+
+## `setmytimezone`
+Allows a user to specify which timezone they are in.
+
+## `setusertimezone` (Admin only) 
+Allows an administrator to set the timezone of a user.
+
+## `getusertimezone` 
+Allows a user to retrieve a user timezone
+
+## `gettimezones`
+Allows a user to get the list of timezones of all people in a specific voice channel.
 
 # Discord Administration
 
@@ -257,12 +314,4 @@ coverage run -m pytest -v -s ./tests
 coverage report -m
 coverage lcov 
 coverage html
-```
-
-
-# Todo
-
-```
-ALTER TABLE user_info
-ADD COLUMN time_zone TEXT DEFAULT 'US/Eastern';
 ```

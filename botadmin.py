@@ -273,6 +273,17 @@ def run_test_coverage() -> None:
     try:
         # Execute the bash script
         result = subprocess.run(
+            ["coverage", "run", "-m", "pytest", "-v", "-s", "./tests"],  # Specify the shell and script path
+            text=True,  # Return the output as a string
+            capture_output=True,  # Capture stdout and stderr
+            check=True,  # Raise an exception if the script fails
+        )
+        # Check if the script executed successfully
+        if result.returncode != 0:
+            print(f"Script failed with error:\n{result.stderr}")
+
+        # Execute the bash script
+        result = subprocess.run(
             ["coverage", "report", "-m"],  # Specify the shell and script path
             text=True,  # Return the output as a string
             capture_output=True,  # Capture stdout and stderr
