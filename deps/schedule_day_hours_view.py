@@ -10,7 +10,7 @@ from deps.values import COMMAND_SCHEDULE_REMOVE, COMMAND_SCHEDULE_SEE, DAYS_OF_W
 from deps.functions import get_supported_time_time_label
 
 
-class FormDayHours(View):
+class ScheduleDayHours(View):
     """
     A view that combines two selects for the user to answer two questions
     """

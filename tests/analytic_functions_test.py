@@ -512,16 +512,16 @@ class TestUsersByWeekday(unittest.TestCase):
             UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
         ]
         user_id_names: Dict[int, UserInfo] = {
-            1: UserInfo(1, "user_1"),
-            2: UserInfo(2, "user_2"),
+            1: UserInfo(1, "user_1", "EASTERN"),
+            2: UserInfo(2, "user_2", "EASTERN"),
         }
         result = users_by_weekday(activity_data, user_id_names)
         self.assertEqual(
             result,
             {
                 2: [
-                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=1),
-                    UserInfoWithCount(user=UserInfo(id=2, display_name="user_2"), count=1),
+                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1", time_zone="EASTERN"), count=1),
+                    UserInfoWithCount(user=UserInfo(id=2, display_name="user_2", time_zone="EASTERN"), count=1),
                 ]
             },
         )
@@ -533,19 +533,20 @@ class TestUsersByWeekday(unittest.TestCase):
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),
         ]
         user_id_names: Dict[int, UserInfo] = {
-            1: UserInfo(1, "user_1"),
-            2: UserInfo(2, "user_2"),
+            1: UserInfo(1, "user_1", "EASTERN"),
+            2: UserInfo(2, "user_2", "EASTERN"),
         }
         result = users_by_weekday(activity_data, user_id_names)
         self.assertEqual(
             result,
             {
-                2: [UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=1)],
+                2: [UserInfoWithCount(user=UserInfo(id=1, display_name="user_1", time_zone="EASTERN"), count=1)],
                 3: [
-                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=2),
+                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1", time_zone="EASTERN"), count=2),
                 ],
             },
         )
+
     def test_many_user_many_weekday(self):
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
@@ -554,20 +555,21 @@ class TestUsersByWeekday(unittest.TestCase):
             UserActivity(2, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),
         ]
         user_id_names: Dict[int, UserInfo] = {
-            1: UserInfo(1, "user_1"),
-            2: UserInfo(2, "user_2"),
+            1: UserInfo(1, "user_1", "EASTERN"),
+            2: UserInfo(2, "user_2", "EASTERN"),
         }
         result = users_by_weekday(activity_data, user_id_names)
         self.assertEqual(
             result,
             {
-                2: [UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=1)],
+                2: [UserInfoWithCount(user=UserInfo(id=1, display_name="user_1", time_zone="EASTERN"), count=1)],
                 3: [
-                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1"), count=2),
-                    UserInfoWithCount(user=UserInfo(id=2, display_name="user_2"), count=1),
+                    UserInfoWithCount(user=UserInfo(id=1, display_name="user_1", time_zone="EASTERN"), count=2),
+                    UserInfoWithCount(user=UserInfo(id=2, display_name="user_2", time_zone="EASTERN"), count=1),
                 ],
             },
         )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,14 +8,14 @@ from datetime import datetime, timedelta, date, time, timezone
 import discord
 from gtts import gTTS
 from discord import app_commands
-from discord.abc import Snowflake
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import pytz
 
+from deps.data_access_data_class import UserInfo
 from deps.analytic_visualizer import display_graph_cluster_people
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
-from deps.analytic_data_access import fetch_user_info_by_user_id, insert_user_activity
+from deps.analytic_data_access import data_access_set_usertimezone, fetch_user_info_by_user_id, insert_user_activity
 from deps.bot_singleton import BotSingleton
 from deps.data_access import (
     data_access_get_bot_voice_first_user,
@@ -65,7 +65,8 @@ from deps.functions import (
     get_last_schedule_message,
 )
 from deps.log import print_log, print_error_log, print_warning_log
-from deps.ui import FormDayHours
+from deps.schedule_day_hours_view import ScheduleDayHours
+from deps.timzone_view import TimeZoneView
 
 load_dotenv()
 
@@ -89,7 +90,9 @@ COMMAND_FORCE_SEND = "forcesendschedule"
 COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
 COMMAND_SHOW_COMMUNITY = "showcommunity"
 COMMAND_VERSION = "version"
-COMMAND_USER_TIME_ZONE = "usertimezone"
+COMMAND_SET_USER_TIME_ZONE = "setmytimezone"
+COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "setusertimezone"
+COMMAND_GET_USER_TIME_ZONE = "getusertimezone"
 
 bot: discord.Client = BotSingleton().bot
 
@@ -372,7 +375,7 @@ async def add_user_schedule(interaction: discord.Interaction):
     """
     Add a schedule for the active user who perform the command
     """
-    view = FormDayHours(guild_emoji)
+    view = ScheduleDayHours(guild_emoji)
 
     await interaction.response.send_message(
         "Choose your day and hour. If you already have a schedule, this new one will add on top of the previous schedule with the new hours for the day choosen.",
@@ -936,27 +939,35 @@ async def show_version(interaction: discord.Interaction):
     await interaction.followup.send(f"Version: {sha}", ephemeral=True)
 
 
-@bot.tree.command(name=COMMAND_USER_TIME_ZONE)
+@bot.tree.command(name=COMMAND_SET_USER_TIME_ZONE)
 async def set_user_time_zone(interaction: discord.Interaction):
     """Command to set the user timezone"""
-
-    # Create buttons for each option
-    valid_time_zone_options = ["US/Eastern", "US/Pacific", "US/Central"]
-    buttons = [discord.ui.Button(label=option, custom_id=option) for option in valid_time_zone_options]
-
-    # Create a view to hold the buttons
-    view = discord.ui.View()
-    for button in buttons:
-        view.add_item(button)
-
+    await interaction.response.defer(ephemeral=True)
+    # Create a view with the timezone options
+    view = TimeZoneView(interaction.user.id)
     # Send a message with the buttons
-    await interaction.send("Please select a timezone:", view=view)
+    await interaction.followup.send("Please select a timezone:", view=view)
 
-    # Wait for a button click
-    interaction = await bot.wait_for("interaction", check=lambda inter: inter.user == interaction.author)
+@commands.has_permissions(administrator=True)
+@bot.tree.command(name=COMMAND_SET_USER_TIME_ZONE_OTHER_USER)
+async def set_user_time_zone_for_other_user(interaction: discord.Interaction, member: discord.Member):
+    """Command to set the user timezone"""
+    await interaction.response.defer(ephemeral=True)
+    # Create a view with the timezone options
+    view = TimeZoneView(member.id)
+    # Send a message with the buttons
+    await interaction.followup.send("Please select a timezone:", view=view)
 
-    # Handle the interaction
-    await interaction.response.send_message(f"You selected: {interaction.custom_id}")
+
+@bot.tree.command(name=COMMAND_GET_USER_TIME_ZONE)
+async def get_user_time_zone(interaction: discord.Interaction, member: discord.Member):
+    """Get the timezone of a single user"""
+    await interaction.response.defer(ephemeral=True)
+    user_info:UserInfo = await fetch_user_info_by_user_id(member.id)
+    if user_info is None:
+        await interaction.followup.send(f"User {member.display_name} has no timezone set.", ephemeral=True)
+    else:
+        await interaction.followup.send(f"User {member.display_name} has timezone {user_info.time_zone}", ephemeral=True)
 
 
 def main() -> None:

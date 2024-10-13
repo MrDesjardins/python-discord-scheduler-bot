@@ -258,3 +258,11 @@ coverage report -m
 coverage lcov 
 coverage html
 ```
+
+
+# Todo
+
+```
+ALTER TABLE user_info
+ADD COLUMN time_zone TEXT DEFAULT 'US/Eastern';
+```

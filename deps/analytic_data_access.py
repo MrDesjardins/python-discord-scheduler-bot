@@ -70,10 +70,17 @@ def fetch_user_info_by_user_id(user_id: int) -> UserInfo:
     """
 
     def fetch_from_db():
-        database_manager.get_cursor().execute(
-            "SELECT id, display_name, time_zone FROM user_info WHERE id = ?", (user_id,)
+        print(f"Fetching user info from database for user {user_id}")
+        result = (
+            database_manager.get_cursor()
+            .execute("SELECT id, display_name, time_zone FROM user_info WHERE id = ?", (user_id,))
+            .fetchone()
         )
-        return UserInfo(*database_manager.get_cursor().fetchone())
+        if result is not None:
+            return UserInfo(*result)
+        else:
+            # Handle the case where no user was found, e.g., return None or raise an exception
+            return None  # Or raise an appropriate exception
 
     return get_cache(True, f"{KEY_USER_INFO}:{user_id}", fetch_from_db)
 
@@ -115,4 +122,19 @@ def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:
         """,
             (user_a, user_b, channel_id, total_weight),
         )
+    database_manager.get_conn().commit()
+
+
+def data_access_set_usertimezone(user_id: int, timezone: str) -> None:
+    """
+    Set the timezone for a user
+    """
+    database_manager.get_cursor().execute(
+        """
+    UPDATE user_info
+      SET time_zone = :timezone
+      WHERE id = :user_id
+    """,
+        {"user_id": user_id, "timezone": timezone},
+    )
     database_manager.get_conn().commit()
