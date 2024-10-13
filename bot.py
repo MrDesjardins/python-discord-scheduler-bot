@@ -829,6 +829,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
             if len(after.channel.members) == 1:
                 await send_notification_voice_channel(guild_id, member, after.channel, text_channel_id)
 
+
 #         # Change the status of the voice channel
 #         if after.channel is not None:
 #             await update_voice_channel_status(member, after.channel, guild_id)
@@ -984,10 +985,10 @@ async def get_user_time_zone(interaction: discord.Interaction, member: discord.M
 @bot.tree.command(name=COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL)
 async def get_users_time_zone_from_voice_channel(interaction: discord.Interaction, voice_channel: discord.VoiceChannel):
     """Get the timezone of all users in a voice channel"""
-    await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer()
     users_id = [members.id for members in voice_channel.members]
     if len(users_id) == 0:
-        await interaction.followup.send("No users in the voice channel.", ephemeral=True)
+        await interaction.followup.send("No users in the voice channel.")
         return
 
     user_infos: Optional[UserInfo] = fetch_user_info_by_user_id_list(users_id)
@@ -1000,17 +1001,16 @@ async def get_users_time_zone_from_voice_channel(interaction: discord.Interactio
             body.append([user_info.display_name, user_info.time_zone])
 
     if len(body) == 0:
-        await interaction.followup.send("Cannot find users timezone.", ephemeral=True)
+        await interaction.followup.send("Cannot find users timezone.")
         return
     most_common_tz = most_common([user_info.time_zone for user_info in user_infos])
-    body.append(["Host should be:", most_common_tz])
+
     response = t2a(
         header=headers, body=body, first_col_heading=True, style=PresetStyle.double_thin_box, alignments=Alignment.LEFT
     )
-    await interaction.followup.send(f"```\n{response}\n```", ephemeral=True)
-
-
-
+    header_message = f"Timezones for voice channel {voice_channel.name}"
+    footer_message = f"Most common timezone: {most_common_tz}"
+    await interaction.followup.send(f"{header_message}\n```{response}```{footer_message}")
 
 
 def main() -> None:
