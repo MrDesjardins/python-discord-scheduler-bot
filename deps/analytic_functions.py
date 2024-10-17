@@ -155,7 +155,6 @@ def users_last_played_over_day(
                         last_disconnect = disconnect
 
             if last_disconnect is not None:
-                print(f"Now: {now}, Last disconnect: {last_disconnect}")
                 # Calculate the number of days since the last disconnect
                 days_since_last_played = (now - last_disconnect).days
 
