@@ -56,10 +56,11 @@ def local_menu():
     options = [
         "[1] Save Dependencies in requirements.txt",
         "[2] Get Latest DB",
-        "[3] Lint",
-        "[4] Visualizations",
-        "[5] Run Unit Tests",
-        "[6] Run Coverage Tests",
+        "[3] Get Latest Logs",
+        "[4] Lint",
+        "[5] Visualizations",
+        "[6] Run Unit Tests",
+        "[7] Run Coverage Tests",
         "[q] Back",
     ]
     terminal_menu = TerminalMenu(options, title="Local Dev Actions", show_shortcut_hints=True)
@@ -69,14 +70,16 @@ def local_menu():
     elif menu_entry_index == 1:
         get_latest_db()
     elif menu_entry_index == 2:
-        lint_code()
+        get_latest_logs()
     elif menu_entry_index == 3:
-        show_visualization_menu()
+        lint_code()
     elif menu_entry_index == 4:
-        run_unit_tests()
+        show_visualization_menu()
     elif menu_entry_index == 5:
-        run_test_coverage()
+        run_unit_tests()
     elif menu_entry_index == 6:
+        run_test_coverage()
+    elif menu_entry_index == 7:
         return
 
     main()
@@ -307,7 +310,30 @@ def get_latest_db() -> None:
         result = subprocess.run(
             [
                 "/bin/bash",
-                "./analytics/transfer.sh",
+                "./analytics/transfer_db.sh",
+            ],  # Specify the shell and script path
+            text=True,  # Return the output as a string
+            capture_output=True,  # Capture stdout and stderr
+            check=True,  # Raise an exception if the script fails
+        )
+
+        # Check if the script executed successfully
+        if result.returncode == 0:
+            print("Script output:\n", result.stdout)
+        else:
+            print(f"Script failed with error:\n{result.stderr}")
+
+    except Exception as e:
+        print(f"An exception occurred: {e}")
+
+def get_latest_logs() -> None:
+    """Transfer the latest database from the server"""
+    try:
+        # Execute the bash script
+        result = subprocess.run(
+            [
+                "/bin/bash",
+                "./analytics/transfer_logs.sh",
             ],  # Specify the shell and script path
             text=True,  # Return the output as a string
             capture_output=True,  # Capture stdout and stderr
