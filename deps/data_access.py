@@ -12,7 +12,7 @@ from deps.cache import (
     reset_cache_by_prefixes,
     set_cache,
 )
-from deps.models import SimpleUserHour
+from deps.models import SimpleUser, SimpleUserHour
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsersV2"
@@ -76,14 +76,16 @@ async def data_access_get_channel(channel_id: int) -> Union[discord.TextChannel,
     return await get_cache(True, f"{KEY_CHANNEL}:{channel_id}", fetch)
 
 
-async def data_access_get_reaction_message(guild_id: int, channel_id: int, message_id: int) -> dict[str, list]:
+async def data_access_get_reaction_message(
+    guild_id: int, channel_id: int, message_id: int
+) -> dict[str, list[SimpleUser]]:
     """Get the users reactions for a specific mesage"""
     key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
     return await get_cache(False, key)
 
 
 def data_access_set_reaction_message(
-    guild_id: int, channel_id: int, message_id: int, message_votes: dict[str, list]
+    guild_id: int, channel_id: int, message_id: int, message_votes: dict[str, list[SimpleUser]]
 ) -> None:
     """Set the reaction for a specific message"""
     key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
