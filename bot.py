@@ -73,7 +73,7 @@ from deps.functions import (
 )
 from deps.log import print_log, print_error_log, print_warning_log
 from deps.schedule_day_hours_view import ScheduleDayHours
-from deps.timzone_view import TimeZoneView
+from deps.timezone_view import TimeZoneView
 
 load_dotenv()
 
@@ -113,6 +113,7 @@ supported_times_time_label = get_supported_time_time_label()
 guild_emoji: Dict[str, Dict[str, str]] = {}
 
 lock = threading.Lock()
+
 
 @bot.event
 async def on_ready():
@@ -342,7 +343,6 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         # await rate_limiter(update_vote_message, message, message_votes)
     # Lock is released here
     await update_vote_message(text_message_reaction, channel_message_votes)
-    
 
 
 def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> discord.Embed:
@@ -882,7 +882,7 @@ async def send_notification_voice_channel(
             other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
             text_message = f"Hello {member.display_name}! {other_members} are scheduled to play in the upcoming hour. Check the bot schedule channel."
         else:
-            text_message = f"Hello {member.display_name}! Feel free to message the rainbox six siege channel to find partners and check the bot schedule channel."
+            text_message = f"Hello {member.display_name}! Feel free to message the rainbow six siege channel to find partners and check the bot schedule channel."
 
     print_log(f"Sending voice message to {member.display_name}")
     # Convert text to speech using gTTS
@@ -998,30 +998,47 @@ async def get_users_time_zone_from_voice_channel(interaction: discord.Interactio
     """Get the timezone of all users in a voice channel"""
     await interaction.response.defer()
     users_id = [members.id for members in voice_channel.members]
+    userid_member = {members.id: members for members in voice_channel.members}
     if len(users_id) == 0:
         await interaction.followup.send("No users in the voice channel.")
         return
 
     user_infos: Optional[UserInfo] = fetch_user_info_by_user_id_list(users_id)
-    headers = ["Name", "Timezone"]
-    body: List[List[any]] = []
-    for user_info in user_infos:
-        if user_info is None:
-            body.append([user_info.display_name, "No timezone set"])
-        else:
-            body.append([user_info.display_name, user_info.time_zone])
 
-    if len(body) == 0:
+    embed = discord.Embed(
+        title=f"{voice_channel.name} Timezone",
+        color=0x00FF00,
+        timestamp=datetime.now(),
+    )
+
+    pacific = ""
+    central = ""
+    eastern = ""
+
+    for user_info in user_infos:
+        rank = get_user_rank_emoji(guild_emoji.get(interaction.guild.id), userid_member.get(user_info.id))
+        member = userid_member.get(user_info.id)
+
+        user_name = member.display_name if member is not None else user_info.display_name
+        if user_info is not None:
+            if user_info.time_zone == "US/Eastern":
+                eastern += f"{rank} {user_name}\n"
+            elif user_info.time_zone == "US/Central":
+                central += f"{rank} {user_name}\n"
+            elif user_info.time_zone == "US/Pacific":
+                pacific += f"{rank} {user_name}\n"
+
+    embed.add_field(name="Pacific", value="-" if pacific == "" else pacific, inline=True)
+    embed.add_field(name="Central", value="-" if central == "" else central, inline=True)
+    embed.add_field(name="Eastern", value="-" if eastern == "" else eastern, inline=True)
+
+    if len(user_infos) == 0:
         await interaction.followup.send("Cannot find users timezone.")
         return
     most_common_tz = most_common([user_info.time_zone for user_info in user_infos])
 
-    response = t2a(
-        header=headers, body=body, first_col_heading=True, style=PresetStyle.double_thin_box, alignments=Alignment.LEFT
-    )
-    header_message = f"Timezones for voice channel {voice_channel.name}"
-    footer_message = f"Most common timezone: {most_common_tz}"
-    await interaction.followup.send(f"{header_message}\n```{response}```{footer_message}")
+    embed.set_footer(text=f"Most common timezone: {most_common_tz}")
+    await interaction.followup.send(content="", embed=embed)
 
 
 def main() -> None:

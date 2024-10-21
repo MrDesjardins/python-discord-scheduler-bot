@@ -326,6 +326,7 @@ def get_latest_db() -> None:
     except Exception as e:
         print(f"An exception occurred: {e}")
 
+
 def get_latest_logs() -> None:
     """Transfer the latest database from the server"""
     try:

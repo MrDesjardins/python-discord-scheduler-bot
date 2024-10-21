@@ -14,6 +14,7 @@ class DatabaseManager:
     """Handle the database connection to the right file"""
 
     def __init__(self, name):
+        """Initialize the database manager name which correspond to the file name"""
         self.set_database_name(name)
 
     def set_database_name(self, name: str) -> None:
@@ -26,6 +27,7 @@ class DatabaseManager:
         self.init_database()
 
     def get_database_name(self):
+        """Get the database name, useful to know if test or prod"""
         return self.name
 
     def init_database(self):
