@@ -17,6 +17,7 @@ from deps.analytic_visualizer import (
     display_time_voice_channel,
     display_inactive_user,
     display_user_day_week,
+    display_user_timeline_voice_time_by_week,
     display_user_voice_per_month,
 )
 
@@ -96,6 +97,7 @@ def show_visualization_menu():
         "[5] Inactive Users",
         "[6] User per weekday",
         "[7] Voice time per Month",
+        "[8] Time Line Users Activity",
         "[q] Back",
     ]
     terminal_menu = TerminalMenu(options, title="Visualizations", show_shortcut_hints=True)
@@ -115,6 +117,8 @@ def show_visualization_menu():
     elif menu_entry_index == 6:
         display_user_voice_per_month()
     elif menu_entry_index == 7:
+        display_user_timeline_voice_time_by_week()
+    elif menu_entry_index == 8:
         local_menu()
         return
 

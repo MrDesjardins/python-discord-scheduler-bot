@@ -4,7 +4,7 @@ Code to show the relationsip between the users
 
 import io
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 import plotly.graph_objs as go
@@ -494,12 +494,123 @@ def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day
         f"{data_user_id_name[user_id].display_name}" if user_id in data_user_id_name else "Other"
         for user_id in df.columns
     ]
-
+    print(df)
     # Plot stacked bar chart
     df.plot(kind="bar", stacked=True, figsize=(12, 6), colormap="viridis")
     plt.xlabel("Month")
-    plt.ylabel("Hours Played")
+    plt.ylabel("Time Played")
     plt.title("Time Played per Month (Stacked by User)")
     plt.legend(title="User ID", bbox_to_anchor=(1.05, 1), loc="upper left")
+    plt.tight_layout()
+    return _plot_return(plt, show)
+
+
+def display_user_timeline_voice_time_by_day(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    """Display the user timeline voice time"""
+    user_activities: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
+    # Dictionary to store total time played per user
+    user_play_times = defaultdict(int)
+    # Dictionary to store daily time played for each user
+    user_daily_play_times = defaultdict(lambda: defaultdict(int))
+    # Temporary dictionary to hold start times
+    start_times = {}
+
+    # Parse timestamps and compute playtime
+    for activity in user_activities:
+        timestamp = datetime.fromisoformat(activity.timestamp)
+
+        if activity.event == EVENT_CONNECT:
+            start_times[(activity.user_id, activity.channel_id)] = timestamp
+        elif activity.event == EVENT_DISCONNECT:
+            start_key = (activity.user_id, activity.channel_id)
+            if start_key in start_times:
+                start_time = start_times.pop(start_key)
+                play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
+                play_date = start_time.date()
+                user_play_times[activity.user_id] += play_duration
+                user_daily_play_times[activity.user_id][play_date] += play_duration
+
+    # Get top 20 most active users by total play time
+    top_users = sorted(user_play_times.items(), key=lambda x: x[1], reverse=True)[:20]
+    top_user_ids = {user[0] for user in top_users}
+
+    # Prepare plot
+    fig, ax = plt.subplots(figsize=(12, 8))
+    for user_id in top_user_ids:
+        dates = sorted(user_daily_play_times[user_id].keys())
+        times = [user_daily_play_times[user_id][date] for date in dates]
+        user_name = data_user_id_name[user_id].display_name  # Fetch the user name
+        ax.plot(dates, times, label=user_name, marker="o", linestyle="-")
+
+    # Format plot
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Time Played (seconds)")
+    ax.set_title("Daily Playtime for Top 20 Active Users")
+    ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1), title="User ID")
+    ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter("%Y-%m-%d"))
+    ax.grid(True)
+    fig.autofmt_xdate()
+
+    plt.tight_layout()
+    return _plot_return(plt, show)
+
+def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    """Display the user timeline voice time"""
+    user_activities: List[UserActivity] = fetch_user_activities(from_day, to_day)
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
+    
+    # Dictionary to store total time played per user
+    user_play_times = defaultdict(int)
+    
+    # Dictionary to store weekly time played for each user
+    user_weekly_play_times = defaultdict(lambda: defaultdict(int))
+    
+    # Temporary dictionary to hold start times
+    start_times = {}
+
+    # Parse timestamps and compute playtime
+    for activity in user_activities:
+        timestamp = datetime.fromisoformat(activity.timestamp)
+
+        if activity.event == EVENT_CONNECT:
+            # Store the start time for the user and channel
+            start_times[(activity.user_id, activity.channel_id)] = timestamp
+            
+        elif activity.event == EVENT_DISCONNECT:
+            start_key = (activity.user_id, activity.channel_id)
+            if start_key in start_times:
+                start_time = start_times.pop(start_key)
+                play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
+
+                week_start = f"{timestamp.year}-{timestamp.isocalendar().week}"
+                user_weekly_play_times[activity.user_id][week_start] += play_duration
+                user_play_times[activity.user_id] += play_duration  # Track total time per user
+
+    # Get top 30 most active users by total play time
+    top_users = sorted(user_play_times.items(), key=lambda x: x[1], reverse=True)[:30]
+
+    # Prepare plot with three subplots
+    fig, axs = plt.subplots(3, 1, figsize=(12, 18))
+    segments = [top_users[:10], top_users[10:20], top_users[20:30]]  # Split top_users into three segments
+    titles = ["Top 10 Active Users", "Users 11-20", "Users 21-30"]
+
+    for ax, segment, title in zip(axs, segments, titles):
+        for user_id, _ in segment:
+            weeks = sorted(user_weekly_play_times[user_id].keys())
+            times = [user_weekly_play_times[user_id][week] for week in weeks]  # Already in minutes
+
+            if times:  # Check if there are times to plot
+                user_name = data_user_id_name[user_id].display_name  # Fetch the user name
+                ax.plot(weeks, times, label=user_name, marker='o', linestyle='-')
+
+        # Format each subplot
+        ax.set_xlabel("Week Starting (Sunday)")
+        ax.set_ylabel("Time Played (minutes)")
+        ax.set_title(title)
+        ax.legend(loc='upper right', bbox_to_anchor=(1.15, 1), title="User Names")
+        ax.grid(True)
+        fig.autofmt_xdate()
+
     plt.tight_layout()
     return _plot_return(plt, show)
