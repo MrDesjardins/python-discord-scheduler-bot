@@ -17,6 +17,7 @@ from deps.analytic_visualizer import (
     display_time_voice_channel,
     display_inactive_user,
     display_user_day_week,
+    display_user_voice_per_month,
 )
 
 SERVICE_NAME = "gametimescheduler.service"
@@ -94,6 +95,7 @@ def show_visualization_menu():
         "[4] Total Voices Time",
         "[5] Inactive Users",
         "[6] User per weekday",
+        "[7] Voice time per Month",
         "[q] Back",
     ]
     terminal_menu = TerminalMenu(options, title="Visualizations", show_shortcut_hints=True)
@@ -111,6 +113,8 @@ def show_visualization_menu():
     elif menu_entry_index == 5:
         display_user_day_week()
     elif menu_entry_index == 6:
+        display_user_voice_per_month()
+    elif menu_entry_index == 7:
         local_menu()
         return
 

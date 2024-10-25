@@ -12,7 +12,6 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import pytz
-from table2ascii import table2ascii as t2a, PresetStyle, Alignment
 
 from deps.data_access_data_class import UserInfo
 from deps.analytic_visualizer import display_graph_cluster_people

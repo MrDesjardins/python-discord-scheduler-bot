@@ -13,6 +13,7 @@ from deps.analytic_functions import (
     compute_users_weights,
     computer_users_voice_in_out,
     compute_users_voice_channel_time_sec,
+    user_times_by_month,
     users_by_weekday,
     users_last_played_over_day,
 )
@@ -567,6 +568,51 @@ class TestUsersByWeekday(unittest.TestCase):
                     UserInfoWithCount(user=UserInfo(id=1, display_name="user_1", time_zone="EASTERN"), count=2),
                     UserInfoWithCount(user=UserInfo(id=2, display_name="user_2", time_zone="EASTERN"), count=1),
                 ],
+            },
+        )
+
+
+class TestUsersByMonth(unittest.TestCase):
+    """Unit test for who play at which day of the week function"""
+
+    def test_single_month_two_users(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-10-09 14:00:00+00:00", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
+            UserActivity(2, 100, EVENT_DISCONNECT, "2024-10-09 18:00:00+00:00", 1),
+        ]
+        result = user_times_by_month(activity_data)
+        self.assertEqual(
+            result,
+            {
+                "2024-10": {
+                    1: 3600,
+                    2: 18000,
+                }
+            },
+        )
+
+    def test_multiple_month_two_users(self):
+        activity_data = [
+            UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-10-09 14:00:00+00:00", 1),
+            UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
+            UserActivity(2, 100, EVENT_DISCONNECT, "2024-10-09 18:00:00+00:00", 1),
+            UserActivity(1, 100, EVENT_CONNECT, "2024-11-09 13:00:00+00:00", 1),
+            UserActivity(1, 100, EVENT_DISCONNECT, "2024-11-09 15:00:00+00:00", 1),
+        ]
+        result = user_times_by_month(activity_data)
+        self.assertEqual(
+            result,
+            {
+                "2024-10": {
+                    1: 3600,
+                    2: 18000,
+                },
+                "2024-11": {
+                    1: 7200,
+                },
             },
         )
 

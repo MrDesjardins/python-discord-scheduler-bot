@@ -3,8 +3,9 @@ Module to gather user activity data and calculate the time spent together
 """
 
 from datetime import datetime, timezone
-import pandas as pd
+from collections import defaultdict
 from typing import Dict, Tuple, List
+import pandas as pd
 from dateutil import parser
 from deps.analytic_models import UserInfoWithCount
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
@@ -212,3 +213,36 @@ def users_by_weekday(
     result = {row["day_of_week"]: row["users"] for _, row in weekday_group.iterrows()}
 
     return result
+
+
+def user_times_by_month(user_activities: list[UserActivity]) -> defaultdict[str, defaultdict[int, int]]:
+    """Calculate the total time played per user per month"""
+    user_sessions = defaultdict(list)
+
+    # Group activities by user
+    for activity in user_activities:
+        user_sessions[activity.user_id].append(activity)
+
+    user_sessions = dict(user_sessions)
+
+    # Dictionary to hold total time played per user per month [month_year][user_id] = time_played
+    time_played_per_month = defaultdict(lambda: defaultdict(float))
+
+    for user_id, activities in user_sessions.items():
+        # Sort activities by timestamp for each user
+        activities.sort(key=lambda x: x.timestamp)
+
+        connect_time = None
+
+        for activity in activities:
+            event_time = datetime.fromisoformat(activity.timestamp)
+
+            if activity.event == EVENT_CONNECT:
+                connect_time = event_time
+            elif activity.event == EVENT_DISCONNECT and connect_time:
+                # Calculate session duration in hours
+                session_duration = (event_time - connect_time).total_seconds()
+                month_year = event_time.strftime("%Y-%m")  # e.g., "2024-10"
+                time_played_per_month[month_year][user_id] += session_duration
+                connect_time = None  # Reset connect time for next session
+    return time_played_per_month

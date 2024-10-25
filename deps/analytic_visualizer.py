@@ -3,24 +3,28 @@ Code to show the relationsip between the users
 """
 
 import io
+from collections import defaultdict
+from datetime import datetime
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
-import numpy as np
+import plotly.graph_objs as go
 import seaborn as sns
+import numpy as np
+import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
 import community as community_louvain
-import plotly.graph_objs as go
 from deps.analytic_models import UserInfoWithCount
 from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (
     computer_users_voice_in_out,
     compute_users_voice_channel_time_sec,
+    user_times_by_month,
     users_last_played_over_day,
     users_by_weekday,
 )
 from deps.analytic_data_access import fetch_user_activities, fetch_user_info, calculate_time_spent_from_db
-from deps.analytic_database import database_manager
+from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 
 
 @dataclass
@@ -457,4 +461,45 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
     plt.xlabel("Weekday")
     plt.ylabel("Users")
 
+    return _plot_return(plt, show)
+
+
+def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    """
+    Graph that display the amount of time played per month using stacked bar. Each bar is a month. The stacked information if every user.
+    """
+    user_activities: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
+
+    # Dictionary to hold total time played per user per month [month_year][user_id] = time_played
+    time_played_per_month = user_times_by_month(user_activities)
+
+    # Convert data to a pandas DataFrame for easy plotting
+    df = pd.DataFrame(time_played_per_month).fillna(0)
+    df = df.T  # Transpose to have months as index and users as columns
+
+    # Calculate the total playtime per user and sort in descending order
+    total_time_per_user = df.sum(axis=0)
+    top_user_ids = total_time_per_user.nlargest(15).index  # Get the top 15 user IDs
+    other_user_ids = total_time_per_user.index.difference(top_user_ids)  # Get all other user IDs
+
+    # Create a new column "Other" by summing playtime for all users not in the top 15
+    df["Other"] = df[other_user_ids].sum(axis=1)
+
+    # Filter DataFrame to only include the top 15 users and the "Other" column
+    df = df[top_user_ids.tolist() + ["Other"]]
+
+    # Rename columns to include both user_id and display_name (e.g., "1 - Alice") for top users
+    df.columns = [
+        f"{data_user_id_name[user_id].display_name}" if user_id in data_user_id_name else "Other"
+        for user_id in df.columns
+    ]
+
+    # Plot stacked bar chart
+    df.plot(kind="bar", stacked=True, figsize=(12, 6), colormap="viridis")
+    plt.xlabel("Month")
+    plt.ylabel("Hours Played")
+    plt.title("Time Played per Month (Stacked by User)")
+    plt.legend(title="User ID", bbox_to_anchor=(1.05, 1), loc="upper left")
+    plt.tight_layout()
     return _plot_return(plt, show)
