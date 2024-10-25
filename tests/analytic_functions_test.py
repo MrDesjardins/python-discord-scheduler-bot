@@ -508,6 +508,7 @@ class TestUsersByWeekday(unittest.TestCase):
     """Unit test for who play at which day of the week function"""
 
     def test_many_users_same_day(self):
+        """Test many users playing on the same day"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
             UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
@@ -528,6 +529,7 @@ class TestUsersByWeekday(unittest.TestCase):
         )
 
     def test_single_user_many_weekday(self):
+        """Test single user playing on many days"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-10 13:00:00.6318", 1),
@@ -549,6 +551,7 @@ class TestUsersByWeekday(unittest.TestCase):
         )
 
     def test_many_user_many_weekday(self):
+        """Test many users playing on many days"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-10 13:00:00.6318", 1),
@@ -573,9 +576,10 @@ class TestUsersByWeekday(unittest.TestCase):
 
 
 class TestUsersByMonth(unittest.TestCase):
-    """Unit test for who play at which day of the week function"""
+    """Unit test for the time per month users are playing"""
 
     def test_single_month_two_users(self):
+        """Test single month with two users"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-10-09 14:00:00+00:00", 1),
@@ -594,6 +598,7 @@ class TestUsersByMonth(unittest.TestCase):
         )
 
     def test_multiple_month_two_users(self):
+        """Test multiple months with two users"""
         activity_data = [
             UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
             UserActivity(1, 100, EVENT_DISCONNECT, "2024-10-09 14:00:00+00:00", 1),

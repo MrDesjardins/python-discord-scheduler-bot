@@ -223,8 +223,6 @@ def user_times_by_month(user_activities: list[UserActivity]) -> defaultdict[str,
     for activity in user_activities:
         user_sessions[activity.user_id].append(activity)
 
-    user_sessions = dict(user_sessions)
-
     # Dictionary to hold total time played per user per month [month_year][user_id] = time_played
     time_played_per_month = defaultdict(lambda: defaultdict(float))
 
