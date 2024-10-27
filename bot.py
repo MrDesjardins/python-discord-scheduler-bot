@@ -137,6 +137,11 @@ async def on_ready():
         for command in commands_reg:
             print_log(f"\t\t/{command.name}")
 
+        guild_emoji[guild.id] = {}
+        for emoji in guild.emojis:
+            guild_emoji[guild.id][emoji.name] = emoji.id
+            print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
+
         channel_id = await data_access_get_guild_text_channel_id(guild.id)
         if channel_id is None:
             print_log(
@@ -151,10 +156,6 @@ async def on_ready():
             print_log(f"\tBot permissions in channel {channel.name}: {permissions}")
         else:
             print_warning_log(f"\tChannel ID {channel_id} not found in guild {guild.name}")
-        guild_emoji[guild.id] = {}
-        for emoji in guild.emojis:
-            guild_emoji[guild.id][emoji.name] = emoji.id
-            print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
 
     check_voice_channel.start()  # Start the background task
     send_daily_question_to_all_guild.start()  # Start the background task
@@ -280,66 +281,66 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
         await text_message_reaction.remove_reaction(reaction_emoji, member)
         await user.send("You cannot add reaction beside the one provided.")
         return
-    with lock:
-        # Cache all users for this message's reactions to avoid redundant API calls
-        channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
-        # In the case there is no vote in the cache, we need to populate it with all the potential votes
-        if not channel_message_votes:
-            print_log(f"adjust_reaction: Add empty vote for message {message_id}")
-            channel_message_votes = get_empty_votes()
-            # Iterate over each reaction in the message only if it's not cached
-            for react in text_message_reaction.reactions:
-                time_voted = EMOJI_TO_TIME.get(str(react.emoji))
-                if time_voted:
-                    users = [u async for u in react.users() if not u.bot]
-                    for user in users:
-                        channel_message_votes[time_voted].append(
-                            SimpleUser(
-                                user.id,
-                                member.display_name,
-                                get_user_rank_emoji(guild_emoji[guild_id], member),
-                            )
-                        )
-            # Always update the cache to avoid other event to save a new empty list of votes
-            data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
-            print_log(f"adjust_reaction: Setting reaction users for message {message_id} in cache")
-
-        # Add or Remove Action
-        print_log(f"adjust_reaction: Updating for the current reaction {message_id}")
-        time_voted = EMOJI_TO_TIME.get(str(reaction_emoji))
-        if remove:
-            # Remove the user from the message votes
-            for time_v, value in channel_message_votes.items():
-                if time_v == time_voted:
-                    for single_vote in value:
-                        if user.id == single_vote.user_id:
-                            print_log(
-                                f"adjust_reaction: Found in {message_id} entry of the user for reaction {reaction_emoji}. Removing."
-                            )
-                            channel_message_votes[time_voted].remove(single_vote)
-                            break
-        else:
-            # Add the user to the message votes
-            time_voted = EMOJI_TO_TIME.get(str(reaction_emoji))
+    # with lock:
+    # Cache all users for this message's reactions to avoid redundant API calls
+    channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
+    # In the case there is no vote in the cache, we need to populate it with all the potential votes
+    if not channel_message_votes:
+        print_log(f"adjust_reaction: Add empty vote for message {message_id}")
+        channel_message_votes = get_empty_votes()
+        # Iterate over each reaction in the message only if it's not cached
+        for react in text_message_reaction.reactions:
+            time_voted = EMOJI_TO_TIME.get(str(react.emoji))
             if time_voted:
-                if any(user.id == u.user_id for u in channel_message_votes[time_voted]):
-                    print_log(
-                        f"adjust_reaction: User {user.id} ({member.display_name}) already voted for {time_voted} in message {message_id}"
-                    )
-                else:
+                users = [u async for u in react.users() if not u.bot]
+                for user in users:
                     channel_message_votes[time_voted].append(
                         SimpleUser(
                             user.id,
                             member.display_name,
-                            get_user_rank_emoji(guild_emoji[guild_id], member),
+                            get_user_rank_emoji(guild_emoji.get(guild_id), member),
                         )
                     )
-                    print_log(f"adjust_reaction: Updating reaction users for message {message_id} in cache")
-        # Always update the cache
+        # Always update the cache to avoid other event to save a new empty list of votes
         data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
+        print_log(f"adjust_reaction: Setting reaction users for message {message_id} in cache")
 
-        print_log("adjust_reaction: End Adjusting reaction")
-        # await rate_limiter(update_vote_message, message, message_votes)
+    # Add or Remove Action
+    print_log(f"adjust_reaction: Updating for the current reaction {message_id}")
+    time_voted = EMOJI_TO_TIME.get(str(reaction_emoji))
+    if remove:
+        # Remove the user from the message votes
+        for time_v, value in channel_message_votes.items():
+            if time_v == time_voted:
+                for single_vote in value:
+                    if user.id == single_vote.user_id:
+                        print_log(
+                            f"adjust_reaction: Found in {message_id} entry of the user for reaction {reaction_emoji}. Removing."
+                        )
+                        channel_message_votes[time_voted].remove(single_vote)
+                        break
+    else:
+        # Add the user to the message votes
+        time_voted = EMOJI_TO_TIME.get(str(reaction_emoji))
+        if time_voted:
+            if any(user.id == u.user_id for u in channel_message_votes[time_voted]):
+                print_log(
+                    f"adjust_reaction: User {user.id} ({member.display_name}) already voted for {time_voted} in message {message_id}"
+                )
+            else:
+                channel_message_votes[time_voted].append(
+                    SimpleUser(
+                        user.id,
+                        member.display_name,
+                        get_user_rank_emoji(guild_emoji.get(guild_id), member),
+                    )
+                )
+                print_log(f"adjust_reaction: Updating reaction users for message {message_id} in cache")
+    # Always update the cache
+    data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
+
+    print_log("adjust_reaction: End Adjusting reaction")
+    # await rate_limiter(update_vote_message, message, message_votes)
     # Lock is released here
     await update_vote_message(text_message_reaction, channel_message_votes)
 
@@ -496,7 +497,7 @@ async def refresh_from_reaction(interaction: discord.Interaction):
                     SimpleUser(
                         user.id,
                         user.display_name,
-                        get_user_rank_emoji(guild_emoji[guild_id], user),
+                        get_user_rank_emoji(guild_emoji.get(guild_id), user),
                     )
                 )
         # Always update the cache
@@ -548,7 +549,7 @@ async def set_schedule_user_today(
     simple_user = SimpleUser(
         member.id,
         member.display_name,
-        get_user_rank_emoji(guild_emoji[guild_id], member),
+        get_user_rank_emoji(guild_emoji.get(guild_id), member),
     )
     message_votes[time_voted.value].append(simple_user)
 
