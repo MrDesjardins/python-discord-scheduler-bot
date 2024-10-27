@@ -555,17 +555,23 @@ def display_user_timeline_voice_time_by_day(show: bool = True, from_day: int = 3
     plt.tight_layout()
     return _plot_return(plt, show)
 
+
+def iso_to_gregorian(year: int, week: int) -> datetime:
+    """Convert ISO year and week to the starting date of that ISO week (Monday)."""
+    return datetime.strptime(f"{year}-W{week}-1", "%Y-W%W-%w")
+
+
 def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     """Display the user timeline voice time"""
     user_activities: List[UserActivity] = fetch_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
-    
+
     # Dictionary to store total time played per user
     user_play_times = defaultdict(int)
-    
+
     # Dictionary to store weekly time played for each user
     user_weekly_play_times = defaultdict(lambda: defaultdict(int))
-    
+
     # Temporary dictionary to hold start times
     start_times = {}
 
@@ -576,7 +582,7 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
         if activity.event == EVENT_CONNECT:
             # Store the start time for the user and channel
             start_times[(activity.user_id, activity.channel_id)] = timestamp
-            
+
         elif activity.event == EVENT_DISCONNECT:
             start_key = (activity.user_id, activity.channel_id)
             if start_key in start_times:
@@ -590,6 +596,10 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
     # Get top 30 most active users by total play time
     top_users = sorted(user_play_times.items(), key=lambda x: x[1], reverse=True)[:30]
 
+    # Identify all unique weeks across top users for consistent x-axis alignment
+    all_weeks = sorted(set(week for user_data in user_weekly_play_times.values() for week in user_data.keys()))
+    all_dates = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
+
     # Prepare plot with three subplots
     fig, axs = plt.subplots(3, 1, figsize=(12, 18))
     segments = [top_users[:10], top_users[10:20], top_users[20:30]]  # Split top_users into three segments
@@ -597,18 +607,18 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
 
     for ax, segment, title in zip(axs, segments, titles):
         for user_id, _ in segment:
-            weeks = sorted(user_weekly_play_times[user_id].keys())
-            times = [user_weekly_play_times[user_id][week] for week in weeks]  # Already in minutes
+            # Fill in missing weeks with zero to create a continuous line
+            user_times = [user_weekly_play_times[user_id].get(week, 0) for week in all_weeks]
 
-            if times:  # Check if there are times to plot
+            if any(user_times):  # Only plot if there's data
                 user_name = data_user_id_name[user_id].display_name  # Fetch the user name
-                ax.plot(weeks, times, label=user_name, marker='o', linestyle='-')
+                ax.plot(all_dates, user_times, label=user_name, marker="o", linestyle="-")
 
         # Format each subplot
-        ax.set_xlabel("Week Starting (Sunday)")
+        ax.set_xlabel("Week Starting (Monday)")
         ax.set_ylabel("Time Played (minutes)")
         ax.set_title(title)
-        ax.legend(loc='upper right', bbox_to_anchor=(1.15, 1), title="User Names")
+        ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1), title="User Names")
         ax.grid(True)
         fig.autofmt_xdate()
 
