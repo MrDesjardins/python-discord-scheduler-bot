@@ -279,7 +279,7 @@ async def adjust_reaction(reaction: discord.RawReactionActionEvent, remove: bool
     emoji_from_list = EMOJI_TO_TIME.get(str(reaction_emoji))
     if emoji_from_list is None:
         await text_message_reaction.remove_reaction(reaction_emoji, member)
-        await user.send("You cannot add reaction beside the one provided.")
+        await user.send("You cannot add reaction beside the one provided. Each reaction is a time slot.")
         return
     # with lock:
     # Cache all users for this message's reactions to avoid redundant API calls
