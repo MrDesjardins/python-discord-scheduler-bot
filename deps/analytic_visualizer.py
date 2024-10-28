@@ -19,6 +19,7 @@ from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (
     computer_users_voice_in_out,
     compute_users_voice_channel_time_sec,
+    times_by_months,
     user_times_by_month,
     users_last_played_over_day,
     users_by_weekday,
@@ -622,5 +623,18 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
         ax.grid(True)
         fig.autofmt_xdate()
 
+    plt.tight_layout()
+    return _plot_return(plt, show)
+
+def display_user_timeline_voice_by_months(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    """Display the user timeline voice time"""
+    user_activities: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    monthly_sessions = times_by_months(user_activities)
+    monthly_sessions.plot(kind="bar", color="skyblue")
+    plt.xlabel("Month")
+    plt.ylabel("Total Voice Session Time (Hours)")
+    plt.title("Total Voice Session Time per Month")
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.tight_layout()
     return _plot_return(plt, show)

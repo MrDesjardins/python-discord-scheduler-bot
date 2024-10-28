@@ -244,3 +244,41 @@ def user_times_by_month(user_activities: list[UserActivity]) -> defaultdict[str,
                 time_played_per_month[month_year][user_id] += session_duration
                 connect_time = None  # Reset connect time for next session
     return time_played_per_month
+
+
+def times_by_months(user_activities: list[UserActivity]) -> pd.Series:
+    """Display a month after month the total time played by all users"""
+    df = pd.DataFrame(user_activities)
+    df["timestamp"] = pd.to_datetime(df["timestamp"], format="mixed")  # Ensure timestamps are in datetime format
+    # Create an empty list to hold the session times
+    sessions = []
+
+    # Iterate through the dataframe and calculate session durations
+    for user_id, group in df.groupby(["user_id", "guild_id"]):
+        connect_time = None
+        for _, row in group.iterrows():
+            if row["event"] == EVENT_CONNECT:
+                connect_time = row["timestamp"]
+            elif row["event"] == EVENT_DISCONNECT and connect_time:
+                # Calculate session duration in seconds
+                session_duration = (row["timestamp"] - connect_time).total_seconds()
+                sessions.append(
+                    {
+                        "user_id": user_id[0],
+                        "guild_id": user_id[1],
+                        "month": connect_time.strftime("%Y-%m"),
+                        "duration": session_duration,
+                    }
+                )
+                connect_time = None  # Reset connect time after disconnect
+
+    # Convert the session list to a DataFrame and print to debug
+    sessions_df = pd.DataFrame(sessions)
+
+    # Check if 'month' column exists before proceeding
+    if "month" not in sessions_df.columns:
+        raise ValueError("Expected 'month' column not found in sessions DataFrame.")
+
+    # Aggregate by month to get the total session time per month
+    monthly_sessions = sessions_df.groupby("month")["duration"].sum() / 3600  # Convert seconds to hours
+    return monthly_sessions
