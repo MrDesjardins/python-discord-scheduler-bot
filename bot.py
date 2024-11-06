@@ -84,20 +84,20 @@ COMMAND_SCHEDULE_ADD = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
 COMMAND_SCHEDULE_SEE = "seeschedule"
 COMMAND_SCHEDULE_APPLY = "applyschedule"
-COMMAND_SCHEDULE_ADD_USER = "adduserschedule"
-COMMAND_SCHEDULE_CHANNEL_SELECTION = "textchannel"
-COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
-COMMAND_RESET_CACHE = "resetcache"
-COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "voicechannel"
-COMMAND_SCHEDULE_CHANNEL_SEE_VOICE_SELECTION = "seevoicechannels"
-COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION = "seetextchannel"
-COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "resetvoicechannel"
-COMMAND_FORCE_SEND = "forcesendschedule"
-COMMAND_GUILD_ENABLE_BOT_VOICE = "enablebotvoice"
-COMMAND_SHOW_COMMUNITY = "showcommunity"
-COMMAND_VERSION = "version"
+COMMAND_SCHEDULE_ADD_USER = "modadduserschedule"
+COMMAND_SCHEDULE_CHANNEL_SELECTION = "modtextchannel"
+COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "modrefreshschedule"
+COMMAND_RESET_CACHE = "modresetcache"
+COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "modvoicechannel"
+COMMAND_SCHEDULE_CHANNEL_SEE_VOICE_SELECTION = "modseevoicechannels"
+COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION = "modseetextchannel"
+COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "modresetvoicechannel"
+COMMAND_FORCE_SEND = "modforcesendschedule"
+COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"
+COMMAND_SHOW_COMMUNITY = "modshowcommunity"
+COMMAND_VERSION = "modversion"
 COMMAND_SET_USER_TIME_ZONE = "setmytimezone"
-COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "setusertimezone"
+COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "modsetusertimezone"
 COMMAND_GET_USER_TIME_ZONE = "getusertimezone"
 COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL = "gettimezones"
 
@@ -515,9 +515,14 @@ async def reset_cache(interaction: discord.Interaction):
     """
     An administrator can reset the cache for the guild
     """
-    guild_id = interaction.guild.id
-    data_access_reset_guild_cache(guild_id)
-    await interaction.response.send_message("Cached flushed", ephemeral=True)
+    # perms = interaction.channel.permissions_for(interaction.user)
+    # print_log(f"User {interaction.author.id} has permissions {perms}")
+    if interaction.user.id == interaction.guild.owner_id:
+        guild_id = interaction.guild.id
+        data_access_reset_guild_cache(guild_id)
+        await interaction.response.send_message("Cached flushed", ephemeral=True)
+    else:
+        await interaction.response.send_message("Only the owner of the guild can reset the cache", ephemeral=True)
 
 
 @bot.tree.command(name=COMMAND_SCHEDULE_ADD_USER)
