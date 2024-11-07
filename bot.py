@@ -1135,7 +1135,7 @@ async def see_username_text_channel(interaction: discord.Interaction):
     """Display the text channel configured"""
     await interaction.response.defer(ephemeral=True)
     guild_id = interaction.guild.id
-    channel_id = await data_access_get_guild_text_channel_id(guild_id)
+    channel_id = await data_access_get_guild_username_text_channel_id(guild_id)
     if channel_id is None:
         print_warning_log(f"No username text channel in guild {interaction.guild.name}. Skipping.")
         await interaction.followup.send("Username Text channel not set.", ephemeral=True)

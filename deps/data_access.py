@@ -163,6 +163,7 @@ def data_access_reset_guild_cache(guild_id: int) -> None:
         f"{KEY_DAILY_MSG}:{guild_id}",
         f"{KEY_REACTION_USERS}:{guild_id}",
         f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}",
+        f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}",
         f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}",
         f"{KEY_GUILD_USERNAME_TEXT_CHANNEL}:{guild_id}",
         f"{KEY_MESSAGE}:{guild_id}",
