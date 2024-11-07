@@ -6,6 +6,7 @@ import discord
 from deps.bot_singleton import BotSingleton
 from deps.cache import (
     ALWAYS_TTL,
+    ONE_HOUR_TTL,
     THREE_DAY_TTL,
     get_cache,
     remove_cache,
@@ -14,10 +15,13 @@ from deps.cache import (
 )
 from deps.models import SimpleUser, SimpleUserHour
 
+from deps.functions import get_r6tracker_max_rank
+
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsersV2"
 KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleByDay"
 KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigTextChannel"
+KEY_GUILD_USERNAME_TEXT_CHANNEL = "GuildAdminConfigUserNameTextChannel"
 KEY_GUILD_VOICE_CHANNELS = "GuildAdminConfigVoiceChannels"
 KEY_MESSAGE = "Message"
 KEY_USER = "User"
@@ -25,6 +29,7 @@ KEY_GUILD = "Guild"
 KEY_MEMBER = "Member"
 KEY_CHANNEL = "Channel"
 KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
+KEY_R6TRACKER = "R6Tracker"
 
 
 async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
@@ -159,6 +164,7 @@ def data_access_reset_guild_cache(guild_id: int) -> None:
         f"{KEY_REACTION_USERS}:{guild_id}",
         f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}",
         f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}",
+        f"{KEY_GUILD_USERNAME_TEXT_CHANNEL}:{guild_id}",
         f"{KEY_MESSAGE}:{guild_id}",
         f"{KEY_USER}:{guild_id}",
         f"{KEY_GUILD}:{guild_id}",
@@ -175,3 +181,25 @@ async def data_access_get_bot_voice_first_user(guild_id: int) -> bool:
 def data_access_set_bot_voice_first_user(guild_id: int, enabled: bool) -> None:
     """Set the channel that the bot will send text"""
     set_cache(False, f"{KEY_GUILD_BOT_VOICE_FIRST_USER}:{guild_id}", enabled, ALWAYS_TTL)
+
+
+async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
+    """Get from R6 Tracker website the max rank for the user"""
+
+    async def fetch():
+        return await get_r6tracker_max_rank(ubisoft_user_name)
+
+    return await get_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}", fetch, ttl=ONE_HOUR_TTL)
+
+
+async def data_access_get_guild_username_text_channel_id(
+    guild_id: int,
+) -> Union[discord.TextChannel, None]:
+    """Get the channel by the given channel id"""
+    return await get_cache(False, f"{KEY_GUILD_USERNAME_TEXT_CHANNEL}:{guild_id}")
+
+
+def data_access_set_guild_username_text_channel_id(guild_id: int, channel_id: int) -> None:
+    """Set the channel that the bot will send text"""
+    set_cache(False, f"{KEY_GUILD_USERNAME_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+

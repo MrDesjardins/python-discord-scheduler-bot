@@ -29,14 +29,52 @@ EMOJI_TO_TIME = {
 }
 
 SUPPORTED_TIMES_STR = set(EMOJI_TO_TIME.values())
+MSG_UNIQUE_STRING = "What time will you play"
 
+# -----------------------
+# User's commands
+
+## Schedule
 COMMAND_SCHEDULE_ADD = "addschedule"
 COMMAND_SCHEDULE_REMOVE = "removeschedule"
 COMMAND_SCHEDULE_SEE = "seeschedule"
-COMMAND_SCHEDULE_ADD_USER = "adduserschedule"
-COMMAND_SCHEDULE_CHANNEL_SELECTION = "channel"
-COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "refreshschedule"
-COMMAND_RESET_CACHE = "resetcache"
-COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "voicechannel"
 
-MSG_UNIQUE_STRING = "What time will you play"
+## Timezone
+COMMAND_SET_USER_TIME_ZONE = "setmytimezone"
+COMMAND_GET_USER_TIME_ZONE = "getusertimezone"
+COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL = "gettimezones"
+
+## Rank/Role
+COMMAND_ADJUST_RANK = "adjustrank"
+
+# -----------------------
+# Moderator's commands
+
+## Schedule
+COMMAND_SCHEDULE_ADD_USER = "modadduserschedule"
+COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "modrefreshschedule"
+COMMAND_FORCE_SEND = "modforcesendschedule"
+COMMAND_SCHEDULE_APPLY = "modapplyschedule"
+
+## Timezone
+COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "modsetusertimezone"
+
+## Channels
+COMMAND_SCHEDULE_CHANNEL_SET_SCHEDULE_CHANNEL = "modtextschedulechannel"
+COMMAND_SCHEDULE_CHANNEL_GET_SCHEDULE_CHANNEL = "modseeschedulechannel"
+COMMAND_SCHEDULE_CHANNEL_SET_USER_NAME_GAME_CHANNEL = "modtextusernamechannel"
+COMMAND_SCHEDULE_CHANNEL_GET_USER_NAME_GAME_CHANNEL = "modseesusernamechannel"
+COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL = "modvoicechannel"
+COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION = "modseevoicechannels"
+COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "modresetvoicechannel"
+
+## Bot Behaviors
+COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"
+
+## Analytics
+COMMAND_SHOW_COMMUNITY = "modshowcommunity"
+COMMAND_VERSION = "modversion"
+
+# -----------------------
+# Guild owner's commands
+COMMAND_RESET_CACHE = "modresetcache"

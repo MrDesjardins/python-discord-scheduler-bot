@@ -6,7 +6,7 @@
 4. The bot as administrative features with many statistics and analytic giving hindsight on the user's activity to pro-actively reaching folks.
 5. The bot allows users to know everyone's timezone in a specific voice channel to help identifying the best host.
 
-# Bot in Images
+# What does the Bot look like?
 
 ## Daily Message
 The bot sends a daily message to the guild asking the user when they plan to play the game. The user can react to the message with the hours they plan to play. By default, the bot fills the timeline with folks who used the `/addschedule` which allows user to set week day and time in advance. The bot automatically adjust the schedule every 15 minutes by looking at the voice channel and add people in the schedule.
@@ -47,78 +47,104 @@ The bot can generate a matrix of the most active day of the week for each user.
 
 # Bot Commands
 
-## `textchannel` (Admin only)
+## User Commands
 
-The bot needs to send daily messages to a specific channel of the guild. An administrator must call `/textchannel` and specify which channel the bot will send a daily message. Without this configuration, the bot will skip the guild daily message.
+### Schedule Commands
 
-## `voicechannel` (Admin only)
-
-The bot needs to know which voice channel to check for the guild. An administrator must call `/voicechannel` and specify which channel the bot check activity. Without this configuration, the bot will skip the voice participation. Calling the function many times adds up the voice channels.
-
-## `seetextchannel` (Admin only)
-
-Allows to see what is the text channel configured for the guild.
-
-## `seevoicechannels` (Admin only)
-
-Allows to see what is the voice channels configured for the guild.
-
-## `resetvoicechannel` (Admin only)
-
-An administrator calls `/resetvoicechannel` to remove all voice channels configuration. It is good to reset and add the voice channels again.
-
-## `addschedule`
+#### addschedule
 
 User can react to a message every day or can use the `/addschedule` command to set a schedule. The command allows selecting day of the weeks and many hours. If the user executes the command multiple times, the previous schedule will be overridden.
 
-## `removeschedule`
+#### removeschedule
 
 Once a user set a schedule, they can remove it using the `/removeschedule` command or calling the `/addschedule` which will override the previous schedule.
 
-## `seeschedule`
+#### seeschedule
 
 `/seeschedule` command will show the current schedule of the user.
 
-## `resetcache` (Admin only)
+### Timezone Commands
 
-Reset the cache for the administration guild.
+#### setmytimezone
+Allows a user to specify which timezone they are in.
 
-## `adduserschedule` (Admin only)
+#### getusertimezone
+Allows a user to retrieve a user timezone
+
+#### gettimezones
+Allows a user to get the list of timezones of all people in a specific voice channel.
+
+### Rank/Role Commands
+
+#### `adjustrank`
+Allows the user to type his Ubisoft account name to fetch the maximum rank he achieved and assign the role.
+
+## Moderators/Administrator Commands
+
+### Schedule Commands
+
+#### modadduserschedule
 
 An administrator can add a schedule (hours) for a user for the current day.
 
-## `applyschedule` (Admin only)
+#### modrefreshschedule
 
-An administrator can invoke the `/applyschedule` to force the bot to check the cache for user's schedule and apply it on the current day.
+If the bot is down, call the function to refresh the cache from the reaction of the message.
 
-## `refreshschedule` (Admin only)
-
-If the bot is down, the administrator can call `/refreshschedule` to refresh the cache from the reaction of the message.
-
-## `forcesendschedule` (Admin only)
+#### modforcesendschedule
 
 Force sending the daily question regardless if it was already sent or not (in the cache). Useful if the cache has the value that the message was sent but it crashed and the message was never sent.
 
-## `enablebotvoice` (Admin only)
-Turn on and off the feature that the bot goes into the voice channel to send a voice mesage to the first user.
+#### modapplyschedule
 
-## `showcommunity` (Admin only)
-Generate an image that is a network graph of the useer and with whom they play the most. 
+Force the bot to check the cache for user's schedule and apply it on the current day.
 
-## `version` (Admin only)
-Give the latest SHA of the commit. Helps to ensure that the bot is running the latest version.
+### Timezone commands
 
-## `setmytimezone`
-Allows a user to specify which timezone they are in.
-
-## `setusertimezone` (Admin only) 
+#### modsetusertimezone
 Allows an administrator to set the timezone of a user.
 
-## `getusertimezone` 
-Allows a user to retrieve a user timezone
+### Channels Commands
 
-## `gettimezones`
-Allows a user to get the list of timezones of all people in a specific voice channel.
+### modtextschedulechannel
+
+The bot needs to send daily messages to a specific channel of the guild. The action specifies which channel the bot will send a daily message. Without this configuration, the bot will skip the guild daily message.
+
+#### modseeschedulechannel
+
+Allows to see what is the text channel configured for the guild to send the schedule every day.
+
+#### modvoicechannel
+
+The bot needs to know which voice channel to check for the guild. The action specify which channel the bot check activity. Without this configuration, the bot will skip the voice participation. Calling the function many times adds up the voice channels.
+
+#### modseevoicechannels
+
+Allows to see what is the voice channels configured for the guild.
+
+#### modresetvoicechannel
+
+Rremove all voice channels configuration. It is good to reset and add the voice channels again.
+
+### Bot Behaviors
+
+#### modenablebotvoice
+Turn on and off the feature that the bot goes into the voice channel to send a voice mesage to the first user.
+
+### Analytics
+
+#### modshowcommunity
+Generate an image that is a network graph of the useer and with whom they play the most. 
+
+#### modversion
+Give the latest SHA of the commit. Helps to ensure that the bot is running the latest version.
+
+## Owner Commands
+
+### modresetcache
+
+Reset the cache for the administration guild.
+
 
 # Discord Administration
 
@@ -129,15 +155,15 @@ Allows a user to get the list of timezones of all people in a specific voice cha
 Create a Discord Application:
 
 1. https://discord.com/developers/applications
-2. Click on "New Application" and give it a name.
-3. Currently, this application has two applications: `GameTimeScheduler` and `GameTimeScheduler_Dev`. The first one is for production and the second one is for development.
+1. Click on "New Application" and give it a name.
+1. Currently, this application has two applications: `GameTimeScheduler` and `GameTimeScheduler_Dev`. The first one is for production and the second one is for development.
 
 ### Create a Bot:
 
 In your application, navigate to the "Bot" tab.
 
 1. Click "Add Bot" and confirm.
-2. Under "TOKEN", click "Copy" to get your bot's token. Keep this token secure!
+1. Under "TOKEN", click "Copy" to get your bot's token. Keep this token secure!
 
 ### Invite the Bot to Your Server:
 
@@ -145,26 +171,25 @@ Navigate to the `OAuth2` tab and then `URL Generator`.
 Under `Scopes` select:
 
 1. `bot`
-2. `applications.commands`
+1. `applications.commands`
 
 Under "Bot Permissions", select the necessary permissions:
 
+1. Manage Roles
 1. View Channels
-2. Send Messages
-3. Manage messages
-4. Read Message History
-5. Add Reactions
+1. Send Messages
+1. Manage messages
+1. Read Message History
+1. Add Reactions
 
 Copy the generated URL and open it in your browser to invite the bot to your desired server.
 
 ```sh
 # Production Bot
-https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=76864&integration_type=0&scope=bot
-https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=274877983808&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=268512320&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 
 # Dev Bot
-https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=76864&integration_type=0&scope=bot
-https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=274877983808&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=268512320&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 ```
 
 # Local Development Configuration
@@ -301,11 +326,16 @@ You can also while developing using the test script with `python3 test_analytics
 # Unit Tests
 
 ```sh
-python -m unittest discover tests -p "*_test.py"
+python -m unittest discover tests -p "*_unit_test.py"
 
 # or
-pytest -v -s ./tests
+pytest -v -s ./tests/*_unit_test.py
 ``` 
+
+# Integration Tests
+```sh
+pytest -v -s ./tests/*_integration_test.py
+```
 
 # Coverage Tests
 

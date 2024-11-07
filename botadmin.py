@@ -62,7 +62,7 @@ def local_menu():
         "[3] Get Latest Logs",
         "[4] Lint",
         "[5] Visualizations",
-        "[6] Run Unit Tests",
+        "[6] Run Tests",
         "[7] Run Coverage Tests",
         "[q] Back",
     ]
@@ -79,7 +79,7 @@ def local_menu():
     elif menu_entry_index == 4:
         show_visualization_menu()
     elif menu_entry_index == 5:
-        run_unit_tests()
+        run_tests()
     elif menu_entry_index == 6:
         run_test_coverage()
     elif menu_entry_index == 7:
@@ -102,31 +102,33 @@ def show_visualization_menu():
         "[9] Monthly Voice Time",
         "[q] Back",
     ]
-    terminal_menu = TerminalMenu(options, title="Visualizations", show_shortcut_hints=True)
+    from_day = 30  # <----------------------------------------------------------------------- Last X days
+    terminal_menu = TerminalMenu(options, title=f"Visualizations of the last {from_day} days", show_shortcut_hints=True)
     menu_entry_index = terminal_menu.show()
+
     if menu_entry_index == 0:
-        display_graph_cluster_people()
+        display_graph_cluster_people(from_day=from_day)
     elif menu_entry_index == 1:
-        display_graph_cluster_people_3d_animated()
+        display_graph_cluster_people_3d_animated(from_day=from_day)
     elif menu_entry_index == 2:
-        display_time_relationship()
+        display_time_relationship(from_day=from_day)
     elif menu_entry_index == 3:
-        display_time_voice_channel()
+        display_time_voice_channel(from_day=from_day)
     elif menu_entry_index == 4:
-        display_inactive_user()
+        display_inactive_user(from_day=from_day)
     elif menu_entry_index == 5:
-        display_user_day_week()
+        display_user_day_week(from_day=from_day)
     elif menu_entry_index == 6:
-        display_user_voice_per_month()
+        display_user_voice_per_month(from_day=from_day)
     elif menu_entry_index == 7:
-        display_user_timeline_voice_time_by_week()
+        display_user_timeline_voice_time_by_week(from_day=from_day)
     elif menu_entry_index == 8:
-        display_user_timeline_voice_by_months()
+        display_user_timeline_voice_by_months(from_day=from_day)
     elif menu_entry_index == 9:
         local_menu()
         return
 
-    main()
+    show_visualization_menu()
 
 
 def print_service_status(service_name: str) -> None:
@@ -255,9 +257,9 @@ def save_dependencies() -> None:
         print(f"An exception occurred: {e}")
 
 
-def run_unit_tests() -> None:
+def run_tests() -> None:
     """
-    Run the unit tests using the unittest
+    Run the unit tests and integration tests using the unittest library
     """
     # Create a stream to capture test runner output
     test_output = io.StringIO()

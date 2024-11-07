@@ -13,6 +13,7 @@ from discord.ext import commands, tasks
 from dotenv import load_dotenv
 import pytz
 
+from deps.confirmation_rank_view import ConfirmCancelView
 from deps.data_access_data_class import UserInfo
 from deps.analytic_visualizer import display_graph_cluster_people
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
@@ -28,9 +29,11 @@ from deps.data_access import (
     data_access_get_daily_message,
     data_access_get_guild,
     data_access_get_guild_text_channel_id,
+    data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_member,
     data_access_get_message,
+    data_access_get_r6tracker_max_rank,
     data_access_get_reaction_message,
     data_access_get_user,
     data_access_get_users_auto_schedule,
@@ -38,6 +41,7 @@ from deps.data_access import (
     data_access_set_bot_voice_first_user,
     data_access_set_daily_message,
     data_access_set_guild_text_channel_id,
+    data_access_set_guild_username_text_channel_id,
     data_access_set_guild_voice_channel_ids,
     data_access_set_reaction_message,
     data_access_set_users_auto_schedule,
@@ -54,11 +58,26 @@ from deps.values import (
     COMMAND_SCHEDULE_ADD,
     COMMAND_SCHEDULE_REMOVE,
     COMMAND_SCHEDULE_SEE,
+    COMMAND_SET_USER_TIME_ZONE,
+    COMMAND_GET_USER_TIME_ZONE,
+    COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL,
+    COMMAND_ADJUST_RANK,
     COMMAND_SCHEDULE_ADD_USER,
-    COMMAND_SCHEDULE_CHANNEL_SELECTION,
     COMMAND_SCHEDULE_REFRESH_FROM_REACTION,
+    COMMAND_FORCE_SEND,
+    COMMAND_SCHEDULE_APPLY,
+    COMMAND_SET_USER_TIME_ZONE_OTHER_USER,
+    COMMAND_SCHEDULE_CHANNEL_SET_SCHEDULE_CHANNEL,
+    COMMAND_SCHEDULE_CHANNEL_GET_SCHEDULE_CHANNEL,
+    COMMAND_SCHEDULE_CHANNEL_SET_USER_NAME_GAME_CHANNEL,
+    COMMAND_SCHEDULE_CHANNEL_GET_USER_NAME_GAME_CHANNEL,
+    COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL,
+    COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION,
+    COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION,
+    COMMAND_GUILD_ENABLE_BOT_VOICE,
+    COMMAND_SHOW_COMMUNITY,
+    COMMAND_VERSION,
     COMMAND_RESET_CACHE,
-    COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION,
 )
 from deps.functions import (
     get_current_hour_eastern,
@@ -69,6 +88,7 @@ from deps.functions import (
     get_time_choices,
     get_last_schedule_message,
     most_common,
+    set_member_role_from_rank,
 )
 from deps.log import print_log, print_error_log, print_warning_log
 from deps.schedule_day_hours_view import ScheduleDayHours
@@ -80,26 +100,6 @@ ENV = os.getenv("ENV")
 TOKEN = os.getenv("BOT_TOKEN_DEV") if ENV == "dev" else os.getenv("BOT_TOKEN")
 HOUR_SEND_DAILY_MESSAGE = 7
 
-COMMAND_SCHEDULE_ADD = "addschedule"
-COMMAND_SCHEDULE_REMOVE = "removeschedule"
-COMMAND_SCHEDULE_SEE = "seeschedule"
-COMMAND_SCHEDULE_APPLY = "applyschedule"
-COMMAND_SCHEDULE_ADD_USER = "modadduserschedule"
-COMMAND_SCHEDULE_CHANNEL_SELECTION = "modtextchannel"
-COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "modrefreshschedule"
-COMMAND_RESET_CACHE = "modresetcache"
-COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION = "modvoicechannel"
-COMMAND_SCHEDULE_CHANNEL_SEE_VOICE_SELECTION = "modseevoicechannels"
-COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION = "modseetextchannel"
-COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "modresetvoicechannel"
-COMMAND_FORCE_SEND = "modforcesendschedule"
-COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"
-COMMAND_SHOW_COMMUNITY = "modshowcommunity"
-COMMAND_VERSION = "modversion"
-COMMAND_SET_USER_TIME_ZONE = "setmytimezone"
-COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "modsetusertimezone"
-COMMAND_GET_USER_TIME_ZONE = "getusertimezone"
-COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL = "gettimezones"
 
 bot: discord.Client = BotSingleton().bot
 
@@ -440,22 +440,6 @@ async def see_user_own_schedule(interaction: discord.Interaction):
     await interaction.response.send_message(response, ephemeral=True)
 
 
-@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SELECTION)
-@commands.has_permissions(administrator=True)
-async def set_text_channel(interaction: discord.Interaction, channel: discord.TextChannel):
-    """
-    An administrator can set the channel where the daily schedule message will be sent
-    """
-    guild_id = interaction.guild.id
-    data_access_set_guild_text_channel_id(guild_id, channel.id)
-
-    await interaction.response.send_message(
-        f"Confirmed to send a daily schedule message into #{channel.name}.",
-        ephemeral=True,
-    )
-    await send_daily_question_to_a_guild(interaction.guild)
-
-
 @bot.tree.command(name=COMMAND_SCHEDULE_REFRESH_FROM_REACTION)
 @commands.has_permissions(administrator=True)
 async def refresh_from_reaction(interaction: discord.Interaction):
@@ -597,7 +581,7 @@ async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, mes
         print_log(f"No schedule found for the day {day_of_week_number}")
 
 
-@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_VOICE_SELECTION)
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL)
 @commands.has_permissions(administrator=True)
 async def set_voice_channels(interaction: discord.Interaction, channel: discord.VoiceChannel):
     """
@@ -661,7 +645,7 @@ async def force_send_daily(interaction: discord.Interaction):
     await interaction.followup.send("Force sending", ephemeral=True)
 
 
-@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SEE_VOICE_SELECTION)
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION)
 @commands.has_permissions(administrator=True)
 async def see_voice_channels(interaction: discord.Interaction):
     """Display the voice channels configured"""
@@ -680,19 +664,35 @@ async def see_voice_channels(interaction: discord.Interaction):
     await interaction.followup.send(f"The voice channels are: {names_txt} ", ephemeral=True)
 
 
-@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SEE_TEXT_SELECTION)
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SET_SCHEDULE_CHANNEL)
 @commands.has_permissions(administrator=True)
-async def see_text_channel(interaction: discord.Interaction):
+async def set_schedule_text_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    """
+    An administrator can set the channel where the daily schedule message will be sent
+    """
+    guild_id = interaction.guild.id
+    data_access_set_guild_text_channel_id(guild_id, channel.id)
+
+    await interaction.response.send_message(
+        f"Confirmed to send a daily schedule message into #{channel.name}.",
+        ephemeral=True,
+    )
+    await send_daily_question_to_a_guild(interaction.guild)
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_GET_SCHEDULE_CHANNEL)
+@commands.has_permissions(administrator=True)
+async def see_schedule_text_channel(interaction: discord.Interaction):
     """Display the text channel configured"""
     await interaction.response.defer(ephemeral=True)
     guild_id = interaction.guild.id
     channel_id = await data_access_get_guild_text_channel_id(guild_id)
     if channel_id is None:
-        print_warning_log(f"No text channel in guild {interaction.guild.name}. Skipping.")
-        await interaction.followup.send("Text channel not set.", ephemeral=True)
+        print_warning_log(f"No schedule text channel in guild {interaction.guild.name}. Skipping.")
+        await interaction.followup.send("Schedule text channel not set.", ephemeral=True)
         return
 
-    await interaction.followup.send(f"The text channel is <#{channel_id}>", ephemeral=True)
+    await interaction.followup.send(f"The schedule text channel is <#{channel_id}>", ephemeral=True)
 
 
 @tasks.loop(minutes=16)
@@ -1045,6 +1045,103 @@ async def get_users_time_zone_from_voice_channel(interaction: discord.Interactio
 
     embed.set_footer(text=f"Most common timezone: {most_common_tz}")
     await interaction.followup.send(content="", embed=embed)
+
+
+@bot.tree.command(name=COMMAND_ADJUST_RANK)
+@app_commands.describe(ubisoft_connect_name="Your Ubisoft Connect name to fetch the max rank")
+async def adjust_rank(interaction: discord.Interaction, ubisoft_connect_name: str):
+    """COMMAND_SCHEDULE_ADD
+    Set the role of the user depending of the maximum rank found in R6 Tracker
+    """
+    await interaction.response.defer(ephemeral=True)
+
+    view = ConfirmCancelView()
+    await interaction.followup.send(
+        f"Are you sure you want to perform this action? If {ubisoft_connect_name} is not your real account you will face consequences.",
+        view=view,
+        ephemeral=True,
+    )
+
+    # Wait for the user to interact with the view
+    await view.wait()
+
+    # Check the result after user clicks a button
+    if view.result is None:
+        await interaction.followup.send("No response, action timed out.")
+    elif view.result:
+
+        guild_id = interaction.guild.id
+        member: discord.Member = await data_access_get_member(guild_id, interaction.user.id)
+        # member: discord.Member = interaction.guild.get_member(interaction.user.id)
+        if member is None:
+            print_error_log(f"adjust_rank: Cannot find a member from user id {interaction.user.id}.")
+            await interaction.followup.send("Cannot find the member", ephemeral=True)
+            return
+
+        max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name)
+        print_log(
+            f"adjust_rank: R6 Tracker Downloaded Info for user {interaction.user.display_name} and found for user name {ubisoft_connect_name} the max role: {max_rank}"
+        )
+        try:
+            await set_member_role_from_rank(interaction.guild, member, max_rank)
+        except Exception as e:
+            print_error_log(f"adjust_rank: Error setting the role: {e}")
+            await interaction.followup.send(
+                "Sorry, we cannot change your role for the moment. Please contact a moderator to manually change it.",
+                ephemeral=True,
+            )
+            return
+
+        text_channel_id = await data_access_get_guild_username_text_channel_id(guild_id)
+        if text_channel_id is None:
+            print_warning_log(f"adjust_rank: Text channel not set for guild {interaction.guild.name}. Skipping.")
+            return
+
+        # Retrieve the moderator role by name
+        mod_role = discord.utils.get(interaction.guild.roles, name="Mod")
+
+        if mod_role is None:
+            print_warning_log(f"adjust_rank: Mod role not found in guild {interaction.guild.name}. Skipping.")
+
+        channel = await data_access_get_channel(text_channel_id)
+        await channel.send(
+            content=f"{member.mention} main account is `{ubisoft_connect_name}` with max rank of `{max_rank}`.\n{mod_role.mention} please confirm the role change.",
+        )
+
+        await interaction.followup.send(f"Found max rank {max_rank}, role adjusted", ephemeral=True)
+    # Add code to perform the actual action here
+    else:
+        await interaction.followup.send("Action was canceled.", ephemeral=True)
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_SET_USER_NAME_GAME_CHANNEL)
+@commands.has_permissions(administrator=True)
+async def set_username_text_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    """
+    An administrator can set the channel where the user name is shown
+    """
+    guild_id = interaction.guild.id
+    data_access_set_guild_username_text_channel_id(guild_id, channel.id)
+
+    await interaction.response.send_message(
+        f"Confirmed to send a user name message into #{channel.name}.",
+        ephemeral=True,
+    )
+
+
+@bot.tree.command(name=COMMAND_SCHEDULE_CHANNEL_GET_USER_NAME_GAME_CHANNEL)
+@commands.has_permissions(administrator=True)
+async def see_username_text_channel(interaction: discord.Interaction):
+    """Display the text channel configured"""
+    await interaction.response.defer(ephemeral=True)
+    guild_id = interaction.guild.id
+    channel_id = await data_access_get_guild_text_channel_id(guild_id)
+    if channel_id is None:
+        print_warning_log(f"No username text channel in guild {interaction.guild.name}. Skipping.")
+        await interaction.followup.send("Username Text channel not set.", ephemeral=True)
+        return
+
+    await interaction.followup.send(f"The username text channel is <#{channel_id}>", ephemeral=True)
 
 
 def main() -> None:

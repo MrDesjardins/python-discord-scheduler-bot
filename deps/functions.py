@@ -6,8 +6,11 @@ from typing import Union, Optional
 import pytz
 import discord
 from discord import app_commands
+import requests
+from bs4 import BeautifulSoup
 from deps.values import EMOJI_TO_TIME, MSG_UNIQUE_STRING
 from deps.models import TimeLabel
+from deps.siege import siege_ranks
 
 
 def get_empty_votes():
@@ -106,3 +109,48 @@ def write_git_sha_to_file():
 def most_common(lst):
     """Returns the most common element in a list."""
     return max(set(lst), key=lst.count)
+
+
+async def set_member_role_from_rank(guild: discord.Guild, member: discord.Member, rank: str):
+    """Set the user role based on the rank."""
+    # Remove all roles
+    for r_name in siege_ranks:
+        role_to_remove = discord.utils.get(guild.roles, name=r_name)
+        if role_to_remove in member.roles:
+            await member.remove_roles(role_to_remove, reason=f"Bot removed {r_name} before assigning new rank role.")
+
+    # Get the Role object from the guild using the rank string
+    role = discord.utils.get(guild.roles, name=rank)
+
+    if role is None:
+        raise ValueError(f"The guild does not have a role named '{rank}'.")
+    # Pass the role object (not the name/str)
+    await member.add_roles(role, reason="Bot assigned role based on rank from R6 Tracker")
+
+
+async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
+    """Download the web page, and extract the max rank"""
+    rank = "Copper"
+    url = f"https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_user_name}/overview"
+    # Download the web page
+    try:
+        page = requests.get(url, timeout=5)
+        page.raise_for_status()  # Check if the request was successful
+    except requests.exceptions.RequestException:
+        return rank
+
+    # Parse the page content
+    soup = BeautifulSoup(page.content, "html.parser")
+    element = soup.find(class_="season-peaks__seasons")
+    if element:
+        # Find the first <img> within this element
+        img_tag = element.find("img")
+
+        if img_tag:
+            alt_name_image = img_tag.get("alt")
+            rank = alt_name_image.split(" ")[0].lower().capitalize()
+
+    if rank in siege_ranks:
+        return rank
+    else:
+        return "Copper"
