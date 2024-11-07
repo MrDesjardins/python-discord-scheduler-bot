@@ -1,7 +1,9 @@
 """ Class, enum and other data structure used in the bot"""
 
 import dataclasses
+from datetime import datetime
 from enum import Enum
+from typing import List
 
 
 class DayOfWeek(Enum):
@@ -50,3 +52,85 @@ class SimpleUserHour:
     def __init__(self, user: SimpleUser, hour: str):
         self.simple_user = user
         self.hour = hour
+
+
+@dataclasses.dataclass
+class UserMatchInfo:
+    """
+    Represent the information from a single match for a specific user
+    Information coming from this URL: 
+        https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/noSleep_rb6?gamemode=pvp_ranked
+    Could also get more detail about the match:
+        https://api.tracker.gg/api/v1/r6siege/ow-ingest/match/get/9681f59e-80db-4b2e-b54b-3631af76b074/877a703b-0d29-4779-8fbf-ccd165c2b7f6
+    """
+
+    def __init__(
+        self,
+        match_uuid: str,
+        r6_tracker_user_uuid: str,
+        user_ubisoft_name: str,
+        match_timestamp: datetime,
+        match_duration_ms: int,
+        map_name: str,
+        has_win: bool,
+        kill_count: int,
+        death_count: int,
+        assist_count: int,
+        kd_ratio: float,
+        has_ace: bool,
+        rank_points: int,
+        points_gained: int,
+        round_count: int,
+        round_win_count: int,
+        tk_count: int,
+    ):
+        self.match_uuid = match_uuid
+        self.r6_tracker_user_uuid = r6_tracker_user_uuid
+        self.user_ubisoft_name = user_ubisoft_name
+        self.match_timestamp = match_timestamp
+        self.match_duration_ms = match_duration_ms
+        self.map_name = map_name
+        self.has_win = has_win
+        self.kill_count = kill_count
+        self.death_count = death_count
+        self.assist_count = assist_count
+        self.kd_ratio = kd_ratio
+        self.has_ace = has_ace
+        self.rank_points = rank_points
+        self.points_gained = points_gained
+        self.round_count = round_count
+        self.round_win_count = round_win_count
+        self.tk_count = tk_count
+
+@dataclasses.dataclass
+class UserMatchInfoSessionAggregate:
+    """ 
+    Summary of a gaming session which is a list of matches
+    """
+    def __init__(
+        self,
+        user_ubisoft_name: str,
+        match_count: int,
+        match_win_count: int,
+        match_loss_count: int,
+        total_kill_count: int,
+        total_death_count: int,
+        total_assist_count: int,
+        started_rank_points: int,
+        ended_rank_points: int,
+        total_gained_points: int,
+        total_tk_count: int,
+        kill_death: List[str]
+    ):
+        self.user_ubisoft_name = user_ubisoft_name
+        self.match_count = match_count
+        self.match_win_count = match_win_count
+        self.match_loss_count = match_loss_count
+        self.total_kill_count = total_kill_count
+        self.total_death_count = total_death_count
+        self.total_assist_count = total_assist_count
+        self.started_rank_points = started_rank_points
+        self.ended_rank_points = ended_rank_points
+        self.total_gained_points = total_gained_points
+        self.total_tk_count = total_tk_count
+        self.kill_death = kill_death

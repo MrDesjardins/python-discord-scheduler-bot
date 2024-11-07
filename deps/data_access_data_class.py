@@ -1,6 +1,7 @@
 """Data classes for the data access layer"""
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -9,6 +10,7 @@ class UserInfo:
 
     id: int
     display_name: str
+    ubisoft_username: Optional[str]
     """ List of time zones: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones """
     time_zone: str
 

@@ -18,6 +18,7 @@ from deps.data_access_data_class import UserInfo
 from deps.analytic_visualizer import display_graph_cluster_people
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.analytic_data_access import (
+    data_access_set_ubisoft_username,
     fetch_user_info_by_user_id,
     fetch_user_info_by_user_id_list,
     insert_user_activity,
@@ -50,6 +51,7 @@ from deps.date_utils import is_today
 from deps.siege import get_user_rank_emoji
 from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
 from deps.values import (
+    COMMAND_SET_USER_UBISOFT_OTHER_USER,
     DATE_FORMAT,
     MSG_UNIQUE_STRING,
     SUPPORTED_TIMES_STR,
@@ -986,6 +988,18 @@ async def set_user_time_zone_for_other_user(interaction: discord.Interaction, me
     await interaction.followup.send("Please select a timezone:", view=view)
 
 
+@commands.has_permissions(administrator=True)
+@bot.tree.command(name=COMMAND_SET_USER_UBISOFT_OTHER_USER)
+async def set_user_ubisoft_for_other_user(
+    interaction: discord.Interaction, member: discord.Member, ubisoft_username: str
+):
+    """Command to set the user Ubisoft username"""
+    await interaction.response.defer(ephemeral=True)
+
+    data_access_set_ubisoft_username(interaction.user.id, ubisoft_username)
+    await interaction.followup.send(f"{member.mention} -> `{ubisoft_username}`", ephemeral=True)
+
+
 @bot.tree.command(name=COMMAND_GET_USER_TIME_ZONE)
 async def get_user_time_zone(interaction: discord.Interaction, member: discord.Member):
     """Get the timezone of a single user"""
@@ -1079,6 +1093,7 @@ async def adjust_rank(interaction: discord.Interaction, ubisoft_connect_name: st
             return
 
         max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name)
+        data_access_set_ubisoft_username(interaction.user.id, ubisoft_connect_name)
         print_log(
             f"adjust_rank: R6 Tracker Downloaded Info for user {interaction.user.display_name} and found for user name {ubisoft_connect_name} the max role: {max_rank}"
         )

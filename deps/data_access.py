@@ -15,7 +15,7 @@ from deps.cache import (
 )
 from deps.models import SimpleUser, SimpleUserHour
 
-from deps.functions import get_r6tracker_max_rank
+from deps.functions_r6_tracker import get_r6tracker_max_rank
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsersV2"

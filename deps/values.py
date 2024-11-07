@@ -56,8 +56,9 @@ COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "modrefreshschedule"
 COMMAND_FORCE_SEND = "modforcesendschedule"
 COMMAND_SCHEDULE_APPLY = "modapplyschedule"
 
-## Timezone
+## Timezone & Rank/Role
 COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "modsetusertimezone"
+COMMAND_SET_USER_UBISOFT_OTHER_USER = "modsetuserubisoft"
 
 ## Channels
 COMMAND_SCHEDULE_CHANNEL_SET_SCHEDULE_CHANNEL = "modtextschedulechannel"

@@ -345,3 +345,6 @@ coverage report -m
 coverage lcov 
 coverage html
 ```
+
+# Todo prod:
+ALTER TABLE user_info ADD COLUMN ubisoft_username TEXT NULL;

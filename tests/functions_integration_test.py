@@ -6,7 +6,7 @@ tests that involve database access, network access, or more than one class.
 """
 
 import unittest
-from deps.functions import get_r6tracker_max_rank
+from deps.functions_r6_tracker import get_r6tracker_max_rank
 
 
 class TrackerTest(unittest.TestCase):
@@ -27,6 +27,3 @@ class TrackerTest(unittest.TestCase):
         with self.assertRaises(Exception):
             await get_r6tracker_max_rank("noSleep_rb6")
 
-
-if __name__ == "__main__":
-    unittest.main()
