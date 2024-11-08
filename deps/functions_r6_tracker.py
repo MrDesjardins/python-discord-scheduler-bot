@@ -164,7 +164,7 @@ def get_r6tracker_user_recent_matches(ubisoft_user_name: str) -> List[UserMatchI
     return match_obj_list
 
 
-def parse_json_from_matches(data_dict, user_ubisoft_name: str) -> List[UserMatchInfo]:
+def parse_json_from_matches(data_dict, ubisoft_username: str) -> List[UserMatchInfo]:
     """Function to parse the JSON dictionary into dataclasses"""
     try:
         matches = data_dict["data"]["matches"]
@@ -190,7 +190,7 @@ def parse_json_from_matches(data_dict, user_ubisoft_name: str) -> List[UserMatch
                 UserMatchInfo(
                     match_uuid=match["attributes"]["id"],
                     r6_tracker_user_uuid=segment["attributes"]["playerId"],
-                    user_ubisoft_name=user_ubisoft_name,
+                    ubisoft_username=ubisoft_username,
                     match_timestamp=datetime.fromisoformat(match["metadata"]["timestamp"]),
                     match_duration_ms=match["metadata"]["duration"],
                     map_name=match["metadata"]["sessionMapName"],

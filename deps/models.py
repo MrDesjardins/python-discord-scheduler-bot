@@ -68,7 +68,7 @@ class UserMatchInfo:
         self,
         match_uuid: str,
         r6_tracker_user_uuid: str,
-        user_ubisoft_name: str,
+        ubisoft_username: str,
         match_timestamp: datetime,
         match_duration_ms: int,
         map_name: str,
@@ -88,7 +88,7 @@ class UserMatchInfo:
     ):
         self.match_uuid = match_uuid
         self.r6_tracker_user_uuid = r6_tracker_user_uuid
-        self.user_ubisoft_name = user_ubisoft_name
+        self.ubisoft_username = ubisoft_username
         self.match_timestamp = match_timestamp
         self.match_duration_ms = match_duration_ms
         self.map_name = map_name
