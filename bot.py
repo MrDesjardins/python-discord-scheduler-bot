@@ -848,7 +848,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     datetime.now(timezone.utc),
                 )
         except Exception as e:
-            print_error_log(f"Error logging user activity: {e}")
+            print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
 
         # Check if the user joined a voice channel to send a voice message
         if after.channel is not None and after.channel.id in voice_channel_ids:
@@ -872,7 +872,7 @@ async def send_session_stats(member: discord.Member, guild_id: int) -> None:
     """
     Get the statistic of a user and post it
     """
-    last_hour = 24
+    last_hour = 12
     if member.bot:
         return  # Ignore bot
 
@@ -914,24 +914,33 @@ def get_gaming_session_user_embed_message(
     title = f"{member.display_name} Stats"
     embed = discord.Embed(
         title=title,
-        description=f"You played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.",
+        description=f"{member.mention} played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.",
         color=get_color_for_rank(member),
         timestamp=datetime.now(),
+        url=f"https://r6.tracker.network/r6siege/profile/ubi/{aggregation.ubisoft_username}",
     )
     # Get the list of kill_death into a string with comma separated
-    str_kd = "\n".join(f"Match #{i+1}: {string}" for i, string in enumerate(reversed(aggregation.kill_death)))
+    str_kd = "\n".join(
+        f"Match #{i+1} ({map_name}): {kd}"
+        for i, (kd, map_name) in enumerate(reversed(list(zip(aggregation.kill_death_assist, aggregation.maps_played))))
+    )
     embed.set_thumbnail(url=member.avatar.url)
+
     embed.add_field(name="Starting Pts", value=aggregation.started_rank_points, inline=True)
     diff = (
         "+" + str(aggregation.total_gained_points)
         if aggregation.total_gained_points > 0
         else str(aggregation.total_gained_points)
     )
-    embed.add_field(name="Ending Pts", value=f"{aggregation.ended_rank_points} ({diff})", inline=True)
+    embed.add_field(name="Ending Pts", value=f"{aggregation.ended_rank_points}", inline=True)
+    embed.add_field(name="Pts Variation", value=diff, inline=True)
     embed.add_field(name="Total Kills", value=aggregation.total_kill_count, inline=True)
     embed.add_field(name="Total Deaths", value=aggregation.total_death_count, inline=True)
     embed.add_field(name="Total Assists", value=aggregation.total_assist_count, inline=True)
     embed.add_field(name="Total TK", value=aggregation.total_tk_count, inline=True)
+    embed.add_field(name="Total 3k round", value=aggregation.total_round_with_3k, inline=True)
+    embed.add_field(name="Total 4k round", value=aggregation.total_round_with_3k, inline=True)
+    embed.add_field(name="Total Ace round", value=aggregation.total_round_with_aces, inline=True)
     embed.add_field(name="Kill/Death/Asssist Per Match", value=str_kd, inline=False)
     embed.set_footer(text=f"Your stats for the last {last_hour} hours")
     return embed

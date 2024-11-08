@@ -7,13 +7,15 @@ import json
 import requests
 import cloudscraper
 import undetected_chromedriver as uc
+from xvfbwrapper import Xvfb
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import time
 from bs4 import BeautifulSoup
 from deps.models import UserMatchInfo, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
 from deps.log import print_error_log
-import random
-
 
 TRN_API_KEY = os.getenv("TRN_API_KEY")
 
@@ -68,53 +70,62 @@ def download_using_chrome_driver() -> Optional[any]:
     Slow approach but works to not get the 403 error or blocked request
     It goes first to the website to get the proper cookies and then to the API
     Must not be headless to work
+
+    Pre-requisite:
+    sudo apt install -y wget gnupg
+    wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+    sudo apt install -y ./google-chrome-stable_current_amd64.deb
+    rm google-chrome-stable_current_amd64.deb
+    google-chrome --version
     """
-    options = uc.ChromeOptions()
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--start-maximized")
-    options.binary_location = "/usr/bin/google-chrome"  # Adjust this if needed for WSL
+    with Xvfb() as xvfb:  # Launch virtual display
+        options = uc.ChromeOptions()
+        # options.add_argument("--headless=new")  # For Chromium versions 109+
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--start-maximized")
+        options.binary_location = "/usr/bin/google-chrome"  # Adjust this if needed for WSL
 
-    driver = uc.Chrome(options=options)
-    # Step 2: Visit the public profile page to establish the session
-    profile_url = "https://r6.tracker.network/r6siege/profile/ubi/noSleep_rb6/matches?playlist=pvp_ranked"
-    driver.get(profile_url)
-    time.sleep(5)  # Give some time for all cookies and scripts to load
-
-    # Step 3: Check cookies (optional, for debugging)
-    cookies = driver.get_cookies()
-
-    # Step 4: Now, navigate to the API endpoint
-    api_url = "https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/nosleep_rb6?gamemode=pvp_ranked"
-    driver.get(api_url)
-    time.sleep(3)  # Let the request complete
-
-    # Step 5: Extract the page content, expecting JSON
-    page_source = driver.page_source
-    driver.quit()
-
-    # Step 6: Remove the HTML
-    soup = BeautifulSoup(page_source, "html.parser")
-    # Find the <pre> tag containing the JSON
-    pre_tag = soup.find("pre")
-
-    # Ensure the <pre> tag is found and contains the expected JSON data
-    if pre_tag:
-        # Extract the text content of the <pre> tag
-        json_data = pre_tag.get_text().strip()
-
+        driver = uc.Chrome(options=options)
         try:
-            # Parse the JSON data
-            data = json.loads(json_data)
+            # Step 2: Visit the public profile page to establish the session
+            profile_url = "https://r6.tracker.network/r6siege/profile/ubi/noSleep_rb6/matches?playlist=pvp_ranked"
+            driver.get(profile_url)
+            WebDriverWait(driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
 
-            return data
-        except json.JSONDecodeError as e:
-            print_error_log(f"download_using_chrome_driver: Error parsing JSON: {e}")
-    else:
-        print_error_log("download_using_chrome_driver: JSON data not found within <pre> tag.")
-    return None
+            # Step 4: Now, navigate to the API endpoint
+            api_url = "https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/nosleep_rb6?gamemode=pvp_ranked"
+            driver.get(api_url)
+            # Wait until the page contains the expected JSON data
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+
+            # Step 5: Extract the page content, expecting JSON
+            page_source = driver.page_source
+
+            # Step 6: Remove the HTML
+            soup = BeautifulSoup(page_source, "html.parser")
+            # Find the <pre> tag containing the JSON
+            pre_tag = soup.find("pre")
+
+            # Ensure the <pre> tag is found and contains the expected JSON data
+            if pre_tag:
+                # Extract the text content of the <pre> tag
+                json_data = pre_tag.get_text().strip()
+
+                try:
+                    # Parse the JSON data
+                    data = json.loads(json_data)
+
+                    return data
+                except json.JSONDecodeError as e:
+                    print_error_log(f"download_using_chrome_driver: Error parsing JSON: {e}")
+            else:
+                print_error_log("download_using_chrome_driver: JSON data not found within <pre> tag.")
+        finally:
+            driver.quit()
+        return None
 
 
 def download_using_cloudscraper() -> Optional[str]:
@@ -136,7 +147,7 @@ def download_using_cloudscraper() -> Optional[str]:
 
 
 def download_stub_file() -> Optional[str]:
-    """ 
+    """
     Temporary until we get the API KEY
     """
     with open("./tests/tests_assets/player_rank_history.json", "r", encoding="utf8") as file:
@@ -184,7 +195,9 @@ def parse_json_from_matches(data_dict, user_ubisoft_name: str) -> List[UserMatch
                     match_duration_ms=match["metadata"]["duration"],
                     map_name=match["metadata"]["sessionMapName"],
                     has_win=stats["wins"]["value"] == 1,
-                    has_ace=stats["aces"]["value"] > 0,
+                    ace_count=stats["aces"]["value"],
+                    kill_3_count=stats["kills3K"]["value"],
+                    kill_4_count=stats["kills4K"]["value"],
                     assist_count=stats["assists"]["value"],
                     death_count=stats["deaths"]["value"],
                     kd_ratio=stats["kdRatio"]["value"],
@@ -225,6 +238,10 @@ def get_user_gaming_session_stats(
         ),  # Subtract the points gained in the match to get the starting rank points
         ended_rank_points=matches_recent[0].rank_points if matches_recent else 0,
         total_gained_points=sum(match.points_gained for match in matches_recent),
-        user_ubisoft_name=username,
-        kill_death=[f"{match.kill_count}/{match.death_count}/{match.assist_count}" for match in matches_recent],
+        ubisoft_username=username,
+        kill_death_assist=[f"{match.kill_count}/{match.death_count}/{match.assist_count}" for match in matches_recent],
+        maps_played=[match.map_name for match in matches_recent],
+        total_round_with_aces=sum(match.ace_count for match in matches_recent),
+        total_round_with_3k=sum(match.kill_3_count for match in matches_recent),
+        total_round_with_4k=sum(match.kill_4_count for match in matches_recent),
     )

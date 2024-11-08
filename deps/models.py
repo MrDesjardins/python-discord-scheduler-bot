@@ -77,7 +77,9 @@ class UserMatchInfo:
         death_count: int,
         assist_count: int,
         kd_ratio: float,
-        has_ace: bool,
+        ace_count: int,
+        kill_3_count: int,
+        kill_4_count: int,
         rank_points: int,
         points_gained: int,
         round_count: int,
@@ -95,7 +97,9 @@ class UserMatchInfo:
         self.death_count = death_count
         self.assist_count = assist_count
         self.kd_ratio = kd_ratio
-        self.has_ace = has_ace
+        self.ace_count = ace_count
+        self.kill_3_count = kill_3_count
+        self.kill_4_count = kill_4_count
         self.rank_points = rank_points
         self.points_gained = points_gained
         self.round_count = round_count
@@ -109,7 +113,7 @@ class UserMatchInfoSessionAggregate:
     """
     def __init__(
         self,
-        user_ubisoft_name: str,
+        ubisoft_username: str,
         match_count: int,
         match_win_count: int,
         match_loss_count: int,
@@ -120,9 +124,13 @@ class UserMatchInfoSessionAggregate:
         ended_rank_points: int,
         total_gained_points: int,
         total_tk_count: int,
-        kill_death: List[str]
+        total_round_with_aces: int,
+        total_round_with_3k: int,
+        total_round_with_4k: int,
+        kill_death_assist: List[str],
+        maps_played: List[str]
     ):
-        self.user_ubisoft_name = user_ubisoft_name
+        self.ubisoft_username = ubisoft_username
         self.match_count = match_count
         self.match_win_count = match_win_count
         self.match_loss_count = match_loss_count
@@ -133,4 +141,8 @@ class UserMatchInfoSessionAggregate:
         self.ended_rank_points = ended_rank_points
         self.total_gained_points = total_gained_points
         self.total_tk_count = total_tk_count
-        self.kill_death = kill_death
+        self.total_round_with_aces = total_round_with_aces
+        self.total_round_with_3k = total_round_with_3k
+        self.total_round_with_4k = total_round_with_4k
+        self.kill_death_assist = kill_death_assist
+        self.maps_played = maps_played
