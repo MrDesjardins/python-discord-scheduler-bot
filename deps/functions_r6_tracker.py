@@ -1,12 +1,16 @@
 """ R6 Tracker API functions """
-
+import os
 from datetime import datetime
 from typing import List, Optional
 import json
 import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 from deps.models import UserMatchInfo, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
+from deps.log import print_error_log
+TRN_API_KEY = os.getenv("TRN_API_KEY")
+scraper = cloudscraper.create_scraper()
 
 
 async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
@@ -37,33 +41,65 @@ async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
         return "Copper"
 
 
+# curl ^"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/noSleep_rb6?gamemode=pvp_ranked^" ^
+#   -H ^"accept: application/json, text/plain, */*^" ^
+#   -H ^"accept-language: en-US,en;q=0.9,fr-CA;q=0.8,fr;q=0.7^" ^
+#   -H ^"cookie: X-Mapping-Server=s13; __cflb=02DiuFQAkRrzD1P1mdkJhfdTc9AmTWwYk4f6Y22nmXCKN; __cf_bm=Oukhd0sMUTvpa7HmjSrMAv.1fEyrpXSD4ZJnBn4xV10-1731018364-1.0.1.1-X9q64JztZ3Df5.Tk7qA6rDTIi.OIzip8e8TKRnkbeOVhgC3JWkzDCTf49nOkuyia7TJr_VSIxxAmn5T9_n7Y4PByoK94AjTmpTwTz5fNWRk^" ^
+#   -H ^"if-modified-since: Thu, 07 Nov 2024 22:26:05 GMT^" ^
+#   -H ^"origin: https://r6.tracker.network^" ^
+#   -H ^"priority: u=1, i^" ^
+#   -H ^"referer: https://r6.tracker.network/^" ^
+#   -H ^"sec-ch-ua: ^\^"Chromium^\^";v=^\^"130^\^", ^\^"Google Chrome^\^";v=^\^"130^\^", ^\^"Not?A_Brand^\^";v=^\^"99^\^"^" ^
+#   -H ^"sec-ch-ua-mobile: ?0^" ^
+#   -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+#   -H ^"sec-fetch-dest: empty^" ^
+#   -H ^"sec-fetch-mode: cors^" ^
+#   -H ^"sec-fetch-site: cross-site^" ^
+#   -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36^"
+
+
 def get_r6tracker_user_recent_matches(ubisoft_user_name: str) -> List[UserMatchInfo]:
     """Download the web page, and extract the matches data"""
-    url = f"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/${ubisoft_user_name}?gamemode=pvp_ranked"
+
+    # Temporary until we get the API KEY:
+    with open("./tests/tests_assets/player_rank_history.json", "r", encoding="utf8") as file:
+        data = json.loads(file.read())
+        return parse_json_from_matches(data, ubisoft_user_name)
+
+    url = f"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/{ubisoft_user_name}?gamemode=pvp_ranked"
     # Download the web page
     try:
-        page = requests.get(url, timeout=5)
-        content = page.content()  # Check if the request was successful
-        page.raise_for_status()  # Check if the request was successful
-    except requests.exceptions.RequestException:
-        return None
+
+        response = scraper.get(url, timeout=10, headers={
+            "TRN-Api-Key": TRN_API_KEY
+        })
+        # Check if the response is JSON
+        content = response.json()
+        response.raise_for_status()  # Check if the request was successful
+    except requests.exceptions.RequestException as e:
+        content = response.text
+        print(content)
+        print_error_log(f"get_r6tracker_user_recent_matches: {e}")
+        return []
 
     # Parse the page content
-    matches_dict = json.loads(content)
+    # matches_dict = json.loads(raw_content)
+    matches_dict = content
     match_obj_list = parse_json_from_matches(matches_dict, ubisoft_user_name)
     return match_obj_list
 
+
 def parse_json_from_matches(data_dict, user_ubisoft_name: str) -> List[UserMatchInfo]:
-    """ Function to parse the JSON dictionary into dataclasses"""
+    """Function to parse the JSON dictionary into dataclasses"""
     try:
         matches = data_dict["data"]["matches"]
         if not isinstance(matches, list) or len(matches) == 0:
             return []
     except KeyError as e:
-        print(f"KeyError: {e} not found in the JSON data.")
+        print_error_log(f"parse_json_from_matches: KeyError: {e} not found in the JSON data.")
         return []
     except TypeError as e:
-        print(f"TypeError: Unexpected data format - {e}")
+        print_error_log(f"parse_json_from_matches: TypeError: Unexpected data format - {e}")
         return []
     # Loopp all matches
     match_infos = []
@@ -97,7 +133,7 @@ def parse_json_from_matches(data_dict, user_ubisoft_name: str) -> List[UserMatch
                 )
             )
         except (KeyError, IndexError, TypeError) as e:
-            print(f"Error processing match data: {e}")
+            print_error_log(f"parse_json_from_matches: Error processing match data: {e}")
             continue
     return match_infos
 

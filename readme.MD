@@ -192,6 +192,12 @@ https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=2
 https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=268512320&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 ```
 
+# Create a TRN Developer Account
+To get the statistics of the user, you need to create a developer account on the TRN website. The TRN API is used to get the statistics of the user. The API key is required to get the statistics of the user.
+
+1. Create an account on the TRN website: https://tracker.gg/developers
+2. E.g. https://tracker.gg/developers/apps/330f2e3d-c58f-4170-a4c1-65710ba2e55d 
+
 # Local Development Configuration
 
 ## .Env file
@@ -256,6 +262,7 @@ deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi
 ```sh
 ENV=prod
 BOT_TOKEN=<bot token>
+TRN_API_KEY<TRN token>
 ```
 
 9. Install ffmpeg for the audio
@@ -345,6 +352,3 @@ coverage report -m
 coverage lcov 
 coverage html
 ```
-
-# Todo prod:
-ALTER TABLE user_info ADD COLUMN ubisoft_username TEXT NULL;

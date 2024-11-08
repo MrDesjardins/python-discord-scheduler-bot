@@ -28,6 +28,8 @@ from deps.data_access import (
     data_access_get_bot_voice_first_user,
     data_access_get_channel,
     data_access_get_daily_message,
+    data_access_get_gaming_session_last_activity,
+    data_access_get_gaming_session_text_channel_id,
     data_access_get_guild,
     data_access_get_guild_text_channel_id,
     data_access_get_guild_username_text_channel_id,
@@ -41,6 +43,8 @@ from deps.data_access import (
     data_access_reset_guild_cache,
     data_access_set_bot_voice_first_user,
     data_access_set_daily_message,
+    data_access_set_gaming_session_last_activity,
+    data_access_set_gaming_session_text_channel_id,
     data_access_set_guild_text_channel_id,
     data_access_set_guild_username_text_channel_id,
     data_access_set_guild_voice_channel_ids,
@@ -48,9 +52,11 @@ from deps.data_access import (
     data_access_set_users_auto_schedule,
 )
 from deps.date_utils import is_today
-from deps.siege import get_user_rank_emoji
-from deps.models import SimpleUser, SimpleUserHour, DayOfWeek
+from deps.siege import get_color_for_rank, get_user_rank_emoji
+from deps.models import SimpleUser, SimpleUserHour, DayOfWeek, UserMatchInfoSessionAggregate
 from deps.values import (
+    COMMAND_SEE_GAMING_SESSION_CHANNEL,
+    COMMAND_SET_GAMING_SESSION_CHANNEL,
     COMMAND_SET_USER_UBISOFT_OTHER_USER,
     DATE_FORMAT,
     MSG_UNIQUE_STRING,
@@ -95,6 +101,7 @@ from deps.functions import (
 from deps.log import print_log, print_error_log, print_warning_log
 from deps.schedule_day_hours_view import ScheduleDayHours
 from deps.timezone_view import TimeZoneView
+from deps.functions_r6_tracker import get_r6tracker_user_recent_matches, get_user_gaming_session_stats
 
 load_dotenv()
 
@@ -821,6 +828,7 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
                     event,
                     datetime.now(timezone.utc),
                 )
+                await send_session_stats(member, guild_id)
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                 # User switched between voice channel
                 insert_user_activity(
@@ -858,6 +866,105 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
 #     # Fetch the user from the database to retrieve the timezone
 #     user_info = await fetch_user_info_by_user_id(member.id)
 #     # Set the user timezone to the voice channel status
+
+
+async def send_session_stats(member: discord.Member, guild_id: int) -> None:
+    """
+    Get the statistic of a user and post it
+    """
+    last_hour = 24
+    if member.bot:
+        return  # Ignore bot
+
+    # Only perform the action if it wasn't done in the last hour
+    current_time = datetime.now(timezone.utc)
+    last_activity = await data_access_get_gaming_session_last_activity(member.id, guild_id)
+    if last_activity is not None and last_activity > current_time - timedelta(hours=1):
+        return None
+
+    # Get the user ubisoft name
+    user_info: UserInfo = await fetch_user_info_by_user_id(member.id)
+    if user_info is None or user_info.ubisoft_username is None:
+        return None
+
+    try:
+        matches = get_r6tracker_user_recent_matches(user_info.ubisoft_username)
+        await data_access_set_gaming_session_last_activity(member.id, guild_id, current_time)
+    except Exception as e:
+        print_error_log(f"Error getting the user stats from R6 tracker: {e}")
+        return None
+
+    aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
+        user_info.ubisoft_username, current_time - timedelta(hours=last_hour), matches
+    )
+    if aggregation is None:
+        return None
+
+    channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
+    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    # We never sent the message, so we send it, add the reactions and save it in the cache
+    embed_msg = get_gaming_session_user_embed_message(member, aggregation, last_hour)
+    await channel.send(content="", embed=embed_msg)
+
+
+def get_gaming_session_user_embed_message(
+    member: discord.Member, aggregation: UserMatchInfoSessionAggregate, last_hour: int
+) -> discord.Embed:
+    """Create the stats message"""
+    title = f"{member.display_name} Stats"
+    embed = discord.Embed(
+        title=title,
+        description=f"You played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.",
+        color=get_color_for_rank(member),
+        timestamp=datetime.now(),
+    )
+    # Get the list of kill_death into a string with comma separated
+    str_kd = "\n".join(f"Match #{i+1}: {string}" for i, string in enumerate(reversed(aggregation.kill_death)))
+    embed.set_thumbnail(url=member.avatar.url)
+    embed.add_field(name="Starting Pts", value=aggregation.started_rank_points, inline=True)
+    diff = (
+        "+" + str(aggregation.total_gained_points)
+        if aggregation.total_gained_points > 0
+        else str(aggregation.total_gained_points)
+    )
+    embed.add_field(name="Ending Pts", value=f"{aggregation.ended_rank_points} ({diff})", inline=True)
+    embed.add_field(name="Total Kills", value=aggregation.total_kill_count, inline=True)
+    embed.add_field(name="Total Deaths", value=aggregation.total_death_count, inline=True)
+    embed.add_field(name="Total Assists", value=aggregation.total_assist_count, inline=True)
+    embed.add_field(name="Total TK", value=aggregation.total_tk_count, inline=True)
+    embed.add_field(name="Kill/Death/Asssist Per Match", value=str_kd, inline=False)
+    embed.set_footer(text=f"Your stats for the last {last_hour} hours")
+    return embed
+
+
+@bot.tree.command(name=COMMAND_SET_GAMING_SESSION_CHANNEL)
+@commands.has_permissions(administrator=True)
+async def set_gaming_session_text_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    """
+    An administrator can set the channel where the user name is shown
+    """
+    guild_id = interaction.guild.id
+    data_access_set_gaming_session_text_channel_id(guild_id, channel.id)
+
+    await interaction.response.send_message(
+        f"Confirmed to send user gaming session stats into #{channel.name}.",
+        ephemeral=True,
+    )
+
+
+@bot.tree.command(name=COMMAND_SEE_GAMING_SESSION_CHANNEL)
+@commands.has_permissions(administrator=True)
+async def see_gaming_session_text_channel(interaction: discord.Interaction):
+    """Display the text channel configured"""
+    await interaction.response.defer(ephemeral=True)
+    guild_id = interaction.guild.id
+    channel_id = await data_access_get_gaming_session_text_channel_id(guild_id)
+    if channel_id is None:
+        print_warning_log(f"No gaming session stats channel in guild {interaction.guild.name}. Skipping.")
+        await interaction.followup.send("Gaming Session Text channel not set.", ephemeral=True)
+        return
+
+    await interaction.followup.send(f"The gaming session text channel is <#{channel_id}>", ephemeral=True)
 
 
 async def send_notification_voice_channel(

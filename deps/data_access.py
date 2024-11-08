@@ -1,11 +1,12 @@
 """ Access to the data is done throught this data access"""
 
-from typing import List, Union
+from typing import List, Optional, Union
 from datetime import datetime
 import discord
 from deps.bot_singleton import BotSingleton
 from deps.cache import (
     ALWAYS_TTL,
+    ONE_DAY_TTL,
     ONE_HOUR_TTL,
     THREE_DAY_TTL,
     get_cache,
@@ -22,6 +23,7 @@ KEY_REACTION_USERS = "ReactionUsersV2"
 KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleByDay"
 KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigTextChannel"
 KEY_GUILD_USERNAME_TEXT_CHANNEL = "GuildAdminConfigUserNameTextChannel"
+KEY_GUILD_GAMING_SESSION_TEXT_CHANNEL = "GuildAdminConfigGamingSessionTextChannel"
 KEY_GUILD_VOICE_CHANNELS = "GuildAdminConfigVoiceChannels"
 KEY_MESSAGE = "Message"
 KEY_USER = "User"
@@ -30,6 +32,7 @@ KEY_MEMBER = "Member"
 KEY_CHANNEL = "Channel"
 KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
 KEY_R6TRACKER = "R6Tracker"
+KEY_GAMING_SESSION_LAST_ACTIVITY = "GamingSessionLastActivity"
 
 
 async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
@@ -132,7 +135,7 @@ def data_access_set_users_auto_schedule(guild_id: int, day_of_week_number: str, 
 
 async def data_access_get_guild_text_channel_id(
     guild_id: int,
-) -> Union[discord.TextChannel, None]:
+) -> Union[int, None]:
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
 
@@ -144,7 +147,7 @@ def data_access_set_guild_text_channel_id(guild_id: int, channel_id: int) -> Non
 
 async def data_access_get_guild_voice_channel_ids(
     guild_id: int,
-) -> Union[discord.VoiceChannel, None]:
+) -> Union[List, None]:
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}")
 
@@ -195,7 +198,7 @@ async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
 
 async def data_access_get_guild_username_text_channel_id(
     guild_id: int,
-) -> Union[discord.TextChannel, None]:
+) -> Union[int, None]:
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_USERNAME_TEXT_CHANNEL}:{guild_id}")
 
@@ -204,3 +207,24 @@ def data_access_set_guild_username_text_channel_id(guild_id: int, channel_id: in
     """Set the channel that the bot will send text"""
     set_cache(False, f"{KEY_GUILD_USERNAME_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
 
+
+async def data_access_get_gaming_session_text_channel_id(
+    guild_id: int,
+) -> Union[int, None]:
+    """Get the channel by the given channel id"""
+    return await get_cache(False, f"{KEY_GUILD_GAMING_SESSION_TEXT_CHANNEL}:{guild_id}")
+
+
+def data_access_set_gaming_session_text_channel_id(guild_id: int, channel_id: int) -> None:
+    """Set the channel that the bot will send text"""
+    set_cache(False, f"{KEY_GUILD_GAMING_SESSION_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
+
+async def data_access_get_gaming_session_last_activity(member_id: int, guild_id: int) -> Optional[datetime]:
+    """Get the last activity for a given user in a guild"""
+    return await get_cache(True, f"{KEY_GAMING_SESSION_LAST_ACTIVITY}:{guild_id}:{member_id}")
+
+
+async def data_access_set_gaming_session_last_activity(member_id: int, guild_id: int, time: datetime) -> None:
+    """Get the last activity for a given user in a guild"""
+    set_cache(True, f"{KEY_GAMING_SESSION_LAST_ACTIVITY}:{guild_id}:{member_id}", time, ONE_DAY_TTL)

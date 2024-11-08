@@ -12,6 +12,7 @@ import dill as pickle
 CACHE_FILE = "cache.txt"
 ALWAYS_TTL = 60 * 60 * 24 * 365 * 10
 THREE_DAY_TTL = 60 * 60 * 24 * 3
+ONE_DAY_TTL = 60 * 60 * 24
 ONE_HOUR_TTL = 60 * 60 * 1
 DEFAULT_TTL = 60
 
