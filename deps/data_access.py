@@ -60,7 +60,7 @@ async def data_access_get_user(guild_id: discord.Guild, user_id: int) -> Union[d
     """Get the user by the given guild and user id"""
 
     async def fetch():
-        return BotSingleton().bot.get_user(user_id)
+        return await BotSingleton().bot.fetch_user(user_id)
 
     return await get_cache(True, f"{KEY_USER}:{guild_id}:{user_id}", fetch)
 
@@ -70,7 +70,7 @@ async def data_access_get_member(guild_id: discord.Guild, user_id: int) -> Union
 
     async def fetch():
         guild: discord.Guild = await data_access_get_guild(guild_id)
-        return guild.get_member(user_id)
+        return await guild.fetch_member(user_id)
 
     return await get_cache(True, f"{KEY_MEMBER}:{guild_id}:{user_id}", fetch)
 

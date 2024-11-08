@@ -2,7 +2,8 @@
 
 import discord
 from discord import Intents
-from discord.ext import commands
+
+from deps.mybot import MyBot
 
 intents = Intents.default()
 intents.messages = True  # Enable the messages intent
@@ -21,7 +22,7 @@ class BotSingleton:
     def __new__(cls):
         if not cls._instance:
             cls._instance = super(BotSingleton, cls).__new__(cls)
-            cls._instance._bot = commands.Bot(command_prefix="/", intents=intents)
+            cls._instance._bot = MyBot()
         return cls._instance
 
     @property

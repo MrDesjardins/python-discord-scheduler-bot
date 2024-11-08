@@ -58,7 +58,7 @@ class SimpleUserHour:
 class UserMatchInfo:
     """
     Represent the information from a single match for a specific user
-    Information coming from this URL: 
+    Information coming from this URL:
         https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/noSleep_rb6?gamemode=pvp_ranked
     Could also get more detail about the match:
         https://api.tracker.gg/api/v1/r6siege/ow-ingest/match/get/9681f59e-80db-4b2e-b54b-3631af76b074/877a703b-0d29-4779-8fbf-ccd165c2b7f6
@@ -106,11 +106,13 @@ class UserMatchInfo:
         self.round_win_count = round_win_count
         self.tk_count = tk_count
 
+
 @dataclasses.dataclass
 class UserMatchInfoSessionAggregate:
-    """ 
+    """
     Summary of a gaming session which is a list of matches
     """
+
     def __init__(
         self,
         ubisoft_username: str,
@@ -128,7 +130,7 @@ class UserMatchInfoSessionAggregate:
         total_round_with_3k: int,
         total_round_with_4k: int,
         kill_death_assist: List[str],
-        maps_played: List[str]
+        maps_played: List[str],
     ):
         self.ubisoft_username = ubisoft_username
         self.match_count = match_count

@@ -60,7 +60,9 @@ def fetch_user_info() -> Dict[int, UserInfo]:
     """
     Fetch all user names from the user_info table
     """
-    database_manager.get_cursor().execute("SELECT id, display_name, ubisoft_username, time_zone FROM user_info")
+    database_manager.get_cursor().execute(
+        "SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone FROM user_info"
+    )
     return {row[0]: UserInfo(*row) for row in database_manager.get_cursor().fetchall()}
 
 
@@ -70,10 +72,12 @@ async def fetch_user_info_by_user_id(user_id: int) -> Optional[UserInfo]:
     """
 
     def fetch_from_db():
-        print(f"Fetching user info from database for user {user_id}")
         result = (
             database_manager.get_cursor()
-            .execute("SELECT id, display_name, ubisoft_username, time_zone FROM user_info WHERE id = ?", (user_id,))
+            .execute(
+                "SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone FROM user_info WHERE id = ?",
+                (user_id,),
+            )
             .fetchone()
         )
         if result is not None:
@@ -93,7 +97,7 @@ def fetch_user_info_by_user_id_list(user_id_list: list[int]) -> List[Optional[Us
     list_ids = ",".join("?" for _ in user_id_list)
     database_manager.get_cursor().execute(
         f"""
-        SELECT id, display_name, ubisoft_username, time_zone 
+        SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone 
         FROM user_info WHERE id IN ({list_ids})
         """,
         user_id_list,  # Pass user_id_list as the parameter values for the ? placeholders
@@ -165,16 +169,59 @@ def data_access_set_usertimezone(user_id: int, timezone: str) -> None:
     )
     database_manager.get_conn().commit()
 
-def data_access_set_ubisoft_username(user_id: int, username: str) -> None:
+
+def data_access_set_ubisoft_username_max(user_id: int, username: str) -> None:
     """
     Set the timezone for a user
     """
     database_manager.get_cursor().execute(
         """
     UPDATE user_info
-      SET ubisoft_username = :ubisoft_username
+      SET ubisoft_username_max = :name
       WHERE id = :user_id
     """,
-        {"user_id": user_id, "ubisoft_username": username},
+        {"user_id": user_id, "name": username},
     )
+    database_manager.get_conn().commit()
+
+
+def data_access_set_ubisoft_username_active(user_id: int, username: str) -> None:
+    """
+    Set the timezone for a user
+    """
+    database_manager.get_cursor().execute(
+        """
+    UPDATE user_info
+      SET ubisoft_username_active = :name
+      WHERE id = :user_id
+    """,
+        {"user_id": user_id, "name": username},
+    )
+    database_manager.get_conn().commit()
+
+
+def upsert_user_info(user_id, display_name, user_max_account_name, user_active_account, user_timezone) -> None:
+    """
+    Log a user activity in the database
+    """
+    database_manager.get_cursor().execute(
+        """
+    INSERT INTO user_info(id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone)
+      VALUES(:user_id, :user_display_name, :user_max_account_name, :user_active_account, :user_timezone)
+      ON CONFLICT(id) DO UPDATE SET
+        display_name = :user_display_name,
+        ubisoft_username_max = :user_max_account_name,
+        ubisoft_username_active = :user_active_account,
+        time_zone = :user_timezone
+      WHERE id = :user_id;
+    """,
+        {
+            "user_id": user_id,
+            "user_display_name": display_name,
+            "user_max_account_name": user_max_account_name,
+            "user_active_account": user_active_account,
+            "user_timezone": user_timezone,
+        },
+    )
+
     database_manager.get_conn().commit()

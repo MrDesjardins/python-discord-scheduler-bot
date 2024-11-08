@@ -11,7 +11,6 @@ from xvfbwrapper import Xvfb
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import time
 from bs4 import BeautifulSoup
 from deps.models import UserMatchInfo, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks

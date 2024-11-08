@@ -2,9 +2,12 @@
 
 import discord
 from deps.analytic_data_access import data_access_set_usertimezone
+from deps.values import valid_time_zone_options
 
 
 class TimeZoneButton(discord.ui.Button):
+    """Button to select a single timezone"""
+
     def __init__(self, label, custom_id, user_id):
         """Button to select a timezone"""
         super().__init__(label=label, custom_id=custom_id)
@@ -23,11 +26,7 @@ class TimeZoneView(discord.ui.View):
     def __init__(self, user_id: int):
         super().__init__()
         self.user_id = user_id
-        valid_time_zone_options = [
-            "US/Pacific",
-            "US/Central",
-            "US/Eastern",
-        ]
+
         # Add a button for each timezone
         for option in valid_time_zone_options:
             self.add_item(TimeZoneButton(label=option, custom_id=option, user_id=self.user_id))

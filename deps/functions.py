@@ -1,17 +1,14 @@
 """ Utility functions used by the bot. """
 
 import subprocess
-from datetime import datetime
-from typing import Union, Optional, List
-import json
-from dataclasses import dataclass, field
+from datetime import date, datetime
+from typing import Dict, Union, Optional, List
 import pytz
 import discord
 from discord import app_commands
-import requests
-from bs4 import BeautifulSoup
-from deps.values import EMOJI_TO_TIME, MSG_UNIQUE_STRING
-from deps.models import TimeLabel, UserMatchInfo
+from deps.values import COMMAND_SCHEDULE_ADD, DATE_FORMAT, EMOJI_TO_TIME, MSG_UNIQUE_STRING
+from deps.models import SimpleUser, TimeLabel
+from deps.mybot import MyBot
 from deps.siege import siege_ranks
 
 
@@ -57,9 +54,7 @@ def get_time_choices():
     return supported_times
 
 
-async def get_last_schedule_message(
-    bot: discord.Client, channel: Union[discord.TextChannel, discord.VoiceChannel, None]
-):
+async def get_last_schedule_message(bot: MyBot, channel: Union[discord.TextChannel, discord.VoiceChannel, None]):
     """
     Returns the last schedule message id for the given channel.
     """
@@ -128,4 +123,17 @@ async def set_member_role_from_rank(guild: discord.Guild, member: discord.Member
         raise ValueError(f"The guild does not have a role named '{rank}'.")
     # Pass the role object (not the name/str)
     await member.add_roles(role, reason="Bot assigned role based on rank from R6 Tracker")
-    
+
+
+def get_daily_string_message(vote_for_message: Dict[str, List[SimpleUser]]) -> str:
+    """Create the daily message"""
+    current_date = date.today().strftime(DATE_FORMAT)
+    vote_message = f"{MSG_UNIQUE_STRING} today **{current_date}**?"
+    vote_message += "\n\n**Schedule**\n"
+    for key_time, users in vote_for_message.items():
+        if users:
+            vote_message += f"{key_time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
+        else:
+            vote_message += f"{key_time}: -\n"
+    vote_message += f"\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
+    return vote_message
