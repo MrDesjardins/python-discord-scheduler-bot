@@ -322,7 +322,7 @@ async def adjust_role_from_ubisoft_max_account(
 
     channel = await data_access_get_channel(text_channel_id)
     await channel.send(
-        content=f"{member.mention} main account is `{ubisoft_connect_name}` with max rank of `{max_rank}`.\n{mod_role.mention} please confirm the account belong to this person.",
+        content=f"{member.mention} main account is [{ubisoft_connect_name}](https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_connect_name}/overview) with max rank of `{max_rank}`.\n{mod_role.mention} please confirm the account belong to this person.",
     )
     return max_rank
 
