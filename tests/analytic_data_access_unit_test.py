@@ -165,7 +165,20 @@ class TestUserInfoAnalyticDatabase(unittest.TestCase):
         """
         insert_user_activity(1, "user_1", 1, 1, EVENT_CONNECT, datetime(2024, 9, 20, 13, 20, 0, 6318))
         users = fetch_user_info_by_user_id_list([1, 2, 3])
-        self.assertEqual(users, [UserInfo(id=1, display_name="user_1", time_zone="US/Eastern"), None, None])
+        self.assertEqual(
+            users,
+            [
+                UserInfo(
+                    id=1,
+                    display_name="user_1",
+                    ubisoft_username_active=None,
+                    ubisoft_username_max=None,
+                    time_zone="US/Eastern",
+                ),
+                None,
+                None,
+            ],
+        )
 
 
 if __name__ == "__main__":

@@ -70,7 +70,7 @@ class MatchStatsExtration(unittest.TestCase):
         self.assertEqual(result.total_round_with_aces, 0)
         self.assertEqual(result.total_round_with_4k, 0)
         self.assertEqual(result.total_round_with_3k, 2)
-        self.assertEqual(result.ubisoft_username, "noSleep_rb6")
+        self.assertEqual(result.ubisoft_username_active, "noSleep_rb6")
         self.assertEqual(result.kill_death_assist, ["0/4/0", "6/2/1", "7/4/1", "6/4/3", "4/4/1", "6/1/0", "2/2/1", "5/6/1"])
 
 
