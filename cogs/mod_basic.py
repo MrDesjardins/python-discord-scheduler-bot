@@ -1,13 +1,18 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.bot_common_actions import send_daily_question_to_a_guild
+from deps.bot_common_actions import send_daily_question_to_a_guild, send_session_stats
 from deps.values import COMMAND_FORCE_SEND, COMMAND_VERSION, COMMAND_RESET_CACHE, COMMAND_GUILD_ENABLE_BOT_VOICE
 from deps.functions import (
     get_sha,
 )
-from deps.data_access import data_access_reset_guild_cache, data_access_set_bot_voice_first_user
+from deps.data_access import (
+    data_access_get_member,
+    data_access_reset_guild_cache,
+    data_access_set_bot_voice_first_user,
+)
 from deps.mybot import MyBot
+from deps.log import print_error_log
 
 
 class ModBasic(commands.Cog):
@@ -53,6 +58,19 @@ class ModBasic(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         await send_daily_question_to_a_guild(self.bot, interaction.guild, True)
         await interaction.followup.send("Force sending", ephemeral=True)
+
+    @app_commands.command(name="modstats")
+    @commands.has_permissions(administrator=True)
+    async def mod_stats(self, interaction: discord.Interaction):
+        """Show the statistics for the moderator"""
+        await interaction.response.defer(ephemeral=True)
+        guild_id = interaction.guild.id
+        member = await data_access_get_member(guild_id, interaction.user.id)
+        res = await send_session_stats(member, guild_id, 24)
+        if res is None:
+            await interaction.followup.send("No stats available", ephemeral=True)
+        else:
+            await interaction.delete_original_response()
 
 
 async def setup(bot):

@@ -1,16 +1,17 @@
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 import asyncio
 from discord.ext import commands
 import discord
-from deps.analytic_data_access import fetch_user_info_by_user_id, insert_user_activity
+from deps.analytic_data_access import insert_user_activity
 from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
-from deps.data_access_data_class import UserInfo
-from deps.bot_common_actions import send_daily_question_to_a_guild, send_notification_voice_channel, update_vote_message
+from deps.bot_common_actions import (
+    send_daily_question_to_a_guild,
+    send_notification_voice_channel,
+    send_session_stats,
+    update_vote_message,
+)
 from deps.data_access import (
     data_access_get_channel,
-    data_access_get_gaming_session_last_activity,
-    data_access_get_gaming_session_text_channel_id,
     data_access_get_guild,
     data_access_get_guild_text_channel_id,
     data_access_get_guild_voice_channel_ids,
@@ -18,15 +19,15 @@ from deps.data_access import (
     data_access_get_message,
     data_access_get_reaction_message,
     data_access_get_user,
-    data_access_set_gaming_session_last_activity,
+
     data_access_set_reaction_message,
 )
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.functions import get_empty_votes
-from deps.functions_r6_tracker import get_r6tracker_user_recent_matches, get_user_gaming_session_stats
-from deps.models import SimpleUser, UserMatchInfoSessionAggregate
-from deps.siege import get_color_for_rank, get_user_rank_emoji
+
+from deps.models import SimpleUser
+from deps.siege import get_user_rank_emoji
 from deps.values import EMOJI_TO_TIME
 
 
@@ -269,7 +270,10 @@ class MyEventsCog(commands.Cog):
                         event,
                         datetime.now(timezone.utc),
                     )
-                    await self.send_session_stats(member, guild_id)
+                    try:
+                        await send_session_stats(member, guild_id)
+                    except Exception as e:
+                        print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
                 elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                     # User switched between voice channel
                     insert_user_activity(
@@ -296,85 +300,6 @@ class MyEventsCog(commands.Cog):
                 # Check if the user is the only one in the voice channel
                 if len(after.channel.members) == 1:
                     await send_notification_voice_channel(self.bot, guild_id, member, after.channel, text_channel_id)
-
-    async def send_session_stats(self, member: discord.Member, guild_id: int) -> None:
-        """
-        Get the statistic of a user and post it
-        """
-        last_hour = 12
-        if member.bot:
-            return  # Ignore bot
-
-        # Only perform the action if it wasn't done in the last hour
-        current_time = datetime.now(timezone.utc)
-        last_activity = await data_access_get_gaming_session_last_activity(member.id, guild_id)
-        # Only shows the stats once per hour per user maximum
-        if last_activity is not None and last_activity > current_time - timedelta(hours=1):
-            return None
-
-        # Get the user ubisoft name
-        user_info: UserInfo = await fetch_user_info_by_user_id(member.id)
-        if user_info is None or user_info.ubisoft_username_active is None:
-            return None
-
-        try:
-            matches = get_r6tracker_user_recent_matches(user_info.ubisoft_username_active)
-            await data_access_set_gaming_session_last_activity(member.id, guild_id, current_time)
-        except Exception as e:
-            print_error_log(f"Error getting the user stats from R6 tracker: {e}")
-            return None
-
-        aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
-            user_info.ubisoft_username_active, current_time - timedelta(hours=last_hour), matches
-        )
-        if aggregation is None:
-            return None
-
-        channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
-        channel: discord.TextChannel = await data_access_get_channel(channel_id)
-        # We never sent the message, so we send it, add the reactions and save it in the cache
-        embed_msg = self.get_gaming_session_user_embed_message(member, aggregation, last_hour)
-        await channel.send(content="", embed=embed_msg)
-
-    def get_gaming_session_user_embed_message(
-        self, member: discord.Member, aggregation: UserMatchInfoSessionAggregate, last_hour: int
-    ) -> discord.Embed:
-        """Create the stats message"""
-        title = f"{member.display_name} Stats"
-        embed = discord.Embed(
-            title=title,
-            description=f"{member.mention} played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.",
-            color=get_color_for_rank(member),
-            timestamp=datetime.now(),
-            url=f"https://r6.tracker.network/r6siege/profile/ubi/{aggregation.ubisoft_username_active}",
-        )
-        # Get the list of kill_death into a string with comma separated
-        str_kd = "\n".join(
-            f"Match #{i+1} ({map_name}): {kd}"
-            for i, (kd, map_name) in enumerate(
-                reversed(list(zip(aggregation.kill_death_assist, aggregation.maps_played)))
-            )
-        )
-        embed.set_thumbnail(url=member.avatar.url)
-
-        embed.add_field(name="Starting Pts", value=aggregation.started_rank_points, inline=True)
-        diff = (
-            "+" + str(aggregation.total_gained_points)
-            if aggregation.total_gained_points > 0
-            else str(aggregation.total_gained_points)
-        )
-        embed.add_field(name="Ending Pts", value=f"{aggregation.ended_rank_points}", inline=True)
-        embed.add_field(name="Pts Variation", value=diff, inline=True)
-        embed.add_field(name="Total Kills", value=aggregation.total_kill_count, inline=True)
-        embed.add_field(name="Total Deaths", value=aggregation.total_death_count, inline=True)
-        embed.add_field(name="Total Assists", value=aggregation.total_assist_count, inline=True)
-        embed.add_field(name="Total TK", value=aggregation.total_tk_count, inline=True)
-        embed.add_field(name="Total 3k round", value=aggregation.total_round_with_3k, inline=True)
-        embed.add_field(name="Total 4k round", value=aggregation.total_round_with_3k, inline=True)
-        embed.add_field(name="Total Ace round", value=aggregation.total_round_with_aces, inline=True)
-        embed.add_field(name="Kill/Death/Asssist Per Match", value=str_kd, inline=False)
-        embed.set_footer(text=f"Your stats for the last {last_hour} hours")
-        return embed
 
 
 async def setup(bot):

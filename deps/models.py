@@ -115,7 +115,7 @@ class UserMatchInfoSessionAggregate:
 
     def __init__(
         self,
-        ubisoft_username: str,
+        ubisoft_username_active: str,
         match_count: int,
         match_win_count: int,
         match_loss_count: int,
@@ -132,7 +132,7 @@ class UserMatchInfoSessionAggregate:
         kill_death_assist: List[str],
         maps_played: List[str],
     ):
-        self.ubisoft_username = ubisoft_username
+        self.ubisoft_username_active = ubisoft_username_active
         self.match_count = match_count
         self.match_win_count = match_win_count
         self.match_loss_count = match_loss_count

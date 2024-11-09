@@ -71,11 +71,8 @@ def download_using_chrome_driver() -> Optional[any]:
     Must not be headless to work
 
     Pre-requisite:
-    sudo apt install -y wget gnupg
-    wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-    sudo apt install -y ./google-chrome-stable_current_amd64.deb
-    rm google-chrome-stable_current_amd64.deb
-    google-chrome --version
+    sudo apt install -y xvfb
+    sudo apt install chromium-browser
     """
     with Xvfb() as xvfb:  # Launch virtual display
         options = uc.ChromeOptions()
@@ -85,7 +82,9 @@ def download_using_chrome_driver() -> Optional[any]:
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--disable-gpu")
         options.add_argument("--start-maximized")
-        options.binary_location = "/usr/bin/google-chrome"  # Adjust this if needed for WSL
+        environment_var = os.getenv("ENV")
+
+        options.binary_location = "/usr/bin/google-chrome" if environment_var == "dev" else "/usr/bin/chromium-browser"
 
         driver = uc.Chrome(options=options)
         try:
@@ -237,7 +236,7 @@ def get_user_gaming_session_stats(
         ),  # Subtract the points gained in the match to get the starting rank points
         ended_rank_points=matches_recent[0].rank_points if matches_recent else 0,
         total_gained_points=sum(match.points_gained for match in matches_recent),
-        ubisoft_username=username,
+        ubisoft_username_active=username,
         kill_death_assist=[f"{match.kill_count}/{match.death_count}/{match.assist_count}" for match in matches_recent],
         maps_played=[match.map_name for match in matches_recent],
         total_round_with_aces=sum(match.ace_count for match in matches_recent),
