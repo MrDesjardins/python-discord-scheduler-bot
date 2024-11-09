@@ -50,8 +50,8 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
         self.view = view  # Pass view to access the view's variables
 
         self.max_rank_account_input = discord.ui.TextInput(
-            label="Highest Ubisoft account",
-            placeholder="",
+            label="Highest Ubisoft account name",
+            placeholder="Name here",
             custom_id="max_name",
             required=True,
             style=discord.TextStyle.short,
@@ -59,7 +59,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
         self.add_item(self.max_rank_account_input)
 
         self.active_account_input = discord.ui.TextInput(
-            label="Active Ubisoft account (empty if same)",
+            label="Active Ubisoft account name (empty if same)",
             placeholder="",
             custom_id="active_name",
             required=False,
