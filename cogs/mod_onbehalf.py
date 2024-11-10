@@ -1,12 +1,13 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.bot_common_actions import update_vote_message
+from deps.bot_common_actions import send_session_stats, update_vote_message
 from deps.data_access import (
     data_access_get_guild_text_channel_id,
     data_access_get_message,
     data_access_get_reaction_message,
     data_access_set_reaction_message,
+    data_access_get_member,
 )
 from deps.analytic_data_access import data_access_set_ubisoft_username_active, data_access_set_ubisoft_username_max
 from deps.values import (
@@ -14,6 +15,7 @@ from deps.values import (
     COMMAND_SET_USER_TIME_ZONE_OTHER_USER,
     COMMAND_SET_USER_MAX_RANK_ACCOUNT_OTHER_USER,
     COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER,
+    COMMAND_STATS_MATCHES,
 )
 from ui.timezone_view import TimeZoneView
 from deps.mybot import MyBot
@@ -100,6 +102,23 @@ class ModeratorOnUserBehalf(commands.Cog):
 
         await update_vote_message(message, message_votes)
         await interaction.followup.send("User added", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_STATS_MATCHES)
+    @commands.has_permissions(administrator=True)
+    async def mod_stats(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+    ):
+        """Show the statistics for the moderator"""
+        await interaction.response.defer(ephemeral=True)
+        guild_id = interaction.guild.id
+        member = await data_access_get_member(guild_id, member.id)
+        res = await send_session_stats(member, guild_id, 24)
+        if res is None:
+            await interaction.followup.send("No stats available", ephemeral=True)
+        else:
+            await interaction.delete_original_response()
 
 
 async def setup(bot):

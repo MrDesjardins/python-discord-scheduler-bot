@@ -297,7 +297,7 @@ sudo systemctl start gametimescheduler.service
 ```sh
 sudo apt install -y xvfb
 sudo apt install chromium-browser chromium-chromedriver
-
+sudo chown pi:pi /usr/bin/chromedriver
 ```
 
 

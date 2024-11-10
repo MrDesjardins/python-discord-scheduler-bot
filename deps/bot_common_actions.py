@@ -385,8 +385,10 @@ def get_gaming_session_user_embed_message(
     )
     # Get the list of kill_death into a string with comma separated
     str_kd = "\n".join(
-        f"Match #{i+1} ({map_name}): {kd}"
-        for i, (kd, map_name) in enumerate(reversed(list(zip(aggregation.kill_death_assist, aggregation.maps_played))))
+        f"Match #{i+1} ({map_name}): {kd} ({'won' if has_won else 'lost'})"
+        for i, (kd, map_name, has_won) in enumerate(
+            reversed(list(zip(aggregation.kill_death_assist, aggregation.maps_played, aggregation.maps_won)))
+        )
     )
     embed.set_thumbnail(url=member.avatar.url)
 

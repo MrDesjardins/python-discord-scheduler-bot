@@ -241,6 +241,7 @@ def get_user_gaming_session_stats(
         ubisoft_username_active=username,
         kill_death_assist=[f"{match.kill_count}/{match.death_count}/{match.assist_count}" for match in matches_recent],
         maps_played=[match.map_name for match in matches_recent],
+        maps_won=[match.has_win for match in matches_recent if match.has_win],
         total_round_with_aces=sum(match.ace_count for match in matches_recent),
         total_round_with_3k=sum(match.kill_3_count for match in matches_recent),
         total_round_with_4k=sum(match.kill_4_count for match in matches_recent),
