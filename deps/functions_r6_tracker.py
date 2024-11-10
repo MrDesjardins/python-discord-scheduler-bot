@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime
+from dateutil import parser
 from typing import List, Optional
 import json
 import requests
@@ -91,12 +92,16 @@ def download_using_chrome_driver(ubisoft_user_name: str) -> Optional[any]:
         driver = uc.Chrome(options=options, driver_executable_path=driver_path)
         try:
             # Step 2: Visit the public profile page to establish the session
-            profile_url = f"https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_user_name}/matches?playlist=pvp_ranked"
+            profile_url = (
+                f"https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_user_name}/matches?playlist=pvp_ranked"
+            )
             driver.get(profile_url)
             WebDriverWait(driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
 
             # Step 4: Now, navigate to the API endpoint
-            api_url = f"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/{ubisoft_user_name}?gamemode=pvp_ranked"
+            api_url = (
+                f"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/{ubisoft_user_name}?gamemode=pvp_ranked"
+            )
             driver.get(api_url)
             # Wait until the page contains the expected JSON data
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
@@ -117,7 +122,11 @@ def download_using_chrome_driver(ubisoft_user_name: str) -> Optional[any]:
                 try:
                     # Parse the JSON data
                     data = json.loads(json_data)
-
+                    print_log(f"download_using_chrome_driver: JSON data successfully parsed for {ubisoft_user_name}")
+                    # Save the JSON data to a file for debugging
+                    if os.getenv("ENV") == "dev":
+                        with open("r6tracker_data.json", "w", encoding="utf8") as file:
+                            file.write(json.dumps(data, indent=4))
                     return data
                 except json.JSONDecodeError as e:
                     print_error_log(f"download_using_chrome_driver: Error parsing JSON: {e}")
@@ -191,7 +200,7 @@ def parse_json_from_matches(data_dict, ubisoft_username: str) -> List[UserMatchI
                     match_uuid=match["attributes"]["id"],
                     r6_tracker_user_uuid=segment["attributes"]["playerId"],
                     ubisoft_username=ubisoft_username,
-                    match_timestamp=datetime.fromisoformat(match["metadata"]["timestamp"]),
+                    match_timestamp=parser.parse(match["metadata"]["timestamp"]),
                     match_duration_ms=match["metadata"]["duration"],
                     map_name=match["metadata"]["sessionMapName"],
                     has_win=stats["wins"]["value"] == 1,
@@ -226,6 +235,7 @@ def get_user_gaming_session_stats(
     if len(matches_recent) == 0:
         return None
     return UserMatchInfoSessionAggregate(
+        matches_recent=matches_recent,
         match_count=len(matches_recent),
         match_win_count=sum(match.has_win for match in matches_recent),
         match_loss_count=len(matches_recent) - sum(match.has_win for match in matches_recent),
@@ -239,9 +249,6 @@ def get_user_gaming_session_stats(
         ended_rank_points=matches_recent[0].rank_points if matches_recent else 0,
         total_gained_points=sum(match.points_gained for match in matches_recent),
         ubisoft_username_active=username,
-        kill_death_assist=[f"{match.kill_count}/{match.death_count}/{match.assist_count}" for match in matches_recent],
-        maps_played=[match.map_name for match in matches_recent],
-        maps_won=[match.has_win for match in matches_recent if match.has_win],
         total_round_with_aces=sum(match.ace_count for match in matches_recent),
         total_round_with_3k=sum(match.kill_3_count for match in matches_recent),
         total_round_with_4k=sum(match.kill_4_count for match in matches_recent),

@@ -342,11 +342,13 @@ async def send_session_stats(
     last_activity = await data_access_get_gaming_session_last_activity(member.id, guild_id)
     # Only shows the stats once per hour per user maximum
     if last_activity is not None and last_activity > current_time - timedelta(hours=1):
+        print_log(f"User {member.display_name} already has stats in the last hour")
         return None
 
     # Get the user ubisoft name
     user_info: UserInfo = await fetch_user_info_by_user_id(member.id)
     if user_info is None or user_info.ubisoft_username_active is None:
+        print_log(f"User {member.display_name} has no active Ubisoft account set")
         return None
 
     try:
@@ -383,12 +385,11 @@ def get_gaming_session_user_embed_message(
         timestamp=datetime.now(),
         url=f"https://r6.tracker.network/r6siege/profile/ubi/{aggregation.ubisoft_username_active}",
     )
+
     # Get the list of kill_death into a string with comma separated
-    str_kd = "\n".join(
-        f"Match #{i+1} ({map_name}): {kd} ({'won' if has_won else 'lost'})"
-        for i, (kd, map_name, has_won) in enumerate(
-            reversed(list(zip(aggregation.kill_death_assist, aggregation.maps_played, aggregation.maps_won)))
-        )
+    str_kda = "\n".join(
+        f"Match #{i+1} ({match.map_name}): {match.kill_count}/{match.death_count}/{match.assist_count} ({'won' if match.has_win else 'lost'})"
+        for i, match in enumerate(reversed(aggregation.matches_recent))
     )
     embed.set_thumbnail(url=member.avatar.url)
 
@@ -405,8 +406,8 @@ def get_gaming_session_user_embed_message(
     embed.add_field(name="Total Assists", value=aggregation.total_assist_count, inline=True)
     embed.add_field(name="Total TK", value=aggregation.total_tk_count, inline=True)
     embed.add_field(name="Total 3k round", value=aggregation.total_round_with_3k, inline=True)
-    embed.add_field(name="Total 4k round", value=aggregation.total_round_with_3k, inline=True)
+    embed.add_field(name="Total 4k round", value=aggregation.total_round_with_4k, inline=True)
     embed.add_field(name="Total Ace round", value=aggregation.total_round_with_aces, inline=True)
-    embed.add_field(name="Kill/Death/Asssist Per Match", value=str_kd, inline=False)
+    embed.add_field(name="Kill/Death/Asssist Per Match", value=str_kda, inline=False)
     embed.set_footer(text=f"Your stats for the last {last_hour} hours")
     return embed

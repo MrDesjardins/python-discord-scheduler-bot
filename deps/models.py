@@ -129,9 +129,7 @@ class UserMatchInfoSessionAggregate:
         total_round_with_aces: int,
         total_round_with_3k: int,
         total_round_with_4k: int,
-        kill_death_assist: List[str],
-        maps_played: List[str],
-        maps_won: List[bool],
+        matches_recent: List[UserMatchInfo],
     ):
         self.ubisoft_username_active = ubisoft_username_active
         self.match_count = match_count
@@ -147,6 +145,4 @@ class UserMatchInfoSessionAggregate:
         self.total_round_with_aces = total_round_with_aces
         self.total_round_with_3k = total_round_with_3k
         self.total_round_with_4k = total_round_with_4k
-        self.kill_death_assist = kill_death_assist
-        self.maps_played = maps_played
-        self.maps_won = maps_won
+        self.matches_recent = matches_recent
