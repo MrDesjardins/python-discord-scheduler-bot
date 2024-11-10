@@ -265,32 +265,41 @@ BOT_TOKEN=<bot token>
 TRN_API_KEY<TRN token>
 ```
 
-9. Install ffmpeg for the audio
+11. Install ffmpeg for the audio
 
 ```sh
 sudo apt-get install ffmpeg
 ```
 
-10. Install SqlLite3 for analytic
+12. Install SqlLite3 for analytic
 
 ```sh
 sudo apt install sqlite3
 ```
 
-11. Install OpenBLAS for numpy used in the generation of relation analytic between user. This might require other dependencies and must have the latest APT packages.
+13. Install OpenBLAS for numpy used in the generation of relation analytic between user. This might require other dependencies and must have the latest APT packages.
 
 ```sh
 sudo apt-get install libopenblas-base
 sudo apt-get install libjpeg-dev zlib1g-dev libtiff-dev libopenjp2-7-dev
 ```
 
-12. Install the systemd that will run the bot at startup
+14. Install the systemd that will run the bot at startup
 
 ```sh
 sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
 sudo systemctl enable gametimescheduler.service
 sudo systemctl start gametimescheduler.service
 ```
+
+15. Install Chrome for the web scraping
+
+```sh
+sudo apt install -y xvfb
+sudo apt install chromium-browser chromium-chromedriver
+
+```
+
 
 ## Debugging
 
