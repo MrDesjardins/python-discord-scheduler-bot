@@ -64,7 +64,7 @@ async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
 #   -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36^"
 
 
-def download_using_chrome_driver() -> Optional[any]:
+def download_using_chrome_driver(ubisoft_user_name: str) -> Optional[any]:
     """
     Slow approach but works to not get the 403 error or blocked request
     It goes first to the website to get the proper cookies and then to the API
@@ -91,12 +91,12 @@ def download_using_chrome_driver() -> Optional[any]:
         driver = uc.Chrome(options=options, driver_executable_path=driver_path)
         try:
             # Step 2: Visit the public profile page to establish the session
-            profile_url = "https://r6.tracker.network/r6siege/profile/ubi/noSleep_rb6/matches?playlist=pvp_ranked"
+            profile_url = f"https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_user_name}/matches?playlist=pvp_ranked"
             driver.get(profile_url)
             WebDriverWait(driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
 
             # Step 4: Now, navigate to the API endpoint
-            api_url = "https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/nosleep_rb6?gamemode=pvp_ranked"
+            api_url = f"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/{ubisoft_user_name}?gamemode=pvp_ranked"
             driver.get(api_url)
             # Wait until the page contains the expected JSON data
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
@@ -128,12 +128,12 @@ def download_using_chrome_driver() -> Optional[any]:
         return None
 
 
-def download_using_cloudscraper() -> Optional[str]:
+def download_using_cloudscraper(ubisoft_user_name: str) -> Optional[str]:
     """
     Download the data using cloudscraper to bypass the Cloudflare protection
     """
     scraper = cloudscraper.create_scraper()
-    url = "https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/nosleep_rb6?gamemode=pvp_ranked"
+    url = f"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/{ubisoft_user_name}?gamemode=pvp_ranked"
     response = scraper.get(url)
 
     # Check if the response is JSON
@@ -159,7 +159,7 @@ def get_r6tracker_user_recent_matches(ubisoft_user_name: str) -> List[UserMatchI
     """Download the web page, and extract the matches data"""
 
     # Set up undetected Chrome driver with enhanced options
-    matches_dict = download_using_chrome_driver()
+    matches_dict = download_using_chrome_driver(ubisoft_user_name)
     match_obj_list = parse_json_from_matches(matches_dict, ubisoft_user_name)
     return match_obj_list
 
