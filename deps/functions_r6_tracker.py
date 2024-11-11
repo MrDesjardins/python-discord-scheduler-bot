@@ -216,6 +216,10 @@ def parse_json_from_matches(data_dict, ubisoft_username: str) -> List[UserMatchI
                     points_gained=stats["rankPointsDelta"]["value"],
                     round_count=stats["roundsPlayed"]["value"],
                     round_win_count=stats["roundsWon"]["value"],
+                    clutches_win_count=stats["clutches"]["value"],
+                    clutches_loss_count=stats["clutchesLost"]["value"],
+                    first_death_count=stats["firstDeaths"]["value"],
+                    first_kill_count=stats["firstBloods"]["value"],
                 )
             )
         except (KeyError, IndexError, TypeError) as e:
@@ -252,4 +256,8 @@ def get_user_gaming_session_stats(
         total_round_with_aces=sum(match.ace_count for match in matches_recent),
         total_round_with_3k=sum(match.kill_3_count for match in matches_recent),
         total_round_with_4k=sum(match.kill_4_count for match in matches_recent),
+        total_clutches_win_count=sum(match.clutches_win_count for match in matches_recent),
+        total_clutches_loss_count=sum(match.clutches_loss_count for match in matches_recent),
+        total_first_death_count=sum(match.first_death_count for match in matches_recent),
+        total_first_kill_count=sum(match.first_kill_count for match in matches_recent),
     )

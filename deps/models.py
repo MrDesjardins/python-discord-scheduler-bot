@@ -85,6 +85,10 @@ class UserMatchInfo:
         round_count: int,
         round_win_count: int,
         tk_count: int,
+        clutches_win_count: int,
+        clutches_loss_count: int,
+        first_death_count: int,
+        first_kill_count: int,
     ):
         self.match_uuid = match_uuid
         self.r6_tracker_user_uuid = r6_tracker_user_uuid
@@ -105,6 +109,10 @@ class UserMatchInfo:
         self.round_count = round_count
         self.round_win_count = round_win_count
         self.tk_count = tk_count
+        self.clutches_win_count = clutches_win_count
+        self.clutches_loss_count = clutches_loss_count
+        self.first_death_count = first_death_count
+        self.first_kill_count = first_kill_count
 
 
 @dataclasses.dataclass
@@ -129,6 +137,10 @@ class UserMatchInfoSessionAggregate:
         total_round_with_aces: int,
         total_round_with_3k: int,
         total_round_with_4k: int,
+        total_clutches_win_count: int,
+        total_clutches_loss_count: int,
+        total_first_death_count: int,
+        total_first_kill_count: int,
         matches_recent: List[UserMatchInfo],
     ):
         self.ubisoft_username_active = ubisoft_username_active
@@ -146,3 +158,7 @@ class UserMatchInfoSessionAggregate:
         self.total_round_with_3k = total_round_with_3k
         self.total_round_with_4k = total_round_with_4k
         self.matches_recent = matches_recent
+        self.total_clutches_win_count = total_clutches_win_count
+        self.total_clutches_loss_count = total_clutches_loss_count
+        self.total_first_death_count = total_first_death_count
+        self.total_first_kill_count = total_first_kill_count

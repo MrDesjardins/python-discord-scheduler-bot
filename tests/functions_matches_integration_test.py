@@ -6,16 +6,19 @@ import json
 data_1 = None
 data_3 = None
 data_4 = None
+data_5 = None
 
 
 def setUpModule():
-    global data_1, data_3, data_4
+    global data_1, data_3, data_4, data_5
     with open("./tests/tests_assets/player_rank_history.json", "r", encoding="utf8") as file:
         data_1 = json.loads(file.read())
     with open("./tests/tests_assets/player3_rank_history.json", "r", encoding="utf8") as file:
         data_3 = json.loads(file.read())
     with open("./tests/tests_assets/player4_rank_history.json", "r", encoding="utf8") as file:
         data_4 = json.loads(file.read())
+    with open("./tests/tests_assets/player5_rank_history.json", "r", encoding="utf8") as file:
+        data_5 = json.loads(file.read())
 
 
 class MatchStatsExtration(unittest.TestCase):
@@ -25,6 +28,8 @@ class MatchStatsExtration(unittest.TestCase):
         """Test to ensure the testing file is there"""
         self.assertIsNotNone(data_1)
         self.assertIsNotNone(data_3)
+        self.assertIsNotNone(data_4)
+        self.assertIsNotNone(data_5)
 
     def test_get_r6tracker_user_recent_matches(self):
         """Test if we can parse the data from the json file"""
@@ -103,6 +108,22 @@ class MatchStatsExtration(unittest.TestCase):
         self.assertEqual(agg.total_kill_count, 26)
         self.assertEqual(agg.matches_recent[6].kill_4_count, 1)
         self.assertEqual(agg.total_round_with_4k, 1)
+
+    def test_get_r6tracker_user_recent_matches_aggregation3(self):
+        """Test if we can parse the data from the json file"""
+        lst = parse_json_from_matches(data_5, "noSleep_rb6")
+        datetime_last = datetime.fromisoformat("2024-11-11T00:00:00.000+00:00")
+        agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
+        self.assertGreaterEqual(len(lst), 1)
+        self.assertEqual(
+            [match.map_name for match in agg.matches_recent],
+            ["Outback", "Bank"],
+        )
+        self.assertEqual(agg.match_count, 2, "Match count")
+        self.assertEqual(agg.total_kill_count, 7, "Total kill count")
+        self.assertEqual(agg.total_death_count, 4, "Total death count")
+        self.assertEqual(agg.started_rank_points, 4045, "Started rank points")
+        self.assertEqual(agg.ended_rank_points, 4108, "Ended rank points")
 
 
 if __name__ == "__main__":

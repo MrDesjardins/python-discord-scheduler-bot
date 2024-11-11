@@ -328,7 +328,7 @@ async def adjust_role_from_ubisoft_max_account(
 
 
 async def send_session_stats(
-    member: discord.Member, guild_id: int, last_hour: int = 12
+    member: discord.Member, guild_id: int, last_hour: int = 12, mod_call_function: bool = False
 ) -> Optional[UserMatchInfoSessionAggregate]:
     """
     Get the statistic of a user and post it
@@ -341,7 +341,7 @@ async def send_session_stats(
     current_time = datetime.now(timezone.utc)
     last_activity = await data_access_get_gaming_session_last_activity(member.id, guild_id)
     # Only shows the stats once per hour per user maximum
-    if last_activity is not None and last_activity > current_time - timedelta(hours=1):
+    if not mod_call_function and last_activity is not None and last_activity > current_time - timedelta(hours=1):
         print_log(f"User {member.display_name} already has stats in the last hour")
         return None
 
@@ -388,26 +388,37 @@ def get_gaming_session_user_embed_message(
 
     # Get the list of kill_death into a string with comma separated
     str_kda = "\n".join(
-        f"Match #{i+1} ({match.map_name}): {match.kill_count}/{match.death_count}/{match.assist_count} ({'won' if match.has_win else 'lost'})"
+        f"Match #{i+1} - {'won 🏆' if match.has_win else 'lose ☠'} - {match.map_name}: {match.kill_count}/{match.death_count}/{match.assist_count}"
         for i, match in enumerate(reversed(aggregation.matches_recent))
     )
     embed.set_thumbnail(url=member.avatar.url)
 
     embed.add_field(name="Starting Pts", value=aggregation.started_rank_points, inline=True)
     diff = (
-        "+" + str(aggregation.total_gained_points)
+        "+" + str(aggregation.total_gained_points) + " ⭐"
         if aggregation.total_gained_points > 0
         else str(aggregation.total_gained_points)
     )
     embed.add_field(name="Ending Pts", value=f"{aggregation.ended_rank_points}", inline=True)
     embed.add_field(name="Pts Variation", value=diff, inline=True)
-    embed.add_field(name="Total Kills", value=aggregation.total_kill_count, inline=True)
-    embed.add_field(name="Total Deaths", value=aggregation.total_death_count, inline=True)
-    embed.add_field(name="Total Assists", value=aggregation.total_assist_count, inline=True)
-    embed.add_field(name="Total TK", value=aggregation.total_tk_count, inline=True)
-    embed.add_field(name="Total 3k round", value=aggregation.total_round_with_3k, inline=True)
-    embed.add_field(name="Total 4k round", value=aggregation.total_round_with_4k, inline=True)
-    embed.add_field(name="Total Ace round", value=aggregation.total_round_with_aces, inline=True)
+    embed.add_field(name="Kills", value=aggregation.total_kill_count, inline=True)
+    embed.add_field(name="Deaths", value=aggregation.total_death_count, inline=True)
+    embed.add_field(name="Assists", value=aggregation.total_assist_count, inline=True)
+    embed.add_field(name="TK", value=aggregation.total_tk_count, inline=True)
+    embed.add_field(name="3k round", value=add_star_if_above_value(aggregation.total_round_with_3k), inline=True)
+    embed.add_field(name="4k round", value=add_star_if_above_value(aggregation.total_round_with_4k), inline=True)
+    embed.add_field(name="Ace round", value=aggregation.total_round_with_aces, inline=True)
+    embed.add_field(
+        name="Clutch Wins", value=add_star_if_above_value(aggregation.total_clutches_win_count), inline=True
+    )
+    embed.add_field(name="Clutch Loss", value=aggregation.total_clutches_loss_count, inline=True)
+    embed.add_field(name="First Kill", value=aggregation.total_first_kill_count, inline=True)
+    embed.add_field(name="First Death", value=aggregation.total_first_death_count, inline=True)
     embed.add_field(name="Kill/Death/Asssist Per Match", value=str_kda, inline=False)
     embed.set_footer(text=f"Your stats for the last {last_hour} hours")
     return embed
+
+
+def add_star_if_above_value(value: int, threshold: int = 0) -> str:
+    """Add a star if the value is above the threshold"""
+    return f"{value}{'⭐' if value > threshold else ''}"

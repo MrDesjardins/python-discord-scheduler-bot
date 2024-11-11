@@ -114,7 +114,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         member = await data_access_get_member(guild_id, member.id)
-        res = await send_session_stats(member, guild_id, 24)
+        res = await send_session_stats(member, guild_id, mod_call_function=True)
         if res is None:
             await interaction.followup.send("No stats available", ephemeral=True)
         else:
