@@ -9,6 +9,7 @@ from deps.analytic_functions import compute_users_weights
 from deps.cache import (
     get_cache,
 )
+from deps.log import print_log
 
 KEY_USER_INFO = "user_info"
 
@@ -198,6 +199,11 @@ def data_access_set_ubisoft_username_active(user_id: int, username: str) -> None
         {"user_id": user_id, "name": username},
     )
     database_manager.get_conn().commit()
+    print_log(
+        f""" UPDATE user_info
+      SET ubisoft_username_active = {username}
+      WHERE id = {user_id}"""
+    )
 
 
 def upsert_user_info(user_id, display_name, user_max_account_name, user_active_account, user_timezone) -> None:
