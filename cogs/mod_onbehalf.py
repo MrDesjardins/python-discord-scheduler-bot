@@ -48,7 +48,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         """Command to set the user Ubisoft username"""
         await interaction.response.defer(ephemeral=True)
 
-        data_access_set_ubisoft_username_max(interaction.user.id, ubisoft_username)
+        data_access_set_ubisoft_username_max(member.id, ubisoft_username)
         await interaction.followup.send(f"Max Account for {member.mention} -> `{ubisoft_username}`", ephemeral=True)
 
     @commands.has_permissions(administrator=True)
@@ -59,7 +59,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         """Command to set the user Ubisoft username"""
         await interaction.response.defer(ephemeral=True)
 
-        data_access_set_ubisoft_username_active(interaction.user.id, ubisoft_username)
+        data_access_set_ubisoft_username_active(member.id, ubisoft_username)
         await interaction.followup.send(f"Active Account for {member.mention} -> `{ubisoft_username}`", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_ADD_USER)
