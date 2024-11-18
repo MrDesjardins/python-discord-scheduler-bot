@@ -19,7 +19,6 @@ from deps.data_access import (
     data_access_get_message,
     data_access_get_reaction_message,
     data_access_get_user,
-
     data_access_set_reaction_message,
 )
 from deps.log import print_log, print_warning_log, print_error_log
@@ -126,27 +125,28 @@ class MyEventsCog(commands.Cog):
         reaction_emoji = reaction.emoji
 
         if user is None:
-            print_error_log(f"User not found for user {user_id}. Skipping.")
+            print_error_log(f"adjust_reaction: User not found for user {user_id}. Skipping.")
             return
 
         if member is None:
-            print_error_log(f"Member not found for user {user_id}. Skipping.")
+            print_error_log(f"adjust_reaction: Member not found for user {user_id}. Skipping.")
             return
 
-        print_log(
-            f"adjust_reaction: {'Add' if remove is False else 'Remove'} reaction for {user_id} ({member.display_name}) at time {reaction_emoji}"
-        )
         # We do not act on message that are not in the Guild's text channel
         if text_channel_configured_for_bot is None or text_channel_configured_for_bot != channel_id:
             # The reaction was on another channel, we allow it
             return
 
         if not channel or not text_message_reaction or not user or not guild or not member:
-            print_log("End-Before Adjusting reaction")
+            print_log("adjust_reaction: End-Before Adjusting reaction")
             return
 
         if user.bot:
             return  # Ignore reactions from bots
+
+        print_log(
+            f"adjust_reaction: Will try to {'Add' if remove is False else 'Remove'} reaction for {user_id} ({member.display_name}) at time {reaction_emoji}"
+        )
 
         # Check if the message is older than 24 hours
         if text_message_reaction.created_at < datetime.now(timezone.utc) - timedelta(days=1):

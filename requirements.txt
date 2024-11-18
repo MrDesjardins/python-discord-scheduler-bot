@@ -72,6 +72,7 @@ tzlocal==5.2
 undetected-chromedriver==3.5.5
 urllib3==2.2.3
 wcwidth==0.2.13
+webdriver-manager==4.0.2
 websocket-client==1.8.0
 websockets==13.1
 wsproto==1.2.0

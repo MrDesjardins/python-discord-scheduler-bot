@@ -16,6 +16,8 @@ from bs4 import BeautifulSoup
 from deps.models import UserMatchInfo, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
 from deps.log import print_error_log, print_log
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 
 TRN_API_KEY = os.getenv("TRN_API_KEY")
 
@@ -85,11 +87,17 @@ def download_using_chrome_driver(ubisoft_user_name: str) -> Optional[any]:
         options.add_argument("--start-maximized")
         environment_var = os.getenv("ENV")
 
-        options.binary_location = "/usr/bin/google-chrome" if environment_var == "dev" else "/usr/bin/chromium-browser"
-        driver_path = "/usr/bin/chromedriver" if environment_var == "prod" else None  # Dev? /usr/bin/google-chrome
+        if environment_var == "prod":
+            options.binary_location = "/usr/bin/chromium-browser"
+            driver_path = "/usr/bin/chromedriver"
+            driver = uc.Chrome(options=options, driver_executable_path=driver_path)
+        else:
+            service = Service()
+            options.binary_location = "/usr/bin/google-chrome"
+            options = webdriver.ChromeOptions()
+            driver = webdriver.Chrome(service=service, options=options)
+
         print_log(f"download_using_chrome_driver: Using binary location: {options.binary_location}")
-        print_log(f"download_using_chrome_driver: Driver path: {driver_path}")
-        driver = uc.Chrome(options=options, driver_executable_path=driver_path)
         try:
             # Step 2: Visit the public profile page to establish the session
             profile_url = (

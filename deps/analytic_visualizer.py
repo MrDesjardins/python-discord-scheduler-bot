@@ -353,7 +353,7 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
     weights = [(user["weight"] / 3600) for user in data_for_plot]
     # Create the bar chart
     plt.barh(names, weights)
-    plt.xlabel("Time spent together")
+    plt.xlabel("Hours spent together")
     plt.ylabel("User pairs")
     plt.title(f"Top {top} user pairs with the most time spent together")
     plt.xticks(fontsize=10)  # Reduce x-axis font size if needed
@@ -625,6 +625,7 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
 
     plt.tight_layout()
     return _plot_return(plt, show)
+
 
 def display_user_timeline_voice_by_months(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     """Display the user timeline voice time"""

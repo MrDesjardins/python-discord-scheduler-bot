@@ -36,6 +36,7 @@ def main():
         local_menu()
     elif menu_entry_index == 2:
         sys.exit(0)
+    main()
 
 
 def raspberry_pi_menu():
