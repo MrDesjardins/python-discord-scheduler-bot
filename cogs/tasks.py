@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 import pytz
 from deps.bot_common_actions import check_voice_channel, send_daily_question_to_a_guild
 from deps.mybot import MyBot
-from deps.log import print_log
+from deps.log import print_error_log, print_log
 
 HOUR_SEND_DAILY_MESSAGE = 7
 local_tz = pytz.timezone("America/Los_Angeles")
@@ -23,7 +23,10 @@ class MyTasksCog(commands.Cog):
         """
         Every x minutes capture who is in the voice channel and reflects the people in the schedule
         """
-        await check_voice_channel(self.bot)
+        try:
+            await check_voice_channel(self.bot)
+        except Exception as e:
+            print_error_log(f"Error in check_voice_channel_task: {e}")
 
     @tasks.loop(time=time_send_daily_message)
     async def send_daily_question_to_all_guild_task(self):
