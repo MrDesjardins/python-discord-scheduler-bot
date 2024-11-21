@@ -256,10 +256,10 @@ def get_user_gaming_session_stats(
         total_assist_count=sum(match.assist_count for match in matches_recent),
         total_tk_count=sum(match.tk_count for match in matches_recent),
         started_rank_points=(
-            matches_recent[-1].rank_points - matches_recent[-1].points_gained if matches_recent else 0
+            matches_recent[-1].rank_points - (matches_recent[-1].points_gained or 0) if matches_recent else 0
         ),  # Subtract the points gained in the match to get the starting rank points
         ended_rank_points=matches_recent[0].rank_points if matches_recent else 0,
-        total_gained_points=sum(match.points_gained for match in matches_recent),
+        total_gained_points=sum((match.points_gained or 0) for match in matches_recent),
         ubisoft_username_active=username,
         total_round_with_aces=sum(match.ace_count for match in matches_recent),
         total_round_with_3k=sum(match.kill_3_count for match in matches_recent),
