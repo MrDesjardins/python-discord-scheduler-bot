@@ -1,13 +1,17 @@
 """ Common Actions that the bots Cogs or Bots can invoke """
 
+import asyncio
 import os
+import random
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Union
 from gtts import gTTS
 import discord
+from deps.browser_context_manager import BrowserContextManager
 from deps.analytic_data_access import fetch_user_info_by_user_id
 from deps.data_access_data_class import UserInfo
 from deps.data_access import (
+    data_access_add_list_member_stats,
     data_access_get_bot_voice_first_user,
     data_access_get_channel,
     data_access_get_daily_message,
@@ -16,16 +20,26 @@ from deps.data_access import (
     data_access_get_guild_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
+    data_access_get_list_member_stats,
+    data_access_get_member,
     data_access_get_r6tracker_max_rank,
     data_access_get_reaction_message,
     data_access_get_users_auto_schedule,
     data_access_set_daily_message,
     data_access_set_gaming_session_last_activity,
     data_access_set_reaction_message,
+    data_acess_remove_list_member_stats,
 )
 from deps.date_utils import is_today
 from deps.mybot import MyBot
-from deps.models import SimpleUser, SimpleUserHour, UserMatchInfoSessionAggregate
+from deps.models import (
+    SimpleUser,
+    SimpleUserHour,
+    UserMatchInfo,
+    UserMatchInfoSessionAggregate,
+    UserQueueForStats,
+    UserWithUserMatchInfo,
+)
 from deps.log import print_error_log, print_log, print_warning_log
 from deps.functions import (
     get_current_hour_eastern,
@@ -34,7 +48,13 @@ from deps.functions import (
     get_reactions,
     set_member_role_from_rank,
 )
-from deps.values import COMMAND_SCHEDULE_ADD, DATE_FORMAT, MSG_UNIQUE_STRING, SUPPORTED_TIMES_STR
+from deps.values import (
+    COMMAND_SCHEDULE_ADD,
+    DATE_FORMAT,
+    MSG_UNIQUE_STRING,
+    STATS_HOURS_WINDOW_IN_PAST,
+    SUPPORTED_TIMES_STR,
+)
 from deps.siege import get_color_for_rank, get_user_rank_emoji
 from deps.functions_r6_tracker import get_r6tracker_user_recent_matches, get_user_gaming_session_stats
 
@@ -327,33 +347,29 @@ async def adjust_role_from_ubisoft_max_account(
     return max_rank
 
 
-async def send_session_stats(
-    member: discord.Member, guild_id: int, last_hour: int = 12, mod_call_function: bool = False
-) -> Optional[UserMatchInfoSessionAggregate]:
+async def send_session_stats_directly(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
     """
     Get the statistic of a user and post it
     """
-
+    last_hour = STATS_HOURS_WINDOW_IN_PAST
     if member.bot:
         return  # Ignore bot
 
+    member_id = member.id
+    member_name = member.display_name
+
     # Only perform the action if it wasn't done in the last hour
     current_time = datetime.now(timezone.utc)
-    last_activity = await data_access_get_gaming_session_last_activity(member.id, guild_id)
-    # Only shows the stats once per hour per user maximum
-    if not mod_call_function and last_activity is not None and last_activity > current_time - timedelta(hours=1):
-        print_log(f"User {member.display_name} already has stats in the last hour")
-        return None
 
     # Get the user ubisoft name
-    user_info: UserInfo = await fetch_user_info_by_user_id(member.id)
+    user_info: UserInfo = await fetch_user_info_by_user_id(member_id)
     if user_info is None or user_info.ubisoft_username_active is None:
-        print_log(f"User {member.display_name} has no active Ubisoft account set")
+        print_log(f"User {member_name} has no active Ubisoft account set")
         return None
 
     try:
         matches = get_r6tracker_user_recent_matches(user_info.ubisoft_username_active)
-        await data_access_set_gaming_session_last_activity(member.id, guild_id, current_time)
+        await data_access_set_gaming_session_last_activity(member_id, guild_id, current_time)
     except Exception as e:
         print_error_log(f"Error getting the user stats from R6 tracker: {e}")
         return None
@@ -362,7 +378,7 @@ async def send_session_stats(
         user_info.ubisoft_username_active, current_time - timedelta(hours=last_hour), matches
     )
     if aggregation is None:
-        print_log(f"User {member.display_name} has no stats to show in the last {last_hour} hours")
+        print_log(f"User {member_name} has no stats to show in the last {last_hour} hours")
         return None
 
     channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
@@ -371,6 +387,114 @@ async def send_session_stats(
     embed_msg = get_gaming_session_user_embed_message(member, aggregation, last_hour)
     await channel.send(content="", embed=embed_msg)
     return aggregation
+
+
+async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
+    """
+    Get the statistic of a user and add the request into a queue
+    """
+
+    if member.bot:
+        return  # Ignore bot
+
+    member_id = member.id
+    member_name = member.display_name
+
+    # Only perform the action if it wasn't done in the last hour
+    current_time = datetime.now(timezone.utc)
+    last_activity = await data_access_get_gaming_session_last_activity(member_id, guild_id)
+    # Only shows the stats once per hour per user maximum
+    if last_activity is not None and last_activity > current_time - timedelta(hours=1):
+        print_log(f"User {member_name} already has stats in the last hour")
+        return None
+
+    # Get the user ubisoft name
+    user_info: UserInfo = await fetch_user_info_by_user_id(member_id)
+    if user_info is None or user_info.ubisoft_username_active is None:
+        print_log(f"User {member_name} has no active Ubisoft account set")
+        return None
+
+    # Queue the request to get the user stats with the time which allows to delay the transmission of about 5 minutes to avoid missing the last match
+    user = UserQueueForStats(user_info, guild_id, current_time)
+    await data_access_add_list_member_stats(user)
+    print_log(f"User {member_name} added to the queue to get the stats")
+
+
+async def post_queued_user_stats() -> None:
+    """
+    Get the stats for all the users in the queue and post it
+    The function relies on opening a browser once and get all the users from the queue to get their stats at the same time
+    """
+    # Get all the user waiting even if it's not the time yet (might just got added but the task kicked in)
+    list_users: List[UserQueueForStats] = await data_access_get_list_member_stats()
+    print_log(f"post_queued_user_stats: {len(list_users)} users in the queue before delta time")
+
+    # Filter the list for only user who it's been at least 2 minutes since added to the queue
+    # This is to avoid getting the stats too early and miss the last match
+    current_time = datetime.now(timezone.utc)
+    delta = current_time - timedelta(minutes=2)
+    users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta]
+
+    if not users or len(users) == 0:
+        print_log("post_queued_user_stats: No user in the queue")
+        return
+    print_log(f"post_queued_user_stats: {len(users)} users in the queue after delta time")
+
+    # Accumulate all the stats for all the users before posting them
+    all_users_matches: List[UserWithUserMatchInfo] = []
+    # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
+    # Then, in the loop, use the cookies to get the stats using the API
+    with BrowserContextManager() as context:
+        for user in users:
+            try:
+                matches: List[UserMatchInfo] = context.download_matches(user.user_info.ubisoft_username_active)
+                all_users_matches.append(UserWithUserMatchInfo(user, matches))
+                if len(users) > 1:
+                    await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
+            except Exception as e:
+                print_error_log(f"post_queued_user_stats: Error getting the user stats from R6 tracker: {e}")
+                continue  # Skip to the next user
+    # End of the browser context
+    await send_channel_list_stats(all_users_matches)
+
+
+async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo]) -> None:
+    """Post on the channel all the stats"""
+    last_hour: int = STATS_HOURS_WINDOW_IN_PAST
+    current_time = datetime.now(timezone.utc)
+    time_past = current_time - timedelta(hours=last_hour)
+    for user_matches in all_users_matches:
+        user_info = user_matches.user.user_info
+        member_id = user_info.id
+        guild_id = user_matches.user.guild_id
+        try:
+            await data_acess_remove_list_member_stats(user_info)
+            aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
+                user_info.ubisoft_username_active, time_past, user_matches.user_match_info
+            )
+            if aggregation is None:
+                print_log(
+                    f"send_channel_list_stats: User {user_info.display_name} has no stats to show in the last {last_hour} hours"
+                )
+                continue  # Skip to the next user
+
+            channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
+            channel: discord.TextChannel = await data_access_get_channel(channel_id)
+            member = await data_access_get_member(guild_id, member_id)
+            if member is None:
+                print_error_log(f"send_channel_list_stats: Member {member_id} not found in guild {guild_id}")
+                continue  # Skip to the next user
+            # We never sent the message, so we send it, add the reactions and save it in the cache
+            embed_msg = get_gaming_session_user_embed_message(member, aggregation, last_hour)
+        except Exception as e:
+            print_error_log(f"send_channel_list_stats: Error removing and computing user stats: {e}")
+            continue
+        try:
+            await channel.send(content="", embed=embed_msg)
+            await data_access_set_gaming_session_last_activity(member_id, guild_id, current_time)
+        except Exception as e:
+            print_error_log(f"send_channel_list_stats: Error sending the user stats: {e}")
+            continue  # Skip to the next user
 
 
 def get_gaming_session_user_embed_message(

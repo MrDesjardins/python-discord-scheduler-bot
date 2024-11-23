@@ -7,7 +7,8 @@ from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_notification_voice_channel,
-    send_session_stats,
+    send_session_stats_directly,
+    send_session_stats_to_queue,
     update_vote_message,
 )
 from deps.data_access import (
@@ -271,7 +272,7 @@ class MyEventsCog(commands.Cog):
                         datetime.now(timezone.utc),
                     )
                     try:
-                        await send_session_stats(member, guild_id)
+                        await send_session_stats_to_queue(member, guild_id)
                     except Exception as e:
                         print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
                 elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:

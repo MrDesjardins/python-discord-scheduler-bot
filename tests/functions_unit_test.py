@@ -19,5 +19,6 @@ class TestMostCommon(unittest.TestCase):
         result = most_common(list1)
         self.assertEqual(result, 2)
 
+
 if __name__ == "__main__":
     unittest.main()

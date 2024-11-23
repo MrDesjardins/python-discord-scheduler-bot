@@ -1,7 +1,8 @@
 """ Access to the data is done throught this data access"""
 
 from typing import List, Optional, Union
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+import asyncio
 import discord
 from deps.bot_singleton import BotSingleton
 from deps.cache import (
@@ -14,7 +15,7 @@ from deps.cache import (
     reset_cache_by_prefixes,
     set_cache,
 )
-from deps.models import SimpleUser, SimpleUserHour
+from deps.models import SimpleUser, SimpleUserHour, UserQueueForStats
 
 from deps.functions_r6_tracker import get_r6tracker_max_rank
 
@@ -33,6 +34,7 @@ KEY_CHANNEL = "Channel"
 KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
 KEY_R6TRACKER = "R6Tracker"
 KEY_GAMING_SESSION_LAST_ACTIVITY = "GamingSessionLastActivity"
+KEY_QUEUE_USER_STATS = "QueueUserStats"
 
 
 async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
@@ -228,3 +230,55 @@ async def data_access_get_gaming_session_last_activity(member_id: int, guild_id:
 async def data_access_set_gaming_session_last_activity(member_id: int, guild_id: int, time: datetime) -> None:
     """Get the last activity for a given user in a guild"""
     set_cache(True, f"{KEY_GAMING_SESSION_LAST_ACTIVITY}:{guild_id}:{member_id}", time, ONE_DAY_TTL)
+
+
+lock_member_stats = asyncio.Lock()
+
+
+async def data_access_get_list_member_stats() -> Optional[List[UserQueueForStats]]:
+    """Get the list of all the members that are in the queue to get their stats"""
+    return await get_cache(True, f"{KEY_QUEUE_USER_STATS}")
+
+
+async def data_access_add_list_member_stats(user: UserQueueForStats) -> None:
+    """Add a user to the list of all the members that are in the queue to get their stats"""
+    async with lock_member_stats:
+        list_users = await data_access_get_list_member_stats()
+        if list_users is None:
+            list_users = []
+
+        # Remove all the user where the time_queue is over 1 hour
+        current_time = datetime.now(timezone.utc)
+        delta = current_time - timedelta(hours=1)
+        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta]
+
+        # Search to see if the user id is already in the list (maybe few minutes ago it was added to the list)
+        for user_in_list in list_users:
+            if user_in_list.user_info.user_id == user.user_info.user_id and user_in_list.guild_id == user.guild_id:
+                return
+        list_users.append(user)
+        # Lock to make sure that the list is not updated by multiple threads
+
+        set_cache(True, f"{KEY_QUEUE_USER_STATS}", list_users, ONE_DAY_TTL)
+    # Lock is released here
+
+
+async def data_acess_remove_list_member_stats(user: UserQueueForStats) -> None:
+    """Remove a user from the list of all the members that are in the queue to get their stats"""
+    async with lock_member_stats:
+        list_users = await data_access_get_list_member_stats()
+        if list_users is None:
+            return
+
+        # Remove all the user where the time_queue is over 1 hour
+        current_time = datetime.now(timezone.utc)
+        delta = current_time - timedelta(hours=1)
+        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta]
+
+        # Search to see if the user id is already in the list (maybe few minutes ago it was added to the list)
+        for user_in_list in list_users:
+            if user_in_list.user_info.user_id == user.user_info.user_id and user_in_list.guild_id == user.guild_id:
+                list_users.remove(user_in_list)
+                break  # Break because we know maximum one entry per user
+        set_cache(True, f"{KEY_QUEUE_USER_STATS}", list_users, ONE_DAY_TTL)
+    # Lock is released here

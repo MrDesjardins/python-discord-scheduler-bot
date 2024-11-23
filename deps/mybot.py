@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 import os
 
+
 class MyBot(commands.Bot):
     """Add attribute to the Discord bot"""
 

@@ -17,6 +17,7 @@ from deps.data_access import (
 )
 from deps.mybot import MyBot
 
+
 class ModBasic(commands.Cog):
     """Basic moderator commands"""
 
@@ -60,6 +61,7 @@ class ModBasic(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         await send_daily_question_to_a_guild(self.bot, interaction.guild, True)
         await interaction.followup.send("Force sending", ephemeral=True)
+
 
 async def setup(bot):
     """Setup function to add this cog to the bot"""

@@ -26,4 +26,3 @@ class TrackerTest(unittest.TestCase):
         """Test the highest rank of a user that exist"""
         with self.assertRaises(Exception):
             await get_r6tracker_max_rank("noSleep_rb6")
-

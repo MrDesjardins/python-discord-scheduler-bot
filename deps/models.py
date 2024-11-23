@@ -5,6 +5,8 @@ from datetime import datetime
 from enum import Enum
 from typing import List
 
+from deps.data_access_data_class import UserInfo
+
 
 class DayOfWeek(Enum):
     """Represents the days of the week"""
@@ -162,3 +164,24 @@ class UserMatchInfoSessionAggregate:
         self.total_clutches_loss_count = total_clutches_loss_count
         self.total_first_death_count = total_first_death_count
         self.total_first_kill_count = total_first_kill_count
+
+
+@dataclasses.dataclass
+class UserQueueForStats:
+    """
+    Represent the user that is in the queue to get their stats
+    """
+
+    def __init__(self, user_info: UserInfo, guild_id: str, time_queue: datetime):
+        self.user_info = user_info
+        self.guild_id = guild_id
+        self.time_queue = time_queue
+
+
+@dataclasses.dataclass
+class UserWithUserMatchInfo:
+    """Represent the user and their match info"""
+
+    def __init__(self, user: UserQueueForStats, user_match_info: List["UserMatchInfo"]):
+        self.user = user
+        self.user_match_info = user_match_info

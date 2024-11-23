@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.bot_common_actions import send_session_stats, update_vote_message
+from deps.bot_common_actions import send_session_stats_directly, update_vote_message
 from deps.data_access import (
     data_access_get_guild_text_channel_id,
     data_access_get_message,
@@ -114,7 +114,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         member = await data_access_get_member(guild_id, member.id)
-        res = await send_session_stats(member, guild_id, mod_call_function=True)
+        res = await send_session_stats_directly(member, guild_id, mod_call_function=True)
         if res is None:
             await interaction.followup.send("No stats available", ephemeral=True)
         else:

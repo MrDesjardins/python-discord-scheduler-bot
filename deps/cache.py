@@ -32,7 +32,6 @@ class TTLCache:
     def __init__(self, default_ttl_in_seconds=60):
         self.cache: dict[str, Any] = {}
         self.default_ttl = default_ttl_in_seconds
-        self.lock = asyncio.Lock()
 
     def _is_expired(self, key: str) -> bool:
         """Check if the cache item with the given key is expired"""
