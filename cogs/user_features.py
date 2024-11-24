@@ -86,7 +86,7 @@ class UserFeatures(commands.Cog):
     @app_commands.command(name=COMMAND_MAX_RANK_USER_ACCOUNT)
     async def set_max_user_account(self, interaction: discord.Interaction, ubisoft_connect_name: str):
         """
-        Your best (maximum MMR) Ubisoft Connect account
+        Set your best (maximum MMR) Ubisoft Connect account user name
         """
         await interaction.response.defer(ephemeral=True)
 
@@ -128,7 +128,7 @@ class UserFeatures(commands.Cog):
     @app_commands.command(name=COMMAND_ACTIVE_RANK_USER_ACCOUNT)
     async def set_active_user_account(self, interaction: discord.Interaction, ubisoft_connect_name: str):
         """
-        Ubisoft Connect account that you are playing on
+        Set the Ubisoft Connect account user name that you are playing on
         """
         await interaction.response.defer(ephemeral=True)
         data_access_set_ubisoft_username_active(interaction.user.id, ubisoft_connect_name)

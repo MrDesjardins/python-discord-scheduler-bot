@@ -7,7 +7,6 @@ from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_notification_voice_channel,
-    send_session_stats_directly,
     send_session_stats_to_queue,
     update_vote_message,
 )
@@ -18,6 +17,7 @@ from deps.data_access import (
     data_access_get_guild_voice_channel_ids,
     data_access_get_member,
     data_access_get_message,
+    data_access_get_new_user_text_channel_id,
     data_access_get_reaction_message,
     data_access_get_user,
     data_access_set_reaction_message,
@@ -301,6 +301,25 @@ class MyEventsCog(commands.Cog):
                 # Check if the user is the only one in the voice channel
                 if len(after.channel.members) == 1:
                     await send_notification_voice_channel(self.bot, guild_id, member, after.channel, text_channel_id)
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member: discord.Member):
+        """
+        Send message to new user
+        """
+        if member.bot:
+            return  # Ignore bot
+        guild_id = member.guild.id
+        text_channel_new_user_id: discord.TextChannel = await data_access_get_new_user_text_channel_id(guild_id)
+        channel: discord.TextChannel = await data_access_get_channel(text_channel_new_user_id)
+        if channel is None:
+            print_warning_log(f"New user text channel not set for guild {member.guild.name}. Skipping.")
+            return
+
+        # Send message into the text channel with mention to the user to welcome them
+        await channel.send(
+            f"Welcome {member.mention} to the server! Use the command `/setupprofile` to set up your profile which will give you a role and access to many voice channels."
+        )
 
 
 async def setup(bot):

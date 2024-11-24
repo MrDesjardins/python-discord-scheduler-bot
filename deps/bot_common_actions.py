@@ -312,7 +312,7 @@ async def get_users_scheduled_today_current_hour(bot: MyBot, guild_id: int, curr
 
 
 async def adjust_role_from_ubisoft_max_account(
-    guild: discord.guild, member: discord.member, ubisoft_connect_name: str
+    guild: discord.guild, member: discord.member, ubisoft_connect_name: str, ubisoft_active_account: str = None
 ) -> str:
     """Adjust the server's role of a user based on their max rank in R6 Tracker"""
     max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name)
@@ -341,8 +341,13 @@ async def adjust_role_from_ubisoft_max_account(
         print_warning_log(f"adjust_role_from_ubisoft_max_account: Mod role not found in guild {guild.name}. Skipping.")
 
     channel = await data_access_get_channel(text_channel_id)
+    if ubisoft_active_account is None:
+        active_msg = ""
+    else:
+        active_msg = f"\nCurrently playing on the [{ubisoft_active_account}](https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_active_account}/overview) account."
+
     await channel.send(
-        content=f"{member.mention} main account is [{ubisoft_connect_name}](https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_connect_name}/overview) with max rank of `{max_rank}`.\n{mod_role.mention} please confirm the account belong to this person.",
+        content=f"{member.mention} main account is [{ubisoft_connect_name}](https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_connect_name}/overview) with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.",
     )
     return max_rank
 
@@ -426,7 +431,8 @@ async def post_queued_user_stats() -> None:
     The function relies on opening a browser once and get all the users from the queue to get their stats at the same time
     """
     # Get all the user waiting even if it's not the time yet (might just got added but the task kicked in)
-    list_users: List[UserQueueForStats] = await data_access_get_list_member_stats()
+    list_users: Optional[List[UserQueueForStats]] = await data_access_get_list_member_stats()
+    list_users = list_users if list_users is not None else []  # Avoid None
     print_log(f"post_queued_user_stats: {len(list_users)} users in the queue before delta time")
 
     # Filter the list for only user who it's been at least 2 minutes since added to the queue
@@ -435,8 +441,8 @@ async def post_queued_user_stats() -> None:
     delta = current_time - timedelta(minutes=2)
     users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta]
 
-    if not users or len(users) == 0:
-        print_log("post_queued_user_stats: No user in the queue")
+    if len(users) == 0:
+        print_log("post_queued_user_stats: 0 user in the queue after delta time")
         return
     print_log(f"post_queued_user_stats: {len(users)} users in the queue after delta time")
 
@@ -452,9 +458,13 @@ async def post_queued_user_stats() -> None:
                 if len(users) > 1:
                     await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
             except Exception as e:
-                print_error_log(f"post_queued_user_stats: Error getting the user stats from R6 tracker: {e}")
+                print_error_log(
+                    f"post_queued_user_stats: Error getting the user ({user.user_info.display_name}) stats from R6 tracker: {e}"
+                )
                 continue  # Skip to the next user
     # End of the browser context
+    if len(users) != len(all_users_matches):
+        print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(users)}")
     await send_channel_list_stats(all_users_matches)
 
 

@@ -22,6 +22,6 @@ class MyBot(commands.Bot):
             if filename.endswith(".py") and filename != "__init__.py":
                 try:
                     await self.load_extension(f"cogs.{filename[:-3]}")
-                    print(f"Loaded {filename}")
+                    print(f"✅ Loaded {filename}")
                 except Exception as e:
-                    print(f"Failed to load {filename}: {e}")
+                    print(f"❌ Failed to load {filename}: {e}")

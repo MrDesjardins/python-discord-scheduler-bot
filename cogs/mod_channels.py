@@ -7,9 +7,11 @@ from deps.data_access import (
     data_access_get_guild_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
+    data_access_get_new_user_text_channel_id,
     data_access_set_gaming_session_text_channel_id,
-    data_access_set_guild_text_channel_id,
     data_access_set_guild_username_text_channel_id,
+    data_access_set_new_user_text_channel_id,
+    data_access_set_guild_text_channel_id,
     data_access_set_guild_voice_channel_ids,
 )
 from deps.values import (
@@ -22,6 +24,8 @@ from deps.values import (
     COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL,
     COMMAND_SEE_GAMING_SESSION_CHANNEL,
     COMMAND_SET_GAMING_SESSION_CHANNEL,
+    COMMAND_SEE_NEW_USER_CHANNEL,
+    COMMAND_SET_NEW_USER_CHANNEL,
 )
 from deps.mybot import MyBot
 from deps.log import print_warning_log
@@ -88,6 +92,34 @@ class ModChannels(commands.Cog):
             return
 
         await interaction.followup.send(f"The gaming session text channel is <#{channel_id}>", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_SET_NEW_USER_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def set_new_user_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """
+        An administrator can set the channel where the user name is shown
+        """
+        guild_id = interaction.guild.id
+        data_access_set_new_user_text_channel_id(guild_id, channel.id)
+
+        await interaction.response.send_message(
+            f"Confirmed to send new user message into #{channel.name}.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name=COMMAND_SEE_NEW_USER_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def see_new_user_text_channel(self, interaction: discord.Interaction):
+        """Display the text channel configured"""
+        await interaction.response.defer(ephemeral=True)
+        guild_id = interaction.guild.id
+        channel_id = await data_access_get_new_user_text_channel_id(guild_id)
+        if channel_id is None:
+            print_warning_log(f"No new user channel in guild {interaction.guild.name}. Skipping.")
+            await interaction.followup.send("New User Text channel not set.", ephemeral=True)
+            return
+
+        await interaction.followup.send(f"The new user text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL)
     @commands.has_permissions(administrator=True)

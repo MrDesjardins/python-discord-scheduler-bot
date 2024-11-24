@@ -121,7 +121,7 @@ async def get_cache(
     """
     cache = memoryCache if in_memory else dataCache
     value = cache.get(key)
-    if not value and fetch_function:
+    if value is None and fetch_function:
         # Check if the fetch function itself is an async function
         if inspect.iscoroutinefunction(fetch_function):
             value = await fetch_function()

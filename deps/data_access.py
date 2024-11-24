@@ -25,6 +25,7 @@ KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleByDay"
 KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigTextChannel"
 KEY_GUILD_USERNAME_TEXT_CHANNEL = "GuildAdminConfigUserNameTextChannel"
 KEY_GUILD_GAMING_SESSION_TEXT_CHANNEL = "GuildAdminConfigGamingSessionTextChannel"
+KEY_GUILD_NEW_USER_TEXT_CHANNEL = "GuildAdminConfigNewUserTextChannel"
 KEY_GUILD_VOICE_CHANNELS = "GuildAdminConfigVoiceChannels"
 KEY_MESSAGE = "Message"
 KEY_USER = "User"
@@ -213,7 +214,7 @@ def data_access_set_guild_username_text_channel_id(guild_id: int, channel_id: in
 async def data_access_get_gaming_session_text_channel_id(
     guild_id: int,
 ) -> Union[int, None]:
-    """Get the channel by the given channel id"""
+    """Get the channel by the given guild id"""
     return await get_cache(False, f"{KEY_GUILD_GAMING_SESSION_TEXT_CHANNEL}:{guild_id}")
 
 
@@ -230,6 +231,18 @@ async def data_access_get_gaming_session_last_activity(member_id: int, guild_id:
 async def data_access_set_gaming_session_last_activity(member_id: int, guild_id: int, time: datetime) -> None:
     """Get the last activity for a given user in a guild"""
     set_cache(True, f"{KEY_GAMING_SESSION_LAST_ACTIVITY}:{guild_id}:{member_id}", time, ONE_DAY_TTL)
+
+
+async def data_access_get_new_user_text_channel_id(
+    guild_id: int,
+) -> Union[int, None]:
+    """Get the channel by the given guild id"""
+    return await get_cache(False, f"{KEY_GUILD_NEW_USER_TEXT_CHANNEL}:{guild_id}")
+
+
+def data_access_set_new_user_text_channel_id(guild_id: int, channel_id: int) -> None:
+    """Set the channel that the bot will send text"""
+    set_cache(False, f"{KEY_GUILD_NEW_USER_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
 
 
 lock_member_stats = asyncio.Lock()

@@ -94,7 +94,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
         # Adjust user roles based on the max rank
         # max_rank = "Diamond"
         max_rank = await adjust_role_from_ubisoft_max_account(
-            self.view.guild, self.view.member, self.view.max_rank_account
+            self.view.guild, self.view.member, self.view.max_rank_account, self.view.active_account
         )
         # Get stats channel
         channel_id = await data_access_get_gaming_session_text_channel_id(self.view.guild.id)

@@ -84,6 +84,8 @@ COMMAND_SEE_GAMING_SESSION_CHANNEL = "modseesgamingsessionchannel"
 COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL = "modvoicechannel"
 COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION = "modseevoicechannels"
 COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "modresetvoicechannel"
+COMMAND_SET_NEW_USER_CHANNEL = "modtextnewuserchannel"
+COMMAND_SEE_NEW_USER_CHANNEL = "modseesnewuserchannel"
 
 ## Analytics
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"
