@@ -48,7 +48,7 @@ class UserFeatures(commands.Cog):
         user_infos: Optional[UserInfo] = fetch_user_info_by_user_id_list(users_id)
 
         embed = discord.Embed(
-            title=f"{voice_channel.name} Timezone",
+            title=f"{voice_channel.name} Channel Timezone",
             color=0x00FF00,
             timestamp=datetime.now(),
         )
@@ -61,14 +61,15 @@ class UserFeatures(commands.Cog):
             rank = get_user_rank_emoji(self.bot.guild_emoji.get(interaction.guild.id), userid_member.get(user_info.id))
             member = userid_member.get(user_info.id)
 
-            user_name = member.display_name if member is not None else user_info.display_name
+            user_name = member.mention if member is not None else user_info.display_name
             if user_info is not None:
+                entry = f"{rank} {user_name} ({user_info.ubisoft_username_active if user_info.ubisoft_username_active is not None else user_info.ubisoft_username_max if user_info.ubisoft_username_max is not None else '?'})"
                 if user_info.time_zone == "US/Eastern":
-                    eastern += f"{rank} {user_name}\n"
+                    eastern += f"{entry}\n"
                 elif user_info.time_zone == "US/Central":
-                    central += f"{rank} {user_name}\n"
+                    central += f"{entry}\n"
                 elif user_info.time_zone == "US/Pacific":
-                    pacific += f"{rank} {user_name}\n"
+                    pacific += f"{entry}\n"
 
         embed.add_field(name="Pacific", value="-" if pacific == "" else pacific, inline=True)
         embed.add_field(name="Central", value="-" if central == "" else central, inline=True)
