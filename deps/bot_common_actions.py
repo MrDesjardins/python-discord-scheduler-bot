@@ -439,7 +439,7 @@ async def post_queued_user_stats() -> None:
     # This is to avoid getting the stats too early and miss the last match
     current_time = datetime.now(timezone.utc)
     delta = current_time - timedelta(minutes=2)
-    users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta]
+    users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta] # Keep user that has been there for -infinity to -2 minutes
 
     if len(users) == 0:
         print_log("post_queued_user_stats: 0 user in the queue after delta time")

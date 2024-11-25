@@ -263,11 +263,11 @@ async def data_access_add_list_member_stats(user: UserQueueForStats) -> None:
         # Remove all the user where the time_queue is over 1 hour
         current_time = datetime.now(timezone.utc)
         delta = current_time - timedelta(hours=1)
-        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta]
+        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue > delta]
 
         # Search to see if the user id is already in the list (maybe few minutes ago it was added to the list)
         for user_in_list in list_users:
-            if user_in_list.user_info.user_id == user.user_info.user_id and user_in_list.guild_id == user.guild_id:
+            if user_in_list.user_info.id == user.user_info.id and user_in_list.guild_id == user.guild_id:
                 return
         list_users.append(user)
         # Lock to make sure that the list is not updated by multiple threads
@@ -286,11 +286,11 @@ async def data_acess_remove_list_member_stats(user: UserQueueForStats) -> None:
         # Remove all the user where the time_queue is over 1 hour
         current_time = datetime.now(timezone.utc)
         delta = current_time - timedelta(hours=1)
-        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta]
+        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue > delta]
 
         # Search to see if the user id is already in the list (maybe few minutes ago it was added to the list)
         for user_in_list in list_users:
-            if user_in_list.user_info.user_id == user.user_info.user_id and user_in_list.guild_id == user.guild_id:
+            if user_in_list.user_info.id == user.user_info.id and user_in_list.guild_id == user.guild_id:
                 list_users.remove(user_in_list)
                 break  # Break because we know maximum one entry per user
         set_cache(True, f"{KEY_QUEUE_USER_STATS}", list_users, ONE_DAY_TTL)

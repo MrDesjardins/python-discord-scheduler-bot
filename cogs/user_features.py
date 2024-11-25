@@ -113,7 +113,7 @@ class UserFeatures(commands.Cog):
                 await interaction.followup.send("Cannot find the member", ephemeral=True)
                 return
             data_access_set_ubisoft_username_max(interaction.user.id, ubisoft_connect_name)
-            max_rank = adjust_role_from_ubisoft_max_account(interaction.guild, member, ubisoft_connect_name)
+            max_rank = await adjust_role_from_ubisoft_max_account(interaction.guild, member, ubisoft_connect_name)
             if max_rank is None:
                 await interaction.followup.send(
                     "Sorry, we cannot change your role for the moment. Please contact a moderator to manually change it.",
