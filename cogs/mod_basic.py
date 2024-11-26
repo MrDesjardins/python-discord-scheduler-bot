@@ -4,6 +4,7 @@ from discord import app_commands
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.values import (
     COMMAND_FORCE_SEND,
+    COMMAND_TEST_JOIN,
     COMMAND_VERSION,
     COMMAND_RESET_CACHE,
     COMMAND_GUILD_ENABLE_BOT_VOICE,
@@ -61,6 +62,16 @@ class ModBasic(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         await send_daily_question_to_a_guild(self.bot, interaction.guild, True)
         await interaction.followup.send("Force sending", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_TEST_JOIN)
+    @commands.has_permissions(administrator=True)
+    async def test_join(self, interaction: discord.Interaction):
+        """
+        Simulate a member joining the server for local testing.
+        """
+        if interaction.user.id == interaction.guild.owner_id:
+            fake_member = interaction.user  # Use the command invoker as the fake member
+            await self.bot.cogs.get("MyEventsCog").on_member_join(fake_member)
 
 
 async def setup(bot):

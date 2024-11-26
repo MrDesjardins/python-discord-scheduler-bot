@@ -60,7 +60,7 @@ class MyEventsCog(commands.Cog):
 
             commands_reg = await bot.tree.fetch_commands(guild=guild_obj)
             for command in commands_reg:
-                print_log(f"\t\t/{command.name}")
+                print_log(f"\t✅ /{command.name}")
 
             bot.guild_emoji[guild.id] = {}
             for emoji in guild.emojis:
@@ -310,15 +310,24 @@ class MyEventsCog(commands.Cog):
         if member.bot:
             return  # Ignore bot
         guild_id = member.guild.id
-        text_channel_new_user_id: discord.TextChannel = await data_access_get_new_user_text_channel_id(guild_id)
-        channel: discord.TextChannel = await data_access_get_channel(text_channel_new_user_id)
-        if channel is None:
+        text_channel_new_user_id: int = await data_access_get_new_user_text_channel_id(guild_id)
+        if text_channel_new_user_id is None:
             print_warning_log(f"on_member_join: New user text channel not set for guild {member.guild.name}. Skipping.")
             return
+        channel: discord.TextChannel = await data_access_get_channel(text_channel_new_user_id)
+        if channel is None:
+            print_warning_log(
+                f"on_member_join: New user text channel not found for guild {member.guild.name}. Skipping."
+            )
+            return
 
+        text_channel_id: int = await data_access_get_guild_text_channel_id(guild_id)
+        if text_channel_id is None:
+            print_warning_log(f"on_member_join: Schedule text channel not set for guild {member.guild.name}. Skipping.")
+            return
         # Send message into the text channel with mention to the user to welcome them
         await channel.send(
-            f"Welcome {member.mention} to the server! Use the command `/setupprofile` to set up your profile which will give you a role and access to many voice channels."
+            f"Welcome {member.mention} to the server! Use the command `/setupprofile` to set up your profile which will give you a role and access to many voice channels. You can check who plan to play in the schedule channel <#{text_channel_id}>."
         )
         print_log(f"on_member_join: New user message sent to {member.display_name} in guild {member.guild.name}.")
 

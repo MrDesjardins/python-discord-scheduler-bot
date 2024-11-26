@@ -68,6 +68,7 @@ COMMAND_SCHEDULE_ADD_USER = "modadduserschedule"
 COMMAND_SCHEDULE_REFRESH_FROM_REACTION = "modrefreshschedule"
 COMMAND_FORCE_SEND = "modforcesendschedule"
 COMMAND_SCHEDULE_APPLY = "modapplyschedule"
+COMMAND_TEST_JOIN = "modtestjoin"
 
 ## Timezone & Rank/Role
 COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "modsetusertimezone"

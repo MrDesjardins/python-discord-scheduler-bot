@@ -4,6 +4,8 @@ import discord
 from discord.ext import commands
 import os
 
+from deps.log import print_log, print_error_log
+
 
 class MyBot(commands.Bot):
     """Add attribute to the Discord bot"""
@@ -22,6 +24,6 @@ class MyBot(commands.Bot):
             if filename.endswith(".py") and filename != "__init__.py":
                 try:
                     await self.load_extension(f"cogs.{filename[:-3]}")
-                    print(f"✅ Loaded {filename}")
+                    print_log(f"✅ Loaded {filename}")
                 except Exception as e:
-                    print(f"❌ Failed to load {filename}: {e}")
+                    print_error_log(f"❌ Failed to load {filename}: {e}")
