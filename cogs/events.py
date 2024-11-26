@@ -313,13 +313,14 @@ class MyEventsCog(commands.Cog):
         text_channel_new_user_id: discord.TextChannel = await data_access_get_new_user_text_channel_id(guild_id)
         channel: discord.TextChannel = await data_access_get_channel(text_channel_new_user_id)
         if channel is None:
-            print_warning_log(f"New user text channel not set for guild {member.guild.name}. Skipping.")
+            print_warning_log(f"on_member_join: New user text channel not set for guild {member.guild.name}. Skipping.")
             return
 
         # Send message into the text channel with mention to the user to welcome them
         await channel.send(
             f"Welcome {member.mention} to the server! Use the command `/setupprofile` to set up your profile which will give you a role and access to many voice channels."
         )
+        print_log(f"on_member_join: New user message sent to {member.display_name} in guild {member.guild.name}.")
 
 
 async def setup(bot):
