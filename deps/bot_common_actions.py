@@ -352,46 +352,14 @@ async def adjust_role_from_ubisoft_max_account(
     return max_rank
 
 
-async def send_session_stats_directly(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
+async def send_session_stats_directly(
+    member: discord.Member, guild_id: int, last_hours: int
+) -> Optional[UserMatchInfoSessionAggregate]:
     """
     Get the statistic of a user and post it
     """
-    last_hour = STATS_HOURS_WINDOW_IN_PAST
-    if member.bot:
-        return  # Ignore bot
-
-    member_id = member.id
-    member_name = member.display_name
-
-    # Only perform the action if it wasn't done in the last hour
-    current_time = datetime.now(timezone.utc)
-
-    # Get the user ubisoft name
-    user_info: UserInfo = await fetch_user_info_by_user_id(member_id)
-    if user_info is None or user_info.ubisoft_username_active is None:
-        print_log(f"User {member_name} has no active Ubisoft account set")
-        return None
-
-    try:
-        matches = get_r6tracker_user_recent_matches(user_info.ubisoft_username_active)
-        await data_access_set_gaming_session_last_activity(member_id, guild_id, current_time)
-    except Exception as e:
-        print_error_log(f"Error getting the user stats from R6 tracker: {e}")
-        return None
-
-    aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
-        user_info.ubisoft_username_active, current_time - timedelta(hours=last_hour), matches
-    )
-    if aggregation is None:
-        print_log(f"User {member_name} has no stats to show in the last {last_hour} hours")
-        return None
-
-    channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
-    # We never sent the message, so we send it, add the reactions and save it in the cache
-    embed_msg = get_gaming_session_user_embed_message(member, aggregation, last_hour)
-    await channel.send(content="", embed=embed_msg)
-    return aggregation
+    await send_session_stats_to_queue(member, guild_id)
+    await post_queued_user_stats(False, last_hours)
 
 
 async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
@@ -425,7 +393,7 @@ async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> 
     print_log(f"User {member_name} added to the queue to get the stats")
 
 
-async def post_queued_user_stats() -> None:
+async def post_queued_user_stats(check_time_delay: bool = True, last_hour: int = STATS_HOURS_WINDOW_IN_PAST) -> None:
     """
     Get the stats for all the users in the queue and post it
     The function relies on opening a browser once and get all the users from the queue to get their stats at the same time
@@ -435,17 +403,21 @@ async def post_queued_user_stats() -> None:
     list_users = list_users if list_users is not None else []  # Avoid None
     print_log(f"post_queued_user_stats: {len(list_users)} users in the queue before delta time")
 
-    # Filter the list for only user who it's been at least 2 minutes since added to the queue
-    # This is to avoid getting the stats too early and miss the last match
-    current_time = datetime.now(timezone.utc)
-    delta = current_time - timedelta(minutes=2)
-    users = [user_in_list for user_in_list in list_users if user_in_list.time_queue < delta] # Keep user that has been there for -infinity to -2 minutes
+    if check_time_delay:
+        # Filter the list for only user who it's been at least 2 minutes since added to the queue
+        # This is to avoid getting the stats too early and miss the last match
+        current_time = datetime.now(timezone.utc)
+        delta = current_time - timedelta(minutes=2)
+        users = [
+            user_in_list for user_in_list in list_users if user_in_list.time_queue < delta
+        ]  # Keep user that has been there for -infinity to -2 minutes
 
-    if len(users) == 0:
-        print_log("post_queued_user_stats: 0 user in the queue after delta time")
-        return
-    print_log(f"post_queued_user_stats: {len(users)} users in the queue after delta time")
-
+        if len(users) == 0:
+            print_log("post_queued_user_stats: 0 user in the queue after delta time")
+            return
+        print_log(f"post_queued_user_stats: {len(users)} users in the queue after delta time")
+    else:
+        users = list_users
     # Accumulate all the stats for all the users before posting them
     all_users_matches: List[UserWithUserMatchInfo] = []
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
@@ -465,12 +437,11 @@ async def post_queued_user_stats() -> None:
     # End of the browser context
     if len(users) != len(all_users_matches):
         print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(users)}")
-    await send_channel_list_stats(all_users_matches)
+    await send_channel_list_stats(all_users_matches, last_hour)
 
 
-async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo]) -> None:
+async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo], last_hour: int) -> None:
     """Post on the channel all the stats"""
-    last_hour: int = STATS_HOURS_WINDOW_IN_PAST
     current_time = datetime.now(timezone.utc)
     time_past = current_time - timedelta(hours=last_hour)
     for user_matches in all_users_matches:
@@ -478,7 +449,7 @@ async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo]
         member_id = user_info.id
         guild_id = user_matches.user.guild_id
         try:
-            await data_acess_remove_list_member_stats(user_info)
+            await data_acess_remove_list_member_stats(user_matches.user)
             aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
                 user_info.ubisoft_username_active, time_past, user_matches.user_match_info
             )
