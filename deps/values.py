@@ -3,7 +3,7 @@
 DATE_FORMAT = "%A, %B %d, %Y"
 
 """ Stats from how long in the past """
-STATS_HOURS_WINDOW_IN_PAST = 24
+STATS_HOURS_WINDOW_IN_PAST = 12
 
 """ Timezone options for the bot. """
 valid_time_zone_options = [
