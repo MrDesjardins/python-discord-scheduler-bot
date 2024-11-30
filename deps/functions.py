@@ -21,7 +21,7 @@ from deps.mybot import MyBot
 from deps.siege import siege_ranks
 
 
-def get_empty_votes():
+def get_empty_votes() -> Dict[str, List[SimpleUser]]:
     """Returns an empty votes dictionary.
     Used to initialize the votes cache for a single day.
     Each array contains SimpleUser
@@ -30,14 +30,14 @@ def get_empty_votes():
     return {time: [] for time in EMOJI_TO_TIME.values()}
 
 
-def get_reactions():
+def get_reactions() -> List[str]:
     """
     Returns a list of all the emojis that can be used to vote.
     """
     return list(EMOJI_TO_TIME.keys())
 
 
-def get_supported_time_time_label():
+def get_supported_time_time_label() -> List[TimeLabel]:
     """
     Returns a list of TimeLabel objects that represent the supported times.
     """
@@ -51,7 +51,7 @@ def get_supported_time_time_label():
     return supported_times
 
 
-def get_time_choices():
+def get_time_choices() -> List[app_commands.Choice]:
     """
     Returns a list of OptionChoice objects that represent the supported times.
     """
@@ -63,7 +63,9 @@ def get_time_choices():
     return supported_times
 
 
-async def get_last_schedule_message(bot: MyBot, channel: Union[discord.TextChannel, discord.VoiceChannel, None]):
+async def get_last_schedule_message(
+    bot: MyBot, channel: Union[discord.TextChannel, discord.VoiceChannel, None]
+) -> Optional[discord.Message]:
     """
     Returns the last schedule message id for the given channel.
     """
@@ -86,14 +88,17 @@ def get_current_hour_eastern(add_hour: Optional[int] = None) -> str:
     Returns the current hour in Eastern Time. In the format 3am or 3pm.
     """
     eastern = pytz.timezone("US/Eastern")
+    # Get the current time in Eastern timezone once
+    current_time_eastern = datetime.now(eastern)
+
     if add_hour:
-        current_time_eastern = datetime.now(eastern).replace(hour=datetime.now(eastern).hour + add_hour)
-    else:
-        current_time_eastern = datetime.now(eastern)
+        # Adjust the hour by the add_hour parameter
+        current_time_eastern = current_time_eastern.replace(hour=current_time_eastern.hour + add_hour)
+
     # Strip leading zero by converting the hour to an integer before formatting
     return (
         current_time_eastern.strftime("%-I%p").lower()
-        if hasattr(datetime.now(eastern), "strftime")
+        if hasattr(current_time_eastern, "strftime")
         else current_time_eastern.strftime("%I%p").lstrip("0").lower()
     )
 
@@ -103,21 +108,12 @@ def get_sha() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode()
 
 
-def write_git_sha_to_file():
-    """Get the latest git SHA and write it to version.txt"""
-    git_sha = get_sha()
-
-    # Write the SHA to version.txt
-    with open("version.txt", "w", encoding="utf-8") as f:
-        f.write(git_sha)
-
-
-def most_common(lst):
+def most_common(lst) -> str:
     """Returns the most common element in a list."""
     return max(set(lst), key=lst.count)
 
 
-async def set_member_role_from_rank(guild: discord.Guild, member: discord.Member, rank: str):
+async def set_member_role_from_rank(guild: discord.Guild, member: discord.Member, rank: str) -> None:
     """Set the user role based on the rank."""
     # Remove all roles
     for r_name in siege_ranks:
