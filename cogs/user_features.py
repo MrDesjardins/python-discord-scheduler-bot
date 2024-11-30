@@ -161,7 +161,7 @@ class UserFeatures(commands.Cog):
                         )
                     else:
                         await interaction.followup.send(
-                            f"@here {list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people.",
+                            f"@here {list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people."
                         )
                 else:
                     await interaction.followup.send(

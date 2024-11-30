@@ -14,6 +14,7 @@ class MyBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
+        self.allowed_mentions = discord.AllowedMentions(everyone=True, roles=True, users=True)
         self.guild_emoji = {}  # Dict[str, Dict[str, str]]
 
     async def setup_hook(self):

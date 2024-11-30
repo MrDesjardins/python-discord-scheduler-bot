@@ -188,10 +188,10 @@ Copy the generated URL and open it in your browser to invite the bot to your des
 
 ```sh
 # Production Bot
-https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=268512464&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=268641488&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 
 # Dev Bot
-https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=268512464&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=268641488&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 ```
 
 # Create a TRN Developer Account
