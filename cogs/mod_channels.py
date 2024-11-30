@@ -4,14 +4,14 @@ from discord import app_commands
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.data_access import (
     data_access_get_gaming_session_text_channel_id,
-    data_access_get_guild_text_channel_id,
+    data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_new_user_text_channel_id,
     data_access_set_gaming_session_text_channel_id,
     data_access_set_guild_username_text_channel_id,
     data_access_set_new_user_text_channel_id,
-    data_access_set_guild_text_channel_id,
+    data_access_set_guild_schedule_text_channel_id,
     data_access_set_guild_voice_channel_ids,
 )
 from deps.values import (
@@ -175,7 +175,7 @@ class ModChannels(commands.Cog):
         An administrator can set the channel where the daily schedule message will be sent
         """
         guild_id = interaction.guild.id
-        data_access_set_guild_text_channel_id(guild_id, channel.id)
+        data_access_set_guild_schedule_text_channel_id(guild_id, channel.id)
 
         await interaction.response.send_message(
             f"Confirmed to send a daily schedule message into #{channel.name}.",
@@ -189,7 +189,7 @@ class ModChannels(commands.Cog):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
-        channel_id = await data_access_get_guild_text_channel_id(guild_id)
+        channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if channel_id is None:
             print_warning_log(f"No schedule text channel in guild {interaction.guild.name}. Skipping.")
             await interaction.followup.send("Schedule text channel not set.", ephemeral=True)

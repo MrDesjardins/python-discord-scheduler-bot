@@ -101,3 +101,11 @@ COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"  # Acts like a feature flag
 COMMAND_VERSION = "modversion"
 COMMAND_RESET_CACHE = "modresetcache"  # Only owner of the server can execute that one
 COMMAND_STATS_MATCHES = "modstatsmatches"
+
+# URL from TRN (third-party)
+URL_TRN_PROFILE_MAIN = "https://r6.tracker.network/r6siege/profile/uplay/{account_name}"
+URL_TRN_PROFILE_OVERVIEW = "https://r6.tracker.network/r6siege/profile/uplay/{account_name}/overview"
+URL_TRN_RANKED_PAGE = "https://r6.tracker.network/r6siege/profile/uplay/{account_name}/matches?playlist=ranked"
+URL_TRN_API_RANKED_MATCHES = (
+    "https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/{account_name}?gamemode=pvp_ranked"
+)

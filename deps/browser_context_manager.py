@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from deps.models import UserMatchInfo
 from deps.log import print_error_log, print_log
 from deps.functions_r6_tracker import parse_json_from_matches
+from deps.functions import get_url_api_ranked_matches, get_url_user_ranked_matches
 
 
 class BrowserContextManager:
@@ -67,7 +68,7 @@ class BrowserContextManager:
         print_log(f"_config_browser: Using binary location: {options.binary_location}")
         try:
             # Step 2: Visit the public profile page to establish the session
-            profile_url = "https://r6.tracker.network/r6siege/profile/ubi/nosleep_rb6/matches?playlist=pvp_ranked"
+            profile_url = get_url_user_ranked_matches("noSleep_rb6")
             self.driver.get(profile_url)
             WebDriverWait(self.driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
         except Exception as e:
@@ -77,7 +78,7 @@ class BrowserContextManager:
         """Download the matches for the given Ubisoft username"""
         # # Step 1: Download the page content
         self.counter += 1
-        api_url = f"https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/{ubisoft_user_name}?gamemode=pvp_ranked"
+        api_url = get_url_api_ranked_matches(ubisoft_user_name)
         self.driver.get(api_url)
         # Wait until the page contains the expected JSON data
         WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))

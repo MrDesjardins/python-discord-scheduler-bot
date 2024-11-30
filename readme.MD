@@ -344,9 +344,6 @@ You can also while developing using the test script with `python3 test_analytics
 # Unit Tests
 
 ```sh
-python -m unittest discover tests -p "*_unit_test.py"
-
-# or
 pytest -v -s ./tests/*_unit_test.py
 ``` 
 

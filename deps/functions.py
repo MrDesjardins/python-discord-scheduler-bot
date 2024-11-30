@@ -6,7 +6,16 @@ from typing import Dict, Union, Optional, List
 import pytz
 import discord
 from discord import app_commands
-from deps.values import COMMAND_SCHEDULE_ADD, DATE_FORMAT, EMOJI_TO_TIME, MSG_UNIQUE_STRING
+from deps.values import (
+    COMMAND_SCHEDULE_ADD,
+    DATE_FORMAT,
+    EMOJI_TO_TIME,
+    MSG_UNIQUE_STRING,
+    URL_TRN_API_RANKED_MATCHES,
+    URL_TRN_PROFILE_MAIN,
+    URL_TRN_PROFILE_OVERVIEW,
+    URL_TRN_RANKED_PAGE,
+)
 from deps.models import SimpleUser, TimeLabel
 from deps.mybot import MyBot
 from deps.siege import siege_ranks
@@ -137,3 +146,26 @@ def get_daily_string_message(vote_for_message: Dict[str, List[SimpleUser]]) -> s
             vote_message += f"{key_time}: -\n"
     vote_message += f"\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
     return vote_message
+
+
+def get_url_user_profile_main(ubisoft_user_name: str) -> str:
+    """Get the URL for the user profile."""
+    return URL_TRN_PROFILE_MAIN.format(account_name=ubisoft_user_name)
+
+
+def get_url_user_profile_overview(ubisoft_user_name: str) -> str:
+    """Get the URL for the user profile."""
+    return URL_TRN_PROFILE_OVERVIEW.format(account_name=ubisoft_user_name)
+
+
+def get_url_user_ranked_matches(ubisoft_user_name: str) -> str:
+    """
+    Get the URL for the user match."
+    This is used to set the cookie in the browser for future API calls
+    """
+    return URL_TRN_RANKED_PAGE.format(account_name=ubisoft_user_name)
+
+
+def get_url_api_ranked_matches(ubisoft_user_name: str) -> str:
+    """Get the URL for the API to get the stats."""
+    return URL_TRN_API_RANKED_MATCHES.format(account_name=ubisoft_user_name)

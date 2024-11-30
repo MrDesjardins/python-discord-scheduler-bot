@@ -61,7 +61,7 @@ class UserMatchInfo:
     """
     Represent the information from a single match for a specific user
     Information coming from this URL:
-        https://api.tracker.gg/api/v2/r6siege/standard/matches/ubi/noSleep_rb6?gamemode=pvp_ranked
+        https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/noSleep_rb6?gamemode=pvp_ranked
     Could also get more detail about the match:
         https://api.tracker.gg/api/v1/r6siege/ow-ingest/match/get/9681f59e-80db-4b2e-b54b-3631af76b074/877a703b-0d29-4779-8fbf-ccd165c2b7f6
     """

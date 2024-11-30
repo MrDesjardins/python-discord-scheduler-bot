@@ -17,7 +17,7 @@ from deps.data_access import (
     data_access_get_daily_message,
     data_access_get_gaming_session_last_activity,
     data_access_get_gaming_session_text_channel_id,
-    data_access_get_guild_text_channel_id,
+    data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_list_member_stats,
@@ -46,6 +46,8 @@ from deps.functions import (
     get_empty_votes,
     get_last_schedule_message,
     get_reactions,
+    get_url_user_profile_main,
+    get_url_user_profile_overview,
     set_member_role_from_rank,
 )
 from deps.values import (
@@ -56,7 +58,7 @@ from deps.values import (
     SUPPORTED_TIMES_STR,
 )
 from deps.siege import get_color_for_rank, get_user_rank_emoji
-from deps.functions_r6_tracker import get_r6tracker_user_recent_matches, get_user_gaming_session_stats
+from deps.functions_r6_tracker import get_user_gaming_session_stats
 
 
 async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force: bool = False):
@@ -65,7 +67,7 @@ async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force
     """
     guild_id = guild.id
     reactions = get_reactions()
-    channel_id = await data_access_get_guild_text_channel_id(guild.id)
+    channel_id = await data_access_get_guild_schedule_text_channel_id(guild.id)
     if channel_id is None:
         print_error_log(f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
         return
@@ -162,7 +164,7 @@ async def check_voice_channel(bot: MyBot):
     print_log("check_voice_channel: Checking voice channel to sync the schedule")
     for guild in bot.guilds:
         guild_id = guild.id
-        text_channel_id = await data_access_get_guild_text_channel_id(guild_id)
+        text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if text_channel_id is None:
             print_warning_log(f"check_voice_channel: Text channel not set for guild {guild.name}. Skipping.")
             continue
@@ -236,7 +238,7 @@ async def send_notification_voice_channel(
     guild_id: int,
     member: discord.Member,
     voice_channel: discord.VoiceChannel,
-    text_channel_id: int,
+    schedule_text_channel_id: int,
 ) -> None:
     """
     Send a notification to the user in the voice channel
@@ -248,21 +250,22 @@ async def send_notification_voice_channel(
     # await member.send(
     #     f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>."
     # )
-
+    channel_schedule: Optional[discord.TextChannel] = await data_access_get_channel(schedule_text_channel_id)
+    channel_name = channel_schedule.name if channel_schedule is not None else "schedule"
     list_simple_users = await get_users_scheduled_today_current_hour(bot, guild_id, get_current_hour_eastern())
     list_simple_users = list(filter(lambda x: x.user_id != member.id, list_simple_users))
     if len(list_simple_users) > 0:
         other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
-        text_message = f"Hello {member.display_name}! {other_members} are scheduled to play at this time. Check the bot schedule channel."
+        text_message = f"Hello {member.display_name}! {other_members} are scheduled to play at this time. Check the bot {channel_name} channel."
     else:
         # Check next hour
         list_simple_users = await get_users_scheduled_today_current_hour(bot, guild_id, get_current_hour_eastern(1))
         list_simple_users = list(filter(lambda x: x.user_id != member.id, list_simple_users))
         if len(list_simple_users) > 0:
             other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
-            text_message = f"Hello {member.display_name}! {other_members} are scheduled to play in the upcoming hour. Check the bot schedule channel."
+            text_message = f"Hello {member.display_name}! {other_members} are scheduled to play in the upcoming hour. Check the bot {channel_name} channel."
         else:
-            text_message = f"Hello {member.display_name}! Feel free to message the rainbow six siege channel to find partners and check the bot schedule channel."
+            text_message = f"Hello {member.display_name}! Use the slash lfg command in the rainbow six siege channel to find partners and check the {channel_name} channel."
 
     print_log(f"Sending voice message to {member.display_name}")
     # Convert text to speech using gTTS
@@ -294,7 +297,7 @@ async def get_users_scheduled_today_current_hour(bot: MyBot, guild_id: int, curr
     Get the list of users scheduled for the current day and hour
     current_hour_str: The current hour in the format "3am"
     """
-    channel_id = await data_access_get_guild_text_channel_id(guild_id)
+    channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
     channel = await data_access_get_channel(channel_id)
 
     last_message = await get_last_schedule_message(bot, channel)
@@ -344,10 +347,10 @@ async def adjust_role_from_ubisoft_max_account(
     if ubisoft_active_account is None:
         active_msg = ""
     else:
-        active_msg = f"\nCurrently playing on the [{ubisoft_active_account}](https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_active_account}/overview) account."
+        active_msg = f"\nCurrently playing on the [{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."
 
     await channel.send(
-        content=f"{member.mention} main account is [{ubisoft_connect_name}](https://r6.tracker.network/r6siege/profile/ubi/{ubisoft_connect_name}/overview) with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.",
+        content=f"{member.mention} main account is [{ubisoft_connect_name}]({get_url_user_profile_overview(ubisoft_connect_name)}) with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.",
     )
     return max_rank
 
@@ -488,7 +491,7 @@ def get_gaming_session_user_embed_message(
         description=f"{member.mention} played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.",
         color=get_color_for_rank(member),
         timestamp=datetime.now(),
-        url=f"https://r6.tracker.network/r6siege/profile/ubi/{aggregation.ubisoft_username_active}",
+        url=get_url_user_profile_main(aggregation.ubisoft_username_active),
     )
 
     # Get the list of kill_death into a string with comma separated

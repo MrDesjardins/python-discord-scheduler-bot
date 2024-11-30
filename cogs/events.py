@@ -13,7 +13,7 @@ from deps.bot_common_actions import (
 from deps.data_access import (
     data_access_get_channel,
     data_access_get_guild,
-    data_access_get_guild_text_channel_id,
+    data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_member,
     data_access_get_message,
@@ -67,7 +67,7 @@ class MyEventsCog(commands.Cog):
                 bot.guild_emoji[guild.id][emoji.name] = emoji.id
                 print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
 
-            channel_id = await data_access_get_guild_text_channel_id(guild.id)
+            channel_id = await data_access_get_guild_schedule_text_channel_id(guild.id)
             if channel_id is None:
                 print_log(
                     f"\tThe administrator of the guild {guild.name} did not configure the channel to send the daily message."
@@ -123,7 +123,7 @@ class MyEventsCog(commands.Cog):
         text_message_reaction: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
         user: discord.User = await data_access_get_user(guild_id, user_id)
         member: discord.Member = await data_access_get_member(guild_id, user_id)
-        text_channel_configured_for_bot: discord.TextChannel = await data_access_get_guild_text_channel_id(guild_id)
+        text_channel_configured_for_bot: discord.TextChannel = await data_access_get_guild_schedule_text_channel_id(guild_id)
         reaction_emoji = reaction.emoji
 
         if user is None:
@@ -241,8 +241,8 @@ class MyEventsCog(commands.Cog):
             if voice_channel_ids is None:
                 print_warning_log(f"Voice channel not set for guild {guild.name}. Skipping.")
                 continue
-            text_channel_id = await data_access_get_guild_text_channel_id(guild_id)
-            if text_channel_id is None:
+            schedule_text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
+            if schedule_text_channel_id is None:
                 print_warning_log(f"Text channel not set for guild {guild.name}. Skipping.")
                 continue
 
@@ -301,7 +301,7 @@ class MyEventsCog(commands.Cog):
             if after.channel is not None and after.channel.id in voice_channel_ids:
                 # Check if the user is the only one in the voice channel
                 if len(after.channel.members) == 1:
-                    await send_notification_voice_channel(self.bot, guild_id, member, after.channel, text_channel_id)
+                    await send_notification_voice_channel(self.bot, guild_id, member, after.channel, schedule_text_channel_id)
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -322,13 +322,13 @@ class MyEventsCog(commands.Cog):
             )
             return
 
-        text_channel_id: int = await data_access_get_guild_text_channel_id(guild_id)
+        text_channel_id: int = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if text_channel_id is None:
             print_warning_log(f"on_member_join: Schedule text channel not set for guild {member.guild.name}. Skipping.")
             return
         # Send message into the text channel with mention to the user to welcome them
         await channel.send(
-            f"Welcome {member.mention} to the server! Use the command `/setupprofile` to set up your profile which will give you a role and access to many voice channels. You can check who plan to play in the schedule channel <#{text_channel_id}>."
+            f"Welcome {member.mention} to the server! Use the command `/setupprofile` (in any text channel) to set up your profile which will give you a role and access to many voice channels. You can check who plan to play in the schedule channel <#{text_channel_id}>. When ready to play, join a voice channel and then use the command `/lfg` to find other players."
         )
         print_log(f"on_member_join: New user message sent to {member.display_name} in guild {member.guild.name}.")
 

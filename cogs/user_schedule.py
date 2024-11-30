@@ -2,10 +2,11 @@ from typing import List, Union
 import discord
 from discord.ext import commands
 from discord import app_commands
+from ui.schedule_day_hours_view import ScheduleDayHours
 from deps.bot_common_actions import auto_assign_user_to_daily_question, update_vote_message
 from deps.data_access import (
     data_access_get_channel,
-    data_access_get_guild_text_channel_id,
+    data_access_get_guild_schedule_text_channel_id,
     data_access_get_message,
     data_access_get_reaction_message,
     data_access_get_users_auto_schedule,
@@ -22,7 +23,6 @@ from deps.values import (
     EMOJI_TO_TIME,
 )
 from deps.log import print_log, print_warning_log
-from ui.schedule_day_hours_view import ScheduleDayHours
 from deps.models import DayOfWeek, SimpleUser, SimpleUserHour
 from deps.functions import get_empty_votes, get_last_schedule_message
 from deps.siege import get_user_rank_emoji
@@ -143,7 +143,7 @@ class UserSchedule(commands.Cog):
         """
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
-        channel_id = await data_access_get_guild_text_channel_id(guild_id)
+        channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if channel_id is None:
             print_warning_log(f"No text channel in guild {interaction.guild.name}. Skipping.")
             await interaction.followup.send("Text channel not set.", ephemeral=True)

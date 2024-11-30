@@ -22,7 +22,7 @@ from deps.functions_r6_tracker import get_r6tracker_max_rank
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsersV2"
 KEY_GUILD_USERS_AUTO_SCHEDULE = "GuildUsersAutoScheduleByDay"
-KEY_GUILD_TEXT_CHANNEL = "GuildAdminConfigTextChannel"
+KEY_GUILD_SCHEDULE_TEXT_CHANNEL = "GuildAdminConfigTextChannel"
 KEY_GUILD_USERNAME_TEXT_CHANNEL = "GuildAdminConfigUserNameTextChannel"
 KEY_GUILD_GAMING_SESSION_TEXT_CHANNEL = "GuildAdminConfigGamingSessionTextChannel"
 KEY_GUILD_NEW_USER_TEXT_CHANNEL = "GuildAdminConfigNewUserTextChannel"
@@ -136,16 +136,16 @@ def data_access_set_users_auto_schedule(guild_id: int, day_of_week_number: str, 
     )
 
 
-async def data_access_get_guild_text_channel_id(
+async def data_access_get_guild_schedule_text_channel_id(
     guild_id: int,
 ) -> Union[int, None]:
     """Get the channel by the given channel id"""
-    return await get_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}")
+    return await get_cache(False, f"{KEY_GUILD_SCHEDULE_TEXT_CHANNEL}:{guild_id}")
 
 
-def data_access_set_guild_text_channel_id(guild_id: int, channel_id: int) -> None:
+def data_access_set_guild_schedule_text_channel_id(guild_id: int, channel_id: int) -> None:
     """Set the channel that the bot will send text"""
-    set_cache(False, f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+    set_cache(False, f"{KEY_GUILD_SCHEDULE_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
 
 
 async def data_access_get_guild_voice_channel_ids(
@@ -170,7 +170,7 @@ def data_access_reset_guild_cache(guild_id: int) -> None:
         f"{KEY_REACTION_USERS}:{guild_id}",
         f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}",
         f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}",
-        f"{KEY_GUILD_TEXT_CHANNEL}:{guild_id}",
+        f"{KEY_GUILD_SCHEDULE_TEXT_CHANNEL}:{guild_id}",
         f"{KEY_GUILD_USERNAME_TEXT_CHANNEL}:{guild_id}",
         f"{KEY_MESSAGE}:{guild_id}",
         f"{KEY_USER}:{guild_id}",
