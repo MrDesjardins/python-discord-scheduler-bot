@@ -123,7 +123,9 @@ class MyEventsCog(commands.Cog):
         text_message_reaction: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
         user: discord.User = await data_access_get_user(guild_id, user_id)
         member: discord.Member = await data_access_get_member(guild_id, user_id)
-        text_channel_configured_for_bot: discord.TextChannel = await data_access_get_guild_schedule_text_channel_id(guild_id)
+        text_channel_configured_for_bot: discord.TextChannel = await data_access_get_guild_schedule_text_channel_id(
+            guild_id
+        )
         reaction_emoji = reaction.emoji
 
         if user is None:
@@ -301,13 +303,16 @@ class MyEventsCog(commands.Cog):
             if after.channel is not None and after.channel.id in voice_channel_ids:
                 # Check if the user is the only one in the voice channel
                 if len(after.channel.members) == 1:
-                    await send_notification_voice_channel(self.bot, guild_id, member, after.channel, schedule_text_channel_id)
+                    await send_notification_voice_channel(
+                        self.bot, guild_id, member, after.channel, schedule_text_channel_id
+                    )
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         """
         Send message to new user
         """
+        print_log("on_member_join called")
         if member.bot:
             return  # Ignore bot
         guild_id = member.guild.id
