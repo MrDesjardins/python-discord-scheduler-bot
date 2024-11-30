@@ -1,7 +1,7 @@
 -- Get all user activity count
 SELECT count(*) FROM user_activity;
 
--- Check what was the activity that was deleted
+-- Real Query: Delete the event that does not have a open or close properly
 WITH user_event_sequence AS (
     SELECT 
         id,
@@ -32,8 +32,6 @@ violations AS (
         (previous_event IS NOT NULL AND 
          previous_event = 'disconnect' AND event != 'connect')
 )
-SELECT * from violations;
+delete from user_activity where id in (select id from violations); 
 
--- Get the ID from the query above as well as the user id to check the activity
-SELECT * from  user_activity where id >= 1641 and user_id = 357551747146842124;
-
+SELECT count(*) FROM user_activity;

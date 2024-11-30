@@ -125,7 +125,7 @@ def fetch_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserAct
         SELECT user_id, channel_id, event, timestamp, guild_id
         FROM user_activity
         WHERE timestamp >= datetime('now', ? ) AND timestamp <= datetime('now', ?)
-        ORDER BY channel_id, timestamp
+        ORDER BY timestamp
         """,
         (f"-{from_day} days", f"-{to_day} days"),
     )

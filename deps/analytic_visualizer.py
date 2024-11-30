@@ -364,7 +364,7 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
 
 
 def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
-    top = 50
+    top = 30
     data_user_activity = fetch_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_info()
 
@@ -382,7 +382,7 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
     users = [data_user_id_name[user_id].display_name for user_id in users]  # Convert user
 
     # Create the bar plot
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(12, 6))
     plt.bar(users, times_in_hours, color="skyblue")
 
     # Add labels and title

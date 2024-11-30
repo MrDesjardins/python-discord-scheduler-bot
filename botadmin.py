@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """ Entry file for the Discord bot admin command """
+from datetime import datetime, timedelta
 import subprocess
 import glob
 import io
 import os
 import sys
 import threading
+from typing import Optional
 import unittest
 import black
 from simple_term_menu import TerminalMenu
@@ -89,42 +91,84 @@ def local_menu():
     main()
 
 
-def show_visualization_menu():
+def get_from_to_days(menu_entry_index2: int) -> tuple[int, int]:
+    """Get the day from and to"""
+    if menu_entry_index2 == 0:
+        # From the last 30 days
+        from_day = 30
+        to_day = 0
+        return (from_day, to_day)
+    elif menu_entry_index2 == 1:
+        # Current Month
+        from_day = datetime.now().day
+        to_day = 0
+        return (from_day, to_day)
+    elif menu_entry_index2 == 2:
+        # Get the current date
+        current_date = datetime.now()
+
+        # Determine the first day of the last month
+        first_day_of_this_month = datetime(current_date.year, current_date.month, 1)
+        last_month_last_day = first_day_of_this_month - timedelta(days=1)
+        last_month_first_day = datetime(last_month_last_day.year, last_month_last_day.month, 1)
+
+        # Calculate the number of days since the first and last day of the last month
+        from_day = (current_date - last_month_first_day).days
+        to_day = (current_date - last_month_last_day).days
+        return (from_day, to_day)
+    elif menu_entry_index2 == 3:
+        # Since September 21th, 2024
+        from_day = (datetime.now() - datetime(2024, 9, 21)).days
+        to_day = 0
+        return (from_day, to_day)
+
+
+def show_visualization_menu(time_choice: Optional[int] = None):
     """Menu to choose the visualization"""
-    options = [
-        "[1] Community 2D",
-        "[2] Community 3D",
-        "[3] Relationship Time",
-        "[4] Total Voices Time",
-        "[5] Inactive Users",
-        "[6] User per weekday",
-        "[7] Voice time per Month",
-        "[8] Time Line Users Activity",
-        "[9] Monthly Voice Time",
-        "[q] Back",
-    ]
-    from_day = 30  # <----------------------------------------------------------------------- Last X days
-    terminal_menu = TerminalMenu(options, title=f"Visualizations of the last {from_day} days", show_shortcut_hints=True)
+    if time_choice is None:
+        options = [
+            "[1] Community 2D",
+            "[2] Community 3D",
+            "[3] Duo Relationship Time",
+            "[4] Users Total Voices Time Bar",
+            "[5] Inactive Users",
+            "[6] User per weekday Matrix",
+            "[7] Voice time per Month Color Gradient",
+            "[8] Time Line Users Activity Line Chart",
+            "[9] Monthly Voice Time",
+            "[q] Back",
+        ]
+
+        terminal_menu2 = TerminalMenu(
+            ["[1] Last 30 days", "[2] Current month", "[3] Last Month", "[4] Since September 21th, 2024"],
+            title="Days",
+            show_shortcut_hints=True,
+        )
+        time_choice = terminal_menu2.show()
+    (from_day, to_day) = get_from_to_days(time_choice)
+    terminal_menu = TerminalMenu(
+        options, title=f"Visualizations of {from_day} days ago to {to_day} days ago", show_shortcut_hints=True
+    )
     menu_entry_index = terminal_menu.show()
 
     if menu_entry_index == 0:
-        display_graph_cluster_people(from_day=from_day)
+        display_graph_cluster_people(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 1:
-        display_graph_cluster_people_3d_animated(from_day=from_day)
+        display_graph_cluster_people_3d_animated(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 2:
-        display_time_relationship(from_day=from_day)
+        display_time_relationship(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 3:
-        display_time_voice_channel(from_day=from_day)
+        display_time_voice_channel(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 4:
         display_inactive_user(from_day=from_day)
     elif menu_entry_index == 5:
-        display_user_day_week(from_day=from_day)
+        display_user_day_week(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 6:
-        display_user_voice_per_month(from_day=from_day)
+        display_user_voice_per_month(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 7:
-        display_user_timeline_voice_time_by_week(from_day=from_day)
+        display_user_timeline_voice_time_by_week(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 8:
-        display_user_timeline_voice_by_months(from_day=from_day)
+        display_user_timeline_voice_by_months(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 9:
         local_menu()
         return
