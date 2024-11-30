@@ -170,6 +170,10 @@ class UserFeatures(commands.Cog):
                     )
             else:
                 print_error_log(f"looking_for_group: Cannot find members in the voice channel {voice_channel.id}.")
+                await interaction.followup.send(
+                    "Something went wrong, please contact the moderator to check the issue.",
+                    ephemeral=True,
+                )
         else:
             await interaction.followup.send(f"To use the /{COMMAND_LFG} command you must be in a voice channel.")
 
