@@ -56,9 +56,13 @@ COMMAND_SET_USER_TIME_ZONE = "setmytimezone"
 COMMAND_GET_USER_TIME_ZONE = "getusertimezone"
 COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL = "gettimezones"
 
+## Game
+COMMAND_LFG = "lfg"
+
 ## Rank/Role
 COMMAND_MAX_RANK_USER_ACCOUNT = "setmymaxrankaccount"  # For rank
 COMMAND_ACTIVE_RANK_USER_ACCOUNT = "setmyactiveaccount"  # For checking stats
+
 
 # -----------------------
 # Moderator's commands

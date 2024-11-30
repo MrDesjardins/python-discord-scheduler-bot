@@ -17,6 +17,7 @@ from deps.data_access_data_class import UserInfo
 from deps.values import (
     COMMAND_ACTIVE_RANK_USER_ACCOUNT,
     COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL,
+    COMMAND_LFG,
     COMMAND_MAX_RANK_USER_ACCOUNT,
 )
 from deps.mybot import MyBot
@@ -133,6 +134,44 @@ class UserFeatures(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         data_access_set_ubisoft_username_active(interaction.user.id, ubisoft_connect_name)
         await interaction.followup.send(f"You are playing on `{ubisoft_connect_name}`", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_LFG)
+    async def looking_for_group(self, interaction: discord.Interaction, number_of_users_needed: Optional[int] = None):
+        """Looking for group command"""
+        await interaction.response.defer(ephemeral=True)
+        user = interaction.user
+        if user.voice:
+            voice_channel = user.voice.channel
+            # Get everyone in the voice channel
+            members = voice_channel.members
+            if isinstance(members, list):
+                list_members_in_voice_channel = ""
+                for member in members:
+                    rank = get_user_rank_emoji(self.bot.guild_emoji.get(interaction.guild.id), member)
+                    list_members_in_voice_channel += f"{rank} {member.mention}, "
+                list_members_in_voice_channel = list_members_in_voice_channel[:-2]
+
+                current_count = len(members)
+                missing_count = 5 - current_count if number_of_users_needed is None else number_of_users_needed
+                if missing_count > 0:
+                    if missing_count > 10:
+                        await interaction.followup.send(
+                            f"The command is not sent to the channel. The {COMMAND_LFG} allows a maximum of 10 people.",
+                            ephemeral=True,
+                        )
+                    else:
+                        await interaction.followup.send(
+                            f"@here {list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people.",
+                        )
+                else:
+                    await interaction.followup.send(
+                        f"There are already five people in the voice channel: <#{voice_channel.id}>. The {COMMAND_LFG} is not sent to the channel.",
+                        ephemeral=True,
+                    )
+            else:
+                print_error_log(f"looking_for_group: Cannot find members in the voice channel {voice_channel.id}.")
+        else:
+            await interaction.followup.send(f"To use the /{COMMAND_LFG} command you must be in a voice channel.")
 
 
 async def setup(bot):
