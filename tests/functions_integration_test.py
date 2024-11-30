@@ -30,4 +30,4 @@ class TestR6Tracker:
         # with pytest.raises(Exception):
         #     await get_r6tracker_max_rank("DoesNotExist123000Name")
         rank = await get_r6tracker_max_rank("DoesNotExist123000Name")
-        assert rank is "Copper"
+        assert rank == "Copper"

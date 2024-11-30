@@ -13,7 +13,6 @@ intents.message_content = True  # Enable the message content intent
 intents.guild_reactions = True  # Enable the guild reactions intent
 intents.voice_states = True  # Enable voice states to track who is in voice channel
 
-
 class BotSingleton:
     """A singleton class for the bot instance"""
 

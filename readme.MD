@@ -9,14 +9,24 @@
 # What does the Bot look like?
 
 ## Daily Message
+
 The bot sends a daily message to the guild asking the user when they plan to play the game. The user can react to the message with the hours they plan to play. By default, the bot fills the timeline with folks who used the `/addschedule` which allows user to set week day and time in advance. The bot automatically adjust the schedule every 15 minutes by looking at the voice channel and add people in the schedule.
+
 ![Daily Message](readme_assets/daily_message.png)
 
+# Gaming Session
+
+Everytime someone leave a voice channels that is configured as part of the gaming voice channel, the bot collects the `active` user account and fetches the statistic.
+
+![Gaming Session](readme_assets/bot_gaming_session_example.png)
+
 ## Admin Console
+
 The admin console allows recurrent task in development (local) or in production (Raspberry Pi). The admin can execute tests or run visualizations of the user activity.
 ![Admin Menu](readme_assets/botadmin.gif)
 
 ## Visualization of User Relationship
+
 One of the administrative feature is to see the relationship between users. The bot uses the voice channel to see who is playing with whom and generate a network graph.
 
 ![2D Relationship](readme_assets/2d_relationship_graph.png)
@@ -26,21 +36,25 @@ The visualization is also in 3D.
 ![3D Relationship](readme_assets/3d_relationship.gif)
 
 ## Visualization of the Inactive User
+
 The bot keeps track of who is joining the voice channels. The bot can generate a visualization of the inactive user.
 
 ![Inactive](readme_assets/inactive_users.png)
 
 ## Visualization of the Duo
+
 The bot can analyze who is playing with whom at the same time (in the same voice channel) and create a graph of the most common duo.
 
 ![Duo](readme_assets/duo.png)
 
 ## Visualization of the Total Voice Time
+
 The bot can gives you who is the most active in the voice channels.
 
 ![Voice Active](readme_assets/total_voice.png)
 
 ## Visualization of which Week Day is the Most Active per User
+
 The bot can generate a matrix of the most active day of the week for each user.
 
 ![Weekday Activity](readme_assets/week_day_activity.png)
@@ -48,6 +62,12 @@ The bot can generate a matrix of the most active day of the week for each user.
 # Bot Commands
 
 ## User Commands
+
+### Game Commands
+
+#### lfg
+
+A user in a voice channel can use the `/lfg` command to notify the other users. The command will calculate the amount of user required and post who is already in the voice channel with a `@here` mention.
 
 ### Schedule Commands
 
@@ -66,17 +86,21 @@ Once a user set a schedule, they can remove it using the `/removeschedule` comma
 ### Timezone Commands
 
 #### setmytimezone
+
 Allows a user to specify which timezone they are in.
 
 #### getusertimezone
+
 Allows a user to retrieve a user timezone
 
 #### gettimezones
+
 Allows a user to get the list of timezones of all people in a specific voice channel.
 
 ### Rank/Role Commands
 
 #### `adjustrank`
+
 Allows the user to type his Ubisoft account name to fetch the maximum rank he achieved and assign the role.
 
 ## Moderators/Administrator Commands
@@ -102,6 +126,7 @@ Force the bot to check the cache for user's schedule and apply it on the current
 ### Timezone commands
 
 #### modsetusertimezone
+
 Allows an administrator to set the timezone of a user.
 
 ### Channels Commands
@@ -129,14 +154,17 @@ Rremove all voice channels configuration. It is good to reset and add the voice 
 ### Bot Behaviors
 
 #### modenablebotvoice
+
 Turn on and off the feature that the bot goes into the voice channel to send a voice mesage to the first user.
 
 ### Analytics
 
 #### modshowcommunity
-Generate an image that is a network graph of the useer and with whom they play the most. 
+
+Generate an image that is a network graph of the useer and with whom they play the most.
 
 #### modversion
+
 Give the latest SHA of the commit. Helps to ensure that the bot is running the latest version.
 
 ## Owner Commands
@@ -144,7 +172,6 @@ Give the latest SHA of the commit. Helps to ensure that the bot is running the l
 ### modresetcache
 
 Reset the cache for the administration guild.
-
 
 # Discord Administration
 
@@ -195,10 +222,11 @@ https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=2
 ```
 
 # Create a TRN Developer Account
+
 To get the statistics of the user, you need to create a developer account on the TRN website. The TRN API is used to get the statistics of the user. The API key is required to get the statistics of the user.
 
 1. Create an account on the TRN website: https://tracker.gg/developers
-2. E.g. https://tracker.gg/developers/apps/330f2e3d-c58f-4170-a4c1-65710ba2e55d 
+2. E.g. https://tracker.gg/developers/apps/330f2e3d-c58f-4170-a4c1-65710ba2e55d
 
 # Local Development Configuration
 
@@ -302,7 +330,6 @@ sudo apt install chromium-browser chromium-chromedriver
 sudo chown pi:pi /usr/bin/chromedriver
 ```
 
-
 ## Debugging
 
 If the service does not start, you can check the status of the service with the following command:
@@ -345,9 +372,10 @@ You can also while developing using the test script with `python3 test_analytics
 
 ```sh
 pytest -v -s ./tests/*_unit_test.py
-``` 
+```
 
 # Integration Tests
+
 ```sh
 pytest -v -s ./tests/*_integration_test.py
 ```
@@ -357,6 +385,6 @@ pytest -v -s ./tests/*_integration_test.py
 ```sh
 coverage run -m pytest -v -s ./tests
 coverage report -m
-coverage lcov 
+coverage lcov
 coverage html
 ```
