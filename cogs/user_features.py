@@ -138,7 +138,7 @@ class UserFeatures(commands.Cog):
     @app_commands.command(name=COMMAND_LFG)
     async def looking_for_group(self, interaction: discord.Interaction, number_of_users_needed: Optional[int] = None):
         """Looking for group command"""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
         user = interaction.user
         if user.voice:
             voice_channel = user.voice.channel
