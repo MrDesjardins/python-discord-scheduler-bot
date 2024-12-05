@@ -70,9 +70,9 @@ class BrowserContextManager:
             # Step 2: Visit the public profile page to establish the session
             profile_url = get_url_user_ranked_matches("noSleep_rb6")
             self.driver.get(profile_url)
-            WebDriverWait(self.driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
+            WebDriverWait(self.driver, 25).until(EC.visibility_of_element_located((By.ID, "app-container")))
         except Exception as e:
-            print_error_log(f"_config_browser: Error visiting the profile page: {e}")
+            print_error_log(f"_config_browser: Error visiting the profile page ({profile_url}): {e}")
 
     def download_matches(self, ubisoft_user_name: str) -> List[UserMatchInfo]:
         """Download the matches for the given Ubisoft username"""
@@ -110,3 +110,9 @@ class BrowserContextManager:
                 print_error_log(f"download_matches: Error parsing JSON: {e}")
         else:
             print_error_log("download_matches: JSON data not found within <pre> tag.")
+
+    def refresh_browser(self) -> None:
+        """Refresh the browser"""
+        self.driver.refresh()
+        WebDriverWait(self.driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
+        print_log("refresh_browser: Browser refreshed")
