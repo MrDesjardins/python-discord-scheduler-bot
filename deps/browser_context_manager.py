@@ -43,6 +43,10 @@ class BrowserContextManager:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.driver.quit()
+        # Kill any lingering chromium-browser processes
+        environment_var = os.getenv("ENV")
+        if environment_var == "prod":
+            os.system("pkill -f chromium-browser")
         return self.wrapped.__exit__(exc_type, exc_value, traceback)
 
     def _config_browser(self) -> None:
@@ -73,6 +77,8 @@ class BrowserContextManager:
             WebDriverWait(self.driver, 25).until(EC.visibility_of_element_located((By.ID, "app-container")))
         except Exception as e:
             print_error_log(f"_config_browser: Error visiting the profile page ({profile_url}): {e}")
+            # Throw the exception to __exit__
+            raise e
 
     def download_matches(self, ubisoft_user_name: str) -> List[UserMatchInfo]:
         """Download the matches for the given Ubisoft username"""

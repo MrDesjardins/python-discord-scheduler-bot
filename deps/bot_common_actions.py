@@ -425,18 +425,22 @@ async def post_queued_user_stats(check_time_delay: bool = True, last_hour: int =
     all_users_matches: List[UserWithUserMatchInfo] = []
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API
-    with BrowserContextManager() as context:
-        for user in users:
-            try:
-                matches: List[UserMatchInfo] = context.download_matches(user.user_info.ubisoft_username_active)
-                all_users_matches.append(UserWithUserMatchInfo(user, matches))
-                if len(users) > 1:
-                    await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
-            except Exception as e:
-                print_error_log(
-                    f"post_queued_user_stats: Error getting the user ({user.user_info.display_name}) stats from R6 tracker: {e}"
-                )
-                continue  # Skip to the next user
+    try:
+        with BrowserContextManager() as context:
+            for user in users:
+                try:
+                    matches: List[UserMatchInfo] = context.download_matches(user.user_info.ubisoft_username_active)
+                    all_users_matches.append(UserWithUserMatchInfo(user, matches))
+                    if len(users) > 1:
+                        await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
+                except Exception as e:
+                    print_error_log(
+                        f"post_queued_user_stats: Error getting the user ({user.user_info.display_name}) stats from R6 tracker: {e}"
+                    )
+                    continue  # Skip to the next user
+    except Exception as e:
+        print_error_log(f"post_queued_user_stats: Error opening the browser context: {e}")
+
     # End of the browser context
     if len(users) != len(all_users_matches):
         print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(users)}")
