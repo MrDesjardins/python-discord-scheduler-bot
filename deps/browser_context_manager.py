@@ -58,6 +58,13 @@ class BrowserContextManager:
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--disable-gpu")
         options.add_argument("--start-maximized")
+        options.add_argument("--disable-extensions")
+        options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-sync")
+        options.add_argument(
+            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
+        )
+
         environment_var = os.getenv("ENV")
 
         if environment_var == "prod":
@@ -74,7 +81,7 @@ class BrowserContextManager:
             # Step 2: Visit the public profile page to establish the session
             profile_url = get_url_user_ranked_matches("noSleep_rb6")
             self.driver.get(profile_url)
-            WebDriverWait(self.driver, 25).until(EC.visibility_of_element_located((By.ID, "app-container")))
+            WebDriverWait(self.driver, 45).until(EC.visibility_of_element_located((By.ID, "app-container")))
         except Exception as e:
             print_error_log(f"_config_browser: Error visiting the profile page ({profile_url}): {e}")
             # Throw the exception to __exit__
