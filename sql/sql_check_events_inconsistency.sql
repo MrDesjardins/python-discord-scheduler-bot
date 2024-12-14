@@ -8,17 +8,22 @@ WITH user_event_sequence AS (
         user_id,
         event,
         timestamp,
-        LAG(event) OVER (PARTITION BY user_id ORDER BY timestamp) AS previous_event
+        LAG(id) OVER (PARTITION BY user_id ORDER BY timestamp) AS previous_id,
+        LAG(event) OVER (PARTITION BY user_id ORDER BY timestamp) AS previous_event,
+        LAG(timestamp) OVER (PARTITION BY user_id ORDER BY timestamp) AS previous_timestamp
     FROM 
         user_activity
 ),
 violations AS (
     SELECT 
+        previous_id,
         id,
         user_id,
-        event,
         previous_event,
-        timestamp
+        event,
+        previous_timestamp,
+        timestamp,
+         (strftime('%s', timestamp) - strftime('%s', previous_timestamp)) as seconds_between_events
     FROM 
         user_event_sequence
     WHERE 
@@ -32,8 +37,21 @@ violations AS (
         (previous_event IS NOT NULL AND 
          previous_event = 'disconnect' AND event != 'connect')
 )
-SELECT * from violations;
+SELECT ua.display_name, 
+    vio.user_id ,
+  vio.previous_event, 
+  vio.event, 
+  vio.seconds_between_events / 3600 AS hours_between_events,
+  vio.previous_id,
+  vio.id,
+  vio.timestamp
+FROM 
+  violations vio
+LEFT JOIN 
+  user_info ua
+    ON vio.user_id = ua.id;
+
 
 -- Get the ID from the query above as well as the user id to check the activity
-SELECT * from  user_activity where id >= 1641 and user_id = 357551747146842124;
+SELECT * from  user_activity where id >= 2197 and user_id = 261398260952858624;
 

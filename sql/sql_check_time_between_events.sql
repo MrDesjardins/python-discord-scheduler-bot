@@ -33,6 +33,7 @@ violations AS (
        seconds_between_events > 60*60*12
 )
 SELECT ua.display_name, 
+    vio.user_id ,
   vio.previous_event, 
   vio.event, 
   vio.seconds_between_events / 3600 AS hours_between_events,
