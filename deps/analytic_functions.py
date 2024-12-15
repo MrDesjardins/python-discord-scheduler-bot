@@ -8,7 +8,7 @@ from typing import Dict, Tuple, List
 import pandas as pd
 from dateutil import parser
 from deps.analytic_models import UserInfoWithCount
-from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.data_access_data_class import UserActivity, UserInfo
 
 

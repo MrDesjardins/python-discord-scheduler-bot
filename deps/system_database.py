@@ -1,7 +1,7 @@
 """
 Common code for the gatherer and analyse
 """
-
+import datetime
 import sqlite3
 
 EVENT_CONNECT = "connect"
@@ -9,12 +9,22 @@ EVENT_DISCONNECT = "disconnect"
 DATABASE_NAME = "user_activity.db"
 DATABASE_NAME_TEST = "user_activity_test.db"
 
+# Adapter for datetime objects
+def adapt_datetime(dt):
+    return dt.isoformat()
+
+# Converter for datetime objects
+def convert_datetime(s):
+    return datetime.datetime.fromisoformat(s)
 
 class DatabaseManager:
     """Handle the database connection to the right file"""
 
     def __init__(self, name):
         """Initialize the database manager name which correspond to the file name"""
+        # Register the adapters and converters with sqlite3
+        sqlite3.register_adapter(datetime.datetime, adapt_datetime)
+        sqlite3.register_converter("datetime", convert_datetime)
         self.set_database_name(name)
 
     def set_database_name(self, name: str) -> None:
@@ -84,7 +94,8 @@ class DatabaseManager:
             end_date DATETIME NOT NULL,
             best_of INTEGER NOT NULL,
             max_players INTEGER NOT NULL,
-            maps TEXT NOT NULL
+            maps TEXT NOT NULL,
+            has_started INTEGER DEFAULT 0
         );
         """
         )
@@ -96,7 +107,7 @@ class DatabaseManager:
             user_id INTEGER NOT NULL,
             tournament_id INTEGER NOT NULL,
             registration_date DATETIME NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES user_info(id)
+            FOREIGN KEY(user_id) REFERENCES user_info(id),
             FOREIGN KEY(tournament_id) REFERENCES tournament(id)
         );
         """
@@ -111,6 +122,8 @@ class DatabaseManager:
             user1_id INTEGER NULL,
             user2_id INTEGER NULL,
             user_winner_id INTEGER NULL,
+            score TEXT NULL,
+            map TEXT NULL,
             timestamp DATETIME NULL,
             next_game1_id INTEGER NULL,
             next_game2_id INTEGER NULL,

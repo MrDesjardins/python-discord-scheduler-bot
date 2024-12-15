@@ -25,7 +25,7 @@ from deps.analytic_functions import (
     users_by_weekday,
 )
 from deps.analytic_data_access import fetch_user_activities, fetch_user_info, calculate_time_spent_from_db
-from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
+from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 
 
 @dataclass

@@ -5,15 +5,13 @@ Tournament Unit Tests using pytest
 import asyncio
 from datetime import datetime, timezone
 import pytest
-from deps.function_tournament import build_tournament_tree
+from deps.tournament_functions import build_tournament_tree
 from deps.tournament_data_class import TournamentGame
 
 lock = asyncio.Lock()
 
 
-@pytest.mark.no_parallel
-@pytest.mark.asyncio
-async def test_build_tournament_tree_full_first_round():
+def test_build_tournament_tree_full_first_round():
     """Test to generate the tree from a list"""
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
     list_tournament_games: TournamentGame = [

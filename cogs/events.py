@@ -3,7 +3,7 @@ import asyncio
 from discord.ext import commands
 import discord
 from deps.analytic_data_access import insert_user_activity
-from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
+from system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_notification_voice_channel,

@@ -5,7 +5,7 @@ from typing import Dict
 import pytest
 from unittest.mock import patch
 from deps.analytic_models import UserInfoWithCount
-from deps.analytic_database import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (
     calculate_overlap,

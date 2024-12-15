@@ -8,7 +8,7 @@ from datetime import datetime
 
 # pylint: disable=import-error
 from deps.data_access_data_class import UserInfo
-from deps.analytic_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
+from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 
 # pylint: disable=import-error
 from deps.analytic_data_access import (

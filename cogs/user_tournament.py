@@ -12,7 +12,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_log, print_warning_log
-from deps.function_tournament import build_tournament_tree
+from tournament_functions import build_tournament_tree
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_visualizer import plot_tournament_bracket
 
