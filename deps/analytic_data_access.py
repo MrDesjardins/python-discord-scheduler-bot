@@ -2,6 +2,7 @@
 Module to gather user activity data and calculate the time spent together
 """
 
+from datetime import date
 from typing import Dict, List, Optional
 from deps.data_access_data_class import UserInfo, UserActivity
 from deps.analytic_database import database_manager
@@ -9,7 +10,7 @@ from deps.analytic_functions import compute_users_weights
 from deps.cache import (
     get_cache,
 )
-from deps.log import print_log
+from deps.tournament_models import BestOf, TournamentSize
 
 KEY_USER_INFO = "user_info"
 
@@ -225,4 +226,90 @@ def upsert_user_info(user_id, display_name, user_max_account_name, user_active_a
         },
     )
 
+    database_manager.get_conn().commit()
+
+
+def data_access_insert_tournament(
+    guild_id: int,
+    name: str,
+    registration_date_start: date,
+    start_date: date,
+    end_date: date,
+    best_of: int,
+    max_users: int,
+    maps: str,
+) -> None:
+    """
+    Insert a tournament and its associated games in a binary bracket system.
+
+    :param name: Name of the tournament.
+    :param registration_date_start: Registration start date.
+    :param start_date: Tournament start date.
+    :param end_date: Tournament end date.
+    :param best_of: Best-of value for games.
+    :param max_users: Maximum number of players (must be a power of 2).
+    :param database_manager: A database manager object for handling connections and queries.
+    """
+    if max_users & (max_users - 1) != 0:
+        raise ValueError("max_users must be a power of 2 (e.g., 4, 8, 16, ...).")
+
+    # Insert tournament into the tournament table
+    cursor = database_manager.get_cursor()
+    cursor.execute(
+        """
+        INSERT INTO tournament (
+            guild_id, name, registration_date, start_date, end_date, best_of, max_players, maps
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (guild_id, name, registration_date_start, start_date, end_date, best_of, max_users, maps),
+    )
+    tournament_id = cursor.lastrowid
+
+    # Helper function to recursively create the binary bracket
+    def create_bracket(tournament_id: int, num_games: int) -> List[dict]:
+        games = []
+
+        # Initialize a list to keep track of game IDs for the current level
+        current_level = []
+
+        # Generate leaf games (final games at the bottom of the bracket)
+        for i in range(num_games):
+            cursor.execute(
+                """
+                INSERT INTO tournament_game (
+                    tournament_id, next_game1_id, next_game2_id
+                ) VALUES (?, NULL, NULL)
+                """,
+                (tournament_id,),
+            )
+            game_id = cursor.lastrowid
+            current_level.append(game_id)
+
+        # Build the bracket upwards
+        while len(current_level) > 1:
+            next_level = []
+            for i in range(0, len(current_level), 2):
+                next_level_1 = current_level[i] if i < len(current_level) else None
+                next_level_2 = current_level[i + 1] if i + 1 < len(current_level) else None
+                cursor.execute(
+                    """
+                    INSERT INTO tournament_game (
+                        tournament_id, next_game1_id, next_game2_id
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (tournament_id, next_level_1, next_level_2),
+                )
+                game_id = cursor.lastrowid
+                next_level.append(game_id)
+            current_level = next_level
+
+        return games
+
+    # Calculate the total number of games for the given max_users
+    total_games = max_users - 1
+
+    # Create the bracket
+    create_bracket(tournament_id, total_games)
+
+    # Commit the transaction
     database_manager.get_conn().commit()

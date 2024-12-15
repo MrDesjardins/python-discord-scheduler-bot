@@ -32,6 +32,8 @@ class DatabaseManager:
 
     def init_database(self):
         """Ensure that database has all the tables"""
+
+        ### User Activity TABLES ###
         self.get_cursor().execute(
             """
         CREATE TABLE IF NOT EXISTS user_info (
@@ -66,6 +68,56 @@ class DatabaseManager:
             user_b TEXT NOT NULL,
             channel_id TEXT NOT NULL,
             weight REAL NOT NULL
+        );
+        """
+        )
+
+        ### TOURNAMENT TABLES ###
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS tournament (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            registration_date DATETIME NOT NULL,
+            start_date DATETIME NOT NULL,
+            end_date DATETIME NOT NULL,
+            best_of INTEGER NOT NULL,
+            max_players INTEGER NOT NULL,
+            maps TEXT NOT NULL
+        );
+        """
+        )
+
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS user_tournament (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            tournament_id INTEGER NOT NULL,
+            registration_date DATETIME NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES user_info(id)
+            FOREIGN KEY(tournament_id) REFERENCES tournament(id)
+        );
+        """
+        )
+
+
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS tournament_game (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            user1_id INTEGER NULL,
+            user2_id INTEGER NULL,
+            user_winner_id INTEGER NULL,
+            timestamp DATETIME NULL,
+            next_game1_id INTEGER NULL,
+            next_game2_id INTEGER NULL,
+            FOREIGN KEY(user1_id) REFERENCES user_info(id),
+            FOREIGN KEY(user2_id) REFERENCES user_info(id),
+            FOREIGN KEY(user_winner_id) REFERENCES user_info(id),
+            FOREIGN KEY(tournament_id) REFERENCES tournament(id)
         );
         """
         )

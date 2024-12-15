@@ -109,3 +109,12 @@ URL_TRN_RANKED_PAGE = "https://r6.tracker.network/r6siege/profile/uplay/{account
 URL_TRN_API_RANKED_MATCHES = (
     "https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/{account_name}?gamemode=pvp_ranked"
 )
+
+
+# Tournament
+COMMAND_TOURNAMENT_CHANNEL_SET_CHANNEL = "modtexttournamentchannel"
+COMMAND_TOURNAMENT_CHANNEL_GET_CHANNEL = "modseestournamentchannel"
+COMMAND_TOURNAMENT_CREATE_TOURNAMENT = "createtournament"
+COMMAND_TOURNAMENT_REGISTER_TOURNAMENT = "registertournament"
+COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT = "sendscoretournament"
+COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT = "seebrackettournament"

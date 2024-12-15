@@ -36,7 +36,7 @@ KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
 KEY_R6TRACKER = "R6Tracker"
 KEY_GAMING_SESSION_LAST_ACTIVITY = "GamingSessionLastActivity"
 KEY_QUEUE_USER_STATS = "QueueUserStats"
-
+KEY_GUILD_TOURNAMENT_TEXT_CHANNEL = "GuildAdminConfigTournamentTextChannel"
 
 async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
     """Get the guild by the given guild"""
@@ -295,3 +295,14 @@ async def data_acess_remove_list_member_stats(user: UserQueueForStats) -> None:
                 break  # Break because we know maximum one entry per user
         set_cache(True, f"{KEY_QUEUE_USER_STATS}", list_users, ONE_DAY_TTL)
     # Lock is released here
+
+async def data_access_get_guild_tournament_text_channel_id(
+    guild_id: int,
+) -> Union[int, None]:
+    """Get the channel by the given channel id"""
+    return await get_cache(False, f"{KEY_GUILD_TOURNAMENT_TEXT_CHANNEL}:{guild_id}")
+
+
+def data_access_set_guild_tournament_text_channel_id(guild_id: int, channel_id: int) -> None:
+    """Set the channel that the bot will send text"""
+    set_cache(False, f"{KEY_GUILD_TOURNAMENT_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
