@@ -10,9 +10,11 @@ from deps.analytic_functions import compute_users_weights
 from deps.cache import (
     get_cache,
 )
-from deps.tournament_models import BestOf, TournamentSize
+from deps.tournament_data_class import Tournament, TournamentGame
 
 KEY_USER_INFO = "user_info"
+KEY_TOURNAMENT_GUILD = "tournament_guild"
+KEY_TOURNAMENT_GAMES = "tournament_games"
 
 
 def delete_all_tables() -> None:
@@ -313,3 +315,72 @@ def data_access_insert_tournament(
 
     # Commit the transaction
     database_manager.get_conn().commit()
+
+
+async def fetch_active_tournament_bu_guild(guild_id: int) -> Optional[List[Tournament]]:
+    """
+    Fetch a user name from the user_info table
+    """
+
+    def fetch_from_db():
+        result = (
+            database_manager.get_cursor()
+            .execute(
+                """
+                SELECT 
+                    id,
+                    guild_id,
+                    name TEXT ,
+                    registration_date,
+                    start_date,
+                    end_date,
+                    best_of,
+                    max_players,
+                    maps TEXT
+                FROM tournament
+                WHERE guild_id = ? AND registration_date <= datetime('now') AND end_date >= datetime('now')
+              """,
+                (guild_id,),
+            )
+            .fetchone()
+        )
+        if result is not None:
+            return Tournament(*result)
+        else:
+            # Handle the case where no user was found, e.g., return None or raise an exception
+            return None  # Or raise an appropriate exception
+
+    return await get_cache(True, f"{KEY_TOURNAMENT_GUILD}:{guild_id}", fetch_from_db, 60)
+
+
+async def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[TournamentGame]:
+    """
+    Fetch a user name from the user_info table
+    """
+
+    def fetch_from_db():
+        result = (
+            database_manager.get_cursor()
+            .execute(
+                """
+                SELECT  id,
+                        tournament_id ,
+                        user1_id ,
+                        user2_id ,
+                        user_winner_id,
+                        timestamp ,
+                        next_game1_id ,
+                        next_game2_id ,
+              FROM tournament_game WHERE id = ?
+              """,
+                (tournament_id,),
+            )
+            .fetchone()
+        )
+        if result is not None:
+            return TournamentGame(*result)
+        else:
+            # Handle the case where no user was found, e.g., return None or raise an exception
+            return []
+
+    return await get_cache(True, f"{KEY_TOURNAMENT_GAMES}:{tournament_id}", fetch_from_db, 60)

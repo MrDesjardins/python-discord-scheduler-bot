@@ -43,11 +43,11 @@ class TTLCache:
             return True
         return False
 
-    def set(self, key: str, value: Any, ttl: Optional[str] = None):
+    def set(self, key: str, value: Any, ttl_in_seconds: Optional[str] = None):
         """Set the value in the cache with an optional TTL"""
-        if ttl is None:
-            ttl = self.default_ttl
-        self.cache[key] = CacheItem(value, ttl)
+        if ttl_in_seconds is None:
+            ttl_in_seconds = self.default_ttl
+        self.cache[key] = CacheItem(value, ttl_in_seconds)
 
     def get(self, key: str) -> Union[Optional[Any]]:
         """Get the value from the cache if it exists and is not expired"""
@@ -114,7 +114,7 @@ async def get_cache(
     in_memory: bool,
     key: str,
     fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None,
-    ttl: Optional[int] = None,
+    ttl_in_seconds: Optional[int] = None,
 ) -> Any:
     """Get the value from the cache from the in-memory or data cache
     If the value is not in the cache, calls the fetch function to get the value and set it into the cache
@@ -129,7 +129,7 @@ async def get_cache(
             value = fetch_function()
 
         if value:
-            cache.set(key, value, ttl)
+            cache.set(key, value, ttl_in_seconds)
     return value
 
 
