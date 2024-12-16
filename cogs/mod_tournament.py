@@ -15,6 +15,7 @@ from deps.values import (
 from deps.mybot import MyBot
 from deps.log import print_warning_log
 from deps.tournament_models import BestOf, TournamentSize
+from deps.tournament_values import TOURNAMENT_MAPS
 
 
 class ModTournament(commands.Cog):
@@ -68,7 +69,7 @@ class ModTournament(commands.Cog):
         guild_id = interaction.guild.id
         channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No tournament channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"create_tournament:No tournament channel in guild {interaction.guild.name}. Skipping.")
             await interaction.followup.send("Tournament text channel not set.", ephemeral=True)
             return
 
@@ -85,9 +86,9 @@ class ModTournament(commands.Cog):
             end_date_date,
             best_of_number,
             max_users_number,
-            "villa,clubhouse",
+            TOURNAMENT_MAPS,
         )
-        await interaction.followup.send(f"Create tournament {name}", ephemeral=True)
+        await interaction.followup.send(f"Created tournament {name}", ephemeral=True)
 
 
 async def setup(bot):

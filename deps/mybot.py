@@ -12,7 +12,12 @@ class MyBot(commands.Bot):
 
     def __init__(self, *args, **kwargs):
         intents = discord.Intents.default()
-        intents.message_content = True
+        intents.messages = True  # Enable the messages intent
+        intents.members = True  # Enable the messages intent
+        intents.reactions = True  # Enable the reactions intent
+        intents.message_content = True  # Enable the message content intent
+        intents.guild_reactions = True  # Enable the guild reactions intent
+        intents.voice_states = True  # Enable voice states to track who is in voice channel
         super().__init__(command_prefix="!", intents=intents)
         self.allowed_mentions = discord.AllowedMentions(everyone=True, roles=True, users=True)
         self.guild_emoji = {}  # Dict[str, Dict[str, str]]

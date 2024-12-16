@@ -3,7 +3,7 @@ import asyncio
 from discord.ext import commands
 import discord
 from deps.analytic_data_access import insert_user_activity
-from system_database import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_notification_voice_channel,
@@ -97,6 +97,7 @@ class MyEventsCog(commands.Cog):
             "add_reactions": bot_permissions.add_reactions,
             "read_message_history": bot_permissions.read_message_history,
             "mention_everyone": bot_permissions.mention_everyone,
+            "members": bot_permissions.membership
         }
 
         return permissions
