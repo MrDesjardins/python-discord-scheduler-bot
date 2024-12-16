@@ -2,7 +2,6 @@
 Module to gather user activity data and calculate the time spent together
 """
 
-from datetime import date
 from typing import Dict, List, Optional
 from deps.data_access_data_class import UserInfo, UserActivity
 from deps.system_database import database_manager
@@ -10,7 +9,6 @@ from deps.analytic_functions import compute_users_weights
 from deps.cache import (
     get_cache,
 )
-from deps.tournament_data_class import Tournament, TournamentGame
 
 KEY_USER_INFO = "user_info"
 KEY_TOURNAMENT_GUILD = "tournament_guild"

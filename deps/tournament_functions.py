@@ -143,7 +143,8 @@ def assign_people_to_games(
     tournament: TournamentNode, tournament_games: List[TournamentGame], people: List[UserInfo]
 ) -> List[TournamentNode]:
     """
-    Assign people to tournament games.
+    Assign people to tournament games. Assign to the last level of the tree but if the tree is not full, assign to the
+    first level.
 
     Args:
         tournament (TournamentNode): The root node of the tournament tree.
@@ -170,6 +171,26 @@ def assign_people_to_games(
             leaf_nodes[i].user1_id = people[i * 2].id
             leaf_nodes[i].user2_id = people[i * 2 + 1].id
             leaf_nodes[i].map = random.choice(tournament.maps.split(","))
+
+    # Mark the node as a winner if there is only one person
+    assign_to_parent: List[TournamentNode] = []
+    for node in leaf_nodes:
+        if node.user1_id and not node.user2_id:
+            node.user_winner_id = node.user1_id
+            node.score = "N/A"
+            node.timestamp = datetime.now(timezone.utc)
+            assign_to_parent.append(node)
+        elif node.user2_id and not node.user1_id:
+            node.user_winner_id = node.user2_id
+            node.score = "N/A"
+            node.timestamp = datetime.now(timezone.utc)
+            assign_to_parent.append(node)
+
+    for node in assign_to_parent:
+        parent = [n for n in tournament_games if n.next_game1_id == node.id or n.next_game2_id == node.id]
+        if len(parent) == 0:
+            parent[0].user2_id = node.user_winner_id
+
     return leaf_nodes
 
 
