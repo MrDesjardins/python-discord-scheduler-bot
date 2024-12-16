@@ -404,7 +404,7 @@ async def post_queued_user_stats(check_time_delay: bool = True, last_hour: int =
     # Get all the user waiting even if it's not the time yet (might just got added but the task kicked in)
     list_users: Optional[List[UserQueueForStats]] = await data_access_get_list_member_stats()
     list_users = list_users if list_users is not None else []  # Avoid None
-    print_log(f"post_queued_user_stats: {len(list_users)} users in the queue before delta time")
+    # print_log(f"post_queued_user_stats: {len(list_users)} users in the queue before delta time")
 
     if check_time_delay:
         # Filter the list for only user who it's been at least 2 minutes since added to the queue
@@ -416,9 +416,9 @@ async def post_queued_user_stats(check_time_delay: bool = True, last_hour: int =
         ]  # Keep user that has been there for -infinity to -2 minutes
 
         if len(users) == 0:
-            print_log("post_queued_user_stats: 0 user in the queue after delta time")
+            # print_log("post_queued_user_stats: 0 user in the queue after delta time")
             return
-        print_log(f"post_queued_user_stats: {len(users)} users in the queue after delta time")
+        # print_log(f"post_queued_user_stats: {len(users)} users in the queue after delta time")
     else:
         users = list_users
     # Accumulate all the stats for all the users before posting them
