@@ -94,6 +94,7 @@ def test_full_registration_tournament():
     tournament_tree = build_tournament_tree(tournament_games)
     assert tournament_tree.user_winner_id == node2_user1
 
+
 def test_partial_one_registration_tournament():
     """
     Create and start a tournament with 4 players (full registration).

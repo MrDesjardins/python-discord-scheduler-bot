@@ -9,7 +9,7 @@ def convert_to_datetime(date_str):
     """Convert a date string to a datetime object"""
     if not date_str:  # Handle None or empty string
         return None
-    return datetime.strptime(date_str, "%Y-%m-%dT%H:%M:%S%z")
+    return datetime.fromisoformat(date_str)
 
 
 @dataclass

@@ -176,20 +176,30 @@ def assign_people_to_games(
     assign_to_parent: List[TournamentNode] = []
     for node in leaf_nodes:
         if node.user1_id and not node.user2_id:
+            # If only one user is assigned, mark the node as N/A
             node.user_winner_id = node.user1_id
             node.score = "N/A"
             node.timestamp = datetime.now(timezone.utc)
             assign_to_parent.append(node)
         elif node.user2_id and not node.user1_id:
+            # If only one user is assigned, mark the node as N/A
             node.user_winner_id = node.user2_id
             node.score = "N/A"
             node.timestamp = datetime.now(timezone.utc)
             assign_to_parent.append(node)
+        elif not node.user1_id and not node.user2_id:
+            # If no user is assigned, mark the node as N/A
+            node.user_winner_id = None
+            node.score = "N/A"
+            node.timestamp = datetime.now(timezone.utc)
 
+    # Auto assign user as a winner if no user to be against
     for node in assign_to_parent:
         parent = [n for n in tournament_games if n.next_game1_id == node.id or n.next_game2_id == node.id]
         if len(parent) == 0:
             parent[0].user2_id = node.user_winner_id
+
+    # Still might have nodes without 1 user or 2 users who has been marked as no winner
 
     return leaf_nodes
 
@@ -218,9 +228,43 @@ def report_lost_tournament(tournament_id: int, user_id: int) -> Reason:
     # Update the user_winner_id in the node
     node.user_winner_id = node.user1_id if node.user1_id != user_id else node.user2_id
 
+    # Find the parent node and assign the user
+    node_parent = find_parent_of_node(tournament_tree, node.id)
+    if node_parent is not None:
+        # None might mean root
+        # Set the winner to the parent node on the right side (user 1 if user 1 was winner, user 2 if user 2 was winner)
+        if node.user1_id != user_id:
+            node_parent.user1_id = node.user_winner_id
+        else:
+            node_parent.user2_id = node.user_winner_id
+
     # Save the updated tournament games
     save_tournament_games([node])
     return Reason(True)
+
+
+def find_parent_of_node(tree: TournamentNode, child_id: int) -> Optional[TournamentNode]:
+    """
+    Perform a breadth-first search to find the parent node of the given child node.
+    """
+    queue = deque([tree])  # Initialize the queue with the root node
+
+    while queue:
+        current_node = queue.popleft()  # Get the next node in the queue
+
+        # Check if the child node is a direct child of the current node
+        if current_node.next_game1 and current_node.next_game1.id == child_id:
+            return current_node
+        if current_node.next_game2 and current_node.next_game2.id == child_id:
+            return current_node
+
+        # Add child nodes to the queue
+        if current_node.next_game1:
+            queue.append(current_node.next_game1)
+        if current_node.next_game2:
+            queue.append(current_node.next_game2)
+
+    return None  # Return None if no parent node is found
 
 
 def find_first_node_of_user_not_done(tree: TournamentNode, user_id: int) -> Optional[TournamentNode]:
