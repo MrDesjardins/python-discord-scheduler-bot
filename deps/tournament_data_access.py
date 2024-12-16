@@ -241,6 +241,23 @@ def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
     return [UserInfo(*row) for row in database_manager.get_cursor().fetchall()]
 
 
+def save_tournament(tournament: Tournament) -> Tournament:
+    """
+    Save the tournament games.
+    """
+    cursor = database_manager.get_cursor()
+    cursor.execute(
+        """
+        UPDATE tournament
+            SET max_players = ?
+        WHERE id = ?;
+        """,
+        (tournament.max_players, tournament.id),
+    )
+
+    database_manager.get_conn().commit()
+
+
 def save_tournament_games(games: List[TournamentGame]) -> None:
     """
     Save the tournament games.

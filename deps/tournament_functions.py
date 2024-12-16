@@ -14,6 +14,7 @@ from deps.tournament_data_access import (
     get_people_registered_for_tournament,
     get_tournaments_starting_today,
     register_user_for_tournament,
+    save_tournament,
     save_tournament_games,
 )
 from deps.models import Reason
@@ -82,6 +83,9 @@ def start_tournaments(starting_date: date) -> None:
         # Get list of people ID who registered
         people: List[UserInfo] = get_people_registered_for_tournament(tournament.id)
 
+        # Resize to the closest power of 2
+        tournament.max_players = resize_tournament(tournament.max_players, len(people))
+
         # All games in the bracket
         tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
 
@@ -90,6 +94,42 @@ def start_tournaments(starting_date: date) -> None:
 
         # Save the games
         save_tournament_games(games_to_save)
+        save_tournament(tournament)
+
+
+def next_power_of_two(n):
+    """
+    The next power of two is useful to get the smallest balanced tree for the tournament bracket.
+    """
+    if n <= 0:
+        return 1  # Smallest power of 2 is 1
+    # If n is already a power of 2, return it
+    if (n & (n - 1)) == 0:
+        return n
+    # Find the next power of 2
+    power = 1
+    while power < n:
+        power *= 2
+    return power
+
+
+def resize_tournament(tournament_max_player: int, number_of_people: int) -> int:
+    """
+    Resize the tournament to the closest power of 2.
+
+    Args:
+        tournament (Tournament): The tournament object.
+        number_of_people (int): The number of people registered for the tournament.
+
+    Returns:
+        int: The new size of the tournament.
+    """
+    # Calculate the closest power of 2
+    if tournament_max_player == number_of_people:
+        return tournament_max_player
+
+    # If the closest power of 2 is greater than the max_players, return the max_players
+    return next_power_of_two(number_of_people)
 
 
 def build_tournament_tree(tournament: List[TournamentGame]) -> Optional[TournamentNode]:

@@ -13,6 +13,7 @@ from deps.tournament_functions import (
     build_tournament_tree,
     can_register_to_tournament,
     register_for_tournament,
+    resize_tournament,
 )
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.models import Reason
@@ -198,11 +199,13 @@ def test_can_register_tournament_success(mock_datetime):
 def test_register_for_tournament_only_register_when_can_register():
     """Test to check if a user can register for a tournament when they are already registered"""
     with patch("deps.tournament_functions.can_register_to_tournament", return_value=Reason(True)):
-        with patch("deps.tournament_functions.register_user_for_tournament", return_value=True) as mock_register:
-            reason: Reason = register_for_tournament(1, 2)
-            mock_register.assert_called()
-            mock_register.assert_called_with(1, 2)
-            assert reason.is_successful is True
+        with patch("deps.tournament_functions.register_user_for_tournament") as mock_register:
+            with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+                mock_tournament_functions_datetime.now.return_value = t2
+                reason: Reason = register_for_tournament(1, 2)
+                mock_register.assert_called()
+                mock_register.assert_called_with(1, 2, t2)
+                assert reason.is_successful is True
 
 
 def test_register_for_tournament_only_register_when_cannot_register():
@@ -210,7 +213,7 @@ def test_register_for_tournament_only_register_when_cannot_register():
     with patch(
         "deps.tournament_functions.can_register_to_tournament", return_value=Reason(False, "Reason from can_register")
     ):
-        with patch("deps.tournament_functions.register_user_for_tournament", return_value=True) as mock_register:
+        with patch("deps.tournament_functions.register_user_for_tournament") as mock_register:
             reason: Reason = register_for_tournament(1, 2)
             mock_register.assert_not_called()
             assert reason.is_successful is False
@@ -250,3 +253,21 @@ def test_assign_people_to_games_when_full_participant():
         assert result[3].map is not None
         # Ensure random.shuffle was called once
         mock_shuffle.assert_called_once_with(people)
+
+
+def test_resize_tournament_already_full_no_resize():
+    """Test when no resize needed"""
+    new_size = resize_tournament(4, 4)
+    assert new_size == 4
+
+
+def test_resize_tournament_no_full_but_good_size_no_resize():
+    """Test a minimum resize"""
+    new_size = resize_tournament(3, 4)
+    assert new_size == 4
+
+
+def test_resize_tournament_no_full_but_good_size_no_resize2():
+    """Test a large resize"""
+    new_size = resize_tournament(16, 4)
+    assert new_size == 4
