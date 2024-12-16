@@ -3,7 +3,7 @@
 import dataclasses
 from datetime import datetime
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from deps.data_access_data_class import UserInfo
 
@@ -185,3 +185,11 @@ class UserWithUserMatchInfo:
     def __init__(self, user: UserQueueForStats, user_match_info: List["UserMatchInfo"]):
         self.user = user
         self.user_match_info = user_match_info
+
+@dataclasses.dataclass
+class Reason:
+    """Instead of a boolean, a function can return a reason why it failed"""
+
+    def __init__(self, is_successful: bool, text: Optional[str] = None):
+        self.is_successful = is_successful
+        self.text = text

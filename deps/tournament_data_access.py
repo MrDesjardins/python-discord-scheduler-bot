@@ -99,7 +99,7 @@ def data_access_insert_tournament(
     database_manager.get_conn().commit()
 
 
-async def fetch_active_tournament_bu_guild(guild_id: int) -> Optional[List[Tournament]]:
+async def fetch_active_tournament_by_guild(guild_id: int) -> Optional[List[Tournament]]:
     """
     Fetch a user name from the user_info table
     """
@@ -112,13 +112,13 @@ async def fetch_active_tournament_bu_guild(guild_id: int) -> Optional[List[Tourn
                 SELECT 
                     id,
                     guild_id,
-                    name TEXT ,
+                    name ,
                     registration_date,
                     start_date,
                     end_date,
                     best_of,
                     max_players,
-                    maps TEXT
+                    maps
                 FROM tournament
                 WHERE guild_id = ? AND registration_date <= datetime('now') AND end_date >= datetime('now')
               """,
@@ -204,7 +204,8 @@ def get_tournaments_starting_today(date_to_start:Optional[date]=None) -> List[To
             end_date,
             best_of,
             max_players,
-            maps
+            maps,
+            has_started
         FROM tournament
         WHERE date(start_date) = ?;
         """,
@@ -250,4 +251,50 @@ def save_tournament_games(games:List[TournamentGame]) -> None:
             (game.user1_id, game.user2_id, game.map),
         )
 
+    database_manager.get_conn().commit()
+
+def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
+    """
+    Fetch a tournament by its ID.
+    """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            """
+            SELECT 
+                id,
+                guild_id,
+                name,
+                registration_date,
+                start_date,
+                end_date,
+                best_of,
+                max_players,
+                maps,
+                has_started
+            FROM tournament
+            WHERE id = ?;
+            """,
+            (tournament_id,),
+        )
+        .fetchone()
+    )
+    if result is not None:
+        return Tournament(*result)
+    else:
+        return None
+
+
+def register_user_for_tournament(tournament_id: int, user_id: int) -> None:
+    """
+    Register a user for a tournament.
+    """
+    cursor = database_manager.get_cursor()
+    cursor.execute(
+        """
+        INSERT INTO user_tournament (tournament_id, user_id)
+        VALUES (?, ?);
+        """,
+        (tournament_id, user_id),
+    )
     database_manager.get_conn().commit()

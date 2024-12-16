@@ -2,11 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Optional
-
-
-from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass
@@ -22,6 +18,23 @@ class Tournament:
     best_of: int
     max_players: int
     maps: str
+    has_started: int
+
+    @staticmethod
+    def from_db_row(row):
+        """Create a Tournament object from a database row"""
+        return Tournament(
+            id=row[0],
+            guild_id=row[1],
+            name=row[2],
+            registration_date=row[3],
+            start_date=row[4],
+            end_date=row[5],
+            best_of=row[6],
+            max_players=row[7],
+            maps=row[8],
+            has_started=bool(row[9]),  # Convert integer to boolean
+        )
 
 
 @dataclass
