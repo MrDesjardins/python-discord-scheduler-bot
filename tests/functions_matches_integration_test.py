@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch
 from deps.browser_context_manager import BrowserContextManager
 

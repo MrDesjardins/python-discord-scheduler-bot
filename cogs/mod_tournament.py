@@ -2,7 +2,7 @@ from datetime import date, datetime
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.analytic_data_access import data_access_insert_tournament
+from deps.tournament_data_access import data_access_insert_tournament
 from deps.data_access import (
     data_access_set_guild_tournament_text_channel_id,
     data_access_get_guild_tournament_text_channel_id,

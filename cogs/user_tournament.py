@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from deps.analytic_data_access import fetch_active_tournament_bu_guild, fetch_tournament_games_by_tournament_id
+from deps.tournament_data_access import fetch_tournament_games_by_tournament_id, fetch_active_tournament_by_guild
 from deps.values import (
     COMMAND_TOURNAMENT_REGISTER_TOURNAMENT,
     COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT,
@@ -40,7 +40,7 @@ class UserTournamentFeatures(commands.Cog):
         """
         await interaction.response.defer(ephemeral=False)
         guild_id = interaction.guild.id
-
+        
         await interaction.followup.send(f"TODO", ephemeral=False)
 
     @app_commands.command(name=COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT)
@@ -50,7 +50,7 @@ class UserTournamentFeatures(commands.Cog):
         """
         await interaction.response.defer(ephemeral=False)
         guild_id = interaction.guild.id
-        tournament: List[Tournament] = await fetch_active_tournament_bu_guild(guild_id)
+        tournament: List[Tournament] = await fetch_active_tournament_by_guild(guild_id)
         if len(tournament) == 0:
             print_log(f"No active tournament in guild {interaction.guild.name}. Skipping.")
             await interaction.followup.send("No active tournament in this server.", ephemeral=False)

@@ -1,6 +1,7 @@
 """ Functions usesd in the tournament module """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from collections import deque
 import random
 from typing import Dict, List, Optional
 from deps.data_access_data_class import UserInfo
@@ -57,25 +58,26 @@ def register_for_tournament(tournament_id: int, user_id: int) -> Reason:
         tournament_id (int): The ID of the tournament.
         user_id (int): The ID of the user.
     """
+    current_date = datetime.now(timezone.utc)
     # Check if the user is already registered for the tournament
     reason = can_register_to_tournament(tournament_id, user_id)
     if reason.is_successful:
         # Register the user for the tournament
-        register_user_for_tournament(tournament_id, user_id)
+        register_user_for_tournament(tournament_id, user_id, current_date)
         return Reason(True)
     else:
         return reason
 
 
-def start_tournaments() -> None:
+def start_tournaments(starting_date: date) -> None:
     """
     Every day, check if the tournament start date is the current date to block registration and
     assign people to tournament games.
     """
 
     # Get the list of tournaments that are starting today from all guilds
-    block_registration_today_tournament_start()
-    tournaments = get_tournaments_starting_today()
+    block_registration_today_tournament_start(starting_date)
+    tournaments = get_tournaments_starting_today(starting_date)
     for tournament in tournaments:
         # Get list of people ID who registered
         people: List[UserInfo] = get_people_registered_for_tournament(tournament.id)
@@ -169,3 +171,58 @@ def assign_people_to_games(
             leaf_nodes[i].user2_id = people[i * 2 + 1].id
             leaf_nodes[i].map = random.choice(tournament.maps.split(","))
     return leaf_nodes
+
+
+def report_lost_tournament(tournament_id: int, user_id: int) -> Reason:
+    """
+    Report a user as lost in the tournament.
+
+    Args:
+        tournament_id (int): The ID of the tournament.
+        user_id (int): The ID of the user.
+    """
+    # Get the tournament games
+    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+
+    # Get the tournament tree
+    tournament_tree = build_tournament_tree(tournament_games)
+
+    # Find the node where the user is present
+    node = find_first_node_of_user_not_done(tournament_tree, user_id)
+
+    # If the user is not found in the tournament tree, return
+    if node is None:
+        return Reason(False, "User not found in the tournament.")
+
+    # Update the user_winner_id in the node
+    node.user_winner_id = node.user1_id if node.user1_id != user_id else node.user2_id
+
+    # Save the updated tournament games
+    save_tournament_games([node])
+    return Reason(True)
+
+
+def find_first_node_of_user_not_done(tree: TournamentNode, user_id: int) -> Optional[TournamentNode]:
+    """
+    Perform a breadth-first search to find the first node where:
+    - user_id matches either user1_id or user2_id
+    - user_winner_id is None
+    """
+    queue = deque([tree])  # Initialize the queue with the root node
+
+    while queue:
+        current_node = queue.popleft()  # Get the next node in the queue
+
+        # Check if the predicate matches
+        if (
+            current_node.user1_id == user_id or current_node.user2_id == user_id
+        ) and current_node.user_winner_id is None:
+            return current_node
+
+        # Add child nodes to the queue
+        if current_node.next_game1:
+            queue.append(current_node.next_game1)
+        if current_node.next_game2:
+            queue.append(current_node.next_game2)
+
+    return None  # Return None if no matching node is found

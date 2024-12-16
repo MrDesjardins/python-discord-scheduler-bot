@@ -3,14 +3,25 @@ Module to gather user activity data and calculate the time spent together
 """
 
 from datetime import date
-from typing import Dict, List, Optional
+import datetime
+from typing import List, Optional
 from deps.data_access_data_class import UserInfo
-from deps.cache import get_cache
 from deps.system_database import database_manager
 from deps.tournament_data_class import Tournament, TournamentGame
 
 KEY_TOURNAMENT_GUILD = "tournament_guild"
 KEY_TOURNAMENT_GAMES = "tournament_games"
+
+
+def delete_all_tournament_tables() -> None:
+    """
+    Delete all tables related to tournament
+    """
+    print(f"Deleting all tables from database {database_manager.get_database_name()}")
+    database_manager.get_cursor().execute("DELETE FROM user_tournament")
+    database_manager.get_cursor().execute("DELETE FROM tournament_game")
+    database_manager.get_cursor().execute("DELETE FROM tournament")
+    database_manager.get_conn().commit()
 
 
 def data_access_insert_tournament(
@@ -22,7 +33,7 @@ def data_access_insert_tournament(
     best_of: int,
     max_users: int,
     maps: str,
-) -> None:
+) -> int:
     """
     Insert a tournament and its associated games in a binary bracket system.
 
@@ -89,14 +100,13 @@ def data_access_insert_tournament(
 
         return games
 
-    # Calculate the total number of games for the given max_users
-    total_games = max_users - 1
-
     # Create the bracket
-    create_bracket(tournament_id, total_games)
+    create_bracket(tournament_id, max_users)
 
     # Commit the transaction
     database_manager.get_conn().commit()
+
+    return tournament_id
 
 
 async def fetch_active_tournament_by_guild(guild_id: int) -> Optional[Tournament]:
@@ -142,52 +152,51 @@ def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[Tourname
         .execute(
             """
             SELECT  id,
-                    tournament_id ,
-                    user1_id ,
-                    user2_id ,
+                    tournament_id,
+                    user1_id,
+                    user2_id,
                     user_winner_id,
                     score,
                     map,
                     timestamp,
-                    next_game1_id ,
-                    next_game2_id ,
-            FROM tournament_game WHERE id = ?
+                    next_game1_id,
+                    next_game2_id
+            FROM tournament_game WHERE tournament_id = ?
             """,
             (tournament_id,),
         )
-        .fetchone()
+        .fetchall()
     )
     if result is not None:
-        return TournamentGame(*result)
+        return [TournamentGame.from_db_row(row) for row in result]
     else:
         # Handle the case where no user was found, e.g., return None or raise an exception
         return []
 
 
-def block_registration_today_tournament_start(date_to_start: Optional[date] = None) -> None:
+def block_registration_today_tournament_start(date_to_start: date) -> None:
     """
     Block registration for a tournament.
     """
-    if date_to_start is None:
-        date_to_start = date.today().isoformat()  # Get today's date when the function is called
+
+    date_only = date_to_start.isoformat()  # Get today's date when the function is called
 
     database_manager.get_cursor().execute(
         """
         UPDATE tournament
         SET has_started = 1
-        WHERE date(start_date) = ?;
+        WHERE date(start_date) = date(?);
         """,
-        (date_to_start,),
+        (date_only,),
     )
     database_manager.get_conn().commit()
 
 
-def get_tournaments_starting_today(date_to_start: Optional[date] = None) -> List[Tournament]:
+def get_tournaments_starting_today(date_to_start: date) -> List[Tournament]:
     """
     Get the list of tournaments that are starting today.
     """
-    if date_to_start is None:
-        date_to_start = date.today().isoformat()  # Get today's date when the function is called
+    date_only = date_to_start.isoformat()  # Get today's date when the function is called
 
     database_manager.get_cursor().execute(
         """
@@ -203,9 +212,9 @@ def get_tournaments_starting_today(date_to_start: Optional[date] = None) -> List
             maps,
             has_started
         FROM tournament
-        WHERE date(start_date) = ?;
+        WHERE date(start_date) = date(?);
         """,
-        (date_to_start,),
+        (date_only,),
     )
 
     return [Tournament(*row) for row in database_manager.get_cursor().fetchall()]
@@ -243,10 +252,13 @@ def save_tournament_games(games: List[TournamentGame]) -> None:
             UPDATE tournament_game
             SET user1_id = ?,
                 user2_id = ?,
-                map = ?
+                map = ?,
+                user_winner_id = ?,
+                score = ?,
+                timestamp = ?
             WHERE id = ?;
             """,
-            (game.user1_id, game.user2_id, game.map),
+            (game.user1_id, game.user2_id, game.map, game.user_winner_id, game.score, game.timestamp, game.id),
         )
 
     database_manager.get_conn().commit()
@@ -279,21 +291,21 @@ def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
         .fetchone()
     )
     if result is not None:
-        return Tournament(*result)
+        return Tournament.from_db_row(result)
     else:
         return None
 
 
-def register_user_for_tournament(tournament_id: int, user_id: int) -> None:
+def register_user_for_tournament(tournament_id: int, user_id: int, registration_date: datetime) -> None:
     """
     Register a user for a tournament.
     """
     cursor = database_manager.get_cursor()
     cursor.execute(
         """
-        INSERT INTO user_tournament (tournament_id, user_id)
-        VALUES (?, ?);
+        INSERT INTO user_tournament (tournament_id, user_id, registration_date)
+        VALUES (?, ?, ?);
         """,
-        (tournament_id, user_id),
+        (tournament_id, user_id, registration_date),
     )
     database_manager.get_conn().commit()
