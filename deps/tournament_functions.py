@@ -81,10 +81,10 @@ def start_tournaments() -> None:
         people: List[UserInfo] = get_people_registered_for_tournament(tournament.id)
 
         # All games in the bracket
-        tournament_games = fetch_tournament_games_by_tournament_id(tournament.id)
+        tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
 
         # Assign people to tournament games
-        games_to_save = assign_people_to_games(tournament, tournament_games, people)
+        games_to_save: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
 
         # Save the games
         save_tournament_games(games_to_save)
@@ -115,6 +115,8 @@ def build_tournament_tree(tournament: List[TournamentGame]) -> Optional[Tourname
             user2_id=game.user2_id,
             user_winner_id=game.user_winner_id,
             timestamp=game.timestamp,
+            map=game.map,
+            score=game.score,
         )
 
     # Step 2: Connect the tree
@@ -146,8 +148,6 @@ def assign_people_to_games(
         tournament_games (List[TournamentGame]): A list of tournament games.
         people (List[UserInfo]): A list of people to assign to the games.
     """
-    if not tournament or not tournament_games or not people:
-        return
 
     # Assign people to games randomly on the last level of the tree
     leaf_nodes = [node for node in tournament_games if not node.next_game1_id and not node.next_game2_id]
@@ -163,9 +163,9 @@ def assign_people_to_games(
     random.shuffle(people)
 
     # Assign people to games by taking two persons sequentially and assigned them to a leaf node
-    for i in range(0, len(leaf_nodes), 2):
-        if i + 1 < len(people):
-            leaf_nodes[i].user1_id = people[i].id
-            leaf_nodes[i].user2_id = people[i + 1].id
-
+    for i, _node in enumerate(leaf_nodes):
+        if i * 2 + 1 < len(people):
+            leaf_nodes[i].user1_id = people[i * 2].id
+            leaf_nodes[i].user2_id = people[i * 2 + 1].id
+            leaf_nodes[i].map = random.choice(tournament.maps.split(","))
     return leaf_nodes

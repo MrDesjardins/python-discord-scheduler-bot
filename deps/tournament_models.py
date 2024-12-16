@@ -34,6 +34,8 @@ class TournamentNode:
         user1_id: Optional[int] = None,
         user2_id: Optional[int] = None,
         user_winner_id: Optional[int] = None,
+        score: Optional[str] = None,
+        map: Optional[str] = None,
         timestamp: Optional[datetime] = None,
     ):
         self.id = id
@@ -41,6 +43,8 @@ class TournamentNode:
         self.user1_id = user1_id
         self.user2_id = user2_id
         self.user_winner_id = user_winner_id
+        self.score = score
+        self.map = map
         self.timestamp = timestamp
         self.next_game1: Optional[TournamentNode] = None
         self.next_game2: Optional[TournamentNode] = None

@@ -4,12 +4,19 @@ Tournament Unit Tests using pytest
 
 import asyncio
 import copy
+from typing import List
 from unittest.mock import patch
 from datetime import datetime, timezone
 from deps.data_access_data_class import UserInfo
-from deps.tournament_functions import build_tournament_tree, can_register_to_tournament, register_for_tournament
+from deps.tournament_functions import (
+    assign_people_to_games,
+    build_tournament_tree,
+    can_register_to_tournament,
+    register_for_tournament,
+)
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.models import Reason
+from deps.tournament_models import TournamentNode
 
 lock = asyncio.Lock()
 
@@ -20,26 +27,29 @@ t4 = datetime(2024, 11, 26, 12, 30, 0, tzinfo=timezone.utc)
 t5 = datetime(2024, 11, 27, 12, 30, 0, tzinfo=timezone.utc)
 t6 = datetime(2024, 11, 28, 12, 30, 0, tzinfo=timezone.utc)
 
-fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, ["Map 1", "Map 2", "Map 3"], False)
+fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3", False)
 
 fake_user_1 = UserInfo(1, "User 1", "Rank 1", "User 1", "EASTERN")
 fake_user_2 = UserInfo(2, "User 2", "Rank 1", "User 2", "EASTERN")
 fake_user_3 = UserInfo(3, "User 3", "Rank 1", "User 3", "EASTERN")
 fake_user_4 = UserInfo(4, "User 4", "Rank 1", "User 4", "EASTERN")
 fake_user_5 = UserInfo(5, "User 5", "Rank 1", "User 5", "EASTERN")
+fake_user_6 = UserInfo(6, "User 6", "Rank 1", "User 6", "EASTERN")
+fake_user_7 = UserInfo(7, "User 7", "Rank 1", "User 7", "EASTERN")
+fake_user_8 = UserInfo(8, "User 8", "Rank 1", "User 8", "EASTERN")
 
 
 def test_build_tournament_tree_full_first_round():
     """Test to generate the tree from a list"""
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
     list_tournament_games: TournamentGame = [
-        TournamentGame(1, 1, 1, 2, None, now_date),
-        TournamentGame(2, 1, 3, 4, None, now_date),
-        TournamentGame(3, 1, 5, 6, None, now_date),
-        TournamentGame(4, 1, 7, 8, None, now_date),
-        TournamentGame(5, 1, None, None, None, now_date, 1, 2),
-        TournamentGame(6, 1, None, None, None, now_date, 3, 4),
-        TournamentGame(7, 1, None, None, None, now_date, 5, 6),
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, 7, 8, None, None, None, now_date, None, None),
+        TournamentGame(5, 1, None, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
     ]
     tree = build_tournament_tree(list_tournament_games)
     assert tree is not None
@@ -64,13 +74,13 @@ def test_build_tournament_tree_partial_first_round():
     """Test to generate the tree from a list that does not have enough participants"""
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
     list_tournament_games: TournamentGame = [
-        TournamentGame(1, 1, 1, 2, None, now_date),
-        TournamentGame(2, 1, 3, 4, None, now_date),
-        TournamentGame(3, 1, 5, 6, None, now_date),
-        TournamentGame(4, 1, None, None, None, now_date),  # Missing participants
-        TournamentGame(5, 1, None, None, None, now_date, 1, 2),
-        TournamentGame(6, 1, None, None, None, now_date, 3, 4),
-        TournamentGame(7, 1, None, None, None, now_date, 5, 6),
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, None, None, None, None, None, now_date, None),  # Missing participants
+        TournamentGame(5, 1, None, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
     ]
     tree = build_tournament_tree(list_tournament_games)
     assert tree is not None
@@ -205,3 +215,38 @@ def test_register_for_tournament_only_register_when_cannot_register():
             mock_register.assert_not_called()
             assert reason.is_successful is False
             assert reason.text == "Reason from can_register"
+
+
+def test_assign_people_to_games_when_full_participant():
+    """Test to assign people to games when there are the maximum number of participants"""
+    tournament = fake_tournament
+    tournament_games = [
+        TournamentGame(1, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(2, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(3, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(4, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(5, 1, None, None, None, t1, None, None, 1, 2),
+        TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),
+        TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),
+    ]
+    people = [fake_user_1, fake_user_2, fake_user_3, fake_user_4, fake_user_5, fake_user_6, fake_user_7, fake_user_8]
+
+    with patch("random.shuffle") as mock_shuffle:
+        mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
+        result: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
+        # Assertions
+        assert len(result) == 4  # Should only include enough leaf nodes for people
+        assert result[0].user1_id == 1
+        assert result[0].user2_id == 2
+        assert result[0].map is not None
+        assert result[1].user1_id == 3
+        assert result[1].user2_id == 4
+        assert result[1].map is not None
+        assert result[2].user1_id == 5
+        assert result[2].user2_id == 6
+        assert result[2].map is not None
+        assert result[3].user1_id == 7
+        assert result[3].user2_id == 8
+        assert result[3].map is not None
+        # Ensure random.shuffle was called once
+        mock_shuffle.assert_called_once_with(people)

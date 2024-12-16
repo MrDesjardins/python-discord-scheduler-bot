@@ -56,6 +56,8 @@ class TournamentGame:
     user1_id: Optional[int] = None  # Nullable column
     user2_id: Optional[int] = None  # Nullable column
     user_winner_id: Optional[int] = None  # Nullable column
+    score: Optional[str] = None  # Nullable column
+    map: Optional[str] = None  # Nullable column
     timestamp: Optional[datetime] = None  # Nullable column
     next_game1_id: Optional[int] = None  # Nullable column
     next_game2_id: Optional[int] = None  # Nullable column

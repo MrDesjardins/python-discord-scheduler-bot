@@ -99,77 +99,72 @@ def data_access_insert_tournament(
     database_manager.get_conn().commit()
 
 
-async def fetch_active_tournament_by_guild(guild_id: int) -> Optional[List[Tournament]]:
+async def fetch_active_tournament_by_guild(guild_id: int) -> Optional[Tournament]:
     """
     Fetch a user name from the user_info table
     """
 
-    def fetch_from_db():
-        result = (
-            database_manager.get_cursor()
-            .execute(
-                """
-                SELECT 
-                    id,
-                    guild_id,
-                    name ,
-                    registration_date,
-                    start_date,
-                    end_date,
-                    best_of,
-                    max_players,
-                    maps
-                FROM tournament
-                WHERE guild_id = ? AND registration_date <= datetime('now') AND end_date >= datetime('now')
-              """,
-                (guild_id,),
-            )
-            .fetchone()
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            """
+            SELECT 
+                id,
+                guild_id,
+                name ,
+                registration_date,
+                start_date,
+                end_date,
+                best_of,
+                max_players,
+                maps
+            FROM tournament
+            WHERE guild_id = ? AND registration_date <= datetime('now') AND end_date >= datetime('now')
+            """,
+            (guild_id,),
         )
-        if result is not None:
-            return Tournament(*result)
-        else:
-            # Handle the case where no user was found, e.g., return None or raise an exception
-            return None  # Or raise an appropriate exception
+        .fetchone()
+    )
+    if result is not None:
+        return Tournament(*result)
+    else:
+        # Handle the case where no user was found, e.g., return None or raise an exception
+        return None  # Or raise an appropriate exception
 
-    return await get_cache(True, f"{KEY_TOURNAMENT_GUILD}:{guild_id}", fetch_from_db, 60)
 
-
-async def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[TournamentGame]:
+def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[TournamentGame]:
     """
     Fetch a user name from the user_info table
     """
 
-    def fetch_from_db():
-        result = (
-            database_manager.get_cursor()
-            .execute(
-                """
-                SELECT  id,
-                        tournament_id ,
-                        user1_id ,
-                        user2_id ,
-                        user_winner_id,
-                        score,
-                        map,
-                        timestamp,
-                        next_game1_id ,
-                        next_game2_id ,
-              FROM tournament_game WHERE id = ?
-              """,
-                (tournament_id,),
-            )
-            .fetchone()
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            """
+            SELECT  id,
+                    tournament_id ,
+                    user1_id ,
+                    user2_id ,
+                    user_winner_id,
+                    score,
+                    map,
+                    timestamp,
+                    next_game1_id ,
+                    next_game2_id ,
+            FROM tournament_game WHERE id = ?
+            """,
+            (tournament_id,),
         )
-        if result is not None:
-            return TournamentGame(*result)
-        else:
-            # Handle the case where no user was found, e.g., return None or raise an exception
-            return []
+        .fetchone()
+    )
+    if result is not None:
+        return TournamentGame(*result)
+    else:
+        # Handle the case where no user was found, e.g., return None or raise an exception
+        return []
 
-    return await get_cache(True, f"{KEY_TOURNAMENT_GAMES}:{tournament_id}", fetch_from_db, 60)
 
-def block_registration_today_tournament_start(date_to_start:Optional[date]=None) -> None:
+def block_registration_today_tournament_start(date_to_start: Optional[date] = None) -> None:
     """
     Block registration for a tournament.
     """
@@ -186,7 +181,8 @@ def block_registration_today_tournament_start(date_to_start:Optional[date]=None)
     )
     database_manager.get_conn().commit()
 
-def get_tournaments_starting_today(date_to_start:Optional[date]=None) -> List[Tournament]:
+
+def get_tournaments_starting_today(date_to_start: Optional[date] = None) -> List[Tournament]:
     """
     Get the list of tournaments that are starting today.
     """
@@ -214,7 +210,8 @@ def get_tournaments_starting_today(date_to_start:Optional[date]=None) -> List[To
 
     return [Tournament(*row) for row in database_manager.get_cursor().fetchall()]
 
-def get_people_registered_for_tournament(tournament_id:int) -> List[UserInfo]:
+
+def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
     """
     Get the list of people who registered for a tournament.
     """
@@ -234,7 +231,8 @@ def get_people_registered_for_tournament(tournament_id:int) -> List[UserInfo]:
 
     return [UserInfo(*row) for row in database_manager.get_cursor().fetchall()]
 
-def save_tournament_games(games:List[TournamentGame]) -> None:
+
+def save_tournament_games(games: List[TournamentGame]) -> None:
     """
     Save the tournament games.
     """
@@ -252,6 +250,7 @@ def save_tournament_games(games:List[TournamentGame]) -> None:
         )
 
     database_manager.get_conn().commit()
+
 
 def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
     """
