@@ -5,6 +5,8 @@ from discord.ext import commands
 from discord import app_commands
 
 from deps.tournament_data_access import (
+    fetch_tournament_not_compted_for_user,
+    fetch_tournament_active_to_interact_for_user,
     fetch_tournament_by_guild_user_can_register,
     fetch_tournament_games_by_tournament_id,
     fetch_active_tournament_by_guild,
@@ -19,6 +21,7 @@ from deps.log import print_log, print_warning_log
 from deps.tournament_functions import build_tournament_tree
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_visualizer import plot_tournament_bracket
+from ui.tournament_match_score_report import TournamentMatchScoreReport
 from ui.tournament_registration import TournamentRegistration
 
 
@@ -37,12 +40,24 @@ class UserTournamentFeatures(commands.Cog):
         guild_id = interaction.guild.id
         list_tournaments: List[Tournament] = await fetch_tournament_by_guild_user_can_register(guild_id, user_id)
         if len(list_tournaments) == 0:
-            print_warning_log(
-                f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
-            )
-            await interaction.response.send_message("No tournament available for you.", ephemeral=True)
+            list_tournaments_users = await fetch_tournament_not_compted_for_user(guild_id, user_id)
+            if len(list_tournaments_users) == 0:
+                print_warning_log(
+                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                )
+                await interaction.response.send_message("No new tournament available for you.", ephemeral=True)
+                return
+            else:
+                tournament_names = ", ".join([t.name for t in list_tournaments_users])
+                print_warning_log(
+                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id}). You are these tournaments: {tournament_names}"
+                )
+                await interaction.response.send_message(
+                    f"No new tournament available for you. You are these tournaments: {tournament_names}",
+                    ephemeral=True,
+                )
             return
-            
+
         view = TournamentRegistration(list_tournaments)
 
         await interaction.response.send_message(
@@ -54,12 +69,23 @@ class UserTournamentFeatures(commands.Cog):
     @app_commands.command(name=COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT)
     async def send_score_tournament(self, interaction: discord.Interaction):
         """
-        One of the two players can send the score of the match
+        The loser needs to send this command after the match
         """
-        await interaction.response.defer(ephemeral=False)
+        user_id = interaction.user.id
         guild_id = interaction.guild.id
-
-        await interaction.followup.send(f"TODO", ephemeral=False)
+        list_tournaments: List[Tournament] = await fetch_tournament_active_to_interact_for_user(guild_id, user_id)
+        if len(list_tournaments) == 0:
+            print_warning_log(
+                f"No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+            )
+            await interaction.response.send_message("No active tournament available for you.", ephemeral=True)
+            return
+        view = TournamentMatchScoreReport(list_tournaments)
+        await interaction.response.send_message(
+            "Choose the tournament to report a match lost",
+            view=view,
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT)
     async def see_braket_tournament(self, interaction: discord.Interaction):

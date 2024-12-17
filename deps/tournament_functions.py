@@ -9,6 +9,7 @@ from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_models import TournamentNode
 from deps.tournament_data_access import (
     block_registration_today_tournament_start,
+    data_access_create_bracket,
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     get_people_registered_for_tournament,
@@ -70,31 +71,44 @@ def register_for_tournament(tournament_id: int, user_id: int) -> Reason:
         return reason
 
 
-def start_tournaments(starting_date: date) -> None:
+def start_tournaments(starting_date: datetime) -> None:
     """
     Every day, check if the tournament start date is the current date to block registration and
     assign people to tournament games.
     """
 
     # Get the list of tournaments that are starting today from all guilds
-    block_registration_today_tournament_start(starting_date)
     tournaments = get_tournaments_starting_today(starting_date)
     for tournament in tournaments:
-        # Get list of people ID who registered
-        people: List[UserInfo] = get_people_registered_for_tournament(tournament.id)
+        start_tournament(tournament)
 
-        # Resize to the closest power of 2
-        tournament.max_players = resize_tournament(tournament.max_players, len(people))
 
-        # All games in the bracket
-        tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
+def start_tournament(tournament: Tournament) -> None:
+    """
+    Start a specific tournament
+    Create the bracket
+    """
+    # Get list of people ID who registered
+    people: List[UserInfo] = get_people_registered_for_tournament(tournament.id)
 
-        # Assign people to tournament games
-        games_to_save: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
+    # Resize to the closest power of 2
+    tournament.max_players = resize_tournament(tournament.max_players, len(people))
 
-        # Save the games
-        save_tournament_games(games_to_save)
-        save_tournament(tournament)
+    # Create the games (all brackets)
+    data_access_create_bracket(tournament.id, tournament.max_players)
+
+    # All games in the bracket
+    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
+
+    # Assign people to tournament games
+    games_to_save: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
+
+    # Tournament status
+    tournament.has_started = True
+
+    # Save the games
+    save_tournament_games(games_to_save)
+    save_tournament(tournament)
 
 
 def next_power_of_two(n):
@@ -252,6 +266,9 @@ def report_lost_tournament(tournament_id: int, user_id: int) -> Reason:
         tournament_id (int): The ID of the tournament.
         user_id (int): The ID of the user.
     """
+    # Get the tournament
+    tournament = fetch_tournament_by_id(tournament_id)
+
     # Get the tournament games
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
 
@@ -277,10 +294,11 @@ def report_lost_tournament(tournament_id: int, user_id: int) -> Reason:
             node_parent.user1_id = node.user_winner_id
         else:
             node_parent.user2_id = node.user_winner_id
-
+        # Asign the map
+        node_parent.map = random.choice(tournament.maps.split(","))
     # Save the updated tournament games
     save_tournament_games([node])
-    return Reason(True)
+    return Reason(True, None, node)
 
 
 def find_parent_of_node(tree: TournamentNode, child_id: int) -> Optional[TournamentNode]:

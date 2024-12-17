@@ -33,12 +33,12 @@ class TournamentRegistration(View):
         tournament = next((t for t in self.list_tournaments if t.id == tournament_id), None)
         if not tournament:
             print_error_log(f"Tournament not found for id {self.list_tournaments}")
-            return False
+            return True
 
         date_start = tournament.start_date.strftime("%Y-%m-%d")
         # Send final confirmation message with the saved data
         await interaction.followup.send(
-            f"You are registered. Please be patient and a new message will tag you when the tournament start ({date_start}).",
+            f"You are registered. A new message will tag you when the tournament start ({date_start}).",
             ephemeral=True,
         )
         return True

@@ -60,53 +60,118 @@ def data_access_insert_tournament(
     )
     tournament_id = cursor.lastrowid
 
-    # Helper function to recursively create the binary bracket
-    def create_bracket(tournament_id: int, num_games: int) -> List[dict]:
-        games = []
-
-        # Initialize a list to keep track of game IDs for the current level
-        current_level = []
-
-        # Generate leaf games (final games at the bottom of the bracket)
-        for i in range(num_games):
-            cursor.execute(
-                """
-                INSERT INTO tournament_game (
-                    tournament_id, next_game1_id, next_game2_id
-                ) VALUES (?, NULL, NULL)
-                """,
-                (tournament_id,),
-            )
-            game_id = cursor.lastrowid
-            current_level.append(game_id)
-
-        # Build the bracket upwards
-        while len(current_level) > 1:
-            next_level = []
-            for i in range(0, len(current_level), 2):
-                next_level_1 = current_level[i] if i < len(current_level) else None
-                next_level_2 = current_level[i + 1] if i + 1 < len(current_level) else None
-                cursor.execute(
-                    """
-                    INSERT INTO tournament_game (
-                        tournament_id, next_game1_id, next_game2_id
-                    ) VALUES (?, ?, ?)
-                    """,
-                    (tournament_id, next_level_1, next_level_2),
-                )
-                game_id = cursor.lastrowid
-                next_level.append(game_id)
-            current_level = next_level
-
-        return games
-
-    # Create the bracket
-    create_bracket(tournament_id, max_users)
-
     # Commit the transaction
     database_manager.get_conn().commit()
 
     return tournament_id
+
+
+def data_access_create_bracket(tournament_id: int, num_games: int) -> List[dict]:
+    # Initialize a list to keep track of game IDs for the current level
+    current_level = []
+
+    cursor = database_manager.get_cursor()
+
+    # Generate leaf games (final games at the bottom of the bracket)
+    for i in range(num_games):
+        cursor.execute(
+            """
+            INSERT INTO tournament_game (
+                tournament_id, next_game1_id, next_game2_id
+            ) VALUES (?, NULL, NULL)
+            """,
+            (tournament_id,),
+        )
+        game_id = cursor.lastrowid
+        current_level.append(game_id)
+
+    # Build the bracket upwards
+    while len(current_level) > 1:
+        next_level = []
+        for i in range(0, len(current_level), 2):
+            next_level_1 = current_level[i] if i < len(current_level) else None
+            next_level_2 = current_level[i + 1] if i + 1 < len(current_level) else None
+            cursor.execute(
+                """
+                INSERT INTO tournament_game (
+                    tournament_id, next_game1_id, next_game2_id
+                ) VALUES (?, ?, ?)
+                """,
+                (tournament_id, next_level_1, next_level_2),
+            )
+            game_id = cursor.lastrowid
+            next_level.append(game_id)
+        current_level = next_level
+
+    # Commit the transaction
+    database_manager.get_conn().commit()
+
+
+async def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) -> List[Tournament]:
+    """Fetch all tournament that are not over that the user are registered"""
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            """
+                SELECT 
+                    tournament.id,
+                    tournament.guild_id,
+                    tournament.name,
+                    tournament.registration_date,
+                    tournament.start_date,
+                    tournament.end_date,
+                    tournament.best_of,
+                    tournament.max_players,
+                    tournament.maps,
+                    tournament.has_started
+                FROM tournament
+                INNER JOIN
+                    user_tournament
+                ON
+                    tournament.id = user_tournament.tournament_id
+                    AND user_tournament.user_id = :user_id
+                WHERE tournament.guild_id = :guild_id
+                    AND date(tournament.end_date) >= date(datetime('now'))
+                    AND date(tournament.start_date) <= date(datetime('now'))
+                """,
+            {"user_id": user_id, "guild_id": guild_id},
+        )
+        .fetchall()
+    )
+    return [Tournament.from_db_row(row) for row in result]
+
+
+async def fetch_tournament_not_compted_for_user(guild_id: int, user_id: int) -> List[Tournament]:
+    """Fetch all tournament that are not over that the user are registered"""
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            """
+                SELECT 
+                    tournament.id,
+                    tournament.guild_id,
+                    tournament.name,
+                    tournament.registration_date,
+                    tournament.start_date,
+                    tournament.end_date,
+                    tournament.best_of,
+                    tournament.max_players,
+                    tournament.maps,
+                    tournament.has_started
+                FROM tournament
+                INNER JOIN
+                    user_tournament
+                ON
+                    tournament.id = user_tournament.tournament_id
+                    AND user_tournament.user_id = :user_id
+                WHERE tournament.guild_id = :guild_id
+                    AND date(tournament.end_date) >= date(datetime('now'))
+                """,
+            {"user_id": user_id, "guild_id": guild_id},
+        )
+        .fetchall()
+    )
+    return [Tournament.from_db_row(row) for row in result]
 
 
 async def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: int) -> List[Tournament]:
@@ -130,17 +195,17 @@ async def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: in
                 tournament.maps,
                 tournament.has_started
             FROM tournament
-            WHERE tournament.guild_id = ?
+            WHERE tournament.guild_id = :guild_id
                 AND date(tournament.registration_date) <= date(datetime('now'))
                 AND date(tournament.start_date) > date(datetime('now'))
                 AND NOT EXISTS (
                     SELECT 1 
                     FROM user_tournament 
                     WHERE user_tournament.tournament_id = tournament.id 
-                    AND user_tournament.user_id = ?
+                    AND user_tournament.user_id = :user_id
                 )
             """,
-            (guild_id, user_id),
+            {"user_id": user_id, "guild_id": guild_id},
         )
         .fetchall()
     )
@@ -168,11 +233,11 @@ async def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
                 maps,
                 has_started
             FROM tournament
-            WHERE guild_id = ? 
+            WHERE guild_id = :guild_id 
                 AND date(start_date) <= date(datetime('now')) 
                 AND date(end_date) >= date(datetime('now'))
             """,
-            (guild_id,),
+            {"guild_id": guild_id},
         )
         .fetchall()
     )
@@ -198,9 +263,9 @@ def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[Tourname
                     timestamp,
                     next_game1_id,
                     next_game2_id
-            FROM tournament_game WHERE tournament_id = ?
+            FROM tournament_game WHERE tournament_id = :tournament_id
             """,
-            (tournament_id,),
+            {"tournament_id": tournament_id},
         )
         .fetchall()
     )
@@ -270,9 +335,9 @@ def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
               time_zone
         FROM user_tournament
         LEFT JOIN user_info ON user_tournament.user_id = user_info.id
-        WHERE tournament_id = ?;
+        WHERE tournament_id = :tournament_id;
         """,
-        (tournament_id,),
+        {"tournament_id": tournament_id},
     )
 
     return [UserInfo(*row) for row in database_manager.get_cursor().fetchall()]
@@ -286,10 +351,10 @@ def save_tournament(tournament: Tournament) -> Tournament:
     cursor.execute(
         """
         UPDATE tournament
-            SET max_players = ?
-        WHERE id = ?;
+            SET max_players = :max_players
+        WHERE id = :tournament_id;
         """,
-        (tournament.max_players, tournament.id),
+        {"max_players": tournament.max_players, "tournament_id": tournament.id},
     )
 
     database_manager.get_conn().commit()
@@ -338,9 +403,9 @@ def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
                 maps,
                 has_started
             FROM tournament
-            WHERE id = ?;
+            WHERE id = :tournament_id;
             """,
-            (tournament_id,),
+            {"tournament_id": tournament_id},
         )
         .fetchone()
     )
@@ -358,8 +423,8 @@ def register_user_for_tournament(tournament_id: int, user_id: int, registration_
     cursor.execute(
         """
         INSERT INTO user_tournament (tournament_id, user_id, registration_date)
-        VALUES (?, ?, ?);
+        VALUES (:tournament_id, :user_id, :registration_date);
         """,
-        (tournament_id, user_id, registration_date),
+        {"tournament_id": tournament_id, "user_id": user_id, "registration_date": registration_date},
     )
     database_manager.get_conn().commit()

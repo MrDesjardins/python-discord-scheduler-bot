@@ -6,6 +6,7 @@ import pytest
 from datetime import datetime, timezone
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.tournament_data_access import (
+    data_access_create_bracket,
     data_access_insert_tournament,
     delete_all_tournament_tables,
     fetch_tournament_games_by_tournament_id,
@@ -63,6 +64,7 @@ def test_full_registration_tournament():
         4,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
+    data_access_create_bracket(tournament_id, 4)
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
@@ -112,6 +114,7 @@ def test_partial_one_registration_tournament():
         4,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
+    data_access_create_bracket(tournament_id, 4)
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
@@ -157,6 +160,7 @@ def test_very_small_participation_reduce_tournament_size():
         16,  # Very large, 16 places but only 4 registrations
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
+    data_access_create_bracket(tournament_id, 4)
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
@@ -172,7 +176,7 @@ def test_very_small_participation_reduce_tournament_size():
 
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
-    node1_user1 = tournament_tree.next_game1.next_game1.next_game1.user1_id  # Will lose
+    node1_user1 = tournament_tree.next_game1.next_game1.user1_id  # Will lose
     node1_user2 = tournament_tree.next_game1.user2_id  # Will win, then lose
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
@@ -204,6 +208,7 @@ def test_partial_registration_tournament_two_level_boost():
         8,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
+    data_access_create_bracket(tournament_id, 4)
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)

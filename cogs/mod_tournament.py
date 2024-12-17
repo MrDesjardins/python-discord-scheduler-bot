@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.tournament_data_access import data_access_insert_tournament
+from deps.tournament_data_access import data_access_insert_tournament, fetch_tournament_by_id
 from deps.data_access import (
     data_access_set_guild_tournament_text_channel_id,
     data_access_get_guild_tournament_text_channel_id,
@@ -11,11 +11,14 @@ from deps.values import (
     COMMAND_TOURNAMENT_CHANNEL_GET_CHANNEL,
     COMMAND_TOURNAMENT_CHANNEL_SET_CHANNEL,
     COMMAND_TOURNAMENT_CREATE_TOURNAMENT,
+    COMMAND_TOURNAMENT_START_TOURNAMENT,
 )
 from deps.mybot import MyBot
 from deps.log import print_warning_log
 from deps.tournament_models import BestOf, TournamentSize
 from deps.tournament_values import TOURNAMENT_MAPS
+from deps.tournament_data_class import Tournament
+from deps.tournament_functions import start_tournament
 
 
 class ModTournament(commands.Cog):
@@ -91,6 +94,19 @@ class ModTournament(commands.Cog):
             TOURNAMENT_MAPS,
         )
         await interaction.followup.send(f"Created tournament {name}", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_TOURNAMENT_START_TOURNAMENT)
+    @commands.has_permissions(administrator=True)
+    async def start_tournament_by_id(self, interaction: discord.Interaction, tournament_id: int):
+        """Start tournament"""
+        await interaction.response.defer(ephemeral=True)
+
+        if interaction.user.id == interaction.guild.owner_id:
+            tournament: Tournament = fetch_tournament_by_id(tournament_id)
+            start_tournament(tournament)
+            await interaction.followup.send(f"Tournamend '{tournament.name}' Started", ephemeral=True)
+        else:
+            await interaction.followup.send("Only the owner of the guild can reset the cache", ephemeral=True)
 
 
 async def setup(bot):
