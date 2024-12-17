@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -73,9 +73,11 @@ class ModTournament(commands.Cog):
             await interaction.followup.send("Tournament text channel not set.", ephemeral=True)
             return
 
-        registration_date_start_date = datetime.strptime(registration_date_start, "%Y-%m-%d").date()
-        start_date_date = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_date_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+        registration_date_start_date = datetime.strptime(registration_date_start, "%Y-%m-%d").replace(
+            tzinfo=timezone.utc
+        )
+        start_date_date = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        end_date_date = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         best_of_number = best_of.value
         max_users_number = max_users.value
         data_access_insert_tournament(

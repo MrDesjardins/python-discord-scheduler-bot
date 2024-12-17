@@ -27,9 +27,9 @@ def delete_all_tournament_tables() -> None:
 def data_access_insert_tournament(
     guild_id: int,
     name: str,
-    registration_date_start: date,
-    start_date: date,
-    end_date: date,
+    registration_date_start: datetime,
+    start_date: datetime,
+    end_date: datetime,
     best_of: int,
     max_users: int,
     maps: str,
@@ -109,9 +109,47 @@ def data_access_insert_tournament(
     return tournament_id
 
 
-async def fetch_active_tournament_by_guild(guild_id: int) -> Optional[Tournament]:
+async def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: int) -> List[Tournament]:
     """
-    Fetch a user name from the user_info table
+    Fetch all tournements that we can register to for a guild and a specific user
+    """
+
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            """
+            SELECT 
+                tournament.id,
+                tournament.guild_id,
+                tournament.name,
+                tournament.registration_date,
+                tournament.start_date,
+                tournament.end_date,
+                tournament.best_of,
+                tournament.max_players,
+                tournament.maps,
+                tournament.has_started
+            FROM tournament
+            WHERE tournament.guild_id = ?
+                AND date(tournament.registration_date) <= date(datetime('now'))
+                AND date(tournament.start_date) > date(datetime('now'))
+                AND NOT EXISTS (
+                    SELECT 1 
+                    FROM user_tournament 
+                    WHERE user_tournament.tournament_id = tournament.id 
+                    AND user_tournament.user_id = ?
+                )
+            """,
+            (guild_id, user_id),
+        )
+        .fetchall()
+    )
+    return [Tournament.from_db_row(row) for row in result]
+
+
+async def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
+    """
+    Fetch all tournements that we can register to for a guild
     """
 
     result = (
@@ -127,19 +165,18 @@ async def fetch_active_tournament_by_guild(guild_id: int) -> Optional[Tournament
                 end_date,
                 best_of,
                 max_players,
-                maps
+                maps,
+                has_started
             FROM tournament
-            WHERE guild_id = ? AND registration_date <= datetime('now') AND end_date >= datetime('now')
+            WHERE guild_id = ? 
+                AND date(start_date) <= date(datetime('now')) 
+                AND date(end_date) >= date(datetime('now'))
             """,
             (guild_id,),
         )
-        .fetchone()
+        .fetchall()
     )
-    if result is not None:
-        return Tournament(*result)
-    else:
-        # Handle the case where no user was found, e.g., return None or raise an exception
-        return None  # Or raise an appropriate exception
+    return [Tournament.from_db_row(row) for row in result]
 
 
 def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[TournamentGame]:
@@ -174,7 +211,7 @@ def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[Tourname
         return []
 
 
-def block_registration_today_tournament_start(date_to_start: date) -> None:
+def block_registration_today_tournament_start(date_to_start: datetime) -> None:
     """
     Block registration for a tournament.
     """
@@ -192,7 +229,7 @@ def block_registration_today_tournament_start(date_to_start: date) -> None:
     database_manager.get_conn().commit()
 
 
-def get_tournaments_starting_today(date_to_start: date) -> List[Tournament]:
+def get_tournaments_starting_today(date_to_start: datetime) -> List[Tournament]:
     """
     Get the list of tournaments that are starting today.
     """

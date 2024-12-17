@@ -2,14 +2,18 @@
 
 from dataclasses import dataclass
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def convert_to_datetime(date_str):
-    """Convert a date string to a datetime object"""
+    """Convert a date string to a timezone-aware datetime object (UTC)"""
     if not date_str:  # Handle None or empty string
         return None
-    return datetime.fromisoformat(date_str)
+    # Parse the date string and assume it's in UTC if no timezone is provided
+    dt = datetime.fromisoformat(date_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)  # Make the datetime UTC-aware
+    return dt
 
 
 @dataclass

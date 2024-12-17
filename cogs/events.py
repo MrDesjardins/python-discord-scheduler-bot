@@ -97,7 +97,6 @@ class MyEventsCog(commands.Cog):
             "add_reactions": bot_permissions.add_reactions,
             "read_message_history": bot_permissions.read_message_history,
             "mention_everyone": bot_permissions.mention_everyone,
-            "members": bot_permissions.membership
         }
 
         return permissions
