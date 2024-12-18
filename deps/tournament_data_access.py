@@ -67,6 +67,9 @@ def data_access_insert_tournament(
 
 
 def data_access_create_bracket(tournament_id: int, num_games: int) -> List[dict]:
+    """
+    Create the games to be part of the tournament brackets
+    """
     # Initialize a list to keep track of game IDs for the current level
     current_level = []
 

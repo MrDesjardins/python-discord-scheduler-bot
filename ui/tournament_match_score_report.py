@@ -12,95 +12,92 @@ from deps.tournament_models import TournamentNode
 
 class TournamentMatchScoreReport(View):
     """
-    A view that allows the user to selecft the tournament to report a lost
+    A view that allows the user to select the tournament to report a lost match.
     """
 
     def __init__(self, list_tournaments: List[Tournament]):
         super().__init__()
         self.tournament_id = None
+        self.round_lost = None
+        self.round_won = None
         self.list_tournaments = list_tournaments
 
-        for t in self.list_tournaments:
-            self.add_item(discord.ui.Button(label=t.name, custom_id="tournament_id", sku_id=t.id))
+        # Dynamically add buttons for each tournament
+        for tournament in self.list_tournaments:
+            button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
+            button.callback = self.create_button_callback(tournament.id)
+            self.add_item(button)
 
-        self.round_lost = Select(
+        # Add dropdown for "round lost"
+        self.round_lost_select = Select(
             placeholder="Round lost:",
-            options=[
-                discord.SelectOption(value="0", label="0"),
-                discord.SelectOption(value="1", label="1"),
-                discord.SelectOption(value="2", label="2"),
-                discord.SelectOption(value="3", label="3"),
-                discord.SelectOption(value="4", label="4"),
-                discord.SelectOption(value="5", label="5"),
-                discord.SelectOption(value="6", label="6"),
-                discord.SelectOption(value="7", label="7"),
-                discord.SelectOption(value="8", label="8"),
-                discord.SelectOption(value="9", label="9"),
-                discord.SelectOption(value="10", label="10"),
-            ],
+            options=[discord.SelectOption(value=str(i), label=str(i)) for i in range(11)],
             custom_id="round_lost",
             min_values=1,
             max_values=1,
         )
-        self.add_item(self.round_lost)
+        self.round_lost_select.callback = self.handle_round_lost
+        self.add_item(self.round_lost_select)
 
-        self.round_won = Select(
+        # Add dropdown for "round won"
+        self.round_won_select = Select(
             placeholder="Round won:",
-            options=[
-                discord.SelectOption(value="0", label="0"),
-                discord.SelectOption(value="1", label="1"),
-                discord.SelectOption(value="2", label="2"),
-                discord.SelectOption(value="3", label="3"),
-                discord.SelectOption(value="4", label="4"),
-                discord.SelectOption(value="5", label="5"),
-                discord.SelectOption(value="6", label="6"),
-                discord.SelectOption(value="7", label="7"),
-                discord.SelectOption(value="8", label="8"),
-                discord.SelectOption(value="9", label="9"),
-                discord.SelectOption(value="10", label="10"),
-            ],
+            options=[discord.SelectOption(value=str(i), label=str(i)) for i in range(11)],
             custom_id="round_won",
             min_values=1,
             max_values=1,
         )
-        self.add_item(self.round_won)
+        self.round_won_select.callback = self.handle_round_won
+        self.add_item(self.round_won_select)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Callback function to check if the interaction is valid"""
+    def create_button_callback(self, tournament_id: int):
+        async def callback(interaction: discord.Interaction):
+            """Handles button press for selecting a tournament."""
+            self.tournament_id = tournament_id
+            await interaction.response.send_message(
+                f"Tournament selected: {tournament_id}. Now select rounds.", ephemeral=True
+            )
 
-        if interaction.data["custom_id"] == "round_lost":
-            self.round_lost = self.round_lost.values
-        elif interaction.data["custom_id"] == "round_won":
-            self.round_won = self.round_won.values
-        elif interaction.data["custom_id"] == "tournament_name":
-            self.tournament_id = int(interaction.data["sku_id"])
+        return callback
 
-        if self.round_lost is not None and self.round_won is not None and self.tournament_id is not None:
-            # Save user responses
-            result = report_lost_tournament(self.tournament_id, interaction.user.id)
+    async def handle_round_lost(self, interaction: discord.Interaction):
+        """Handles selection of the round lost."""
+        self.round_lost = int(self.round_lost_select.values[0])
+        # Check if all inputs are set and process the result
+        if self.tournament_id is not None and self.round_lost is not None and self.round_won is not None:
+            await self.process_tournament_result(interaction)
 
-            # Find the tournament from the id variable in the list of tournament to get the starting date
-            tournament = next((t for t in self.list_tournaments if t.id == self.tournament_id), None)
-            if not tournament:
-                print_error_log(f"Tournament not found for id {self.list_tournaments}")
-                return True
+    async def handle_round_won(self, interaction: discord.Interaction):
+        """Handles selection of the round won."""
+        self.round_won = int(self.round_won_select.values[0])
 
-            # Send final confirmation message with the saved data
-            if result.is_successful:
-                completed_node: TournamentNode = result.context
-                player_lose = interaction.user
-                player_win = await data_access_get_member(
-                    guild_id=interaction.guild_id, user_id=completed_node.player_win
-                )
-                await interaction.followup.send(
-                    f"{player_win.display_name} wins against {player_lose.display_name} on {completed_node.map} with a score of {completed_node.score}",
-                    ephemeral=False,
-                )
-            else:
-                print_error_log(f"Error while reporting lost: {result.text}")
-                await interaction.followup.send(
-                    f"And error as occured while reporting the lost: {result.text}. Please contact a moderator.",
-                    ephemeral=False,
-                )
-            return True
-        return False
+        # Check if all inputs are set and process the result
+        if self.tournament_id is not None and self.round_lost is not None and self.round_won is not None:
+            await self.process_tournament_result(interaction)
+
+    async def process_tournament_result(self, interaction: discord.Interaction):
+        """Processes the tournament match result."""
+
+        score_string = f"{self.round_won}-{self.round_lost}"
+        result = report_lost_tournament(self.tournament_id, interaction.user.id, score_string)
+        tournament = next((t for t in self.list_tournaments if t.id == self.tournament_id), None)
+
+        if not tournament:
+            print_error_log(f"Tournament not found for id {self.tournament_id}")
+            await interaction.followup.send("Tournament not found. Please try again.", ephemeral=True)
+            return
+
+        if result.is_successful:
+            completed_node: TournamentNode = result.context
+            player_lose = interaction.user
+            player_win = await data_access_get_member(guild_id=interaction.guild_id, user_id=completed_node.player_win)
+            await interaction.followup.send(
+                f"{player_win.display_name} wins against {player_lose.display_name} on {completed_node.map} with a score of {completed_node.score}",
+                ephemeral=False,
+            )
+        else:
+            print_error_log(f"Error while reporting lost: {result.text}")
+            await interaction.followup.send(
+                f"An error occurred while reporting the lost match: {result.text}. Please contact a moderator.",
+                ephemeral=True,
+            )

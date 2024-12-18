@@ -258,7 +258,7 @@ def assign_people_to_games(
     return leaf_nodes
 
 
-def report_lost_tournament(tournament_id: int, user_id: int) -> Reason:
+def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reason:
     """
     Report a user as lost in the tournament.
 
@@ -285,6 +285,9 @@ def report_lost_tournament(tournament_id: int, user_id: int) -> Reason:
     # Update the user_winner_id in the node
     node.user_winner_id = node.user1_id if node.user1_id != user_id else node.user2_id
 
+    # Update the score
+    node.score = score
+
     # Find the parent node and assign the user
     node_parent = find_parent_of_node(tournament_tree, node.id)
     if node_parent is not None:
@@ -297,7 +300,7 @@ def report_lost_tournament(tournament_id: int, user_id: int) -> Reason:
         # Asign the map
         node_parent.map = random.choice(tournament.maps.split(","))
     # Save the updated tournament games
-    save_tournament_games([node])
+    save_tournament_games([node, node_parent])
     return Reason(True, None, node)
 
 

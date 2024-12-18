@@ -64,7 +64,7 @@ def test_full_registration_tournament():
         4,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
-    data_access_create_bracket(tournament_id, 4)
+
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
@@ -86,11 +86,11 @@ def test_full_registration_tournament():
     node2_user2 = tournament_tree.next_game2.user2_id  # Will win
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
-        report_result = report_lost_tournament(tournament_id, node1_user1)
+        report_result = report_lost_tournament(tournament_id, node1_user1, "7-5")
         assert report_result.is_successful is True
-        report_result = report_lost_tournament(tournament_id, node2_user2)
+        report_result = report_lost_tournament(tournament_id, node2_user2, "5-2")
         assert report_result.is_successful is True
-        report_result = report_lost_tournament(tournament_id, node1_user2)
+        report_result = report_lost_tournament(tournament_id, node1_user2, "6-9")
 
     # The tournament is over, get the winner
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
@@ -133,9 +133,9 @@ def test_partial_one_registration_tournament():
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
-        report_result = report_lost_tournament(tournament_id, node1_user1)
+        report_result = report_lost_tournament(tournament_id, node1_user1, "7-5")
         assert report_result.is_successful is True
-        report_result = report_lost_tournament(tournament_id, node1_user2)
+        report_result = report_lost_tournament(tournament_id, node1_user2, "8-7")
         assert report_result.is_successful is True
 
     # The tournament is over, get the winner
@@ -181,9 +181,9 @@ def test_very_small_participation_reduce_tournament_size():
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
-        report_result = report_lost_tournament(tournament_id, node1_user1)
+        report_result = report_lost_tournament(tournament_id, node1_user1, "7-5")
         assert report_result.is_successful is True
-        report_result = report_lost_tournament(tournament_id, node1_user2)
+        report_result = report_lost_tournament(tournament_id, node1_user2, "4-5")
         assert report_result.is_successful is True
 
     # The tournament is over, get the winner
@@ -208,7 +208,7 @@ def test_partial_registration_tournament_two_level_boost():
         8,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
-    data_access_create_bracket(tournament_id, 4)
+
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
@@ -234,13 +234,13 @@ def test_partial_registration_tournament_two_level_boost():
 
     with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
-        report_result = report_lost_tournament(tournament_id, node1_user2)
+        report_result = report_lost_tournament(tournament_id, node1_user2, "7-5")
         assert report_result.is_successful is True
-        report_result = report_lost_tournament(tournament_id, node2_user2)
+        report_result = report_lost_tournament(tournament_id, node2_user2, "7-5")
         assert report_result.is_successful is True
-        report_result = report_lost_tournament(tournament_id, node2_user1)
+        report_result = report_lost_tournament(tournament_id, node2_user1, "7-5")
         assert report_result.is_successful is True
-        report_result = report_lost_tournament(tournament_id, node1_user1)
+        report_result = report_lost_tournament(tournament_id, node1_user1, "7-5")
     # The tournament is over, get the winner
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)

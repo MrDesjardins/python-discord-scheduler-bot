@@ -1,4 +1,3 @@
-import io
 from typing import List
 import discord
 from discord.ext import commands
@@ -8,7 +7,6 @@ from deps.tournament_data_access import (
     fetch_tournament_not_compted_for_user,
     fetch_tournament_active_to_interact_for_user,
     fetch_tournament_by_guild_user_can_register,
-    fetch_tournament_games_by_tournament_id,
     fetch_active_tournament_by_guild,
 )
 from deps.values import (
@@ -17,12 +15,11 @@ from deps.values import (
     COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT,
 )
 from deps.mybot import MyBot
-from deps.log import print_log, print_warning_log
-from deps.tournament_functions import build_tournament_tree
-from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_visualizer import plot_tournament_bracket
+from deps.log import print_warning_log
+from deps.tournament_data_class import Tournament
 from ui.tournament_match_score_report import TournamentMatchScoreReport
 from ui.tournament_registration import TournamentRegistration
+from ui.tournament_see_bracket import TournamentSeeBracket
 
 
 class UserTournamentFeatures(commands.Cog):
@@ -76,7 +73,7 @@ class UserTournamentFeatures(commands.Cog):
         list_tournaments: List[Tournament] = await fetch_tournament_active_to_interact_for_user(guild_id, user_id)
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"send_score_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
             )
             await interaction.response.send_message("No active tournament available for you.", ephemeral=True)
             return
@@ -92,26 +89,20 @@ class UserTournamentFeatures(commands.Cog):
         """
         See the complete bracket for the tournament
         """
-        await interaction.response.defer(ephemeral=False)
         guild_id = interaction.guild.id
-        tournament: List[Tournament] = await fetch_active_tournament_by_guild(guild_id)
-        if len(tournament) == 0:
-            print_log(f"No active tournament in guild {interaction.guild.name}. Skipping.")
-            await interaction.followup.send("No active tournament in this server.", ephemeral=False)
+        list_tournaments: List[Tournament] = await fetch_active_tournament_by_guild(guild_id)
+        if len(list_tournaments) == 0:
+            print_warning_log(
+                f"see_braket_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+            )
+            await interaction.response.send_message("No active tournament.", ephemeral=True)
             return
-
-        for t in tournament:
-            tournament_games: List[TournamentGame] = await fetch_tournament_games_by_tournament_id(t.id)
-            tournament_tree = build_tournament_tree(tournament_games)
-            if tournament_tree is None:
-                print_warning_log(f"Failed to build tournament tree for tournament {t.id}. Skipping.")
-                await interaction.followup.send("Failed to build tournament tree.", ephemeral=False)
-                return
-            img_bytes = plot_tournament_bracket(tournament_tree, False)
-            bytesio = io.BytesIO(img_bytes)
-            bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
-            file = discord.File(fp=bytesio, filename="plot.png")
-            await interaction.response.send_message(file=file, ephemeral=False)
+        view = TournamentSeeBracket(list_tournaments)
+        await interaction.response.send_message(
+            "Choose the tournament to see the bracket",
+            view=view,
+            ephemeral=True,
+        )
 
 
 async def setup(bot):
