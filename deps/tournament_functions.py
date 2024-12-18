@@ -352,3 +352,32 @@ def find_first_node_of_user_not_done(tree: TournamentNode, user_id: int) -> Opti
             queue.append(current_node.next_game2)
 
     return None  # Return None if no matching node is found
+
+
+def get_node_by_levels(root: TournamentNode) -> List[List[TournamentNode]]:
+    """
+    Each level are part of the visual, level 0 (is the leaves) is the most left side of the
+    bracket
+    """
+    levels = []
+    max_depth = 0
+
+    def traverse(node: TournamentNode, depth: int):
+        nonlocal max_depth
+
+        if node is None:
+            return
+
+        max_depth = max(max_depth, depth)
+
+        # Traverse left and right child nodes to determine their positions
+        traverse(node.next_game1, depth + 1)
+        traverse(node.next_game2, depth + 1)
+        level_position = max_depth - depth
+        if len(levels) <= level_position:
+            levels.append([node])
+        else:
+            levels[max_depth - depth].append(node)
+
+    traverse(root, depth=0)
+    return levels

@@ -1,13 +1,18 @@
 """ Generate an image of a tournament bracket """
 
 import io
-import matplotlib.pyplot as plt
-from matplotlib.patches import ConnectionPatch
-
+import os
+from PIL import Image, ImageDraw, ImageFont
 from deps.analytic_data_access import fetch_user_info
 from deps.tournament_models import TournamentNode
 from deps.tournament_data_class import Tournament
 from deps.values import COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT
+from deps.tournament_functions import get_node_by_levels
+
+font_path = os.path.abspath("./fonts/Minecraft.ttf")
+font1 = ImageFont.truetype(font_path, 12)
+font2 = ImageFont.truetype(font_path, 16)
+font3 = ImageFont.truetype(font_path, 18)
 
 
 def get_name(user_id: str, users_map: dict) -> str:
@@ -19,23 +24,20 @@ def get_name(user_id: str, users_map: dict) -> str:
     return user_id
 
 
-def _plot_return(plot: plt, show: bool = True):
+def _image_return(im: Image, show: bool = True):
     """
     Return an image or the bytes of the iamge
     """
     if show:
         # plot.show()
-        plot.savefig("bracket.png", format="png")
+        im.save("bracket.png")
         return None
 
-    buf = io.BytesIO()
-    plot.savefig(buf, format="png")
-    buf.seek(0)
+    with io.BytesIO() as buf:
+        im.save(buf, format="PNG")
+        buf.seek(0)
 
-    # Get the bytes data
-    image_bytes = buf.getvalue()
-    buf.close()
-    return image_bytes
+        return buf.getvalue()
 
 
 def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: bool = True):
@@ -47,140 +49,116 @@ def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: 
         root (TournamentNode): The root node of the tournament tree.
         show (bool): Whether to display the plot or return the figure and axis.
     """
+    IMAGE_HEADER_SPACE = 60
+    IMAGE_MARGIN = 25
+    NODE_WIDTH = 150
+    NODE_HEIGHT = 50
+    NODE_MARGIN_VERTICAL = 25
+    NODE_MARGIN_HORIZONTAL = 35
+    NODE_PADDING = 10
+
     users_map = fetch_user_info()
     positions = {}
     labels = {}
     node_lookup = {}
-    max_depth = 0
-    node_count = 0
 
-    def traverse(node: TournamentNode, depth: int, x_offset: float):
-        nonlocal max_depth, node_count
-
-        if node is None:
-            return x_offset
-
-        max_depth = max(max_depth, depth)
-        node_count += 1
-
-        # Store the current node in the lookup
-        node_lookup[node.id] = node
-
-        # Traverse left and right child nodes to determine their positions
-        left_x = traverse(node.next_game1, depth + 1, x_offset)
-        right_x = traverse(node.next_game2, depth + 1, left_x + 5)  # Increase the gap to allow for longer names
-
-        # Assign the current node's position based on its children
-        current_x = (left_x + right_x) / 2 if node.next_game1 or node.next_game2 else x_offset
-
-        # Store position and label
-        if node.user1_id is None:
-            user1_name = "N/A"
-        else:
-            user1_name = (
-                get_name(node.user1_id, users_map)
-                if node.user1_id != node.user_winner_id
-                else f"*{ get_name(node.user1_id, users_map)}*"
-            )
-        if node.user2_id is None:
-            user2_name = "N/A"
-        else:
-            user2_name = (
-                get_name(node.user2_id, users_map)
-                if node.user2_id != node.user_winner_id
-                else f"*{ get_name(node.user2_id, users_map)}*"
-            )
-
-        labels[node.id] = (
-            f"{user1_name} vs {user2_name}\n{node.map} - {node.score if node.score is not None else '0-0'}"
-        )
-
-        positions[node.id] = (depth, current_x)
-        return current_x
-
-    # Traverse the tree starting from the root node
-    traverse(root, depth=0, x_offset=0)
+    levels = get_node_by_levels(root)
+    number_of_depth = len(levels)
+    maximum_node_vertically = len(levels[0])
 
     # Dynamically scale figure size based on tree dimensions
-    fig_width = max(node_count * 0.8, 15)  # Minimum width of 15
-    fig_height = max_depth * 2  # Scale height based on depth
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-    # Adjust layout to include the title
-    fig.subplots_adjust(top=0.9)  # Adjust top to make room for the title
+    fig_width = 2 * IMAGE_MARGIN + (number_of_depth * NODE_WIDTH) + (number_of_depth * NODE_MARGIN_HORIZONTAL)
+    fig_height = IMAGE_HEADER_SPACE + 2 * IMAGE_MARGIN + maximum_node_vertically * (NODE_HEIGHT + NODE_MARGIN_VERTICAL)
+    im = Image.new("RGB", (fig_width, fig_height), "white")
+    draw = ImageDraw.Draw(im)
 
-    ax.axis("off")
-
-    # Reverse y-axis to place the root at the top
-    ax.invert_yaxis()
-
-    # Adjust axis limits to fit all nodes with more spacing
-    x_positions = [pos[1] for pos in positions.values()]
-    y_positions = [-pos[0] for pos in positions.values()]  # Negate depth for inverted y-axis
-    ax.set_xlim(min(x_positions) - 2, max(x_positions) + 2)  # Add horizontal padding
-    ax.set_ylim(min(y_positions) - 1, max(y_positions) + 1)  # Add vertical padding
-
-    # Plot the nodes and connections
-    for node_id, (depth, x_pos) in positions.items():
-        # Fetch the actual node object
-        node = node_lookup[node_id]
-
-        # Determine background color based on winner presence
-        bgcolor = "lightgreen" if node.user_winner_id else "white"
-
-        # Format label with bolded winner
-        if node.user_winner_id:
-            label = labels[node_id].replace(f"<b>{node.user_winner_id}</b>", f"{node.user_winner_id}", 1)
-        else:
-            label = labels[node_id]
-
-        # Draw the current node
-        ax.text(
-            x_pos,
-            -depth,
-            label,
-            ha="center",
-            va="center",
-            fontsize=10,
-            bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor=bgcolor),
-        )
-
-        # Draw connections to child nodes
-        if node.next_game1:
-            child_pos = positions[node.next_game1.id]
-            con = ConnectionPatch(
-                xyA=(x_pos, -depth),
-                xyB=(child_pos[1], -child_pos[0]),
-                coordsA="data",
-                coordsB="data",
-                arrowstyle="-",
-                color="black",
+    for i, n in enumerate(levels):
+        diff = maximum_node_vertically - len(n)
+        for j, node in enumerate(n):
+            x_pos = IMAGE_MARGIN + NODE_MARGIN_VERTICAL + i * (NODE_WIDTH + NODE_MARGIN_HORIZONTAL)
+            # y_pos = IMAGE_HEADER_SPACE + j * (NODE_HEIGHT + NODE_MARGIN) + (diff) * (NODE_HEIGHT + NODE_MARGIN) // 2
+            y_pos = (
+                IMAGE_HEADER_SPACE
+                + j * (NODE_HEIGHT + NODE_MARGIN_VERTICAL)
+                + (2**i - 1) * (j * NODE_HEIGHT + NODE_MARGIN_VERTICAL)
             )
-            ax.add_artist(con)
+            if node.next_game2 is not None:
+                top1 = positions[node.next_game1.id][1]
+                top2 = positions[node.next_game2.id][1]
+                y_pos = (top1 + top2) // 2
 
-        if node.next_game2:
-            child_pos = positions[node.next_game2.id]
-            con = ConnectionPatch(
-                xyA=(x_pos, -depth),
-                xyB=(child_pos[1], -child_pos[0]),
-                coordsA="data",
-                coordsB="data",
-                arrowstyle="-",
-                color="black",
+            positions[node.id] = (x_pos, y_pos)
+            node_lookup[node.id] = node
+            labels[node.id] = f"{get_name(node.user_winner_id, users_map)}" if node.user_winner_id else f"{node.map}"
+            bgcolor = "lightgreen" if node.user_winner_id else "white"
+
+            if node.user1_id is None:
+                user1_name = "?"
+            else:
+                user1_name = (
+                    get_name(node.user1_id, users_map)
+                    if node.user1_id != node.user_winner_id
+                    else f"*{ get_name(node.user1_id, users_map)}*"
+                )
+            if node.user2_id is None:
+                user2_name = "?"
+            else:
+                user2_name = (
+                    get_name(node.user2_id, users_map)
+                    if node.user2_id != node.user_winner_id
+                    else f"*{ get_name(node.user2_id, users_map)}*"
+                )
+
+            label = f"{user1_name} vs {user2_name}\n{node.map} - {node.score if node.score is not None else '0-0'}"
+
+            # Add node to the graph
+            draw.rectangle((x_pos, y_pos, x_pos + NODE_WIDTH, y_pos + NODE_HEIGHT), fill=bgcolor, outline="black")
+
+            # Draw the current node with label
+            draw.text(
+                (x_pos + NODE_PADDING, y_pos + NODE_PADDING), label, fill="black", anchor="la", align="left", font=font1
             )
-            ax.add_artist(con)
+
+            # Draw connections to child nodes
+            if node.next_game1:
+                child_pos = positions[node.next_game1.id]
+                draw.line(
+                    (x_pos, y_pos + NODE_HEIGHT // 2, child_pos[0] + NODE_WIDTH, child_pos[1] + NODE_HEIGHT // 2),
+                    fill="black",
+                )
+
+            if node.next_game2:
+                child_pos = positions[node.next_game2.id]
+                draw.line(
+                    (x_pos, y_pos + NODE_HEIGHT // 2, child_pos[0] + NODE_WIDTH, child_pos[1] + NODE_HEIGHT // 2),
+                    fill="black",
+                )
 
     # Add tournament title with adjusted padding
-    ax.set_title(
+    draw.text(
+        (fig_width // 2, IMAGE_MARGIN),
         f"Tournament: {tournament.name}",
-        fontsize=16,
-        weight="bold",
-        loc="center",
-        pad=0,
+        fill="black",
+        anchor="mm",
+        font=font3,
     )
 
     # Add footer with start and end dates
-    footer_text = f"Start Date: {tournament.start_date.strftime('%Y-%m-%d')}, End Date: {tournament.end_date.strftime('%Y-%m-%d')}"
-    fig.text(0.5, 0.02, footer_text, ha="center", fontsize=12, color="gray")
-    footer_text2 = f"Use the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report a lost match"
-    fig.text(0.5, 0.10, footer_text2, ha="center", fontsize=12, color="gray")
-    return _plot_return(plt, show)
+    # Anchor mm means the text is centered
+    draw.text(
+        (fig_width // 2, fig_height - IMAGE_MARGIN),
+        f"Start Date: {tournament.start_date.strftime('%Y-%m-%d')}, End Date: {tournament.end_date.strftime('%Y-%m-%d')}",
+        fill="gray",
+        anchor="mm",
+        font=font2,
+    )
+    draw.text(
+        (fig_width // 2, fig_height - IMAGE_MARGIN + 15),
+        f"Use the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report a lost match",
+        fill="gray",
+        anchor="mm",
+        font=font2,
+    )
+    # Set axis limits based on positions
+
+    return _image_return(im, show)
