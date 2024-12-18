@@ -1,21 +1,25 @@
 """
 Common code for the gatherer and analyse
 """
+
 import datetime
 import sqlite3
 
 EVENT_CONNECT = "connect"
 EVENT_DISCONNECT = "disconnect"
 DATABASE_NAME = "user_activity.db"
-DATABASE_NAME_TEST = "user_activity_test.db"
+DATABASE_NAME_TEST = "user_activity_test.db"  # Can use DATABASE_NAME_TEST = ":memory:" to use an in-memory database
+
 
 # Adapter for datetime objects
 def adapt_datetime(dt):
     return dt.isoformat()
 
+
 # Converter for datetime objects
 def convert_datetime(s):
     return datetime.datetime.fromisoformat(s)
+
 
 class DatabaseManager:
     """Handle the database connection to the right file"""
@@ -112,7 +116,6 @@ class DatabaseManager:
         );
         """
         )
-
 
         self.get_cursor().execute(
             """

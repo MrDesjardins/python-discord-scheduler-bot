@@ -35,9 +35,9 @@ class UserTournamentFeatures(commands.Cog):
         """
         user_id = interaction.user.id
         guild_id = interaction.guild.id
-        list_tournaments: List[Tournament] = await fetch_tournament_by_guild_user_can_register(guild_id, user_id)
+        list_tournaments: List[Tournament] = fetch_tournament_by_guild_user_can_register(guild_id, user_id)
         if len(list_tournaments) == 0:
-            list_tournaments_users = await fetch_tournament_not_compted_for_user(guild_id, user_id)
+            list_tournaments_users = fetch_tournament_not_compted_for_user(guild_id, user_id)
             if len(list_tournaments_users) == 0:
                 print_warning_log(
                     f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
@@ -70,7 +70,7 @@ class UserTournamentFeatures(commands.Cog):
         """
         user_id = interaction.user.id
         guild_id = interaction.guild.id
-        list_tournaments: List[Tournament] = await fetch_tournament_active_to_interact_for_user(guild_id, user_id)
+        list_tournaments: List[Tournament] = fetch_tournament_active_to_interact_for_user(guild_id, user_id)
         if len(list_tournaments) == 0:
             print_warning_log(
                 f"send_score_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
@@ -90,7 +90,7 @@ class UserTournamentFeatures(commands.Cog):
         See the complete bracket for the tournament
         """
         guild_id = interaction.guild.id
-        list_tournaments: List[Tournament] = await fetch_active_tournament_by_guild(guild_id)
+        list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
         if len(list_tournaments) == 0:
             print_warning_log(
                 f"see_braket_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."

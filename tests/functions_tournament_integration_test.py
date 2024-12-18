@@ -10,6 +10,7 @@ from deps.tournament_data_access import (
     data_access_insert_tournament,
     delete_all_tournament_tables,
     fetch_tournament_games_by_tournament_id,
+    fetch_tournament_open_registration,
 )
 from deps.tournament_functions import (
     build_tournament_tree,
@@ -249,3 +250,115 @@ def test_partial_registration_tournament_two_level_boost():
     assert tournament_tree.next_game2.user_winner_id == node3_user1
     assert tournament_tree.next_game1.next_game1.user_winner_id == node1_user1
     assert tournament_tree.next_game1.next_game2.user_winner_id == node2_user1
+
+
+async def test_daily_registration_message_no_tournament_available():
+    """
+    Create few tournament and make sure the command to retrieve the registration works
+    """
+    before_all_registration = datetime(2024, 10, 31, 12, 30, 0, tzinfo=timezone.utc)
+    register_date_start = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
+    register_date_start2 = datetime(2024, 11, 2, 12, 30, 0, tzinfo=timezone.utc)
+    date_start = datetime(2024, 11, 2, 10, 30, 0, tzinfo=timezone.utc)
+    date_start2 = datetime(2024, 11, 3, 10, 30, 0, tzinfo=timezone.utc)
+    date_end = datetime(2024, 11, 3, 20, 30, 0, tzinfo=timezone.utc)
+    date_end2 = datetime(2024, 11, 4, 20, 30, 0, tzinfo=timezone.utc)
+    tournament_id = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament",
+        register_date_start,
+        date_start,
+        date_end,
+        9,
+        2,
+        "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+    )
+
+    tournament_id2 = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament",
+        register_date_start2,
+        date_start2,
+        date_end2,
+        9,
+        2,
+        "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+    )
+    with patch("deps.tournament_data_access.datetime") as mock_datetime:
+        mock_datetime.now.return_value = before_all_registration
+        list_tournaments = fetch_tournament_open_registration(GUILD_ID)
+        assert len(list_tournaments) == 0
+
+
+async def test_daily_registration_message_tournament_available():
+    """
+    Create few tournament and make sure the command to retrieve the registration works
+    """
+    before_all_registration = datetime(2024, 10, 31, 12, 30, 0, tzinfo=timezone.utc)
+    register_date_start = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
+    register_date_start2 = datetime(2024, 11, 2, 12, 30, 0, tzinfo=timezone.utc)
+    date_start = datetime(2024, 11, 2, 10, 30, 0, tzinfo=timezone.utc)
+    date_start2 = datetime(2024, 11, 3, 10, 30, 0, tzinfo=timezone.utc)
+    date_end = datetime(2024, 11, 3, 20, 30, 0, tzinfo=timezone.utc)
+    date_end2 = datetime(2024, 11, 4, 20, 30, 0, tzinfo=timezone.utc)
+    tournament_id = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament",
+        register_date_start,
+        date_start,
+        date_end,
+        9,
+        2,
+        "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+    )
+
+    tournament_id2 = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament 2",
+        register_date_start2,
+        date_start2,
+        date_end2,
+        9,
+        2,
+        "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+    )
+    with patch("deps.tournament_data_access.datetime") as mock_datetime:
+        mock_datetime.now.return_value = register_date_start
+        list_tournaments = fetch_tournament_open_registration(GUILD_ID)
+        assert len(list_tournaments) == 1
+
+
+async def test_daily_registration_message_tournament_available_but_no_space():
+    """
+    Create few tournament and make sure the command to retrieve the registration works
+    """
+    register_date_start = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
+    date_start = datetime(2024, 11, 2, 10, 30, 0, tzinfo=timezone.utc)
+    date_end = datetime(2024, 11, 3, 20, 30, 0, tzinfo=timezone.utc)
+    tournament_id = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament",
+        register_date_start,
+        date_start,
+        date_end,
+        9,
+        2,
+        "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+    )
+
+    with patch("deps.tournament_data_access.datetime") as mock_datetime:
+        with patch("deps.tournament_functions.datetime") as mock_datetime2:
+            mock_datetime.now.return_value = register_date_start
+            mock_datetime2.now.return_value = register_date_start
+
+            register_result = register_for_tournament(tournament_id, USER1_ID)
+            assert register_result.is_successful is True, register_result.text
+
+            list_tournaments = fetch_tournament_open_registration(GUILD_ID)
+            assert len(list_tournaments) == 1
+
+            register_result = register_for_tournament(tournament_id, USER2_ID)
+            assert register_result.is_successful is True, register_result.text
+
+            list_tournaments = fetch_tournament_open_registration(GUILD_ID)
+            assert len(list_tournaments) == 0  # Because we accept only 2 people in this tournament

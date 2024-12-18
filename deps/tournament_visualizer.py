@@ -2,6 +2,7 @@
 
 import io
 import os
+from typing import Optional
 from PIL import Image, ImageDraw, ImageFont
 from deps.analytic_data_access import fetch_user_info
 from deps.tournament_models import TournamentNode
@@ -40,7 +41,7 @@ def _image_return(im: Image, show: bool = True):
         return buf.getvalue()
 
 
-def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: bool = True):
+def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: bool = True) -> Optional[bytes]:
     """
     Generates an image of a tournament bracket from the root node of a tree.
 
@@ -73,7 +74,6 @@ def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: 
     draw = ImageDraw.Draw(im)
 
     for i, n in enumerate(levels):
-        diff = maximum_node_vertically - len(n)
         for j, node in enumerate(n):
             x_pos = IMAGE_MARGIN + NODE_MARGIN_VERTICAL + i * (NODE_WIDTH + NODE_MARGIN_HORIZONTAL)
             # y_pos = IMAGE_HEADER_SPACE + j * (NODE_HEIGHT + NODE_MARGIN) + (diff) * (NODE_HEIGHT + NODE_MARGIN) // 2

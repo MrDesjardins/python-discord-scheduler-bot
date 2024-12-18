@@ -1,6 +1,6 @@
 """ Functions usesd in the tournament module """
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from collections import deque
 import random
 from typing import Dict, List, Optional
@@ -8,7 +8,6 @@ from deps.data_access_data_class import UserInfo
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_models import TournamentNode
 from deps.tournament_data_access import (
-    block_registration_today_tournament_start,
     data_access_create_bracket,
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
@@ -299,8 +298,10 @@ def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reas
             node_parent.user2_id = node.user_winner_id
         # Asign the map
         node_parent.map = random.choice(tournament.maps.split(","))
-    # Save the updated tournament games
-    save_tournament_games([node, node_parent])
+        # Save the updated tournament games
+        save_tournament_games([node, node_parent])
+    else:
+        save_tournament_games([node])
     return Reason(True, None, node)
 
 
