@@ -8,6 +8,7 @@ from deps.tournament_data_class import Tournament
 from deps.tournament_functions import report_lost_tournament
 from deps.log import print_error_log
 from deps.tournament_models import TournamentNode
+from deps.tournament_discord_actions import generate_bracket_file
 
 
 class TournamentMatchScoreReport(View):
@@ -23,10 +24,13 @@ class TournamentMatchScoreReport(View):
         self.list_tournaments = list_tournaments
 
         # Dynamically add buttons for each tournament
-        for tournament in self.list_tournaments:
-            button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
-            button.callback = self.create_button_callback(tournament.id)
-            self.add_item(button)
+        if (len(self.list_tournaments)) == 1:
+            self.tournament_id = self.list_tournaments[0].id
+        else:
+            for tournament in self.list_tournaments:
+                button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
+                button.callback = self.create_button_callback(tournament.id)
+                self.add_item(button)
 
         # Add dropdown for "round lost"
         self.round_lost_select = Select(
@@ -94,13 +98,21 @@ class TournamentMatchScoreReport(View):
         if result.is_successful:
             completed_node: TournamentNode = result.context
             player_lose = interaction.user
-            player_win = await data_access_get_member(
-                guild_id=interaction.guild_id, user_id=completed_node.user_winner_id
-            )
+            try:
+                player_win = await data_access_get_member(
+                    guild_id=interaction.guild_id, user_id=completed_node.user_winner_id
+                )
+                player_win_display_name = player_win.mention
+            except:
+                player_win_display_name = completed_node.user_winner_id
             await interaction.followup.send(
-                f"{player_win.display_name} wins against {player_lose.display_name} on {completed_node.map} with a score of {completed_node.score}",
+                f"{player_win_display_name} wins against {player_lose.mention} on {completed_node.map} with a score of {completed_node.score}",
                 ephemeral=False,
             )
+
+            file = generate_bracket_file(self.tournament_id)
+            await interaction.followup.send(file=file, ephemeral=False)
+
         else:
             print_error_log(f"Error while reporting lost: {result.text}")
             await interaction.followup.send(
