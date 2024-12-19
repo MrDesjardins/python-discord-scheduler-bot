@@ -5,6 +5,7 @@
 3. The bot a voice message to the first user that joins the voice channel giving who is about to come play (optional).
 4. The bot as administrative features with many statistics and analytic giving hindsight on the user's activity to pro-actively reaching folks.
 5. The bot allows users to know everyone's timezone in a specific voice channel to help identifying the best host.
+6. The bot has a tournament system allowing moderator to create a single elimination tournament with lost reporting and bracket visualization.
 
 # What does the Bot look like?
 
@@ -19,6 +20,12 @@ The bot sends a daily message to the guild asking the user when they plan to pla
 Everytime someone leave a voice channels that is configured as part of the gaming voice channel, the bot collects the `active` user account and fetches the statistic.
 
 ![Gaming Session](readme_assets/bot_gaming_session_example.png)
+
+# Tournament
+
+The bot allows the moderator to create a single elimination tournament. The tournament is created by the moderator and the user can report the lost. The bot will generate a bracket and the user can see the progress of the tournament.
+
+![Tournament](readme_assets/TournamentReportingLost.gif)
 
 ## Admin Console
 
@@ -103,6 +110,24 @@ Allows a user to get the list of timezones of all people in a specific voice cha
 
 Allows the user to type his Ubisoft account name to fetch the maximum rank he achieved and assign the role.
 
+### Tournament Commands
+
+#### registertournament
+
+Every user interested to participate in the tournament must register using the `/registertournament` command.
+
+#### reportlosttournament
+
+Allows to report a lost. If there are many tournaments, the user needs to specify the tournament name from a list. Otherwise, only the score is required.
+
+![Tournament](readme_assets/TournamentReportLost.png)
+
+#### seebrackettournament
+
+Allows to see the current bracket. The bracket is automatically updated to the tournament text channel on a report of a lost. The command allows to regenerate it.
+
+![Tournament](readme_assets/TournamentSeeBracketCommand.png)
+
 ## Moderators/Administrator Commands
 
 ### Schedule Commands
@@ -149,7 +174,27 @@ Allows to see what is the voice channels configured for the guild.
 
 #### modresetvoicechannel
 
-Rremove all voice channels configuration. It is good to reset and add the voice channels again.
+Remove all voice channels configuration. It is good to reset and add the voice channels again.
+
+### Tournament Commands
+
+#### modcreatetournament
+
+The moderator can create many tournaments. The tournament is a single elimination tournament. The tournament is created with a name and the number of players. The tournament is created with the current date and time.
+
+![Tournament](readme_assets/Tournament_Creation.png)
+
+#### modreportlost
+
+In case a user does not report a lost, a moderator can unblock the tournament by reporting the lost on the behalf of the user
+
+#### modtexttournamentchannel
+
+Set the text channel to send the bracket and messages about the tournament
+
+#### modseestournamentchannel
+
+Allows to see what is the text channel configured for the guild to send the tournament information.
 
 ### Bot Behaviors
 
