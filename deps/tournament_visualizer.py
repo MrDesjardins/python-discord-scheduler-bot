@@ -25,13 +25,13 @@ def get_name(user_id: str, users_map: dict) -> str:
     return user_id
 
 
-def _image_return(im: Image, show: bool = True):
+def _image_return(im: Image, show: bool = True, file_name:str = "bracket.png"):
     """
     Return an image or the bytes of the iamge
     """
     if show:
         # plot.show()
-        im.save("bracket.png")
+        im.save(file_name)
         return None
 
     with io.BytesIO() as buf:
@@ -41,7 +41,7 @@ def _image_return(im: Image, show: bool = True):
         return buf.getvalue()
 
 
-def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: bool = True) -> Optional[bytes]:
+def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: bool = True, file_name:str = "bracket.png") -> Optional[bytes]:
     """
     Generates an image of a tournament bracket from the root node of a tree.
 
@@ -161,4 +161,4 @@ def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: 
     )
     # Set axis limits based on positions
 
-    return _image_return(im, show)
+    return _image_return(im, show, file_name)

@@ -19,7 +19,7 @@ def delete_all_tables() -> None:
     """
     Delete all tables
     """
-    print(f"Deleting all tables from database {database_manager.get_database_name()}")
+    # print(f"Deleting all tables from database {database_manager.get_database_name()}")
     database_manager.get_cursor().execute("DELETE FROM user_info")
     database_manager.get_cursor().execute("DELETE FROM user_activity")
     database_manager.get_cursor().execute("DELETE FROM user_weights")

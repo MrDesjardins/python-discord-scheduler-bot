@@ -100,14 +100,105 @@ def start_tournament(tournament: Tournament) -> None:
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
 
     # Assign people to tournament games
-    games_to_save: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
-
-    # Tournament status
-    tournament.has_started = True
+    node_to_save: List[TournamentGame] = assign_people_to_games(tournament, tournament_games, people)
 
     # Save the games
-    save_tournament_games(games_to_save)
+    save_tournament_games(node_to_save)
+
+    # Auto assign user as a winner if there is no possible opponent in the other side of the bracket
+    node_to_save2: List[TournamentGame] = auto_assign_winner(tournament_games)
+    # Save the nodes that was determined as auto in
+    save_tournament_games(node_to_save2)
+    # Tournament status
+    tournament.has_started = True
     save_tournament(tournament)
+
+
+def has_node_without_user(dict_nodes: dict[int, TournamentGame], node: TournamentGame) -> bool:
+    """
+    Determine if a node has all its underlying branches without users even if maybe has games.
+    """
+    # We reached the end of a branch, check the user
+    if node.next_game1_id is None and node.next_game2_id is None:
+        return node.user1_id is None and node.user2_id is None
+
+    # Dive into the children
+    left_side_result = node.next_game1_id is not None and has_node_without_user(
+        dict_nodes, dict_nodes[node.next_game1_id]
+    )
+    right_side_result = node.next_game2_id is not None and has_node_without_user(
+        dict_nodes, dict_nodes[node.next_game2_id]
+    )
+
+    return left_side_result and right_side_result
+
+
+def auto_assign_winner(tournament_games: List[TournamentGame]) -> List[TournamentGame]:
+    """
+    Find all nodes with user1_id set to None or user2_id set to None
+    Then, check if any of the children node have a node with user1_id set to None AND user2_id set to None
+    If yes, then we need to assign the win on the  node to the user1_id or user2_id (whichever is not None) and
+    Assign the user1_id or user2_id of the parent node to the user_winner_id of the child node
+    """
+    # Find all nodes with user1_id set to None or user2_id set to None
+    dict_nodes = {node.id: node for node in tournament_games}
+    node_to_save: dict[int, TournamentGame] = {}
+    tree = build_tournament_tree(tournament_games)
+
+    def traverse(node: TournamentNode):
+
+        if node.next_game1 is not None:
+            auto_winner_id = traverse(node.next_game1)
+            if auto_winner_id is not None:
+                if node.user1_id is None:
+                    node.user1_id = auto_winner_id
+                    dict_nodes[node.id].user1_id = auto_winner_id
+                else:
+                    node.user2_id = auto_winner_id
+                    dict_nodes[node.id].user2_id = auto_winner_id
+                node_to_save[node.id] = dict_nodes[node.id]
+        if node.next_game2 is not None:
+            auto_winner_id = traverse(node.next_game2)
+            if auto_winner_id is not None:
+                if node.user1_id is None:
+                    node.user1_id = auto_winner_id
+                    dict_nodes[node.id].user1_id = auto_winner_id
+                else:
+                    node.user2_id = auto_winner_id
+                    dict_nodes[node.id].user2_id = auto_winner_id
+                node_to_save[node.id] = dict_nodes[node.id]
+
+        if node.user1_id is None and node.user2_id is None:
+            # No user need to be promoted as winner, the node has no user
+            return None
+        elif (node.user1_id is None) ^ (node.user2_id is None):
+            # One of the two user is None, we need to check if one side has no children at all
+            left_side = (
+                has_node_without_user(dict_nodes, dict_nodes[node.next_game1.id])
+                if node.next_game1 is not None
+                else True
+            )
+            right_side = (
+                has_node_without_user(dict_nodes, dict_nodes[node.next_game2.id])
+                if node.next_game2 is not None
+                else True
+            )
+            if left_side or right_side:
+                if node.user_winner_id is None:
+                    # Mark it in the Tree
+                    node.user_winner_id = node.user1_id if node.user1_id is not None else node.user2_id
+                    # Mark it in the list
+                    dict_nodes[node.id].user_winner_id = node.user_winner_id
+                    node_to_save[node.id] = dict_nodes[node.id]  # Will need to save in database later
+                    # Need to set the user to the parent for its next match
+                    return node.user_winner_id
+            return
+        else:
+            # Both user are set, we can go to the next node
+            return None
+
+    traverse(tree)
+    return list(node_to_save.values())
 
 
 def next_power_of_two(n):
@@ -194,7 +285,7 @@ def build_tournament_tree(tournament: List[TournamentGame]) -> Optional[Tourname
 
 def assign_people_to_games(
     tournament: TournamentNode, tournament_games: List[TournamentGame], people: List[UserInfo]
-) -> List[TournamentNode]:
+) -> List[TournamentGame]:
     """
     Assign people to tournament games. Assign to the last level of the tree but if the tree is not full, assign to the
     first level.
@@ -203,6 +294,9 @@ def assign_people_to_games(
         tournament (TournamentNode): The root node of the tournament tree.
         tournament_games (List[TournamentGame]): A list of tournament games.
         people (List[UserInfo]): A list of people to assign to the games.
+
+    Returns: Node to save
+
     """
 
     # Assign people to games randomly on the last level of the tree
@@ -219,11 +313,17 @@ def assign_people_to_games(
     random.shuffle(people)
 
     # Assign people to games by taking two persons sequentially and assigned them to a leaf node
-    for i, _node in enumerate(leaf_nodes):
-        if i * 2 + 1 < len(people):
-            leaf_nodes[i].user1_id = people[i * 2].id
-            leaf_nodes[i].user2_id = people[i * 2 + 1].id
-            leaf_nodes[i].map = random.choice(tournament.maps.split(","))
+    i_leaf = 0
+    i_person = 0
+    while i_leaf < len(leaf_nodes) and i_person < len(people):
+        if i_person < len(people):
+            leaf_nodes[i_leaf].user1_id = people[i_person].id
+            i_person += 1
+        if i_person < len(people):
+            leaf_nodes[i_leaf].user2_id = people[i_person].id
+            i_person += 1
+            leaf_nodes[i_leaf].map = random.choice(tournament.maps.split(","))  # Only if 2 people
+        i_leaf += 1
 
     # Mark the node as a winner if there is only one person
     assign_to_parent: List[TournamentNode] = []
@@ -249,10 +349,10 @@ def assign_people_to_games(
     # Auto assign user as a winner if no user to be against
     for node in assign_to_parent:
         parent = [n for n in tournament_games if n.next_game1_id == node.id or n.next_game2_id == node.id]
-        if len(parent) == 0:
-            parent[0].user2_id = node.user_winner_id
-
-    # Still might have nodes without 1 user or 2 users who has been marked as no winner
+        if len(parent) > 0:
+            p = parent[0]
+            p.user2_id = node.user_winner_id
+            leaf_nodes.append(parent[0])
 
     return leaf_nodes
 
@@ -268,6 +368,11 @@ def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reas
     # Get the tournament
     tournament = fetch_tournament_by_id(tournament_id)
 
+    # Get the list of users registered for the tournament
+    participants: List[UserInfo] = get_people_registered_for_tournament(tournament_id)
+    if not any(user.id == user_id for user in participants):
+        return Reason(False, "User is not registered for the tournament.")
+
     # Get the tournament games
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
 
@@ -277,9 +382,15 @@ def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reas
     # Find the node where the user is present
     node = find_first_node_of_user_not_done(tournament_tree, user_id)
 
-    # If the user is not found in the tournament tree, return
+    # If the user is already eleminated or not found in the tournament
     if node is None:
-        return Reason(False, "User not found in the tournament.")
+        return Reason(False, "User cannot report a lost because already eliminated.")
+
+    if node.user1_id is None or node.user2_id is None:
+        return Reason(
+            False,
+            "User cannot report a lost because the game is not ready: one participant is not yet determine by the system.",
+        )
 
     # Update the user_winner_id in the node
     node.user_winner_id = node.user1_id if node.user1_id != user_id else node.user2_id
@@ -291,17 +402,25 @@ def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reas
     node_parent = find_parent_of_node(tournament_tree, node.id)
     if node_parent is not None:
         # None might mean root
-        # Set the winner to the parent node on the right side (user 1 if user 1 was winner, user 2 if user 2 was winner)
-        if node.user1_id != user_id:
+        # Set the winner to the parent node on an available slot
+        if node_parent.user1_id is None:
             node_parent.user1_id = node.user_winner_id
         else:
             node_parent.user2_id = node.user_winner_id
-        # Asign the map
-        node_parent.map = random.choice(tournament.maps.split(","))
+        # Asign the map when both are defined
+        if node_parent.user1_id is not None and node_parent.user2_id is not None:
+            node_parent.map = random.choice(tournament.maps.split(","))
         # Save the updated tournament games
         save_tournament_games([node, node_parent])
     else:
         save_tournament_games([node])
+
+    # Auto assign user as a winner if there is no possible opponent in the other side of the bracket
+    # Refetch to make sure we have all the latest
+    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    node_to_save2: List[TournamentNode] = auto_assign_winner(tournament_games)
+    save_tournament_games(node_to_save2)
+
     return Reason(True, None, node)
 
 

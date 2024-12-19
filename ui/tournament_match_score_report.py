@@ -54,15 +54,19 @@ class TournamentMatchScoreReport(View):
         async def callback(interaction: discord.Interaction):
             """Handles button press for selecting a tournament."""
             self.tournament_id = tournament_id
-            await interaction.response.send_message(
-                f"Tournament selected: {tournament_id}. Now select rounds.", ephemeral=True
-            )
+            if self.round_lost is None or self.round_won is None:
+                await interaction.response.send_message(
+                    f"Tournament selected: {tournament_id}. Now select rounds.", ephemeral=True
+                )
+            else:
+                await interaction.response.defer()
 
         return callback
 
     async def handle_round_lost(self, interaction: discord.Interaction):
         """Handles selection of the round lost."""
         self.round_lost = int(self.round_lost_select.values[0])
+        await interaction.response.defer()
         # Check if all inputs are set and process the result
         if self.tournament_id is not None and self.round_lost is not None and self.round_won is not None:
             await self.process_tournament_result(interaction)
@@ -70,7 +74,7 @@ class TournamentMatchScoreReport(View):
     async def handle_round_won(self, interaction: discord.Interaction):
         """Handles selection of the round won."""
         self.round_won = int(self.round_won_select.values[0])
-
+        await interaction.response.defer()
         # Check if all inputs are set and process the result
         if self.tournament_id is not None and self.round_lost is not None and self.round_won is not None:
             await self.process_tournament_result(interaction)
@@ -90,7 +94,9 @@ class TournamentMatchScoreReport(View):
         if result.is_successful:
             completed_node: TournamentNode = result.context
             player_lose = interaction.user
-            player_win = await data_access_get_member(guild_id=interaction.guild_id, user_id=completed_node.player_win)
+            player_win = await data_access_get_member(
+                guild_id=interaction.guild_id, user_id=completed_node.user_winner_id
+            )
             await interaction.followup.send(
                 f"{player_win.display_name} wins against {player_lose.display_name} on {completed_node.map} with a score of {completed_node.score}",
                 ephemeral=False,
@@ -98,6 +104,6 @@ class TournamentMatchScoreReport(View):
         else:
             print_error_log(f"Error while reporting lost: {result.text}")
             await interaction.followup.send(
-                f"An error occurred while reporting the lost match: {result.text}. Please contact a moderator.",
+                f"Cannot report lost match: {result.text}. Please contact a moderator.",
                 ephemeral=True,
             )

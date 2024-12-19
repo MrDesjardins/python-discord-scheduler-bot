@@ -20,7 +20,7 @@ from deps.tournament_visualizer import plot_tournament_bracket
 from deps.values import COMMAND_TOURNAMENT_REGISTER_TOURNAMENT
 
 
-def generate_bracket_file(tournament_id: int) -> Optional[discord.File]:
+def generate_bracket_file(tournament_id: int, file_name: str = "tournament_bracket.png") -> Optional[discord.File]:
     """
     Generate the image to share in a Discord message
     """
@@ -41,7 +41,7 @@ def generate_bracket_file(tournament_id: int) -> Optional[discord.File]:
         return None
     bytesio = io.BytesIO(img_bytes)
     bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
-    file = discord.File(fp=bytesio, filename="tournament_bracket.png")
+    file = discord.File(fp=bytesio, filename=file_name)
     return file
 
 

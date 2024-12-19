@@ -3,6 +3,7 @@ Module to gather user activity data and calculate the time spent together
 """
 
 from datetime import datetime, timezone
+import math
 from typing import List, Optional
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
@@ -16,10 +17,10 @@ def delete_all_tournament_tables() -> None:
     """
     Delete all tables related to tournament
     """
-    print(f"Deleting all tables from database {database_manager.get_database_name()}")
-    database_manager.get_cursor().execute("DELETE FROM user_tournament")
-    database_manager.get_cursor().execute("DELETE FROM tournament_game")
-    database_manager.get_cursor().execute("DELETE FROM tournament")
+    # print(f"Deleting all tables from database {database_manager.get_database_name()}")
+    database_manager.get_cursor().execute("DELETE FROM user_tournament;")
+    database_manager.get_cursor().execute("DELETE FROM tournament_game;")
+    database_manager.get_cursor().execute("DELETE FROM tournament;")
     database_manager.get_conn().commit()
 
 
@@ -53,7 +54,7 @@ def data_access_insert_tournament(
         """
         INSERT INTO tournament (
             guild_id, name, registration_date, start_date, end_date, best_of, max_players, maps
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """,
         (guild_id, name, registration_date_start, start_date, end_date, best_of, max_users, maps),
     )
@@ -65,7 +66,7 @@ def data_access_insert_tournament(
     return tournament_id
 
 
-def data_access_create_bracket(tournament_id: int, num_games: int) -> List[dict]:
+def data_access_create_bracket(tournament_id: int, total_players: int) -> List[dict]:
     """
     Create the games to be part of the tournament brackets
     """
@@ -74,13 +75,14 @@ def data_access_create_bracket(tournament_id: int, num_games: int) -> List[dict]
 
     cursor = database_manager.get_cursor()
 
-    # Generate leaf games (final games at the bottom of the bracket)
-    for i in range(num_games):
+    leaf_game_count = math.ceil(total_players / 2)
+    # Generate leaf games (starting games at the bottom of the bracket)
+    for i in range(leaf_game_count):
         cursor.execute(
             """
             INSERT INTO tournament_game (
                 tournament_id, next_game1_id, next_game2_id
-            ) VALUES (?, NULL, NULL)
+            ) VALUES (?, NULL, NULL);
             """,
             (tournament_id,),
         )
@@ -97,7 +99,7 @@ def data_access_create_bracket(tournament_id: int, num_games: int) -> List[dict]
                 """
                 INSERT INTO tournament_game (
                     tournament_id, next_game1_id, next_game2_id
-                ) VALUES (?, ?, ?)
+                ) VALUES (?, ?, ?);
                 """,
                 (tournament_id, next_level_1, next_level_2),
             )
@@ -142,7 +144,7 @@ def fetch_tournament_open_registration(guild_id: int) -> List[Tournament]:
                     AND date(tournament.registration_date) <= date(:current_time)
                 GROUP BY tournament.id
                 HAVING
-                    tournament.max_players > current_user_count
+                    tournament.max_players > current_user_count;
                 """,
             {"guild_id": guild_id, "current_time": current_time},
         )
@@ -177,7 +179,7 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
                     AND user_tournament.user_id = :user_id
                 WHERE tournament.guild_id = :guild_id
                     AND date(tournament.end_date) >= date(:current_time)
-                    AND date(tournament.start_date) <= date(:current_time)
+                    AND date(tournament.start_date) <= date(:current_time);
                 """,
             {"user_id": user_id, "guild_id": guild_id, "current_time": current_time},
         )
@@ -186,7 +188,7 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
     return [Tournament.from_db_row(row) for row in result]
 
 
-def fetch_tournament_not_compted_for_user(guild_id: int, user_id: int) -> List[Tournament]:
+def fetch_tournament_not_completed_for_user(guild_id: int, user_id: int) -> List[Tournament]:
     """Fetch all tournament that are not over that the user are registered"""
     current_time = datetime.now(timezone.utc)
     result = (
@@ -211,7 +213,7 @@ def fetch_tournament_not_compted_for_user(guild_id: int, user_id: int) -> List[T
                     tournament.id = user_tournament.tournament_id
                     AND user_tournament.user_id = :user_id
                 WHERE tournament.guild_id = :guild_id
-                    AND date(tournament.end_date) >= date(:current_time)
+                    AND date(tournament.end_date) >= date(:current_time);
                 """,
             {"user_id": user_id, "guild_id": guild_id, "current_time": current_time},
         )
@@ -249,7 +251,7 @@ def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: int) -> 
                     FROM user_tournament 
                     WHERE user_tournament.tournament_id = tournament.id 
                     AND user_tournament.user_id = :user_id
-                )
+                );
             """,
             {"user_id": user_id, "guild_id": guild_id, "current_time": current_time},
         )
@@ -281,7 +283,7 @@ def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
             FROM tournament
             WHERE guild_id = :guild_id 
                 AND date(start_date) <= date(:current_time) 
-                AND date(end_date) >= date(:current_time)
+                AND date(end_date) >= date(:current_time);
             """,
             {"guild_id": guild_id, "current_time": current_time},
         )

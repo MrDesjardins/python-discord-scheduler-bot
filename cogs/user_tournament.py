@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 
 from deps.tournament_data_access import (
-    fetch_tournament_not_compted_for_user,
+    fetch_tournament_not_completed_for_user,
     fetch_tournament_active_to_interact_for_user,
     fetch_tournament_by_guild_user_can_register,
     fetch_active_tournament_by_guild,
@@ -37,7 +37,7 @@ class UserTournamentFeatures(commands.Cog):
         guild_id = interaction.guild.id
         list_tournaments: List[Tournament] = fetch_tournament_by_guild_user_can_register(guild_id, user_id)
         if len(list_tournaments) == 0:
-            list_tournaments_users = fetch_tournament_not_compted_for_user(guild_id, user_id)
+            list_tournaments_users = fetch_tournament_not_completed_for_user(guild_id, user_id)
             if len(list_tournaments_users) == 0:
                 print_warning_log(
                     f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."

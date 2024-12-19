@@ -10,8 +10,10 @@ from datetime import datetime, timezone
 from deps.data_access_data_class import UserInfo
 from deps.tournament_functions import (
     assign_people_to_games,
+    auto_assign_winner,
     build_tournament_tree,
     can_register_to_tournament,
+    has_node_without_user,
     register_for_tournament,
     resize_tournament,
 )
@@ -220,6 +222,41 @@ def test_register_for_tournament_only_register_when_cannot_register():
             assert reason.text == "Reason from can_register"
 
 
+def test_assign_people_to_games_where_one_participant_alone():
+    """Test to assign people to games when there are the maximum number of participants"""
+    tournament = fake_tournament
+    tournament_games = [
+        TournamentGame(1, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(2, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(3, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(4, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(5, 1, None, None, None, t1, None, None, 1, 2),
+        TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),
+        TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),
+    ]
+    people = [fake_user_1, fake_user_2, fake_user_3, fake_user_4, fake_user_5]
+
+    with patch("random.shuffle") as mock_shuffle:
+        mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
+        result: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
+        # Assertions
+        assert len(result) == 5  # Should only include enough leaf nodes for people
+        assert result[0].user1_id == 1
+        assert result[0].user2_id == 2
+        assert result[0].map is not None
+        assert result[1].user1_id == 3
+        assert result[1].user2_id == 4
+        assert result[1].map is not None
+        assert result[2].user1_id == 5
+        assert result[2].user2_id is None
+        assert result[2].map is None
+        assert result[3].user1_id is None
+        assert result[3].user2_id is None
+        assert result[3].map is None
+        # Ensure random.shuffle was called once
+        mock_shuffle.assert_called_once_with(people)
+
+
 def test_assign_people_to_games_when_full_participant():
     """Test to assign people to games when there are the maximum number of participants"""
     tournament = fake_tournament
@@ -271,3 +308,276 @@ def test_resize_tournament_no_full_but_good_size_no_resize2():
     """Test a large resize"""
     new_size = resize_tournament(16, 4)
     assert new_size == 4
+
+
+def test_auto_assign_winner_on_small_tree():
+    """
+    Test to auto assign the winner on a tree with not leaf nodes
+    """
+    #                            [3:U1=?, U2=?]
+    #                            /           \
+    #              [1:U1=2, U2=3]            [2:U1=1, U2=?]
+    tournament_games = [
+        TournamentGame(1, 1, 2, 3, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, None, None, t1, None, None, None, None),
+        TournamentGame(3, 1, 3, None, None, t1, None, None, 1, 2),
+    ]
+    nodes = auto_assign_winner(tournament_games)
+    assert len(nodes) == 2
+    assert nodes[0].id == 2  # Node 2
+    assert nodes[0].user_winner_id == 1  # User 1 auto-win
+    assert nodes[1].id == 3  # Node 2
+    assert nodes[1].user1_id == 3
+    assert nodes[1].user2_id == 1
+
+
+def test_auto_assign_winner_on_tree_with_not_leaf_should_auto_win_left_side():
+    """
+    Test to auto assign the winner on a tree with not leaf nodes
+    """
+    #                            [7:U1=?, U2=?]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=?, U2=?]
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=5, U2=?] [4:U1=?, U2=?] <-------------- Should have U1 auto-winner to User #5 from node #3
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, 5, None, None, t1, None, None, None, None),  # Still alone should be promoted
+        TournamentGame(4, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, None, t1, None, None, 1, 2),
+        TournamentGame(6, 1, 5, None, None, t1, None, None, 3, 4),  # Was set in the startup of the tournament
+        TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),  # Should have 5
+    ]
+    nodes = auto_assign_winner(tournament_games)
+    assert len(nodes) == 2
+    assert nodes[0].id == 3
+    assert nodes[0].user_winner_id == 5
+    assert nodes[1].id == 6
+    assert nodes[1].user1_id == 5
+
+
+def test_auto_assign_winner_on_tree_with_not_leaf_should_auto_win_right_side():
+    """
+    Test to auto assign the winner on a tree with not leaf nodes
+    """
+    #                            [7:U1=?, U2=?]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=?, U2=7]  <-------------- Should have U1 to User #5 from node #3
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=?, U2=5] [4:U1=7, U2=8]
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, None, 5, None, t1, None, None, None, None),  # Still alone should be promoted
+        TournamentGame(4, 1, 7, 8, None, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, None, t1, None, None, 1, 2),
+        TournamentGame(
+            6, 1, None, 7, None, t1, None, None, 3, 4
+        ),  # User 7 won from the game #4, should match user #5 from auto-win
+        TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),  # Should have 5
+    ]
+    nodes = auto_assign_winner(tournament_games)
+    assert len(nodes) == 2
+    assert nodes[0].id == 3
+    assert nodes[0].user_winner_id == 5
+    assert nodes[1].id == 6  # Node id to auto-winner
+    assert nodes[1].user1_id == 5  # Auto-winner
+    assert nodes[1].user2_id == 7  # Already defined as winner of this side of the bracket
+
+
+def test_auto_assign_should_happen_with_auto_win_and_assignment():
+    """
+    Test that should not auto assign in a situation one side of the tree is way above the other: should just wait
+    Tree is like this one:
+    """
+    #                            [7:U1=?, U2=?]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=?, U2=?]
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=5, U2=6] [4:U1=?, U2=?]
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, 5, 6, None, t1, None, None, None, None),
+        TournamentGame(4, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, 3, t1, None, None, 1, 2),
+        TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),  # Was set in the startup of the tournament
+        TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),  # Should have 5
+    ]
+    nodes = auto_assign_winner(tournament_games)
+    assert len(nodes) == 0
+
+
+def test_auto_assign_should_not_happen_team_late_to_report():
+    """
+    Test that should assign a winner on node 6 because oinly one of its child (3) has one player 5 while the other
+    branch 4 has no player
+    """
+    #                            [7:U1=?, U2=?]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=?, U2=?]
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=5, U2=6] [4:U1=7, U2=8]
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, 5, 6, None, t1, None, None, None, None),  # Should be promoted
+        TournamentGame(4, 1, 7, 8, None, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, 2, t1, None, None, 1, 2),
+        TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),  # Should get the promotion (parent)
+        TournamentGame(7, 1, 2, None, None, t1, None, None, 5, 6),  # Should have 5 has one user
+    ]
+    nodes = auto_assign_winner(tournament_games)
+    assert len(nodes) == 0
+
+
+def test_has_node_without_user_no():
+    """
+    Test that should not auto assign in a situation one side of the tree is way above the other: should just wait
+    The graph is like this one:
+    """
+    #                         [7]
+    #                       /   \
+    #                     [5]    [6]
+    #                    / \    /  \
+    #                [1]  [2] [3] [4]
+    tournament_games = {
+        1: TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        2: TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        3: TournamentGame(3, 1, 5, 6, None, t1, None, None, None, None),
+        4: TournamentGame(4, 1, 7, 8, None, t1, None, None, None, None),
+        5: TournamentGame(5, 1, 3, 2, 3, t1, None, None, 1, 2),
+        6: TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),  # Was set in the startup of the tournament
+        7: TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),  # Should have 5
+    }
+    # Leaf at the bottom
+    has_branch = has_node_without_user(tournament_games, tournament_games[1])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[2])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[3])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[4])
+    assert has_branch is False
+    # Level 1
+    has_branch = has_node_without_user(tournament_games, tournament_games[5])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[6])
+    assert has_branch is False
+    # Level 2 (root)
+    has_branch = has_node_without_user(tournament_games, tournament_games[7])
+    assert has_branch is False
+
+
+def test_has_node_without_user_one_level_yes():
+    """
+    Test that should not auto assign in a situation one side of the tree is way above the other: should just wait
+    The graph is like this one:
+    """
+    #                        [7]
+    #                       /   \
+    #                    [5]    [6]
+    #                   / \    /  \
+    #               [1]  [2] [3] [4]
+    tournament_games = {
+        1: TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        2: TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        3: TournamentGame(3, 1, 5, None, None, t1, None, None, None, None),
+        4: TournamentGame(4, 1, None, None, None, t1, None, None, None, None),
+        5: TournamentGame(5, 1, None, None, None, t1, None, None, 1, 2),
+        6: TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),
+        7: TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),
+    }
+    # Leaf at the bottom
+    has_branch = has_node_without_user(tournament_games, tournament_games[1])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[2])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[3])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[4])
+    assert has_branch is True
+    # Level 1
+    has_branch = has_node_without_user(tournament_games, tournament_games[5])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[6])
+    assert has_branch is False
+
+
+def test_has_node_without_user_two_level_yes():
+    """
+    Test that should not auto assign in a situation one side of the tree is way above the other: should just wait
+    """
+    #    The graph is like this one:
+    #                         [7]
+    #                        /   \
+    #                     [5]    [6]
+    #                    / \    /  \
+    #                [1]  [2] [3]   [4]
+    #                        /  \   /  \
+    #                    [8]   [9] [10][11]
+    # The node 11 doesnt not have users, makike the user of node 10 (user #8) to auto go to node 4 and 6
+    tournament_games = {
+        1: TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        2: TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        3: TournamentGame(3, 1, 5, None, None, t1, None, None, 8, 9),
+        4: TournamentGame(4, 1, None, None, None, t1, None, None, 10, 11),
+        5: TournamentGame(5, 1, None, None, None, t1, None, None, 1, 2),
+        6: TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),
+        7: TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),
+        8: TournamentGame(8, 1, 6, 7, None, t1, None, None, None, None),
+        9: TournamentGame(9, 1, 9, 10, None, t1, None, None, None, None),
+        10: TournamentGame(10, 1, 8, None, None, t1, None, None, None, None),
+        11: TournamentGame(11, 1, None, None, None, t1, None, None, None, None),
+    }
+    # Leaf at the bottom
+    has_branch = has_node_without_user(tournament_games, tournament_games[1])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[2])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[8])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[9])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[10])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[11])
+    assert has_branch is True
+    # Level 1
+    has_branch = has_node_without_user(tournament_games, tournament_games[5])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[6])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[3])
+    assert has_branch is False
+    has_branch = has_node_without_user(tournament_games, tournament_games[4])
+    assert has_branch is False
+
+
+def test_auto_assign_set_the_root_user():
+    """
+    Test that should not auto assign in a situation one side of the tree is way above the other: should just wait
+    Tree is like this one:
+    """
+    #                            [7:U1=?, U2=?]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=6, U2=?]
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=5, U2=6] [4:U1=?, U2=?]
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, 5, 6, None, t1, None, None, None, None),
+        TournamentGame(4, 1, None, None, None, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, 3, t1, None, None, 1, 2),
+        TournamentGame(6, 1, 6, None, None, t1, None, None, 3, 4),  # Was set in the startup of the tournament
+        TournamentGame(7, 1, 3, None, None, t1, None, None, 5, 6),  # Should have 5
+    ]
+    nodes = auto_assign_winner(tournament_games)
+    assert len(nodes) == 2
+    assert nodes[0].id == 6
+    assert nodes[0].user_winner_id == 6
+    assert nodes[1].id == 7
+    assert nodes[1].user1_id == 3
+    assert nodes[1].user2_id == 6
