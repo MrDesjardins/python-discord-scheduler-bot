@@ -18,7 +18,7 @@ from deps.tournament_functions import (
     start_tournaments,
     fetch_tournament_by_id,
 )
-from deps.tournament_data_class import TournamentGame
+from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_discord_actions import generate_bracket_file
 from deps.tournament_visualizer import plot_tournament_bracket
 
