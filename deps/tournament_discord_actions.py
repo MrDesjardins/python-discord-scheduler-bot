@@ -15,9 +15,10 @@ from deps.tournament_data_access import (
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     fetch_tournament_open_registration,
+    fetch_tournament_start_today,
 )
 from deps.tournament_visualizer import plot_tournament_bracket
-from deps.values import COMMAND_TOURNAMENT_REGISTER_TOURNAMENT
+from deps.values import COMMAND_TOURNAMENT_REGISTER_TOURNAMENT, COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT
 
 
 def generate_bracket_file(tournament_id: int, file_name: str = "tournament_bracket.png") -> Optional[discord.File]:
@@ -46,6 +47,9 @@ def generate_bracket_file(tournament_id: int, file_name: str = "tournament_brack
 
 
 async def send_tournament_bracket_to_a_guild(guild_id: int) -> None:
+    """
+    Send the tournament bracket to a guild
+    """
     channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
@@ -65,6 +69,9 @@ async def send_tournament_bracket_to_a_guild(guild_id: int) -> None:
 
 
 async def send_tournament_registration_to_a_guild(guild_id: int) -> None:
+    """
+    Sending a message once a day to remind the registration for the tournament
+    """
     channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
@@ -81,3 +88,28 @@ async def send_tournament_registration_to_a_guild(guild_id: int) -> None:
         await channel.send(content=msg)
     else:
         print_log(f"send_daily_tournament_registration_message: No open registration for guild {guild_id}")
+
+
+async def send_tournament_starting_to_a_guild(guild_id: int) -> None:
+    """
+    Send a message once at the date of a tournament is starting
+    """
+    channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
+    if channel_id is None:
+        print_error_log(
+            f"\t⚠️ send_tournament_starting_to_a_guild: Tournament Channel id (configuration) not found for guild {guild.name}. Skipping."
+        )
+        return
+    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    tournaments: List[Tournament] = fetch_tournament_start_today(guild_id)
+    if len(tournaments) > 0:
+        msg = "Tournaments starting today:\nUse the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do)."
+        for tournament in tournaments:
+            msg += f"{tournament.name}\n"
+            msg += f"Use the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do)."
+        await channel.send(content=msg)
+        for tournament in tournaments:
+            file = generate_bracket_file(tournament.id)
+            await channel.send(content=f"Bracket for {tournament.name}", file=file)
+    else:
+        print_log(f"send_tournament_starting_to_a_guild: No open registration for guild {guild_id}")

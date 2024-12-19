@@ -111,6 +111,35 @@ def data_access_create_bracket(tournament_id: int, total_players: int) -> List[d
     database_manager.get_conn().commit()
 
 
+def fetch_tournament_start_today(guild_id: int) -> List[Tournament]:
+    """Fetch all tournament that are not over that the user are registered"""
+    current_time = datetime.now(timezone.utc)
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            """
+                SELECT 
+                    tournament.id,
+                    tournament.guild_id,
+                    tournament.name,
+                    tournament.registration_date,
+                    tournament.start_date,
+                    tournament.end_date,
+                    tournament.best_of,
+                    tournament.max_players,
+                    tournament.maps,
+                    tournament.has_started
+                FROM tournament
+                WHERE tournament.guild_id = :guild_id
+                AND date(tournament.start_date) == date(:current_time);
+                """,
+            {"guild_id": guild_id, "current_time": current_time},
+        )
+        .fetchall()
+    )
+    return [Tournament.from_db_row(row) for row in result]
+
+
 def fetch_tournament_open_registration(guild_id: int) -> List[Tournament]:
     """
     Fetch all tournament for a guild where the registration is still open
@@ -140,7 +169,7 @@ def fetch_tournament_open_registration(guild_id: int) -> List[Tournament]:
                 ON
                     tournament.id = user_tournament.tournament_id
                 WHERE tournament.guild_id = :guild_id
-                    AND date(tournament.start_date) >= date(:current_time)
+                    AND date(tournament.start_date) > date(:current_time)
                     AND date(tournament.registration_date) <= date(:current_time)
                 GROUP BY tournament.id
                 HAVING
