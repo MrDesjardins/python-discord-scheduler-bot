@@ -14,7 +14,7 @@ from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNEC
 from deps.analytic_data_access import (
     compute_users_weights,
     delete_all_tables,
-    fetch_user_activities,
+    fetch_all_user_activities,
     fetch_user_info_by_user_id_list,
     insert_user_activity,
 )
@@ -72,7 +72,7 @@ def test_two_users_same_channels():
         EVENT_DISCONNECT,
         datetime(2024, 9, 20, 13, 50, 0, 6318),
     )
-    activity_data = fetch_user_activities()
+    activity_data = fetch_all_user_activities()
     user_weights = compute_users_weights(activity_data)
     assert user_weights == {(10, 11, 100): 1800.0}
 
@@ -135,7 +135,7 @@ def test_many_users_same_channel():
         EVENT_DISCONNECT,
         datetime(2024, 9, 20, 13, 38, 0, 6318),
     )
-    activity_data = fetch_user_activities()
+    activity_data = fetch_all_user_activities()
     user_weights = compute_users_weights(activity_data)
     assert user_weights == {(2, 3, 100): 540.0, (3, 4, 100): 60.0}
 

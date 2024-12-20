@@ -117,7 +117,7 @@ def fetch_user_info_by_user_id_list(user_id_list: list[int]) -> List[Optional[Us
     return result_with_none
 
 
-def fetch_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:
+def fetch_all_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:
     """
     Fetch all connect and disconnect events from the user_activity table
     """
@@ -134,6 +134,24 @@ def fetch_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserAct
     return [UserActivity(*row) for row in database_manager.get_cursor().fetchall()]
 
 
+def fetch_user_activities(user_id: int, from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:
+    """
+    Fetch all connect and disconnect events from the user_activity table for a specific user
+    """
+    database_manager.get_cursor().execute(
+        """
+        SELECT user_id, channel_id, event, timestamp, guild_id
+        FROM user_activity
+        WHERE timestamp >= datetime('now', ? ) AND timestamp <= datetime('now', ?)
+        AND user_id = ?
+        ORDER BY timestamp
+        """,
+        (f"-{from_day} days", f"-{to_day} days", user_id),
+    )
+    # Convert the result to a list of UserActivity objects
+    return [UserActivity(*row) for row in database_manager.get_cursor().fetchall()]
+
+
 def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:
     """
     Function to calculate time spent together and insert weights
@@ -141,7 +159,7 @@ def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:
     delete_all_user_weights()
 
     # Fetch all user activity data, ordered by room and timestamp
-    activity_data = fetch_user_activities(from_day, to_day)
+    activity_data = fetch_all_user_activities(from_day, to_day)
 
     user_weights = compute_users_weights(activity_data)
 

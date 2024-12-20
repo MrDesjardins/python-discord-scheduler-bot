@@ -24,7 +24,12 @@ from deps.analytic_functions import (
     users_last_played_over_day,
     users_by_weekday,
 )
-from deps.analytic_data_access import fetch_user_activities, fetch_user_info, calculate_time_spent_from_db
+from deps.analytic_data_access import (
+    fetch_all_user_activities,
+    fetch_user_activities,
+    fetch_user_info,
+    calculate_time_spent_from_db,
+)
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 
 
@@ -365,7 +370,7 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
 
 def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     top = 30
-    data_user_activity = fetch_user_activities(from_day, to_day)
+    data_user_activity = fetch_all_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_info()
 
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
@@ -396,7 +401,7 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
 
 def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     top = 50
-    data_user_activity = fetch_user_activities(from_day, to_day)
+    data_user_activity = fetch_all_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_info()
 
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
@@ -427,7 +432,7 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
 
 
 def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
-    data_user_activity: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    data_user_activity: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
     users_by_weekday_dict: Dict[int, list[UserInfoWithCount]] = users_by_weekday(data_user_activity, data_user_id_name)
     # Get unique users and weekdays
@@ -469,7 +474,7 @@ def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day
     """
     Graph that display the amount of time played per month using stacked bar. Each bar is a month. The stacked information if every user.
     """
-    user_activities: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    user_activities: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
 
     # Dictionary to hold total time played per user per month [month_year][user_id] = time_played
@@ -508,7 +513,7 @@ def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day
 
 def display_user_timeline_voice_time_by_day(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     """Display the user timeline voice time"""
-    user_activities: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    user_activities: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
     # Dictionary to store total time played per user
     user_play_times = defaultdict(int)
@@ -564,7 +569,7 @@ def iso_to_gregorian(year: int, week: int) -> datetime:
 
 def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     """Display the user timeline voice time"""
-    user_activities: List[UserActivity] = fetch_user_activities(from_day, to_day)
+    user_activities: List[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
 
     # Dictionary to store total time played per user
@@ -629,7 +634,7 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
 
 def display_user_timeline_voice_by_months(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
     """Display the user timeline voice time"""
-    user_activities: list[UserActivity] = fetch_user_activities(from_day, to_day)
+    user_activities: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     monthly_sessions = times_by_months(user_activities)
     monthly_sessions.plot(kind="bar", color="skyblue")
     plt.xlabel("Month")
@@ -637,5 +642,61 @@ def display_user_timeline_voice_by_months(show: bool = True, from_day: int = 360
     plt.title("Total Voice Session Time per Month")
     plt.xticks(rotation=45)
     plt.tight_layout()
+    plt.tight_layout()
+    return _plot_return(plt, show)
+
+
+def display_user_line_graph_time(user_id: int, show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+    """Display the user timeline voice time"""
+    user_activities: List[UserActivity] = fetch_user_activities(user_id, from_day, to_day)
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
+    user_info = data_user_id_name[user_id]
+
+    # Dictionary to store total time played per user
+    user_play_times: int = 0
+
+    # Dictionary to store weekly time played for each user
+    user_weekly_play_times = defaultdict(int)
+
+    # Temporary dictionary to hold start times
+    start_times = {}
+
+    # Parse timestamps and compute playtime
+    for activity in user_activities:
+        timestamp = datetime.fromisoformat(activity.timestamp)
+
+        if activity.event == EVENT_CONNECT:
+            # Store the start time for the user and channel
+            start_times[(activity.user_id, activity.channel_id)] = timestamp
+
+        elif activity.event == EVENT_DISCONNECT:
+            start_key = (activity.user_id, activity.channel_id)
+            if start_key in start_times:
+                start_time = start_times.pop(start_key)
+                play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
+
+                week_start = f"{timestamp.year}-{timestamp.isocalendar().week}"
+                user_weekly_play_times[week_start] += play_duration
+                user_play_times += play_duration  # Track total time per user
+
+    all_weeks = sorted(set(user_weekly_play_times.keys()))
+    all_dates = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
+
+    # Prepare plot with three subplots
+    plt.figure(figsize=(12, 6))
+
+    # Fill in missing weeks with zero to create a continuous line
+    user_times = [user_weekly_play_times.get(week, 0) for week in all_weeks]
+
+    if any(user_times):  # Only plot if there's data
+        user_name = data_user_id_name[user_id].display_name  # Fetch the user name
+        plt.plot(all_dates, user_times, label=user_name, marker="o", linestyle="-")
+
+    # Format each subplot
+    plt.xlabel("Week Starting (Monday)")
+    plt.ylabel("Time Played (minutes)")
+    plt.title(f"Weekly Time Played for {user_info.display_name} (total: {user_play_times//60} hours)")
+
+    plt.grid(True)
     plt.tight_layout()
     return _plot_return(plt, show)

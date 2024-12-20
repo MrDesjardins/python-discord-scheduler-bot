@@ -30,7 +30,7 @@ violations AS (
         previous_event = 'connect'
     AND
         -- Check if the time between events is greater than 12h
-       seconds_between_events > 60*60*12
+       seconds_between_events > 60*60*11
 )
 SELECT ua.display_name, 
     vio.user_id ,

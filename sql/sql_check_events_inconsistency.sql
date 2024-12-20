@@ -50,7 +50,7 @@ FROM
 LEFT JOIN 
   user_info ua
     ON vio.user_id = ua.id;
-
+SELECT count(*) FROM user_activity;
 
 -- Get the ID from the query above as well as the user id to check the activity
 SELECT * from  user_activity where id >= 2197 and user_id = 261398260952858624;

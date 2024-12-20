@@ -12,6 +12,7 @@ import unittest
 import black
 from simple_term_menu import TerminalMenu
 from pylint import lint
+from deps.analytic_data_access import fetch_user_info
 from deps.analytic_visualizer import (
     display_graph_cluster_people,
     display_graph_cluster_people_3d_animated,
@@ -19,6 +20,7 @@ from deps.analytic_visualizer import (
     display_time_voice_channel,
     display_inactive_user,
     display_user_day_week,
+    display_user_line_graph_time,
     display_user_timeline_voice_by_months,
     display_user_timeline_voice_time_by_week,
     display_user_voice_per_month,
@@ -136,6 +138,7 @@ def show_visualization_menu(time_choice: Optional[int] = None):
             "[7] Voice time per Month Color Gradient",
             "[8] Time Line Users Activity Line Chart",
             "[9] Monthly Voice Time",
+            "[a] Time Line for Specific User",
             "[q] Back",
         ]
 
@@ -145,6 +148,9 @@ def show_visualization_menu(time_choice: Optional[int] = None):
             show_shortcut_hints=True,
         )
         time_choice = terminal_menu2.show()
+    if time_choice is None:
+        local_menu()
+        return
     (from_day, to_day) = get_from_to_days(time_choice)
     terminal_menu = TerminalMenu(
         options, title=f"Visualizations of {from_day} days ago to {to_day} days ago", show_shortcut_hints=True
@@ -170,10 +176,32 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     elif menu_entry_index == 8:
         display_user_timeline_voice_by_months(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 9:
+        display_user_line_graph_time_ask_user(from_day=from_day, to_day=to_day, time_choice=time_choice)
+    elif menu_entry_index == 10:
         local_menu()
         return
 
     show_visualization_menu()
+
+
+def display_user_line_graph_time_ask_user(from_day: int, to_day: int, time_choice: int):
+    """Ask the user for the user id"""
+    # Get the list of users
+    user_info_dict = fetch_user_info()
+    user_info_list = list(user_info_dict.values())
+    # Order alphabetically
+    user_info_list.sort(key=lambda x: x.display_name.lower())
+    terminal_menu = TerminalMenu(
+        [f"{user.display_name} - {user.id}" for user in user_info_list] + ["[q] Back"],
+        title="Days",
+        show_shortcut_hints=False,
+    )
+    user_choice = terminal_menu.show()
+    if user_choice == len(user_info_list) - 1:
+        show_visualization_menu(time_choice)
+        return
+    display_user_line_graph_time(user_info_list[user_choice].id, True, from_day, to_day)
+    display_user_line_graph_time_ask_user(from_day, to_day, time_choice)
 
 
 def print_service_status(service_name: str) -> None:
