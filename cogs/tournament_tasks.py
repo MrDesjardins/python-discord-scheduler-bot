@@ -65,4 +65,5 @@ class TournamentTasksCog(commands.Cog):
 
 async def setup(bot):
     """Setup function to add this cog to the bot"""
-    await bot.add_cog(TournamentTasksCog(bot))
+    #await bot.add_cog(TournamentTasksCog(bot))
+    pass

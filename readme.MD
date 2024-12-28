@@ -433,3 +433,28 @@ coverage report -m
 coverage lcov
 coverage html
 ```
+# Space Issue
+Logs can accumulate and make the Raspberri Pi run out of space. You can remove the logs by running the following command:
+
+Check the size of large files on the Raspberry Pi:
+```sh
+sudo find / -type f -size +50M -exec ls -lh {} \; | awk '{ print $9 ": " $5 }'
+```
+
+See what is the issue with logs:
+```sh
+sudo du -h --max-depth=1 /var/log | sort -rh
+```
+
+Reduce the journal logs, kill the logs for syslog and deamon log:
+```sh
+sudo truncate -s 0 /var/log/daemon.log
+sudo truncate -s 0 /var/log/syslog
+```
+Configure journal and syslog retention:
+```sh	
+sudo journalctl --vacuum-size=100M
+sudo nano /etc/logrotate.d/rsyslog
+sudo systemctl restart rsyslog
+
+```
