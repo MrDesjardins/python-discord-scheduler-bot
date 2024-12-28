@@ -85,6 +85,9 @@ def parse_json_from_matches(data_dict, ubisoft_username: str) -> List[UserMatchI
     match_infos = []
     for match in matches:
         try:
+            # Skip the match if it's a rollback
+            if match["metadata"]["isRollback"] is True:
+                continue
             segments = match.get("segments", [])
             if not segments:
                 print("Warning: Empty segments in match data.")

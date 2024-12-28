@@ -22,7 +22,7 @@ def get_color_for_rank(member: discord.Member) -> int:
         "Emerald": 0x008000,  # Green
         "Platinum": 0x00FFFF,  # Cyan
         "Gold": 0xFFFF00,  # Yellow
-        "Silver": 0x8080800,  # Gray
+        "Silver": 0x808080,  # Gray
         "Bronze": 0xD2691E,  # Dark Orange
         "Copper": 0x8B0000,  # Dark Red
     }

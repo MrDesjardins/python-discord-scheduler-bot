@@ -478,7 +478,7 @@ async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo]
                 print_error_log(f"send_channel_list_stats: Member {member_id} not found in guild {guild_id}")
                 continue  # Skip to the next user
             # We never sent the message, so we send it, add the reactions and save it in the cache
-            embed_msg = get_gaming_session_user_embed_message(member, aggregation, last_hour)
+            embed_msg = get_gaming_session_user_embed_message(member, user_info, aggregation, last_hour)
         except Exception as e:
             print_error_log(f"send_channel_list_stats: Error removing and computing user stats: {e}")
             continue
@@ -491,13 +491,13 @@ async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo]
 
 
 def get_gaming_session_user_embed_message(
-    member: discord.Member, aggregation: UserMatchInfoSessionAggregate, last_hour: int
+    member: discord.Member, user_info: UserInfo, aggregation: UserMatchInfoSessionAggregate, last_hour: int
 ) -> discord.Embed:
     """Create the stats message"""
     title = f"{member.display_name} Stats"
     embed = discord.Embed(
         title=title,
-        description=f"{member.mention} played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.",
+        description=f"{member.mention} ({user_info.ubisoft_username_active}) played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.",
         color=get_color_for_rank(member),
         timestamp=datetime.now(),
         url=get_url_user_profile_main(aggregation.ubisoft_username_active),
