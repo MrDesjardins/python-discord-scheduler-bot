@@ -127,21 +127,20 @@ def get_from_to_days(menu_entry_index2: int) -> tuple[int, int]:
 
 def show_visualization_menu(time_choice: Optional[int] = None):
     """Menu to choose the visualization"""
+    options = [
+        "[1] Community 2D",
+        "[2] Community 3D",
+        "[3] Duo Relationship Time",
+        "[4] Users Total Voices Time Bar",
+        "[5] Inactive Users",
+        "[6] User per weekday Matrix",
+        "[7] Voice time per Month Color Gradient",
+        "[8] Time Line Users Activity Line Chart",
+        "[9] Monthly Voice Time",
+        "[a] Time Line for Specific User",
+        "[q] Back",
+    ]
     if time_choice is None:
-        options = [
-            "[1] Community 2D",
-            "[2] Community 3D",
-            "[3] Duo Relationship Time",
-            "[4] Users Total Voices Time Bar",
-            "[5] Inactive Users",
-            "[6] User per weekday Matrix",
-            "[7] Voice time per Month Color Gradient",
-            "[8] Time Line Users Activity Line Chart",
-            "[9] Monthly Voice Time",
-            "[a] Time Line for Specific User",
-            "[q] Back",
-        ]
-
         terminal_menu2 = TerminalMenu(
             ["[1] Last 30 days", "[2] Current month", "[3] Last Month", "[4] Since September 21th, 2024"],
             title="Days",
@@ -197,7 +196,7 @@ def display_user_line_graph_time_ask_user(from_day: int, to_day: int, time_choic
         show_shortcut_hints=False,
     )
     user_choice = terminal_menu.show()
-    if user_choice == len(user_info_list) - 1:
+    if user_choice == len(user_info_list):
         show_visualization_menu(time_choice)
         return
     display_user_line_graph_time(user_info_list[user_choice].id, True, from_day, to_day)
