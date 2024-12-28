@@ -335,7 +335,7 @@ async def adjust_role_from_ubisoft_max_account(
         print_warning_log(
             f"adjust_role_from_ubisoft_max_account: Text channel not set for guild {guild.name}. Skipping."
         )
-        return
+        return max_rank
 
     # Retrieve the moderator role by name
     mod_role = discord.utils.get(guild.roles, name="Mod")
