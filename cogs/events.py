@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 import asyncio
 from discord.ext import commands
 import discord
+from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
@@ -83,6 +84,8 @@ class MyEventsCog(commands.Cog):
                 print_warning_log(f"\tChannel ID {channel_id} not found in guild {guild.name}")
             tasks.append(send_daily_question_to_a_guild(bot, guild))
 
+        # Cleanup task that runs every few seconds
+        tasks.append(start_periodic_cache_cleanup())
         # Running all tasks concurrently and waiting for them to finish
         await asyncio.gather(*tasks)
 

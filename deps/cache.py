@@ -5,11 +5,17 @@ import asyncio
 import time
 from typing import Callable, Awaitable, List, Union, Optional, Any
 import inspect
-import atexit
 import threading
-import dill as pickle
 
-CACHE_FILE = "cache.txt"
+from deps.cache_data_access import (
+    clear_expired_cache,
+    get_value,
+    remove_key,
+    remove_key_by_prefix,
+    set_value,
+)
+from deps.log import print_log
+
 ALWAYS_TTL = 60 * 60 * 24 * 365 * 10
 THREE_DAY_TTL = 60 * 60 * 24 * 3
 ONE_DAY_TTL = 60 * 60 * 24
@@ -83,7 +89,7 @@ class TTLCache:
             for key in expired_keys:
                 if key in self.cache:
                     del self.cache[key]
-            await asyncio.sleep(1000)  # Adjust the sleep time as needed
+            await asyncio.sleep(10000)  # Adjust the sleep time as needed
 
     def start_cleanup(self) -> None:
         """Start the task to clean up in the background."""
@@ -95,19 +101,13 @@ class TTLCache:
 
         asyncio.run_coroutine_threadsafe(self._cleanup(), loop)
 
-    def initialize(self, values: dict[str, Any]) -> None:
-        """Initialize the cache from the data persistent storage"""
-        if values:
-            self.cache = values
-
 
 def remove_cache(in_memory: bool, key: str) -> None:
     """Remove the key from the cache"""
     if in_memory:
         memoryCache.delete(key)
     else:
-        dataCache.delete(key)
-        save_to_file(dataCache.cache, CACHE_FILE)
+        remove_key(key)
 
 
 async def get_cache(
@@ -119,8 +119,11 @@ async def get_cache(
     """Get the value from the cache from the in-memory or data cache
     If the value is not in the cache, calls the fetch function to get the value and set it into the cache
     """
-    cache = memoryCache if in_memory else dataCache
-    value = cache.get(key)
+    if in_memory:
+        value = memoryCache.get(key)
+    else:
+        value = get_value(key)
+
     if value is None and fetch_function:
         # Check if the fetch function itself is an async function
         if inspect.iscoroutinefunction(fetch_function):
@@ -129,7 +132,10 @@ async def get_cache(
             value = fetch_function()
 
         if value:
-            cache.set(key, value, ttl_in_seconds)
+            if in_memory:
+                memoryCache.set(key, value, ttl_in_seconds)
+            else:
+                set_value(key, value, ttl_in_seconds)
     return value
 
 
@@ -140,8 +146,7 @@ def set_cache(in_memory: bool, key: str, value: Any, cache_seconds: Optional[int
     if in_memory:
         memoryCache.set(key, value, cache_seconds)
     else:
-        dataCache.set(key, value, cache_seconds)
-        save_to_file(dataCache.cache, CACHE_FILE)
+        set_value(key, value, cache_seconds)
 
 
 def reset_cache_by_prefixes(prefixes: List[str]) -> None:
@@ -149,37 +154,23 @@ def reset_cache_by_prefixes(prefixes: List[str]) -> None:
 
     for prefix in prefixes:
         del_memory_count = memoryCache.delete_by_prefix(prefix)
-        del_file_count = dataCache.delete_by_prefix(prefix)
-        print(f"Deleted {del_memory_count} from memory and {del_file_count} from file for prefix {prefix}")
-    save_to_file(dataCache.cache, CACHE_FILE)
+        del_file_count = remove_key_by_prefix(prefix)
+        print_log(
+            f"Deleted {del_memory_count} from memory and {del_file_count} from the persisted cache for prefix {prefix}"
+        )
 
 
-def save_to_file(obj: dict[str, any], filename: str) -> None:
-    """Binary saving of the content of the object to the file"""
-    with open(filename, "wb") as file:
-        pickle.dump(obj, file)
+async def start_periodic_cache_cleanup():
+    """Start the periodic cache cleanup task"""
+    asyncio.create_task(periodic_cache_cleanup())  # Schedule the cleanup task
 
 
-def load_from_file(filename: str) -> Optional[dict[str, any]]:
-    """Load the object from the file"""
-    try:
-        with open(filename, "rb") as file:
-            return pickle.load(file)
-    except FileNotFoundError:
-        return None
-
-
-def on_exit() -> None:
-    """Ensure when leaving the script that we save the data to a file"""
-    print("Script is exiting, saving the object...")
-    save_to_file(dataCache.cache, CACHE_FILE)
+async def periodic_cache_cleanup():
+    """Periodically clean up the cache"""
+    while True:
+        clear_expired_cache()  # Make sure this function is defined elsewhere
+        await asyncio.sleep(10)  # Adjust the sleep time as needed
 
 
 memoryCache = TTLCache(default_ttl_in_seconds=DEFAULT_TTL)
-dataCache = TTLCache(default_ttl_in_seconds=DEFAULT_TTL)
-dataCache.initialize(load_from_file(CACHE_FILE))
 memoryCache.start_cleanup()
-dataCache.start_cleanup()
-
-# Register the on_exit function to be called when the script exits
-atexit.register(on_exit)

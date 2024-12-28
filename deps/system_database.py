@@ -47,6 +47,17 @@ class DatabaseManager:
     def init_database(self):
         """Ensure that database has all the tables"""
 
+        ### CACHE TABLES ###
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS cache (
+            key TEXT PRIMARY KEY,
+            value BLOB NOT NULL,
+            expiration DATETIME DEFAULT NULL
+        )
+        """
+        )
+
         ### User Activity TABLES ###
         self.get_cursor().execute(
             """

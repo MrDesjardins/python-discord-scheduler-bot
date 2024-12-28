@@ -373,6 +373,11 @@ async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> 
     if member.bot:
         return  # Ignore bot
 
+    channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
+    if channel_id is None:
+        print_warning_log(f"send_session_stats_to_queue: Text channel not set for guild {guild_id}. Skipping.")
+        return
+
     member_id = member.id
     member_name = member.display_name
 

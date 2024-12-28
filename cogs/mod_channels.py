@@ -43,10 +43,11 @@ class ModChannels(commands.Cog):
         """
         An administrator can set the channel where the user name is shown
         """
+        await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         data_access_set_guild_username_text_channel_id(guild_id, channel.id)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Confirmed to send a user name message into #{channel.name}.",
             ephemeral=True,
         )
@@ -71,10 +72,11 @@ class ModChannels(commands.Cog):
         """
         An administrator can set the channel where the user name is shown
         """
+        await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         data_access_set_gaming_session_text_channel_id(guild_id, channel.id)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Confirmed to send user gaming session stats into #{channel.name}.",
             ephemeral=True,
         )
@@ -99,10 +101,11 @@ class ModChannels(commands.Cog):
         """
         An administrator can set the channel where the user name is shown
         """
+        await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         data_access_set_new_user_text_channel_id(guild_id, channel.id)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Confirmed to send new user message into #{channel.name}.",
             ephemeral=True,
         )
@@ -127,6 +130,7 @@ class ModChannels(commands.Cog):
         """
         Set the voice channels to listen to the users in the voice channel
         """
+        await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
         if voice_channel_ids is None:
@@ -135,9 +139,7 @@ class ModChannels(commands.Cog):
         if channel.id not in voice_channel_ids:
             voice_channel_ids.append(channel.id)
         data_access_set_guild_voice_channel_ids(guild_id, voice_channel_ids)
-        await interaction.response.send_message(
-            f"The bot will check the voice channel #{channel.name}.", ephemeral=True
-        )
+        await interaction.followup.send(f"The bot will check the voice channel #{channel.name}.", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION)
     @commands.has_permissions(administrator=True)
@@ -145,10 +147,11 @@ class ModChannels(commands.Cog):
         """
         Set the voice channels to listen to the users in the voice channel
         """
+        await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         data_access_set_guild_voice_channel_ids(guild_id, None)
 
-        await interaction.response.send_message("Deleted all configuration for voice channels", ephemeral=True)
+        await interaction.followup.send("Deleted all configuration for voice channels", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION)
     @commands.has_permissions(administrator=True)
@@ -174,10 +177,11 @@ class ModChannels(commands.Cog):
         """
         An administrator can set the channel where the daily schedule message will be sent
         """
+        await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         data_access_set_guild_schedule_text_channel_id(guild_id, channel.id)
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Confirmed to send a daily schedule message into #{channel.name}.",
             ephemeral=True,
         )

@@ -36,7 +36,7 @@ class ModTournament(commands.Cog):
 
     @app_commands.command(name=COMMAND_TOURNAMENT_CHANNEL_SET_CHANNEL)
     @commands.has_permissions(administrator=True)
-    async def set_schedule_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    async def set_tournament_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         An administrator can set the channel where the tournament message will be sent
         """
@@ -50,7 +50,7 @@ class ModTournament(commands.Cog):
 
     @app_commands.command(name=COMMAND_TOURNAMENT_CHANNEL_GET_CHANNEL)
     @commands.has_permissions(administrator=True)
-    async def see_schedule_text_channel(self, interaction: discord.Interaction):
+    async def see_tournament_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
