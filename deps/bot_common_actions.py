@@ -546,12 +546,13 @@ def add_star_if_above_value(value: int, threshold: int = 0) -> str:
     return f"{value}{'⭐' if value > threshold else ''}"
 
 
-async def send_lfg_message(guild: discord.guild, voice_channel_id: int) -> None:
+async def send_lfg_message(guild: discord.guild, voice_channel: discord.VocalGuildChannel) -> None:
     """
     Send a message to the main text channel about looking for group to play
     """
     guild_id = guild.id
     guild_name = guild.name
+    voice_channel_id = voice_channel.id
     dict_users: dict[int, ActivityTransition] = await data_access_get_voice_user_list(guild_id, voice_channel_id)
     if dict_users is None:
         # No user, nothing to do
@@ -571,20 +572,28 @@ async def send_lfg_message(guild: discord.guild, voice_channel_id: int) -> None:
         print_log(f"send_lfg_message: Last message sent less than 10 minutes ago for guild {guild_name}. Skipping.")
         return
 
-
     # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
-    aggregation = get_aggregation_siege_activity(dict_users)
-    if aggregation.done_match_waiting_in_menu > 0 or aggregation.done_warming_up > 0:
-        # Get the text channel to send the message
-        text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
-        if text_channel_main_siege_id is None:
-            print_warning_log(f"send_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping.")
-            return
-        channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
-        if not channel:
-            print_warning_log(f"send_lfg_message: New user text channel not found for guild {guild_name}. Skipping.")
-            return
-        channel.send(
-            f"🎮 **{user_count}** users in the voice channel are looking for a group to play. Use the slash command `/lfg` to join them."
-        )
-    data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
+    try:
+        aggregation = get_aggregation_siege_activity(dict_users)
+        if aggregation.done_match_waiting_in_menu > 0 or aggregation.done_warming_up > 0:
+            # Get the text channel to send the message
+            text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
+            if text_channel_main_siege_id is None:
+                print_warning_log(
+                    f"send_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping."
+                )
+                return
+            channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
+            if not channel:
+                print_warning_log(
+                    f"send_lfg_message: New user text channel not found for guild {guild_name}. Skipping."
+                )
+                return
+            print_log(f"🎮 **{user_count}** users in the <#{voice_channel_id}> are looking for a group to play.")
+            # channel.send(
+            #     f"🎮 **{user_count}** users in the voice channel are looking for a group to play. Use the slash command `/lfg` to join them."
+            # )
+        data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
+    except Exception as e:
+        print_error_log(f"send_lfg_message: Error sending the message: {e}")
+        return

@@ -396,7 +396,7 @@ class MyEventsCog(commands.Cog):
         await data_access_update_voice_user_list(
             guild_id, after.voice.channel.id, after.id, ActivityTransition(before_details, after_details)
         )
-        await send_lfg_message(after.guild, after.voice.channel.id)
+        await send_lfg_message(after.guild, after.voice.channel)
 
 
 async def setup(bot):
