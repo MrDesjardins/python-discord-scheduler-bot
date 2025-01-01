@@ -27,6 +27,8 @@ class TournamentRegistration(View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Callback function to check if the interaction is valid"""
 
+        # Defer the interaction to prevent timeout issues
+        await interaction.response.defer(ephemeral=True)
         # Save user responses
         tournament_id = int(interaction.data["custom_id"])
         register_for_tournament(tournament_id, interaction.user.id)
@@ -40,7 +42,7 @@ class TournamentRegistration(View):
         date_start = tournament.start_date.strftime("%Y-%m-%d")
         # Send final confirmation message with the saved data
         await interaction.followup.send(
-            f"You are registered. A new message will tag you when the tournament start ({date_start}).",
+            f"You are registered. A new message will tag you when the tournament will start ({date_start}).",
             ephemeral=True,
         )
 
@@ -55,7 +57,7 @@ class TournamentRegistration(View):
             print_warning_log(f"TournamentRegistration UI> Channel not found for id {channel_id}")
             return True
         tournament_users = get_people_registered_for_tournament(tournament_id)
-        place_available = tournament.max_users - len(tournament_users)
+        place_available = tournament.max_players - len(tournament_users)
         if place_available == 0:
             await channel.send(
                 f'{interaction.user.mention} has registered for the tournament "{tournament.name}". The tournament is full and will start on {date_start}.'
