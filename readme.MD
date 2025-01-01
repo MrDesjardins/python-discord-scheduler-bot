@@ -452,11 +452,19 @@ See what is the issue with logs:
 sudo du -h --max-depth=1 /var/log | sort -rh
 ```
 
+To see the journal size:
+
+```sh
+sudo journalctl --disk-usage
+```
+
 Reduce the journal logs, kill the logs for syslog and deamon log:
 
 ```sh
 sudo truncate -s 0 /var/log/daemon.log
 sudo truncate -s 0 /var/log/syslog
+sudo journalctl --vacuum-size=100M
+sudo journalctl --vacuum-time=7d
 ```
 
 Configure journal and syslog retention:
@@ -465,5 +473,6 @@ Configure journal and syslog retention:
 sudo journalctl --vacuum-size=100M
 sudo nano /etc/logrotate.d/rsyslog
 sudo systemctl restart rsyslog
-
+sudo nano /etc/systemd/journald.conf
+SystemMaxUse=100M
 ```

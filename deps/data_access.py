@@ -18,6 +18,7 @@ from deps.cache import (
 from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueueForStats
 
 from deps.functions_r6_tracker import get_r6tracker_max_rank
+from deps.log import print_log
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsersV2"
@@ -342,6 +343,14 @@ async def data_access_get_voice_user_list(guild_id: int, channel_id: int) -> dic
     return result
 
 
+async def data_access_remove_voice_user_list(guild_id: int, channel_id: int, user_id: Optional[int]) -> None:
+    """Remove a user from the voice channel list"""
+    user_map = await data_access_get_voice_user_list(guild_id, channel_id)
+    user_map.pop(user_id)
+    print_log(f"data_access_remove_voice_user_list: Remove voice user list: {len(user_map.keys())}")
+    set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
+
+
 async def data_access_update_voice_user_list(
     guild_id: int, channel_id: int, user_id: Optional[int], activity_detail: Optional[Union[ActivityTransition, str]]
 ) -> None:
@@ -353,27 +362,24 @@ async def data_access_update_voice_user_list(
     """
     user_map = await data_access_get_voice_user_list(guild_id, channel_id)
 
-    if user_id is None:
-        # When the user is None, it means the user left the voice channel, we remove
-        user_map.pop(user_id, None)
-    else:
-        # The user exist
-        if isinstance(activity_detail, str):
-            # If a string is provided, it means we only have a activity detail (without the before)
-            # It happens in the case of changing status (offline to online)
-            current_after = user_map.get(user_id, None)
-            if current_after is None:
-                # If the user wasn't there and we have only the after, we set the None the before
-                to_save = ActivityTransition(None, activity_detail)
-            else:
-                # If we had the user before and now providing only a current detail, we set the current after as before and then the string as after
-                to_save = ActivityTransition(current_after, activity_detail)
+    # The activity_detail exist (could be string or a full activity detail)
+    if isinstance(activity_detail, str):
+        # If a string is provided, it means we only have a activity detail (without the before)
+        # It happens in the case of changing status (offline to online)
+        current_after = user_map.get(user_id, None)
+        if current_after is None:
+            # If the user wasn't there and we have only the after, we set the None the before
+            to_save = ActivityTransition(None, activity_detail)
         else:
-            # We have a full activity detail. Might be None, or might have both before and after
-            to_save = activity_detail
+            # If we had the user before and now providing only a current detail, we set the current after as before and then the string as after
+            to_save = ActivityTransition(current_after, activity_detail)
+    else:
+        # We have a full activity detail. Might be None, or might have both before and after
+        to_save = activity_detail
 
-        # Save the user which is None or a full activity detail
-        user_map[user_id] = to_save
+    # Save the user which is None or a full activity detail
+    user_map[user_id] = to_save
+    print_log(f"data_access_update_voice_user_list: Update voice user list: {len(user_map.keys())}")
     set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
 
 

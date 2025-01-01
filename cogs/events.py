@@ -24,6 +24,7 @@ from deps.data_access import (
     data_access_get_reaction_message,
     data_access_get_user,
     data_access_get_voice_user_list,
+    data_access_remove_voice_user_list,
     data_access_set_reaction_message,
     data_access_update_voice_user_list,
 )
@@ -289,13 +290,13 @@ class MyEventsCog(commands.Cog):
                         event,
                         datetime.now(timezone.utc),
                     )
-                    # try:
-                    #     await send_session_stats_to_queue(member, guild_id)
-                    # except Exception as e:
-                    #     print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
+                    try:
+                        await send_session_stats_to_queue(member, guild_id)
+                    except Exception as e:
+                        print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
 
-                    # Remove the user from the voice channel list
-                    await data_access_update_voice_user_list(guild_id, before.channel.id, None, None)
+                    # Remove the user from the voice channel list (after.channel is None)
+                    await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
                 elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                     # User switched between voice channel
                     insert_user_activity(
@@ -314,8 +315,8 @@ class MyEventsCog(commands.Cog):
                         EVENT_CONNECT,
                         datetime.now(timezone.utc),
                     )
-                    # Remove the user from the voice channel list
-                    await data_access_update_voice_user_list(guild_id, before.channel.id, None, None)
+                    # Remove the user from the voice channel list (before.channel is different then the after, remove from before.channel)
+                    await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
                     # Add the user to the voice channel list with the current siege activity detail
                     user_activity = get_siege_activity(member)
                     await data_access_update_voice_user_list(
