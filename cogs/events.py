@@ -365,7 +365,6 @@ class MyEventsCog(commands.Cog):
     @commands.Cog.listener()
     async def on_presence_update(self, before: discord.Member, after: discord.Member):
         """Keep track of user activity"""
-        print_log("on_presence_update called")
         if before.bot:
             return  # Ignore bot
         guild_id = before.guild.id
