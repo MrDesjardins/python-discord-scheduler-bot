@@ -4,6 +4,7 @@ from discord import app_commands
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.values import (
     COMMAND_FORCE_SEND,
+    COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY,
     COMMAND_TEST_JOIN,
     COMMAND_VERSION,
     COMMAND_RESET_CACHE,
@@ -13,10 +14,14 @@ from deps.functions import (
     get_sha,
 )
 from deps.data_access import (
+    data_access_get_channel,
+    data_access_get_guild_voice_channel_ids,
     data_access_reset_guild_cache,
     data_access_set_bot_voice_first_user,
 )
 from deps.mybot import MyBot
+from deps.log import print_warning_log
+from deps.siege import get_siege_activity
 
 
 class ModBasic(commands.Cog):
@@ -72,6 +77,39 @@ class ModBasic(commands.Cog):
         if interaction.user.id == interaction.guild.owner_id:
             fake_member = interaction.user  # Use the command invoker as the fake member
             await self.bot.cogs.get("MyEventsCog").on_member_join(fake_member)
+
+    @app_commands.command(name=COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY)
+    @commands.has_permissions(administrator=True)
+    async def check_activity(self, interaction: discord.Interaction):
+        """Apply the schedule for user who scheduled using the /addschedule command"""
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        voice_channel_ids = await data_access_get_guild_voice_channel_ids(interaction.guild.id)
+        if voice_channel_ids is None:
+            print_warning_log(f"check_activity:`Voice channel not set for guild {guild.name}. Skipping.")
+            await interaction.followup.send("No voice channel found", ephemeral=True)
+            return
+
+        msg = []
+        for voice_channel_id in voice_channel_ids:
+            voice_channel = await data_access_get_channel(voice_channel_id)
+            # voice_channel = discord.utils.get(interaction.guild.voice_channels, id=voice_channel_id)
+            if voice_channel is None:
+                print_warning_log(
+                    f"check_activity: Voice channel configured but not found in the guild {guild.name}. Skipping."
+                )
+                continue
+            for member in voice_channel.members:
+                activity = get_siege_activity(member)
+                if activity is not None:
+                    msg.append(
+                        f"{voice_channel.name} has {member.display_name} playing {activity.name} and {activity.details}"
+                    )
+        if len(msg) == 0:
+            await interaction.followup.send("No activity found", ephemeral=True)
+        else:
+            msg_str = "\n".join(msg)
+            await interaction.followup.send(msg_str, ephemeral=True)
 
 
 async def setup(bot):

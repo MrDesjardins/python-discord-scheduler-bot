@@ -266,6 +266,8 @@ https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=2
 https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=268641488&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 ```
 
+You also need the `Presence Intent` to be checked (located above the bot permission, same page). This will allows the bot to see who is playing the game and what is the status of the user (menu, playing, etc).
+
 # Create a TRN Developer Account
 
 To get the statistics of the user, you need to create a developer account on the TRN website. The TRN API is used to get the statistics of the user. The API key is required to get the statistics of the user.
@@ -433,26 +435,33 @@ coverage report -m
 coverage lcov
 coverage html
 ```
+
 # Space Issue
+
 Logs can accumulate and make the Raspberri Pi run out of space. You can remove the logs by running the following command:
 
 Check the size of large files on the Raspberry Pi:
+
 ```sh
 sudo find / -type f -size +50M -exec ls -lh {} \; | awk '{ print $9 ": " $5 }'
 ```
 
 See what is the issue with logs:
+
 ```sh
 sudo du -h --max-depth=1 /var/log | sort -rh
 ```
 
 Reduce the journal logs, kill the logs for syslog and deamon log:
+
 ```sh
 sudo truncate -s 0 /var/log/daemon.log
 sudo truncate -s 0 /var/log/syslog
 ```
+
 Configure journal and syslog retention:
-```sh	
+
+```sh
 sudo journalctl --vacuum-size=100M
 sudo nano /etc/logrotate.d/rsyslog
 sudo systemctl restart rsyslog

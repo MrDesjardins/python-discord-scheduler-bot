@@ -15,7 +15,7 @@ from deps.cache import (
     reset_cache_by_prefixes,
     set_cache,
 )
-from deps.models import SimpleUser, SimpleUserHour, UserQueueForStats
+from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueueForStats
 
 from deps.functions_r6_tracker import get_r6tracker_max_rank
 
@@ -37,6 +37,10 @@ KEY_R6TRACKER = "R6Tracker"
 KEY_GAMING_SESSION_LAST_ACTIVITY = "GamingSessionLastActivity"
 KEY_QUEUE_USER_STATS = "QueueUserStats"
 KEY_GUILD_TOURNAMENT_TEXT_CHANNEL = "GuildAdminConfigTournamentTextChannel"
+KEY_GUILD_MAIN_TEXT_CHANNEL = "GuildMainSiegeTextChannel"
+KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
+KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
+
 
 async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
     """Get the guild by the given guild"""
@@ -300,6 +304,7 @@ async def data_acess_remove_list_member_stats(user: UserQueueForStats) -> None:
         set_cache(True, f"{KEY_QUEUE_USER_STATS}", list_users, ONE_DAY_TTL)
     # Lock is released here
 
+
 async def data_access_get_guild_tournament_text_channel_id(
     guild_id: int,
 ) -> Union[int, None]:
@@ -310,3 +315,76 @@ async def data_access_get_guild_tournament_text_channel_id(
 def data_access_set_guild_tournament_text_channel_id(guild_id: int, channel_id: int) -> None:
     """Set the channel that the bot will send text"""
     set_cache(False, f"{KEY_GUILD_TOURNAMENT_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
+
+async def data_access_get_main_text_channel_id(
+    guild_id: int,
+) -> Union[int, None]:
+    """Get the channel by the given channel id"""
+    return await get_cache(False, f"{KEY_GUILD_MAIN_TEXT_CHANNEL}:{guild_id}")
+
+
+def data_access_set_main_text_channel_id(guild_id: int, channel_id: int) -> None:
+    """Set the channel that the bot will send text related to Siege"""
+    set_cache(False, f"{KEY_GUILD_MAIN_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
+
+def data_access_set_voice_user_list(guild_id: int, channel_id: int, user_map: dict[int, str]) -> None:
+    """Set the channel that the bot will send text related to Siege"""
+    set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
+
+
+async def data_access_get_voice_user_list(guild_id: int, channel_id: int) -> dict[int, ActivityTransition]:
+    """Set the channel that the bot will send text related to Siege"""
+    result = await get_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}")
+    if result is None:
+        return {}
+    return result
+
+
+async def data_access_update_voice_user_list(
+    guild_id: int, channel_id: int, user_id: Optional[int], activity_detail: Optional[Union[ActivityTransition, str]]
+) -> None:
+    """
+    Set for a voice channel the user status
+    activity_detail is a string or an Activity
+        If a string, we need to take the current after, set to before and use the string as the after
+        If an activity, we just set the activity
+    """
+    user_map = await data_access_get_voice_user_list(guild_id, channel_id)
+
+    if user_id is None:
+        # When the user is None, it means the user left the voice channel, we remove
+        user_map.pop(user_id, None)
+    else:
+        # The user exist
+        if isinstance(activity_detail, str):
+            # If a string is provided, it means we only have a activity detail (without the before)
+            # It happens in the case of changing status (offline to online)
+            current_after = user_map.get(user_id, None)
+            if current_after is None:
+                # If the user wasn't there and we have only the after, we set the None the before
+                to_save = ActivityTransition(None, activity_detail)
+            else:
+                # If we had the user before and now providing only a current detail, we set the current after as before and then the string as after
+                to_save = ActivityTransition(current_after, activity_detail)
+        else:
+            # We have a full activity detail. Might be None, or might have both before and after
+            to_save = activity_detail
+
+        # Save the user which is None or a full activity detail
+        user_map[user_id] = to_save
+    set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
+
+
+async def data_access_get_last_bot_message_in_main_text_channel(guild_id: int) -> Union[datetime, None]:
+    """Get the last date time that the bot sent a message in the main text channel in ISO format"""
+    return await get_cache(False, f"{KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL}:{guild_id}")
+
+
+def data_access_set_last_bot_message_in_main_text_channel(
+    guild_id: int,
+    date_time: datetime,
+) -> None:
+    """Get the last date time that the bot sent a message in the main text channel in ISO format"""
+    set_cache(False, f"{KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL}:{guild_id}", date_time, ONE_HOUR_TTL)

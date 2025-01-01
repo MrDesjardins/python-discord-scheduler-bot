@@ -7,6 +7,7 @@ from deps.analytic_data_access import insert_user_activity
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
+    send_lfg_message,
     send_notification_voice_channel,
     send_session_stats_to_queue,
     update_vote_message,
@@ -16,19 +17,22 @@ from deps.data_access import (
     data_access_get_guild,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_voice_channel_ids,
+    data_access_get_main_text_channel_id,
     data_access_get_member,
     data_access_get_message,
     data_access_get_new_user_text_channel_id,
     data_access_get_reaction_message,
     data_access_get_user,
+    data_access_get_voice_user_list,
     data_access_set_reaction_message,
+    data_access_update_voice_user_list,
 )
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.functions import get_empty_votes
 
-from deps.models import SimpleUser
-from deps.siege import get_user_rank_emoji
+from deps.models import ActivityTransition, SimpleUser
+from deps.siege import get_siege_activity, get_user_rank_emoji
 from deps.values import EMOJI_TO_TIME
 
 
@@ -243,6 +247,7 @@ class MyEventsCog(commands.Cog):
         for guild in self.bot.guilds:
             guild_id = guild.id
             voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
+
             if voice_channel_ids is None:
                 print_warning_log(f"Voice channel not set for guild {guild.name}. Skipping.")
                 continue
@@ -254,7 +259,7 @@ class MyEventsCog(commands.Cog):
             # Log user activity
             try:
                 if before.channel is None and after.channel is not None:
-                    # User joined a voice channel
+                    # User joined a voice channel but wasn't in any voice channel before
                     channel_id = after.channel.id
                     event = EVENT_CONNECT
                     insert_user_activity(
@@ -265,6 +270,13 @@ class MyEventsCog(commands.Cog):
                         event,
                         datetime.now(timezone.utc),
                     )
+
+                    # Add the user to the voice channel list with the current siege activity detail
+                    user_activity = get_siege_activity(member)
+                    await data_access_update_voice_user_list(
+                        guild_id, after.channel.id, member.id, user_activity.details if user_activity else None
+                    )
+
                 elif before.channel is not None and after.channel is None:
                     # User left a voice channel
                     channel_id = before.channel.id
@@ -277,10 +289,13 @@ class MyEventsCog(commands.Cog):
                         event,
                         datetime.now(timezone.utc),
                     )
-                    try:
-                        await send_session_stats_to_queue(member, guild_id)
-                    except Exception as e:
-                        print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
+                    # try:
+                    #     await send_session_stats_to_queue(member, guild_id)
+                    # except Exception as e:
+                    #     print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
+
+                    # Remove the user from the voice channel list
+                    await data_access_update_voice_user_list(guild_id, before.channel.id, None, None)
                 elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                     # User switched between voice channel
                     insert_user_activity(
@@ -298,6 +313,13 @@ class MyEventsCog(commands.Cog):
                         guild_id,
                         EVENT_CONNECT,
                         datetime.now(timezone.utc),
+                    )
+                    # Remove the user from the voice channel list
+                    await data_access_update_voice_user_list(guild_id, before.channel.id, None, None)
+                    # Add the user to the voice channel list with the current siege activity detail
+                    user_activity = get_siege_activity(member)
+                    await data_access_update_voice_user_list(
+                        guild_id, after.channel.id, member.id, user_activity.details if user_activity else None
                     )
             except Exception as e:
                 print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
@@ -339,6 +361,42 @@ class MyEventsCog(commands.Cog):
             f"Welcome {member.mention} to the server! Use the command `/setupprofile` (in any text channel) to set up your profile which will give you a role and access to many voice channels. You can check who plan to play in the schedule channel <#{text_channel_id}>. When ready to play, join a voice channel and then use the command `/lfg` to find other players."
         )
         print_log(f"on_member_join: New user message sent to {member.display_name} in guild {member.guild.name}.")
+
+    @commands.Cog.listener()
+    async def on_presence_update(self, before: discord.Member, after: discord.Member):
+        """Keep track of user activity"""
+        print_log("on_presence_update called")
+        if before.bot:
+            return  # Ignore bot
+        guild_id = before.guild.id
+        guild_name = before.guild.name
+        text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
+        if text_channel_main_siege_id is None:
+            print_warning_log(f"on_member_update: Main Siege text channel id not set for guild {guild_name}. Skipping.")
+            return
+        channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
+        if not channel:
+            print_warning_log(f"on_member_update: New user text channel not found for guild {guild_name}. Skipping.")
+            return
+
+        # Check if the member is in a voice channel
+        if not after.voice or not after.voice.channel:
+            return  # Ignore users not in a voice channel
+
+        # Check for activity changes
+        before_activity = get_siege_activity(before)
+        after_activity = get_siege_activity(after)
+        before_details = before_activity.details if before_activity else None
+        after_details = after_activity.details if after_activity else None
+
+        if before_details != after_details:
+            message = f"User {after.display_name} changed activity from {before_details} to {after_details}"
+            print_log(message)
+        # Add the user to the voice channel list with the current siege activity detail
+        await data_access_update_voice_user_list(
+            guild_id, after.voice.channel.id, after.id, ActivityTransition(before_details, after_details)
+        )
+        await send_lfg_message(after.guild, after.voice.channel.id)
 
 
 async def setup(bot):

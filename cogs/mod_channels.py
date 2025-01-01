@@ -7,14 +7,18 @@ from deps.data_access import (
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
+    data_access_get_main_text_channel_id,
     data_access_get_new_user_text_channel_id,
     data_access_set_gaming_session_text_channel_id,
     data_access_set_guild_username_text_channel_id,
+    data_access_set_main_text_channel_id,
     data_access_set_new_user_text_channel_id,
     data_access_set_guild_schedule_text_channel_id,
     data_access_set_guild_voice_channel_ids,
 )
 from deps.values import (
+    COMMAND_CHANNEL_GET_MAIN_CHANNEL,
+    COMMAND_CHANNEL_SET_MAIN_CHANNEL,
     COMMAND_SCHEDULE_CHANNEL_GET_SCHEDULE_CHANNEL,
     COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION,
     COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION,
@@ -200,6 +204,36 @@ class ModChannels(commands.Cog):
             return
 
         await interaction.followup.send(f"The schedule text channel is <#{channel_id}>", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_CHANNEL_SET_MAIN_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def set_main_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """
+        An administrator can set the channel where the daily schedule message will be sent
+        """
+        await interaction.response.defer(ephemeral=True)
+        guild_id = interaction.guild.id
+        data_access_set_main_text_channel_id(guild_id, channel.id)
+
+        await interaction.followup.send(
+            f"Confirmed to send main interaction message into #{channel.name}.",
+            ephemeral=True,
+        )
+        await send_daily_question_to_a_guild(self.bot, interaction.guild)
+
+    @app_commands.command(name=COMMAND_CHANNEL_GET_MAIN_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def see_main_text_channel(self, interaction: discord.Interaction):
+        """Display the text channel configured"""
+        await interaction.response.defer(ephemeral=True)
+        guild_id = interaction.guild.id
+        channel_id = await data_access_get_main_text_channel_id(guild_id)
+        if channel_id is None:
+            print_warning_log(f"No main text channel in guild {interaction.guild.name}. Skipping.")
+            await interaction.followup.send("Main text channel not set.", ephemeral=True)
+            return
+
+        await interaction.followup.send(f"The main text channel is <#{channel_id}>", ephemeral=True)
 
 
 async def setup(bot):

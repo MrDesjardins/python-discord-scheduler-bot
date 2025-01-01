@@ -91,6 +91,9 @@ COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION = "modseevoicechannels"
 COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION = "modresetvoicechannel"
 COMMAND_SET_NEW_USER_CHANNEL = "modtextnewuserchannel"
 COMMAND_SEE_NEW_USER_CHANNEL = "modseesnewuserchannel"
+COMMAND_CHANNEL_SET_MAIN_CHANNEL = "modtextmainchannel"
+COMMAND_CHANNEL_GET_MAIN_CHANNEL = "modseemainchannel"
+COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY = "modvoicecurrentactivity"
 
 ## Analytics
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"

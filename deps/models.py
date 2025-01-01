@@ -195,3 +195,37 @@ class Reason:
         self.is_successful = is_successful
         self.text = text
         self.context = context
+
+
+@dataclasses.dataclass
+class ActivityTransition:
+    """Keep Track of the last two activity details"""
+
+    def __init__(self, before: Optional[str], after: Optional[str]):
+        self.before = before
+        self.after = after
+
+
+@dataclasses.dataclass
+class SiegeActivityAggregation:
+    """Get aggregation of activity from Activity transition dictionary"""
+
+    def __init__(
+        self,
+        count_in_menu: int,
+        game_not_started: int,
+        user_leaving: int,
+        warming_up: int,
+        done_warming_up: int,
+        done_match_waiting_in_menu: int,
+        playing_rank: int,
+        playing_standard: int,
+    ):
+        self.count_in_menu = count_in_menu
+        self.game_not_started = game_not_started
+        self.user_leaving = user_leaving
+        self.warming_up = warming_up
+        self.done_warming_up = done_warming_up
+        self.done_match_waiting_in_menu = done_match_waiting_in_menu
+        self.playing_rank = playing_rank
+        self.playing_standard = playing_standard

@@ -1,6 +1,9 @@
 """ Information about Siege """
 
+from typing import Optional
 import discord
+
+from deps.models import ActivityTransition, SiegeActivityAggregation
 
 siege_ranks = [
     "Champion",
@@ -76,3 +79,66 @@ def get_guild_rank_emoji(guild_emoji: dict[str, str], emoji_name: str) -> str:
     print("No rank found")
 
     return f"<:Copper:{guild_emoji['Copper']}>" if "Copper" in guild_emoji else "N/A"
+
+
+def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
+    """
+    Get the siege activity from the member's activities
+    The activity.detail will give information about where in the game the user is (e.g. in a match)
+    """
+    for activity in member.activities:
+        if activity.name == "Rainbow Six Siege":
+            return activity
+    return None
+
+
+def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTransition]) -> SiegeActivityAggregation:
+    """
+    From the before and after activity detail, get the count of user from different transition to deterine
+    if we send a message or not
+    Possible transition:
+        CUSTOM_GAME match XXXXX
+        RANKED match XXXXX
+        Playing Map Training
+        STANDARD match
+        Looking for XXXXX match
+    """
+    count_in_menu = 0
+    game_not_started = 0
+    user_leaving = 0
+    warming_up = 0
+    done_warming_up = 0
+    done_match_waiting_in_menu = 0
+    playing_rank = 0
+    playing_standard = 0
+
+    for user_id, activity_before_after in dict_users_activities.items():
+        bef = activity_before_after.before
+        aft = activity_before_after.after
+        if bef is None and aft is None:
+            game_not_started += 1
+        if aft == "in MENU":
+            count_in_menu += 1
+        if aft == "Playing Map Training" or aft == "Playing SHOOTING RANGE":
+            warming_up += 1
+        if bef is not None and aft is None:
+            user_leaving += 1
+        if (bef == "Playing SHOOTING RANGE" or bef == "Playing Map Training") and aft == "in MENU":
+            done_warming_up += 1
+        if bef is not None and bef.startswith("RANKED match") and aft == "in MENU":
+            done_match_waiting_in_menu += 1
+        if aft is not None and aft.startswith("RANKED match"):
+            playing_rank += 1
+        if aft is not None and aft.startswith("STANDARD match"):
+            playing_standard += 1
+
+    return SiegeActivityAggregation(
+        count_in_menu,
+        game_not_started,
+        user_leaving,
+        warming_up,
+        done_warming_up,
+        done_match_waiting_in_menu,
+        playing_rank,
+        playing_standard,
+    )

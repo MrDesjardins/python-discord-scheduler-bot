@@ -20,19 +20,24 @@ from deps.data_access import (
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
+    data_access_get_last_bot_message_in_main_text_channel,
     data_access_get_list_member_stats,
+    data_access_get_main_text_channel_id,
     data_access_get_member,
     data_access_get_r6tracker_max_rank,
     data_access_get_reaction_message,
     data_access_get_users_auto_schedule,
+    data_access_get_voice_user_list,
     data_access_set_daily_message,
     data_access_set_gaming_session_last_activity,
+    data_access_set_last_bot_message_in_main_text_channel,
     data_access_set_reaction_message,
     data_acess_remove_list_member_stats,
 )
 from deps.date_utils import is_today
 from deps.mybot import MyBot
 from deps.models import (
+    ActivityTransition,
     SimpleUser,
     SimpleUserHour,
     UserMatchInfo,
@@ -57,7 +62,7 @@ from deps.values import (
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
-from deps.siege import get_color_for_rank, get_user_rank_emoji
+from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_user_rank_emoji
 from deps.functions_r6_tracker import get_user_gaming_session_stats
 
 
@@ -539,3 +544,47 @@ def get_gaming_session_user_embed_message(
 def add_star_if_above_value(value: int, threshold: int = 0) -> str:
     """Add a star if the value is above the threshold"""
     return f"{value}{'⭐' if value > threshold else ''}"
+
+
+async def send_lfg_message(guild: discord.guild, voice_channel_id: int) -> None:
+    """
+    Send a message to the main text channel about looking for group to play
+    """
+    guild_id = guild.id
+    guild_name = guild.name
+    dict_users: dict[int, ActivityTransition] = await data_access_get_voice_user_list(guild_id, voice_channel_id)
+    if dict_users is None:
+        # No user, nothing to do
+        return
+
+    user_count = len(dict_users)
+    if user_count == 0 or user_count >= 5:
+        # No user or too many users, nothing to do
+        print_log(
+            f"send_lfg_message: User count {user_count} in {guild_name} for voice channel {voice_channel_id}. Skipping."
+        )
+        return
+
+    current_time = datetime.now(timezone.utc)
+    last_message_time = data_access_get_last_bot_message_in_main_text_channel(guild_id)
+    if last_message_time - current_time < timedelta(minutes=10):
+        print_log(f"send_lfg_message: Last message sent less than 10 minutes ago for guild {guild_name}. Skipping.")
+        return
+
+
+    # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
+    aggregation = get_aggregation_siege_activity(dict_users)
+    if aggregation.done_match_waiting_in_menu > 0 or aggregation.done_warming_up > 0:
+        # Get the text channel to send the message
+        text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
+        if text_channel_main_siege_id is None:
+            print_warning_log(f"send_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping.")
+            return
+        channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
+        if not channel:
+            print_warning_log(f"send_lfg_message: New user text channel not found for guild {guild_name}. Skipping.")
+            return
+        channel.send(
+            f"🎮 **{user_count}** users in the voice channel are looking for a group to play. Use the slash command `/lfg` to join them."
+        )
+    data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
