@@ -1,5 +1,6 @@
 """ Custom bot class for Discord bot """
 
+import logging
 import discord
 from discord.ext import commands
 import os
@@ -34,3 +35,14 @@ class MyBot(commands.Bot):
                     print_log(f"✅ Loaded {filename}")
                 except Exception as e:
                     print_error_log(f"❌ Failed to load {filename}: {e}")
+
+
+class ClockDriftFilter(logging.Filter):
+    def filter(self, record):
+        # Filter out the clock drift warning
+        return "Clock drift detected" not in record.getMessage()
+
+
+# Apply the filter to the discord.ext.tasks logger
+logger = logging.getLogger("discord.ext.tasks")
+logger.addFilter(ClockDriftFilter())
