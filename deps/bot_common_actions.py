@@ -546,7 +546,7 @@ def add_star_if_above_value(value: int, threshold: int = 0) -> str:
     return f"{value}{'⭐' if value > threshold else ''}"
 
 
-async def send_lfg_message(guild: discord.guild, voice_channel: discord.VocalGuildChannel) -> None:
+async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceChannel) -> None:
     """
     Send a message to the main text channel about looking for group to play
     """
