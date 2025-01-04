@@ -102,6 +102,8 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
         Playing Map Training
         STANDARD match
         Looking for XXXXX match
+        ARCADE match XXXXX
+        VERSUS AI match XXXXX
     """
     count_in_menu = 0
     game_not_started = 0
@@ -119,11 +121,21 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
             game_not_started += 1
         if aft == "in MENU":
             count_in_menu += 1
-        if aft == "Playing Map Training" or aft == "Playing SHOOTING RANGE":
+        if (
+            aft == "Playing Map Training"
+            or aft == "Playing SHOOTING RANGE"
+            or aft.startswith("ARCADE")
+            or aft.startswith("VERSUS AI")
+        ):
             warming_up += 1
         if bef is not None and aft is None:
             user_leaving += 1
-        if (bef == "Playing SHOOTING RANGE" or bef == "Playing Map Training") and aft == "in MENU":
+        if (
+            bef == "Playing SHOOTING RANGE"
+            or bef == "Playing Map Training"
+            or bef.startswith("ARCADE")
+            or aft.startswith("VERSUS AI")
+        ) and aft == "in MENU":
             done_warming_up += 1
         if bef is not None and bef.startswith("RANKED match") and aft == "in MENU":
             done_match_waiting_in_menu += 1

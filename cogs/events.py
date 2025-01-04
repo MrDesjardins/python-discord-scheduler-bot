@@ -23,7 +23,6 @@ from deps.data_access import (
     data_access_get_new_user_text_channel_id,
     data_access_get_reaction_message,
     data_access_get_user,
-    data_access_get_voice_user_list,
     data_access_remove_voice_user_list,
     data_access_set_reaction_message,
     data_access_update_voice_user_list,
@@ -35,7 +34,6 @@ from deps.functions import get_empty_votes
 from deps.models import ActivityTransition, SimpleUser
 from deps.siege import get_siege_activity, get_user_rank_emoji
 from deps.values import EMOJI_TO_TIME
-
 
 class MyEventsCog(commands.Cog):
     lock = asyncio.Lock()

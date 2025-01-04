@@ -564,7 +564,10 @@ async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceCha
         print_log(
             f"send_lfg_message: User count {user_count} in {guild_name} for voice channel {voice_channel_id}. Skipping."
         )
-        return
+        if (
+            user_count == 0
+        ):  # TEMPORARY TO SEE MORE AGGREGATION. SHOULD BE UNCOMMENDED AND STOP in this IF without that IF
+            return
 
     current_time = datetime.now(timezone.utc)
     last_message_time = data_access_get_last_bot_message_in_main_text_channel(guild_id)
@@ -575,6 +578,16 @@ async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceCha
     # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
     try:
         aggregation = get_aggregation_siege_activity(dict_users)
+        print_log(
+            f"""send_lfg_message: count_in_menu {aggregation.count_in_menu}
+            \ngame_not_started {aggregation.game_not_started}
+            \nuser_leaving {aggregation.user_leaving}
+            \nwarming_up {aggregation.warming_up}
+            \ndone_warming_up {aggregation.done_warming_up}
+            \ndone_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}
+            \nplaying_rank {aggregation.playing_rank}
+            \nplaying_standard {aggregation.playing_standard}"""
+        )
         if aggregation.done_match_waiting_in_menu > 0 or aggregation.done_warming_up > 0:
             # Get the text channel to send the message
             text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)

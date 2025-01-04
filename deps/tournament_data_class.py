@@ -30,6 +30,7 @@ class Tournament:
     max_players: int
     maps: str
     has_started: bool
+    registered_user_count: int = 0  # Default value
 
     @staticmethod
     def from_db_row(row):
@@ -45,6 +46,7 @@ class Tournament:
             max_players=row[7],
             maps=row[8],
             has_started=bool(row[9]),  # Convert integer to boolean
+            registered_user_count=row[10],
         )
 
 

@@ -46,10 +46,11 @@ def generate_bracket_file(tournament_id: int, file_name: str = "tournament_brack
     return file
 
 
-async def send_tournament_bracket_to_a_guild(guild_id: int) -> None:
+async def send_tournament_bracket_to_a_guild(guild: discord.guild) -> None:
     """
     Send the tournament bracket to a guild
     """
+    guild_id = guild.id
     channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
@@ -68,10 +69,11 @@ async def send_tournament_bracket_to_a_guild(guild_id: int) -> None:
         await channel.send(file=file, content=f"Bracket for {tournament.name}")
 
 
-async def send_tournament_registration_to_a_guild(guild_id: int) -> None:
+async def send_tournament_registration_to_a_guild(guild: discord.guild) -> None:
     """
     Sending a message once a day to remind the registration for the tournament
     """
+    guild_id = guild.id
     channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
@@ -83,17 +85,18 @@ async def send_tournament_registration_to_a_guild(guild_id: int) -> None:
     if len(tournaments) > 0:
         msg = "There are still open registrations for the following tournaments:\n"
         for tournament in tournaments:
-            msg += f"{tournament.name}\n"
-        msg += f"Use the command /{COMMAND_TOURNAMENT_REGISTER_TOURNAMENT} to join a tournament."
+            msg += f"➡️ {tournament.name} ({tournament.registered_user_count}/{tournament.max_players})\n"
+        msg += f"Use the command `/{COMMAND_TOURNAMENT_REGISTER_TOURNAMENT}` to join a tournament."
         await channel.send(content=msg)
     else:
         print_log(f"send_daily_tournament_registration_message: No open registration for guild {guild_id}")
 
 
-async def send_tournament_starting_to_a_guild(guild_id: int) -> None:
+async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
     """
     Send a message once at the date of a tournament is starting
     """
+    guild_id = guild.id
     channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
@@ -106,7 +109,7 @@ async def send_tournament_starting_to_a_guild(guild_id: int) -> None:
         msg = "Tournaments starting today:\nUse the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do)."
         for tournament in tournaments:
             msg += f"{tournament.name}\n"
-            msg += f"Use the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do)."
+            msg += f"Use the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
         await channel.send(content=msg)
         for tournament in tournaments:
             file = generate_bracket_file(tournament.id)

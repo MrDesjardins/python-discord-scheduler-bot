@@ -33,8 +33,7 @@ class TournamentTasksCog(commands.Cog):
         """
         print_log(f"send_daily_tournament_registration_message: Sending daily registration reminder {datetime.now()}")
         for guild in self.bot.guilds:
-            guild_id = guild.id
-            await send_tournament_registration_to_a_guild(guild_id)
+            await send_tournament_registration_to_a_guild(guild)
 
     @send_daily_tournament_registration_message.before_loop
     async def before_send_daily_tournament_registration_message_task(self):
@@ -49,8 +48,7 @@ class TournamentTasksCog(commands.Cog):
         """
         print_log(f"send_daily_tournament_start_message: Sending starting tournament message {datetime.now()}")
         for guild in self.bot.guilds:
-            guild_id = guild.id
-            await send_tournament_starting_to_a_guild(guild_id)
+            await send_tournament_starting_to_a_guild(guild)
 
     @send_daily_tournament_start_message.before_loop
     async def before_send_daily_tournament_start_message_task(self):

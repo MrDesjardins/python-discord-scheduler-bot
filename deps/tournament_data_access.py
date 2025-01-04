@@ -128,7 +128,8 @@ def fetch_tournament_start_today(guild_id: int) -> List[Tournament]:
                     tournament.best_of,
                     tournament.max_players,
                     tournament.maps,
-                    tournament.has_started
+                    tournament.has_started,
+                    0 as current_user_count
                 FROM tournament
                 WHERE tournament.guild_id = :guild_id
                 AND date(tournament.start_date) == date(:current_time);
@@ -199,7 +200,8 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
                     tournament.best_of,
                     tournament.max_players,
                     tournament.maps,
-                    tournament.has_started
+                    tournament.has_started,
+                    0 as current_user_count
                 FROM tournament
                 INNER JOIN
                     user_tournament
@@ -234,7 +236,8 @@ def fetch_tournament_not_completed_for_user(guild_id: int, user_id: int) -> List
                     tournament.best_of,
                     tournament.max_players,
                     tournament.maps,
-                    tournament.has_started
+                    tournament.has_started,
+                    0 as current_user_count
                 FROM tournament
                 INNER JOIN
                     user_tournament
@@ -270,7 +273,8 @@ def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: int) -> 
                 tournament.best_of,
                 tournament.max_players,
                 tournament.maps,
-                tournament.has_started
+                tournament.has_started,
+                0 as current_user_count
             FROM tournament
             WHERE tournament.guild_id = :guild_id
                 AND date(tournament.registration_date) <= date(:current_time)
@@ -308,7 +312,8 @@ def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
                 best_of,
                 max_players,
                 maps,
-                has_started
+                has_started,
+                0 as current_user_count
             FROM tournament
             WHERE guild_id = :guild_id 
                 AND date(start_date) <= date(:current_time) 
@@ -480,7 +485,8 @@ def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
                 best_of,
                 max_players,
                 maps,
-                has_started
+                has_started,
+                0 as current_user_count
             FROM tournament
             WHERE id = :tournament_id;
             """,
