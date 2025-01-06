@@ -8,7 +8,7 @@ from typing import List, Optional
 import discord
 from deps.data_access import data_access_get_channel, data_access_get_guild_tournament_text_channel_id
 from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_functions import build_tournament_tree
+from deps.tournament_functions import build_tournament_tree, start_tournament
 from deps.log import print_error_log, print_log
 from deps.tournament_data_access import (
     fetch_active_tournament_by_guild,
@@ -18,7 +18,11 @@ from deps.tournament_data_access import (
     fetch_tournament_start_today,
 )
 from deps.tournament_visualizer import plot_tournament_bracket
-from deps.values import COMMAND_TOURNAMENT_REGISTER_TOURNAMENT, COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT
+from deps.values import (
+    COMMAND_TOURNAMENT_REGISTER_TOURNAMENT,
+    COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT,
+    COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT,
+)
 
 
 def generate_bracket_file(tournament_id: int, file_name: str = "tournament_bracket.png") -> Optional[discord.File]:
@@ -106,10 +110,15 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
     channel: discord.TextChannel = await data_access_get_channel(channel_id)
     tournaments: List[Tournament] = fetch_tournament_start_today(guild_id)
     if len(tournaments) > 0:
-        msg = "Tournaments starting today:\nUse the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do)."
+        msg = f"Tournaments starting today:\nUse the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do).\nUse the command /{COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT} to see who you are facing."
         for tournament in tournaments:
-            msg += f"{tournament.name}\n"
-            msg += f"Use the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
+            try:
+                start_tournament(tournament)
+                msg += f"\n{tournament.name}"
+    
+            except Exception as e:
+                print_error_log(f"send_tournament_starting_to_a_guild: Error starting tournament {tournament.id}: {e}")
+        msg += f"\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
         await channel.send(content=msg)
         for tournament in tournaments:
             file = generate_bracket_file(tournament.id)
