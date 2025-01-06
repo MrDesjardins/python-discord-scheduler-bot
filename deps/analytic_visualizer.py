@@ -595,7 +595,7 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
                 start_time = start_times.pop(start_key)
                 play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
 
-                week_start = f"{timestamp.year}-{timestamp.isocalendar().week}"
+                week_start = f"{timestamp.isocalendar().year}-{timestamp.isocalendar().week}"
                 user_weekly_play_times[activity.user_id][week_start] += play_duration
                 user_play_times[activity.user_id] += play_duration  # Track total time per user
 
@@ -605,12 +605,10 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
     # Identify all unique weeks across top users for consistent x-axis alignment
     all_weeks = sorted(set(week for user_data in user_weekly_play_times.values() for week in user_data.keys()))
     all_dates = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
-
     # Prepare plot with three subplots
     fig, axs = plt.subplots(3, 1, figsize=(12, 18))
     segments = [top_users[:10], top_users[10:20], top_users[20:30]]  # Split top_users into three segments
     titles = ["Top 10 Active Users", "Users 11-20", "Users 21-30"]
-
     for ax, segment, title in zip(axs, segments, titles):
         for user_id, _ in segment:
             # Fill in missing weeks with zero to create a continuous line
@@ -675,7 +673,7 @@ def display_user_line_graph_time(user_id: int, show: bool = True, from_day: int 
                 start_time = start_times.pop(start_key)
                 play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
 
-                week_start = f"{timestamp.year}-{timestamp.isocalendar().week}"
+                week_start = f"{timestamp.isocalendar().year}-{timestamp.isocalendar().week}"
                 user_weekly_play_times[week_start] += play_duration
                 user_play_times += play_duration  # Track total time per user
 

@@ -104,6 +104,7 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
         Looking for XXXXX match
         ARCADE match XXXXX
         VERSUS AI match XXXXX
+        QUICK MATCH match XXXXX
     """
     count_in_menu = 0
     game_not_started = 0

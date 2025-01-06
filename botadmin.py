@@ -196,6 +196,8 @@ def display_user_line_graph_time_ask_user(from_day: int, to_day: int, time_choic
         show_shortcut_hints=False,
     )
     user_choice = terminal_menu.show()
+    if user_choice is None:
+        return
     if user_choice == len(user_info_list):
         show_visualization_menu(time_choice)
         return
