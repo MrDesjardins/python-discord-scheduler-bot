@@ -111,7 +111,7 @@ class ModTournament(commands.Cog):
         if interaction.user.id == interaction.guild.owner_id:
             tournament: Tournament = fetch_tournament_by_id(tournament_id)
             start_tournament(tournament)
-            await interaction.followup.send(f"Tournamend '{tournament.name}' Started", ephemeral=True)
+            await interaction.followup.send(f"Tournament '{tournament.name}' Started", ephemeral=True)
         else:
             await interaction.followup.send("Only the owner of the guild can reset the cache", ephemeral=True)
 
