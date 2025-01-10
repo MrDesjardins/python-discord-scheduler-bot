@@ -89,7 +89,8 @@ async def send_tournament_registration_to_a_guild(guild: discord.guild) -> None:
     if len(tournaments) > 0:
         msg = "There are still open registrations for the following tournaments:\n"
         for tournament in tournaments:
-            msg += f"➡️ {tournament.name} ({tournament.registered_user_count}/{tournament.max_players})\n"
+            start_date = tournament.start_date.strftime("%Y-%m-%d")
+            msg += f"➡️ {tournament.name} Start the {start_date} with currently {tournament.registered_user_count}/{tournament.max_players} participants\n"
         msg += f"Use the command `/{COMMAND_TOURNAMENT_REGISTER_TOURNAMENT}` to join a tournament."
         await channel.send(content=msg)
     else:
@@ -115,7 +116,7 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
             try:
                 start_tournament(tournament)
                 msg += f"\n{tournament.name}"
-    
+
             except Exception as e:
                 print_error_log(f"send_tournament_starting_to_a_guild: Error starting tournament {tournament.id}: {e}")
         msg += f"\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
