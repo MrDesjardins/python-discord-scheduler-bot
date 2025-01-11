@@ -11,9 +11,9 @@ from deps.values import COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT
 from deps.tournament_functions import get_node_by_levels
 
 font_path = os.path.abspath("./fonts/Minecraft.ttf")
-font1 = ImageFont.truetype(font_path, 12)
-font2 = ImageFont.truetype(font_path, 16)
-font3 = ImageFont.truetype(font_path, 18)
+font1 = ImageFont.truetype(font_path, 16)
+font2 = ImageFont.truetype(font_path, 20)
+font3 = ImageFont.truetype(font_path, 22)
 
 
 def get_name(user_id: str, users_map: dict) -> str:
@@ -21,11 +21,11 @@ def get_name(user_id: str, users_map: dict) -> str:
     Get the name of a user
     """
     if user_id in users_map:
-        return users_map[user_id].display_name[:8]
+        return users_map[user_id].display_name[:16]
     return user_id
 
 
-def _image_return(im: Image, show: bool = True, file_name:str = "bracket.png"):
+def _image_return(im: Image, show: bool = True, file_name: str = "bracket.png"):
     """
     Return an image or the bytes of the iamge
     """
@@ -41,7 +41,9 @@ def _image_return(im: Image, show: bool = True, file_name:str = "bracket.png"):
         return buf.getvalue()
 
 
-def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: bool = True, file_name:str = "bracket.png") -> Optional[bytes]:
+def plot_tournament_bracket(
+    tournament: Tournament, root: TournamentNode, show: bool = True, file_name: str = "bracket.png"
+) -> Optional[bytes]:
     """
     Generates an image of a tournament bracket from the root node of a tree.
 
@@ -52,8 +54,8 @@ def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: 
     """
     IMAGE_HEADER_SPACE = 60
     IMAGE_MARGIN = 25
-    NODE_WIDTH = 150
-    NODE_HEIGHT = 50
+    NODE_WIDTH = 270
+    NODE_HEIGHT = 60
     NODE_MARGIN_VERTICAL = 25
     NODE_MARGIN_HORIZONTAL = 35
     NODE_PADDING = 10
@@ -109,14 +111,28 @@ def plot_tournament_bracket(tournament: Tournament, root: TournamentNode, show: 
                     else f"*{ get_name(node.user2_id, users_map)}*"
                 )
 
-            label = f"{user1_name} vs {user2_name}\n{node.map} - {node.score if node.score is not None else '0-0'}"
+            label_names = f"{user1_name} vs {user2_name}"
+            label_map = f"{node.map} - {node.score if node.score is not None else '0-0'}"
 
             # Add node to the graph
             draw.rectangle((x_pos, y_pos, x_pos + NODE_WIDTH, y_pos + NODE_HEIGHT), fill=bgcolor, outline="black")
 
             # Draw the current node with label
             draw.text(
-                (x_pos + NODE_PADDING, y_pos + NODE_PADDING), label, fill="black", anchor="la", align="left", font=font1
+                (x_pos + NODE_PADDING, y_pos + NODE_PADDING),
+                label_names,
+                fill="black",
+                anchor="la",
+                align="left",
+                font=font1,
+            )
+            draw.text(
+                (x_pos + NODE_PADDING, y_pos + NODE_PADDING + 20),
+                label_map,
+                fill="black",
+                anchor="la",
+                align="left",
+                font=font1,
             )
 
             # Draw connections to child nodes

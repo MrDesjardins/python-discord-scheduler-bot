@@ -112,6 +112,7 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
     tournaments: List[Tournament] = fetch_tournament_start_today(guild_id)
     if len(tournaments) > 0:
         msg = f"Tournaments starting today:\nUse the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do).\nUse the command /{COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT} to see who you are facing."
+        msg += f"\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
         for tournament in tournaments:
             try:
                 start_tournament(tournament)
@@ -119,7 +120,7 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
 
             except Exception as e:
                 print_error_log(f"send_tournament_starting_to_a_guild: Error starting tournament {tournament.id}: {e}")
-        msg += f"\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
+       
         await channel.send(content=msg)
         for tournament in tournaments:
             file = generate_bracket_file(tournament.id)

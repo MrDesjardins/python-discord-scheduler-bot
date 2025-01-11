@@ -1,0 +1,1 @@
+This folder must exist, but the content should not be inside GIT

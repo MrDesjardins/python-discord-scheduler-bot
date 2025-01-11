@@ -165,7 +165,7 @@ class UserFeatures(commands.Cog):
                         )
                 else:
                     await interaction.followup.send(
-                        f"There are already five people in the voice channel: <#{voice_channel.id}>. The {COMMAND_LFG} is not sent to the channel.",
+                        f"There are already five people in the voice channel: <#{voice_channel.id}>. The {COMMAND_LFG} is will no 'at mention' the channel.",
                         ephemeral=True,
                     )
             else:
