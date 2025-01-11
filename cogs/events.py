@@ -35,6 +35,7 @@ from deps.models import ActivityTransition, SimpleUser
 from deps.siege import get_siege_activity, get_user_rank_emoji
 from deps.values import EMOJI_TO_TIME
 
+
 class MyEventsCog(commands.Cog):
     lock = asyncio.Lock()
 

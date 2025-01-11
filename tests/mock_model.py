@@ -8,7 +8,7 @@ mock_user1 = UserInfo(
     ubisoft_username_active="user_1",
     ubisoft_username_max="user_1",
     r6_tracker_active_id=None,
-    time_zone="EASTERN",
+    time_zone="US/Eastern",
 )
 
 mock_user2 = UserInfo(
@@ -17,7 +17,7 @@ mock_user2 = UserInfo(
     ubisoft_username_active="user_2",
     ubisoft_username_max="user_2",
     r6_tracker_active_id=None,
-    time_zone="EASTERN",
+    time_zone="US/Eastern",
 )
 
 mock_user3 = UserInfo(
@@ -26,7 +26,7 @@ mock_user3 = UserInfo(
     ubisoft_username_active="user_3",
     ubisoft_username_max="user_3",
     r6_tracker_active_id=None,
-    time_zone="PACIFIC",
+    time_zone="US/Pacific",
 )
 
 mock_user4 = UserInfo(
@@ -35,7 +35,7 @@ mock_user4 = UserInfo(
     ubisoft_username_active="user_4",
     ubisoft_username_max="user_4",
     r6_tracker_active_id=None,
-    time_zone="PACIFIC",
+    time_zone="US/Pacific",
 )
 
 mock_user5 = UserInfo(
@@ -44,7 +44,7 @@ mock_user5 = UserInfo(
     ubisoft_username_active="user_5",
     ubisoft_username_max="user_5",
     r6_tracker_active_id=None,
-    time_zone="CENTRAL",
+    time_zone="US/Central",
 )
 
 mock_user6 = UserInfo(
@@ -53,7 +53,7 @@ mock_user6 = UserInfo(
     ubisoft_username_active="user_6",
     ubisoft_username_max="user_6",
     r6_tracker_active_id=None,
-    time_zone="CENTRAL",
+    time_zone="US/Central",
 )
 
 mock_user7 = UserInfo(
@@ -62,7 +62,7 @@ mock_user7 = UserInfo(
     ubisoft_username_active="user_7",
     ubisoft_username_max="user_7",
     r6_tracker_active_id=None,
-    time_zone="CENTRAL",
+    time_zone="US/Central",
 )
 
 mock_user8 = UserInfo(
@@ -71,5 +71,5 @@ mock_user8 = UserInfo(
     ubisoft_username_active="user_8",
     ubisoft_username_max="user_8",
     r6_tracker_active_id=None,
-    time_zone="PACIFIC",
+    time_zone="US/Pacific",
 )

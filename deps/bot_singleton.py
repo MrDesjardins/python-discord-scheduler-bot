@@ -2,6 +2,8 @@
 
 import discord
 from deps.mybot import MyBot
+
+
 class BotSingleton:
     """A singleton class for the bot instance"""
 

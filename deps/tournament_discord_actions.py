@@ -120,7 +120,7 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
 
             except Exception as e:
                 print_error_log(f"send_tournament_starting_to_a_guild: Error starting tournament {tournament.id}: {e}")
-       
+
         await channel.send(content=msg)
         for tournament in tournaments:
             file = generate_bracket_file(tournament.id)

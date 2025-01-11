@@ -412,22 +412,8 @@ def test_many_users_same_day():
         UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
     ]
     user_id_names: Dict[int, UserInfo] = {
-        1: UserInfo(
-            id=1,
-            display_name="user_1",
-            ubisoft_username_active="user_1",
-            ubisoft_username_max="user_1",
-            r6_tracker_active_id=None,
-            time_zone="EASTERN",
-        ),
-        2: UserInfo(
-            id=2,
-            display_name="user_2",
-            ubisoft_username_active="user_2",
-            ubisoft_username_max="user_2",
-            r6_tracker_active_id=None,
-            time_zone="EASTERN",
-        ),
+        1: mock_user1,
+        2: mock_user2,
     }
     result = users_by_weekday(activity_data, user_id_names)
     expected_result = {

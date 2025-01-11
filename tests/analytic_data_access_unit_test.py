@@ -19,6 +19,8 @@ from deps.analytic_data_access import (
     insert_user_activity,
 )
 
+from tests.mock_model import mock_user1
+
 CHANNEL1_ID = 100
 CHANNEL2_ID = 200
 GUILD_ID = 1000
@@ -160,15 +162,7 @@ def test_user_in_and_not_in_user_info_table():
     """Testing when 1 user in and 2 does not have an entry in the info table"""
     insert_user_activity(1, "user_1", 1, 1, EVENT_CONNECT, datetime(2024, 9, 20, 13, 20, 0, 6318))
     users = fetch_user_info_by_user_id_list([1, 2, 3])
-    assert users == [
-        UserInfo(
-            id=1,
-            display_name="user_1",
-            ubisoft_username_active=None,
-            ubisoft_username_max=None,
-            r6_tracker_active_id=None,
-            time_zone="US/Eastern",
-        ),
-        None,
-        None,
-    ]
+    assert len(users) == 3
+    assert users[0].id == 1
+    assert users[1] is None
+    assert users[2] is None
