@@ -166,6 +166,7 @@ def test_user_in_and_not_in_user_info_table():
             display_name="user_1",
             ubisoft_username_active=None,
             ubisoft_username_max=None,
+            r6_tracker_active_id=None,
             time_zone="US/Eastern",
         ),
         None,

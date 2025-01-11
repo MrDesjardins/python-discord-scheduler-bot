@@ -20,6 +20,16 @@ from deps.tournament_functions import (
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.models import Reason
 from deps.tournament_models import TournamentNode
+from tests.mock_model import (
+    mock_user1,
+    mock_user2,
+    mock_user3,
+    mock_user4,
+    mock_user5,
+    mock_user6,
+    mock_user7,
+    mock_user8,
+)
 
 lock = asyncio.Lock()
 
@@ -31,15 +41,6 @@ t5 = datetime(2024, 11, 27, 12, 30, 0, tzinfo=timezone.utc)
 t6 = datetime(2024, 11, 28, 12, 30, 0, tzinfo=timezone.utc)
 
 fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3", False)
-
-fake_user_1 = UserInfo(1, "User 1", "Rank 1", "User 1", "EASTERN")
-fake_user_2 = UserInfo(2, "User 2", "Rank 1", "User 2", "EASTERN")
-fake_user_3 = UserInfo(3, "User 3", "Rank 1", "User 3", "EASTERN")
-fake_user_4 = UserInfo(4, "User 4", "Rank 1", "User 4", "EASTERN")
-fake_user_5 = UserInfo(5, "User 5", "Rank 1", "User 5", "EASTERN")
-fake_user_6 = UserInfo(6, "User 6", "Rank 1", "User 6", "EASTERN")
-fake_user_7 = UserInfo(7, "User 7", "Rank 1", "User 7", "EASTERN")
-fake_user_8 = UserInfo(8, "User 8", "Rank 1", "User 8", "EASTERN")
 
 
 def test_build_tournament_tree_full_first_round():
@@ -163,7 +164,7 @@ def test_can_register_tournament_tournament_full(mock_datetime):
     ):
         with patch(
             "deps.tournament_functions.get_people_registered_for_tournament",
-            return_value=[fake_user_2, fake_user_3, fake_user_4, fake_user_5],
+            return_value=[mock_user2, mock_user3, mock_user4, mock_user5],
         ):
             reason: Reason = can_register_to_tournament(1, 1)
             assert reason.is_successful is False
@@ -178,7 +179,7 @@ def test_can_register_tournament_already_registered(mock_datetime):
         "deps.tournament_functions.fetch_tournament_by_id",
         return_value=fake_tournament,
     ):
-        with patch("deps.tournament_functions.get_people_registered_for_tournament", return_value=[fake_user_1]):
+        with patch("deps.tournament_functions.get_people_registered_for_tournament", return_value=[mock_user1]):
             reason: Reason = can_register_to_tournament(1, 1)
             assert reason.is_successful is False
             assert reason.text == "You are already registered for the tournament."
@@ -234,7 +235,7 @@ def test_assign_people_to_games_where_one_participant_alone():
         TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),
         TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),
     ]
-    people = [fake_user_1, fake_user_2, fake_user_3, fake_user_4, fake_user_5]
+    people = [mock_user1, mock_user2, mock_user3, mock_user4, mock_user5]
 
     with patch("random.shuffle") as mock_shuffle:
         mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
@@ -269,7 +270,7 @@ def test_assign_people_to_games_when_full_participant():
         TournamentGame(6, 1, None, None, None, t1, None, None, 3, 4),
         TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),
     ]
-    people = [fake_user_1, fake_user_2, fake_user_3, fake_user_4, fake_user_5, fake_user_6, fake_user_7, fake_user_8]
+    people = [mock_user1, mock_user2, mock_user3, mock_user4, mock_user5, mock_user6, mock_user7, mock_user8]
 
     with patch("random.shuffle") as mock_shuffle:
         mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list

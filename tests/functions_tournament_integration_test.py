@@ -20,8 +20,8 @@ from deps.tournament_functions import (
     fetch_tournament_by_id,
 )
 from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_discord_actions import generate_bracket_file
 from deps.tournament_visualizer import plot_tournament_bracket
+from tests.mock_model import mock_user1, mock_user2, mock_user3, mock_user4, mock_user5, mock_user6
 
 CHANNEL1_ID = 100
 CHANNEL2_ID = 200
@@ -499,29 +499,59 @@ def test_full_tournament():
         with patch("deps.tournament_visualizer.fetch_user_info") as mock_fetch_user_info:
             mock_tournament_functions_datetime.now.return_value = date_start
             mock_fetch_user_info.return_value = {
-                1: UserInfo(1, "User 1 Name", "User1", None, "UTC"),
-                2: UserInfo(2, "User 2 Name", "User2", None, "UTC"),
-                3: UserInfo(3, "User 3 Name", "User3", None, "UTC"),
-                4: UserInfo(4, "User 4 Name", "User4", None, "UTC"),
-                5: UserInfo(5, "User 5 Name", "User5", None, "UTC"),
-                6: UserInfo(6, "User 6 Name", "User6", None, "UTC"),
+                1: mock_user1,
+                2: mock_user2,
+                3: mock_user3,
+                4: mock_user4,
+                5: mock_user5,
+                6: mock_user6,
             }
-            plot_tournament_bracket(tournament, build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)), True, "./tests/generated_contents/bracket_1.png")
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_1.png",
+            )
             report_result = report_lost_tournament(tournament_id, u1, "7-5")
             assert report_result.is_successful is True, report_result.text
-            plot_tournament_bracket(tournament, build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)), True, "./tests/generated_contents/bracket_2.png")
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_2.png",
+            )
             report_result = report_lost_tournament(tournament_id, u4, "5-2")
             assert report_result.is_successful is True, report_result.text
-            plot_tournament_bracket(tournament, build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)), True, "./tests/generated_contents/bracket_3.png")
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_3.png",
+            )
             report_result = report_lost_tournament(tournament_id, u2, "2-4")
             assert report_result.is_successful is True, report_result.text
-            plot_tournament_bracket(tournament, build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)), True, "./tests/generated_contents/bracket_4.png")
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_4.png",
+            )
             report_result = report_lost_tournament(tournament_id, u5, "1-2")
             assert report_result.is_successful is True, report_result.text
-            plot_tournament_bracket(tournament, build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)), True, "./tests/generated_contents/bracket_5.png")
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_5.png",
+            )
             report_result = report_lost_tournament(tournament_id, u6, "5-2")
             assert report_result.is_successful is True, report_result.text
-            plot_tournament_bracket(tournament, build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)), True, "./tests/generated_contents/bracket_6.png")
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_6.png",
+            )
     # The tournament is over, get the winner
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)

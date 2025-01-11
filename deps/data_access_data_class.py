@@ -12,6 +12,7 @@ class UserInfo:
     display_name: str
     ubisoft_username_max: Optional[str]
     ubisoft_username_active: Optional[str]
+    r6_tracker_active_id: Optional[str]  # UUID
     """ List of time zones: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones """
     time_zone: str
 

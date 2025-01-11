@@ -63,7 +63,7 @@ def fetch_user_info() -> Dict[int, UserInfo]:
     Fetch all user names from the user_info table
     """
     database_manager.get_cursor().execute(
-        "SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone FROM user_info"
+        "SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, r6_tracker_active_id, time_zone FROM user_info"
     )
     return {row[0]: UserInfo(*row) for row in database_manager.get_cursor().fetchall()}
 
@@ -77,7 +77,7 @@ async def fetch_user_info_by_user_id(user_id: int) -> Optional[UserInfo]:
         result = (
             database_manager.get_cursor()
             .execute(
-                "SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone FROM user_info WHERE id = ?",
+                "SELECT id, display_name, ubisoft_username_max, ubisoft_username_active,r6_tracker_active_id, time_zone FROM user_info WHERE id = ?",
                 (user_id,),
             )
             .fetchone()
@@ -99,7 +99,7 @@ def fetch_user_info_by_user_id_list(user_id_list: list[int]) -> List[Optional[Us
     list_ids = ",".join("?" for _ in user_id_list)
     database_manager.get_cursor().execute(
         f"""
-        SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone 
+        SELECT id, display_name, ubisoft_username_max, ubisoft_username_active, r6_tracker_active_id, time_zone 
         FROM user_info WHERE id IN ({list_ids})
         """,
         user_id_list,  # Pass user_id_list as the parameter values for the ? placeholders
@@ -220,18 +220,21 @@ def data_access_set_ubisoft_username_active(user_id: int, username: str) -> None
     database_manager.get_conn().commit()
 
 
-def upsert_user_info(user_id, display_name, user_max_account_name, user_active_account, user_timezone) -> None:
+def upsert_user_info(
+    user_id, display_name, user_max_account_name, user_active_account, r6_tracker_active_id, user_timezone
+) -> None:
     """
     Log a user activity in the database
     """
     database_manager.get_cursor().execute(
         """
-    INSERT INTO user_info(id, display_name, ubisoft_username_max, ubisoft_username_active, time_zone)
-      VALUES(:user_id, :user_display_name, :user_max_account_name, :user_active_account, :user_timezone)
+    INSERT INTO user_info(id, display_name, ubisoft_username_max, ubisoft_username_active, r6_tracker_active_id, time_zone)
+      VALUES(:user_id, :user_display_name, :user_max_account_name, :user_active_account, :r6_tracker_active_id, :user_timezone)
       ON CONFLICT(id) DO UPDATE SET
         display_name = :user_display_name,
         ubisoft_username_max = :user_max_account_name,
         ubisoft_username_active = :user_active_account,
+        r6_tracker_active_id = :r6_tracker_active_id,
         time_zone = :user_timezone
       WHERE id = :user_id;
     """,
@@ -240,6 +243,7 @@ def upsert_user_info(user_id, display_name, user_max_account_name, user_active_a
             "user_display_name": display_name,
             "user_max_account_name": user_max_account_name,
             "user_active_account": user_active_account,
+            "r6_tracker_active_id": r6_tracker_active_id,
             "user_timezone": user_timezone,
         },
     )

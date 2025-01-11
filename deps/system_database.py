@@ -66,6 +66,7 @@ class DatabaseManager:
             display_name TEXT NOT NULL,
             ubisoft_username_max TEXT NULL,
             ubisoft_username_active TEXT NULL,
+            r6_tracker_active_id TEXT NULL,
             time_zone TEXT DEFAULT 'US/Eastern'
         )
         """

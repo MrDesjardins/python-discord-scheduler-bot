@@ -171,6 +171,8 @@ def users_by_weekday(
 ) -> Dict[int, list[UserInfoWithCount]]:
     """
     Return the users per weekday
+    Monday = 0, Sunday = 6
+    Day of the week is the key of the dictionary
     """
     data = [
         {

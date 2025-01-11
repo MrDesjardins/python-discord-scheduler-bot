@@ -18,6 +18,8 @@ from deps.analytic_functions import (
     users_last_played_over_day,
 )
 
+from tests.mock_model import mock_user1, mock_user2, mock_user3
+
 
 def test_full_overlap():
     """Test full overlap between two time intervals"""
@@ -410,30 +412,32 @@ def test_many_users_same_day():
         UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
     ]
     user_id_names: Dict[int, UserInfo] = {
-        1: UserInfo(1, "user_1", "user_1", "user_1", "EASTERN"),
-        2: UserInfo(2, "user_2", "user_2", "user_2", "EASTERN"),
+        1: UserInfo(
+            id=1,
+            display_name="user_1",
+            ubisoft_username_active="user_1",
+            ubisoft_username_max="user_1",
+            r6_tracker_active_id=None,
+            time_zone="EASTERN",
+        ),
+        2: UserInfo(
+            id=2,
+            display_name="user_2",
+            ubisoft_username_active="user_2",
+            ubisoft_username_max="user_2",
+            r6_tracker_active_id=None,
+            time_zone="EASTERN",
+        ),
     }
     result = users_by_weekday(activity_data, user_id_names)
     expected_result = {
         2: [
             UserInfoWithCount(
-                user=UserInfo(
-                    id=1,
-                    display_name="user_1",
-                    ubisoft_username_active="user_1",
-                    ubisoft_username_max="user_1",
-                    time_zone="EASTERN",
-                ),
+                user=mock_user1,
                 count=1,
             ),
             UserInfoWithCount(
-                user=UserInfo(
-                    id=2,
-                    display_name="user_2",
-                    ubisoft_username_active="user_2",
-                    ubisoft_username_max="user_2",
-                    time_zone="EASTERN",
-                ),
+                user=mock_user2,
                 count=1,
             ),
         ]
@@ -444,37 +448,26 @@ def test_many_users_same_day():
 def test_single_user_many_weekday():
     """Test single user playing on many days"""
     activity_data = [
-        UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),
-        UserActivity(1, 100, EVENT_CONNECT, "2024-10-10 13:00:00.6318", 1),
-        UserActivity(1, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),
+        UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00.6318", 1),  # Wednesday = 2
+        UserActivity(3, 100, EVENT_CONNECT, "2024-10-10 13:00:00.6318", 1),  # Thursday = 3
+        UserActivity(3, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),  # Thursday = 3
     ]
     user_id_names: Dict[int, UserInfo] = {
-        1: UserInfo(1, "user_1", "user_1", "user_1", "EASTERN"),
-        2: UserInfo(2, "user_2", "user_2", "user_2", "EASTERN"),
+        1: mock_user1,
+        2: mock_user2,
+        3: mock_user3,
     }
     result = users_by_weekday(activity_data, user_id_names)
     expected_result = {
         2: [
             UserInfoWithCount(
-                user=UserInfo(
-                    id=1,
-                    display_name="user_1",
-                    ubisoft_username_active="user_1",
-                    ubisoft_username_max="user_1",
-                    time_zone="EASTERN",
-                ),
+                user=mock_user2,
                 count=1,
             )
         ],
         3: [
             UserInfoWithCount(
-                user=UserInfo(
-                    id=1,
-                    display_name="user_1",
-                    ubisoft_username_active="user_1",
-                    ubisoft_username_max="user_1",
-                    time_zone="EASTERN",
-                ),
+                user=mock_user3,
                 count=2,
             ),
         ],
@@ -491,42 +484,24 @@ def test_many_user_many_weekday():
         UserActivity(2, 100, EVENT_CONNECT, "2024-10-17 13:00:00.6318", 1),
     ]
     user_id_names: Dict[int, UserInfo] = {
-        1: UserInfo(1, "user_1", "user_1", "user_1", "EASTERN"),
-        2: UserInfo(2, "user_2", "user_2", "user_2", "EASTERN"),
+        1: mock_user1,
+        2: mock_user2,
     }
     result = users_by_weekday(activity_data, user_id_names)
     expected_result = {
         2: [
             UserInfoWithCount(
-                user=UserInfo(
-                    id=1,
-                    display_name="user_1",
-                    ubisoft_username_active="user_1",
-                    ubisoft_username_max="user_1",
-                    time_zone="EASTERN",
-                ),
+                user=mock_user1,
                 count=1,
             )
         ],
         3: [
             UserInfoWithCount(
-                user=UserInfo(
-                    id=1,
-                    display_name="user_1",
-                    ubisoft_username_active="user_1",
-                    ubisoft_username_max="user_1",
-                    time_zone="EASTERN",
-                ),
+                user=mock_user1,
                 count=2,
             ),
             UserInfoWithCount(
-                user=UserInfo(
-                    id=2,
-                    display_name="user_2",
-                    ubisoft_username_active="user_2",
-                    ubisoft_username_max="user_2",
-                    time_zone="EASTERN",
-                ),
+                user=mock_user2,
                 count=1,
             ),
         ],

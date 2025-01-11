@@ -7,7 +7,6 @@ from deps.analytic_data_access import upsert_user_info
 from deps.values import valid_time_zone_options
 from deps.mybot import MyBot
 from deps.siege import get_guild_rank_emoji
-from deps.log import print_error_log
 
 timezones_options = [discord.SelectOption(label=timezone, value=timezone) for timezone in valid_time_zone_options]
 
@@ -88,6 +87,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
             self.view.member.display_name,
             self.view.max_rank_account,
             self.view.active_account,
+            None,
             self.view.user_timezone,
         )
 

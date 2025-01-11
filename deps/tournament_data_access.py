@@ -414,6 +414,7 @@ def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
               display_name, 
               ubisoft_username_max, 
               ubisoft_username_active, 
+              r6_tracker_active_id,
               time_zone
         FROM user_tournament
         LEFT JOIN user_info ON user_tournament.user_id = user_info.id
