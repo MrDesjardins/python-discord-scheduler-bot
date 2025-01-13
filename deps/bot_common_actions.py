@@ -570,19 +570,17 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
         print_log(
             f"send_automatic_lfg_message: User count {user_count} in {guild_name} for voice channel {voice_channel_id}. Skipping."
         )
-        if (
-            user_count == 0
-        ):  # TEMPORARY TO SEE MORE AGGREGATION. SHOULD BE UNCOMMENDED AND STOP in this IF without that IF
-            return
 
     current_time = datetime.now(timezone.utc)
-    last_message_time = await data_access_get_last_bot_message_in_main_text_channel(guild_id)
+    last_message_time: Optional[datetime] = await data_access_get_last_bot_message_in_main_text_channel(guild_id)
 
-    if last_message_time is not None and last_message_time - current_time < timedelta(minutes=10):
-        print_log(
-            f"send_automatic_lfg_message: Last message sent less than 10 minutes ago for guild {guild_name}. Skipping."
-        )
-        return
+    if last_message_time is not None:
+        delta = last_message_time - current_time
+        if delta < timedelta(minutes=10):
+            print_log(
+                f"send_automatic_lfg_message: Last message sent less than 10 minutes ago ({delta.total_seconds} seconds ago) for guild {guild_name}. Skipping."
+            )
+            return
 
     # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
     try:
