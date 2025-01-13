@@ -385,6 +385,25 @@ If the service does not start, you can check the status of the service with the 
 sudo systemctl status gametimescheduler.service
 ```
 
+You can check the log in the service journal:
+
+```sh
+sudo journalctl -u gametimescheduler.service --reverse
+```
+
+Real-time check:
+
+```sh
+sudo journalctl -u gametimescheduler.service -f
+```
+
+Checking the log file (last 200 or real-time):
+
+```sh
+tail -n 200 app.log
+tail -n 200 app.log -f
+```
+
 ## Linting
 
 To lint the code, you can use the following command:

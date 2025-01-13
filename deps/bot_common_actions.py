@@ -588,14 +588,7 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
     try:
         aggregation = get_aggregation_siege_activity(dict_users)
         print_log(
-            f"""send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}
-            \ngame_not_started {aggregation.game_not_started}
-            \nuser_leaving {aggregation.user_leaving}
-            \nwarming_up {aggregation.warming_up}
-            \ndone_warming_up {aggregation.done_warming_up}
-            \ndone_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}
-            \nplaying_rank {aggregation.playing_rank}
-            \nplaying_standard {aggregation.playing_standard}"""
+            f"send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started {aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, done_warming_up {aggregation.done_warming_up}, done_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, playing_standard {aggregation.playing_standard}"
         )
         if aggregation.done_match_waiting_in_menu > 0 or aggregation.done_warming_up > 0:
             # Get the text channel to send the message
@@ -615,7 +608,7 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
             # channel.send(
             #     f"🎮 **{user_count}** users in the voice channel are looking for a group to play. Use the slash command `/lfg` to join them."
             # )
-        data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
+            data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
     except Exception as e:
         print_error_log(f"send_automatic_lfg_message: Error sending the message: {e}")
         return
