@@ -559,7 +559,9 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
     guild_id = guild.id
     guild_name = guild.name
     voice_channel_id = voice_channel.id
-    dict_users: dict[int, ActivityTransition] = await data_access_get_voice_user_list(guild_id, voice_channel_id)
+    dict_users: dict[int, Optional[ActivityTransition]] = await data_access_get_voice_user_list(
+        guild_id, voice_channel_id
+    )
     if dict_users is None:
         # No user, nothing to do
         return
@@ -599,10 +601,19 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
             channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
             if not channel:
                 print_warning_log(
-                    f"send_automatic_lfg_message: New user text channel not found for guild {guild_name}. Skipping."
+                    f"send_automatic_lfg_message: Main Siege text channel not found for guild {guild_name}. Skipping."
                 )
                 return
-            print_log(f"🎮 **{user_count}** users in the <#{voice_channel_id}> are looking for a group to play.")
+            vc_channel: discord.TextChannel = await data_access_get_channel(voice_channel_id)
+            if vc_channel is None:
+                print_warning_log(
+                    f"send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild {guild_name}. Skipping."
+                )
+                return
+            user_count_vc = len(vc_channel.members)
+            print_log(
+                f"🎮 **{user_count_vc}** users in the <#{voice_channel_id}> are looking for {5-user_count_vc} to play."
+            )
             # channel.send(
             #     f"🎮 **{user_count}** users in the voice channel are looking for a group to play. Use the slash command `/lfg` to join them."
             # )

@@ -346,7 +346,7 @@ async def data_access_get_voice_user_list(guild_id: int, channel_id: int) -> dic
 async def data_access_remove_voice_user_list(guild_id: int, channel_id: int, user_id: Optional[int]) -> None:
     """Remove a user from the voice channel list"""
     user_map = await data_access_get_voice_user_list(guild_id, channel_id)
-    user_map.pop(user_id)
+    user_map.pop(user_id, None)
     print_log(f"data_access_remove_voice_user_list: Remove voice user list: {len(user_map.keys())}")
     set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
 
@@ -362,7 +362,7 @@ async def data_access_update_voice_user_list(
     """
     user_map = await data_access_get_voice_user_list(guild_id, channel_id)
 
-    # The activity_detail exist (could be string or a full activity detail)
+    # The activity_detail exist (could be string or a full activity detail or None if the user does not have the activity feature enabled)
     if isinstance(activity_detail, str):
         # If a string is provided, it means we only have a activity detail (without the before)
         # It happens in the case of changing status (offline to online)

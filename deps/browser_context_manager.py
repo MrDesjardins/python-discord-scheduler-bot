@@ -161,7 +161,7 @@ class BrowserContextManager:
                     with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
                         file.write(json.dumps(data, indent=4))
                 # Step 6: Parse the JSON data to extract the matches
-                return parse_json_from_full_matches(data)
+                return parse_json_from_full_matches(data, user_info)
             except json.JSONDecodeError as e:
                 print_error_log(f"download_matches: Error parsing JSON: {e}")
         else:
