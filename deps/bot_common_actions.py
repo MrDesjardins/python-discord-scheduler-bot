@@ -552,7 +552,7 @@ def add_star_if_above_value(value: int, threshold: int = 0) -> str:
     return f"{value}{'⭐' if value > threshold else ''}"
 
 
-async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceChannel) -> None:
+async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discord.VoiceChannel) -> None:
     """
     Send a message to the main text channel about looking for group to play
     """
@@ -568,7 +568,7 @@ async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceCha
     if user_count == 0 or user_count >= 5:
         # No user or too many users, nothing to do
         print_log(
-            f"send_lfg_message: User count {user_count} in {guild_name} for voice channel {voice_channel_id}. Skipping."
+            f"send_automatic_lfg_message: User count {user_count} in {guild_name} for voice channel {voice_channel_id}. Skipping."
         )
         if (
             user_count == 0
@@ -577,15 +577,18 @@ async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceCha
 
     current_time = datetime.now(timezone.utc)
     last_message_time = await data_access_get_last_bot_message_in_main_text_channel(guild_id)
-    if last_message_time - current_time < timedelta(minutes=10):
-        print_log(f"send_lfg_message: Last message sent less than 10 minutes ago for guild {guild_name}. Skipping.")
+
+    if last_message_time is not None and last_message_time - current_time < timedelta(minutes=10):
+        print_log(
+            f"send_automatic_lfg_message: Last message sent less than 10 minutes ago for guild {guild_name}. Skipping."
+        )
         return
 
     # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
     try:
         aggregation = get_aggregation_siege_activity(dict_users)
         print_log(
-            f"""send_lfg_message: count_in_menu {aggregation.count_in_menu}
+            f"""send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}
             \ngame_not_started {aggregation.game_not_started}
             \nuser_leaving {aggregation.user_leaving}
             \nwarming_up {aggregation.warming_up}
@@ -599,13 +602,13 @@ async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceCha
             text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
             if text_channel_main_siege_id is None:
                 print_warning_log(
-                    f"send_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping."
+                    f"send_automatic_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping."
                 )
                 return
             channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
             if not channel:
                 print_warning_log(
-                    f"send_lfg_message: New user text channel not found for guild {guild_name}. Skipping."
+                    f"send_automatic_lfg_message: New user text channel not found for guild {guild_name}. Skipping."
                 )
                 return
             print_log(f"🎮 **{user_count}** users in the <#{voice_channel_id}> are looking for a group to play.")
@@ -614,7 +617,7 @@ async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceCha
             # )
         data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
     except Exception as e:
-        print_error_log(f"send_lfg_message: Error sending the message: {e}")
+        print_error_log(f"send_automatic_lfg_message: Error sending the message: {e}")
         return
 
 

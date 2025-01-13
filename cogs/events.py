@@ -7,7 +7,7 @@ from deps.analytic_data_access import insert_user_activity
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
-    send_lfg_message,
+    send_automatic_lfg_message,
     send_notification_voice_channel,
     send_session_stats_to_queue,
     update_vote_message,
@@ -395,7 +395,7 @@ class MyEventsCog(commands.Cog):
         await data_access_update_voice_user_list(
             guild_id, after.voice.channel.id, after.id, ActivityTransition(before_details, after_details)
         )
-        await send_lfg_message(after.guild, after.voice.channel)
+        await send_automatic_lfg_message(after.guild, after.voice.channel)
 
 
 async def setup(bot):
