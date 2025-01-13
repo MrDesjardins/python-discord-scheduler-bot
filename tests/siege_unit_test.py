@@ -1,0 +1,263 @@
+from deps.siege import get_aggregation_siege_activity
+from deps.models import ActivityTransition
+
+
+def test_get_aggregation_siege_activity_no_data():
+    """
+    Test the case where there isn't any data
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+
+def test_get_aggregation_siege_activity_none_entry():
+    """
+    Test the case where a None is part of the dictionary
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: None}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+
+def test_get_aggregation_siege_activity_no_before_no_after():
+    """
+    Test the case where before activity is none and after is not
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition(None, None)}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 1
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+
+def test_get_aggregation_siege_activity_no_before_after_in_menu():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition(None, "in MENU")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 1
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+
+def test_get_aggregation_siege_activity_no_before_after_playing_map_training():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition(None, "Playing Map Training")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 1
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_no_before_after_playing_shooting_range():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition(None, "Playing SHOOTING RANGE")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 1
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_no_before_after_arcade():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition(None, "ARCADE match 1 of 2")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 1
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_no_before_after_ai():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition(None, "VERSUS AI match 1 of 2")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 1
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_no_after():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("in Menu", None)}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 1
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_1():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("Playing SHOOTING RANGE", "in MENU")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 1
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 1
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_2():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("Playing Map Training", "in MENU")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 1
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 1
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_3():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("ARCADE Match ...", "in MENU")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 1
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 1
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_4():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("VERSUS AI ...", "in MENU")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 1
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 1
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_5():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("RANKED match", "in MENU")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 1
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 1
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_6():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("STANDARD match", "in MENU")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 1
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 1
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_7():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("in Menu", "RANKED match")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 1
+    assert result.playing_standard == 0
+
+
+def test_get_aggregation_siege_activity_before_but_after_in_menu_8():
+    """
+    Test the case where before activity is none and after is defined
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("in Menu", "STANDARD match")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 1

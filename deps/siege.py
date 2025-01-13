@@ -94,7 +94,7 @@ def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
 
 def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTransition]) -> SiegeActivityAggregation:
     """
-    From the before and after activity detail, get the count of user from different transition to deterine
+    From the before and after activity detail, get the count of user from different transition to determine
     if we send a message or not
     Possible transition:
         CUSTOM_GAME match XXXXX
@@ -143,7 +143,11 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
             )
         ) and aft == "in MENU":
             done_warming_up += 1
-        if bef is not None and bef.startswith("RANKED match") and aft == "in MENU":
+        if (
+            bef is not None
+            and (bef.startswith("RANKED match") or bef.startswith("STANDARD match"))
+            and aft == "in MENU"
+        ):
             done_match_waiting_in_menu += 1
         if aft is not None and aft.startswith("RANKED match"):
             playing_rank += 1
