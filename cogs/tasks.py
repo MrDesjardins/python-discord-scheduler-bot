@@ -91,8 +91,12 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>daily_saving_active_user_match_stats_task: Waiting for bot to be ready...")
         await self.bot.wait_until_ready()
 
+    ### ============================ UNLOAD COG ============================ ###
     async def cog_unload(self):
         self.check_voice_channel_task.cancel()
+        self.send_queue_user_stats.cancel()
+        self.send_daily_question_to_all_guild_task.cancel()
+        self.daily_saving_active_user_match_stats_task.cancel()
 
 
 async def setup(bot):

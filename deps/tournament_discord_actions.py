@@ -6,7 +6,11 @@ The function might be used by several different Discord interactions.
 import io
 from typing import List, Optional
 import discord
-from deps.data_access import data_access_get_channel, data_access_get_guild_tournament_text_channel_id
+from deps.data_access import (
+    data_access_get_channel,
+    data_access_get_guild_tournament_text_channel_id,
+    data_access_get_member,
+)
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_functions import build_tournament_tree, start_tournament
 from deps.log import print_error_log, print_log
@@ -127,3 +131,40 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
             await channel.send(content=f"Bracket for {tournament.name}", file=file)
     else:
         print_log(f"send_tournament_starting_to_a_guild: No open registration for guild {guild_id}")
+
+
+async def send_tournament_match_reminder(guild: discord.guild) -> None:
+    """
+    Get all the active tournaments, then get all the matches that are not completed and send a reminder
+    """
+    guild_id = guild.id
+    channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
+    if channel_id is None:
+        print_error_log(
+            f"\t⚠️ send_tournament_match_reminder: Tournament Channel id (configuration) not found for guild {guild.name}. Skipping."
+        )
+        return
+    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
+    msg = "Tournament reminder: The following people need to organize their match to unblock the tournament."
+    need_reminder = False
+    if len(tournaments) > 0:
+        for tournament in tournaments:
+            tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
+            for game in tournament_games:
+                if game.user1_id is not None and game.user2_id is not None and game.user_winner_id is None:
+                    continue
+                try:
+                    need_reminder = True
+                    user_1_display_name = data_access_get_member(guild, game.user1_id).display_name
+                    user_2_display_name = data_access_get_member(guild, game.user2_id).display_name
+                    msg = f"\n➡️ {user_1_display_name} and {user_2_display_name} for tournament: `{tournament.name}`"
+                except Exception as e:
+                    print_error_log(
+                        f"send_tournament_match_reminder: Error getting user info: {e}. See user1 {game.user1_id} and user2 {game.user2_id}"
+                    )
+                    continue
+        if need_reminder:
+            await channel.send(content=msg)
+    else:
+        print_log(f"send_tournament_match_reminder: No open tournament for guild {guild_id}")
