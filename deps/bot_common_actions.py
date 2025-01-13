@@ -576,7 +576,7 @@ async def send_lfg_message(guild: discord.guild, voice_channel: discord.VoiceCha
             return
 
     current_time = datetime.now(timezone.utc)
-    last_message_time = data_access_get_last_bot_message_in_main_text_channel(guild_id)
+    last_message_time = await data_access_get_last_bot_message_in_main_text_channel(guild_id)
     if last_message_time - current_time < timedelta(minutes=10):
         print_log(f"send_lfg_message: Last message sent less than 10 minutes ago for guild {guild_name}. Skipping.")
         return
