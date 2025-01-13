@@ -375,7 +375,10 @@ async def data_access_update_voice_user_list(
             to_save = ActivityTransition(current_after, activity_detail)
     else:
         # We have a full activity detail. Might be None, or might have both before and after
-        to_save = activity_detail
+        if activity_detail is None:
+            to_save = ActivityTransition(None, None)
+        else:
+            to_save = activity_detail
 
     # Save the user which is None or a full activity detail
     user_map[user_id] = to_save

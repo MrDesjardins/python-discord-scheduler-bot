@@ -116,6 +116,8 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
     playing_standard = 0
 
     for user_id, activity_before_after in dict_users_activities.items():
+        if activity_before_after is None:
+            continue
         bef = activity_before_after.before
         aft = activity_before_after.after
         if bef is None and aft is None:
