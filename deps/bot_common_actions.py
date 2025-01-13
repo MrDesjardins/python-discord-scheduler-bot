@@ -578,7 +578,7 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
         delta = last_message_time - current_time
         if delta < timedelta(minutes=10):
             print_log(
-                f"send_automatic_lfg_message: Last message sent less than 10 minutes ago ({delta.total_seconds} seconds ago) for guild {guild_name}. Skipping."
+                f"send_automatic_lfg_message: Last message sent less than 10 minutes ago ({delta.total_seconds()} seconds ago) for guild {guild_name}. Skipping."
             )
             return
 
