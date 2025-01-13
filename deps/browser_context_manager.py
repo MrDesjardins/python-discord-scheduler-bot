@@ -12,9 +12,10 @@ from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc
 from xvfbwrapper import Xvfb
 from bs4 import BeautifulSoup
+from deps.data_access_data_class import UserInfo
 from deps.models import UserMatchInfo
 from deps.log import print_error_log, print_log
-from deps.functions_r6_tracker import parse_json_from_matches
+from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_from_matches
 from deps.functions import get_url_api_ranked_matches, get_url_user_ranked_matches
 
 
@@ -119,6 +120,48 @@ class BrowserContextManager:
                         file.write(json.dumps(data, indent=4))
                 # Step 6: Parse the JSON data to extract the matches
                 return parse_json_from_matches(data, ubisoft_user_name)
+            except json.JSONDecodeError as e:
+                print_error_log(f"download_matches: Error parsing JSON: {e}")
+        else:
+            print_error_log("download_matches: JSON data not found within <pre> tag.")
+
+    def download_full_matches(self, user_info: UserInfo) -> List[UserMatchInfo]:
+        """
+        Download the matches for the given Ubisoft username
+        This is version 2 of download_matches. It contains a lost more fields.
+        The future goal is to replace download_matches with this function.
+        """
+        # # Step 1: Download the page content
+        self.counter += 1
+        ubisoft_user_name = user_info.ubisoft_username_active
+        api_url = get_url_api_ranked_matches(ubisoft_user_name)
+        self.driver.get(api_url)
+        # Wait until the page contains the expected JSON data
+        WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+
+        # Step 2: Extract the page content, expecting JSON
+        page_source = self.driver.page_source
+
+        # Step 3: Remove the HTML
+        soup = BeautifulSoup(page_source, "html.parser")
+        # Find the <pre> tag containing the JSON
+        pre_tag = soup.find("pre")
+
+        # Ensure the <pre> tag is found and contains the expected JSON data
+        if pre_tag:
+            # Step 4: Extract the text content of the <pre> tag
+            json_data = pre_tag.get_text().strip()
+
+            try:
+                # Step 5: Parse the JSON data
+                data = json.loads(json_data)
+                print_log(f"download_matches: JSON data successfully parsed for {ubisoft_user_name}")
+                # Save the JSON data to a file for debugging
+                if os.getenv("ENV") == "dev":
+                    with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
+                        file.write(json.dumps(data, indent=4))
+                # Step 6: Parse the JSON data to extract the matches
+                return parse_json_from_full_matches(data)
             except json.JSONDecodeError as e:
                 print_error_log(f"download_matches: Error parsing JSON: {e}")
         else:

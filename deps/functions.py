@@ -1,7 +1,7 @@
 """ Utility functions used by the bot. """
 
 import subprocess
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Dict, Union, Optional, List
 import pytz
 import discord
@@ -165,3 +165,17 @@ def get_url_user_ranked_matches(ubisoft_user_name: str) -> str:
 def get_url_api_ranked_matches(ubisoft_user_name: str) -> str:
     """Get the URL for the API to get the stats."""
     return URL_TRN_API_RANKED_MATCHES.format(account_name=ubisoft_user_name)
+
+
+def ensure_utc(dt: datetime) -> datetime:
+    """
+    Ensure a datetime is in UTC.
+    - If naive, assume it's in the local timezone and convert to UTC.
+    - If timezone-aware, convert to UTC if needed.
+    """
+    if dt.tzinfo is None:
+        # Assume naive datetime is in the local timezone
+        local_dt = dt.replace(tzinfo=timezone.utc).astimezone()
+        return local_dt.astimezone(timezone.utc)
+    # Convert to UTC if not already in UTC
+    return dt.astimezone(timezone.utc)

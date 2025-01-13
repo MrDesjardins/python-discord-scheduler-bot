@@ -2,28 +2,42 @@
 Create Fake Data for Testing Analytics
 """
 
+import json
 import pytest
 from datetime import datetime
-
-
-# pylint: disable=import-error
 from deps.data_access_data_class import UserInfo
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
-
-# pylint: disable=import-error
 from deps.analytic_data_access import (
     compute_users_weights,
     delete_all_tables,
     fetch_all_user_activities,
     fetch_user_info_by_user_id_list,
+    insert_if_nonexistant_full_match_info,
     insert_user_activity,
+    get_active_user_info,
+    upsert_user_info,
 )
-
-from tests.mock_model import mock_user1
+from deps.functions_r6_tracker import parse_json_from_full_matches
 
 CHANNEL1_ID = 100
 CHANNEL2_ID = 200
 GUILD_ID = 1000
+
+
+@pytest.fixture(scope="module")
+def test_data():
+    """Load test data for all test cases."""
+    with open("./tests/tests_assets/player_rank_history.json", "r", encoding="utf8") as file:
+        data_1 = json.loads(file.read())
+    with open("./tests/tests_assets/player3_rank_history.json", "r", encoding="utf8") as file:
+        data_3 = json.loads(file.read())
+    with open("./tests/tests_assets/player4_rank_history.json", "r", encoding="utf8") as file:
+        data_4 = json.loads(file.read())
+    with open("./tests/tests_assets/player5_rank_history.json", "r", encoding="utf8") as file:
+        data_5 = json.loads(file.read())
+    with open("./tests/tests_assets/player6_rank_history.json", "r", encoding="utf8") as file:
+        data_6 = json.loads(file.read())
+    return data_1, data_3, data_4, data_5, data_6
 
 
 @pytest.fixture(autouse=True)
@@ -166,3 +180,87 @@ def test_user_in_and_not_in_user_info_table():
     assert users[0].id == 1
     assert users[1] is None
     assert users[2] is None
+
+
+def test_get_only_user_active():
+    """
+    Insert many activity, get the active one and retrieve only the one in the between the time
+    Return unique user
+    Return max account if no active defined
+    """
+    upsert_user_info(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    upsert_user_info(2, "DiscordName2", "ubi_2_max", "ubi_2_active", None, "US/Eastern")
+    upsert_user_info(3, "DiscordName2", "ubi_3_max", None, None, "US/Eastern")
+    upsert_user_info(4, "DiscordName4", None, None, None, "US/Eastern")
+    insert_user_activity(
+        1,
+        "user_1",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 20, 0, 0),
+    )
+    insert_user_activity(
+        1,
+        "user_1",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 13, 25, 0, 0),
+    )
+    insert_user_activity(
+        2,
+        "user_2",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 18, 20, 0, 0),
+    )
+    insert_user_activity(
+        3,
+        "user_3",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 21, 6, 0, 0, 0),
+    )
+    insert_user_activity(
+        4,
+        "user_4",
+        CHANNEL1_ID,
+        GUILD_ID,
+        EVENT_CONNECT,
+        datetime(2024, 9, 20, 14, 0, 0, 0),
+    )
+    users = get_active_user_info(datetime(2024, 9, 20, 0, 0, 0, 0), datetime(2024, 9, 20, 19, 0, 0, 0))
+    assert len(users) == 2
+    assert users[0].id == 1
+    assert users[1].id == 2
+
+
+def test_insert_if_nonexistant_full_match_info(test_data):
+    """
+    Test the insertion of statistic into the database
+    """
+    data_1, data_3, data_4, data_5, data_6 = test_data
+
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+    )
+    matches_1 = parse_json_from_full_matches(data_1, user_info)
+    matches_3 = parse_json_from_full_matches(data_3, user_info)
+    matches_4 = parse_json_from_full_matches(data_4, user_info)
+    matches_5 = parse_json_from_full_matches(data_5, user_info)
+    matches_6 = parse_json_from_full_matches(data_6, user_info)
+
+    insert_if_nonexistant_full_match_info(user_info, matches_1)
+    insert_if_nonexistant_full_match_info(user_info, matches_3)
+    insert_if_nonexistant_full_match_info(user_info, matches_4)
+    insert_if_nonexistant_full_match_info(user_info, matches_5)
+    insert_if_nonexistant_full_match_info(user_info, matches_6)

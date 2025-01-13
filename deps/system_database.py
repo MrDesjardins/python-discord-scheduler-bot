@@ -149,6 +149,66 @@ class DatabaseManager:
         );
         """
         )
+        ###  Game Play Stats Tables ###
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS user_full_match_info (
+            match_uuid TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            match_timestamp DATETIME NOT NULL,
+            match_duration_ms INTEGER NOT NULL,
+            data_center TEXT NOT NULL,
+            session_type TEXT NOT NULL,
+            map_name TEXT NOT NULL,
+            is_surrender BOOLEAN NOT NULL,
+            is_forfeit BOOLEAN NOT NULL,
+            is_rollback BOOLEAN NOT NULL,
+            r6_tracker_user_uuid TEXT NOT NULL,
+            ubisoft_username TEXT NOT NULL,
+            operators TEXT NOT NULL,
+            round_played_count INTEGER NOT NULL,
+            round_won_count INTEGER NOT NULL,
+            round_lost_count INTEGER NOT NULL,
+            round_disconnected_count INTEGER NOT NULL,
+            kill_count INTEGER NOT NULL,
+            death_count INTEGER NOT NULL,
+            assist_count INTEGER NOT NULL,
+            head_shot_count INTEGER NOT NULL,
+            tk_count INTEGER NOT NULL,
+            ace_count INTEGER NOT NULL,
+            first_kill_count INTEGER NOT NULL,
+            first_death_count INTEGER NOT NULL,
+            clutches_win_count INTEGER NOT NULL,
+            clutches_loss_count INTEGER NOT NULL,
+            clutches_win_count_1v1 INTEGER NOT NULL,
+            clutches_win_count_1v2 INTEGER NOT NULL,
+            clutches_win_count_1v3 INTEGER NOT NULL,
+            clutches_win_count_1v4 INTEGER NOT NULL,
+            clutches_win_count_1v5 INTEGER NOT NULL,
+            clutches_lost_count_1v1 INTEGER NOT NULL,
+            clutches_lost_count_1v2 INTEGER NOT NULL,
+            clutches_lost_count_1v3 INTEGER NOT NULL,
+            clutches_lost_count_1v4 INTEGER NOT NULL,
+            clutches_lost_count_1v5 INTEGER NOT NULL,
+            kill_1_count INTEGER NOT NULL,
+            kill_2_count INTEGER NOT NULL,
+            kill_3_count INTEGER NOT NULL,
+            kill_4_count INTEGER NOT NULL,
+            kill_5_count INTEGER NOT NULL,
+            rank_points INTEGER NOT NULL,
+            rank_name TEXT NOT NULL,
+            points_gained INTEGER NOT NULL,
+            rank_previous INTEGER NOT NULL,
+            kd_ratio INTEGER NOT NULL,
+            head_shot_percentage INTEGER NOT NULL,
+            kills_per_round INTEGER NOT NULL,
+            deaths_per_round INTEGER NOT NULL,
+            assists_per_round INTEGER NOT NULL,
+            has_win BOOLEAN NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES user_info(id)
+        );
+        """
+        )
 
     def get_conn(self):
         """Access to the database connection"""

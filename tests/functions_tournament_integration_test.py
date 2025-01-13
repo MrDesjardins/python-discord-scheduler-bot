@@ -4,7 +4,6 @@ from typing import List
 from unittest.mock import patch
 import pytest
 from datetime import datetime, timezone
-from deps.data_access_data_class import UserInfo
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.tournament_data_access import (
     data_access_insert_tournament,

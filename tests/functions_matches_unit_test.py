@@ -1,7 +1,12 @@
 import json
 import pytest
-from datetime import datetime
-from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_json_from_matches
+from datetime import datetime, timezone
+from deps.data_access_data_class import UserInfo
+from deps.functions_r6_tracker import (
+    get_user_gaming_session_stats,
+    parse_json_from_full_matches,
+    parse_json_from_matches,
+)
 
 
 @pytest.fixture(scope="module")
@@ -141,3 +146,180 @@ def test_get_r6tracker_user_recent_matches_rollback(test_data):
     _, _, _, _, data_6 = test_data
     lst = parse_json_from_matches(data_6, "noSleep_rb6")
     assert len(lst) == 20, "Should skip the rollback, one match is skipped"
+
+
+def test_parse_json_from_full_matches_dataset_1(test_data):
+    """Test if we can parse the data from the JSON file."""
+    data_1, _, _, _, _ = test_data
+    lst = parse_json_from_full_matches(
+        data_1, UserInfo(1, "noSleep_rb6", "noSleep_rb6", None, "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC")
+    )
+    assert len(lst) >= 1
+
+    match = lst[0]
+    assert match.match_uuid == "c898ccca-00d9-4b85-abe7-4e45b0b3be9e"
+    assert match.match_timestamp == datetime(2024, 11, 7, 5, 56, 8, 916000, tzinfo=timezone.utc)
+    assert match.match_duration_ms == 895284
+    assert match.data_center == "Central US"
+    assert match.session_type == "Ranked"
+    assert match.map_name == "Bank"
+    assert match.is_surrender == False
+    assert match.is_forfeit == False
+    assert match.is_rollback == False
+    assert match.r6_tracker_user_uuid == "877a703b-0d29-4779-8fbf-ccd165c2b7f6"
+    assert match.ubisoft_username == "noSleep_rb6"
+    assert match.operators == "Mozzie,Capitão,Thatcher,Nomad"
+    assert match.round_played_count == 4
+    assert match.round_won_count == 0
+    assert match.round_lost_count == 4
+    assert match.round_disconnected_count == 0
+    assert match.kill_count == 0
+    assert match.death_count == 4
+    assert match.assist_count == 0
+    assert match.head_shot_count == 0
+    assert match.tk_count == 0
+    assert match.ace_count == 0
+    assert match.first_kill_count == 0
+    assert match.first_death_count == 1
+    assert match.clutches_win_count == 0
+    assert match.clutches_loss_count == 1
+    assert match.clutches_win_count_1v1 == 0
+    assert match.clutches_win_count_1v2 == 0
+    assert match.clutches_win_count_1v3 == 0
+    assert match.clutches_win_count_1v4 == 0
+    assert match.clutches_win_count_1v5 == 0
+    assert match.clutches_lost_count_1v1 == 0
+    assert match.clutches_lost_count_1v2 == 0
+    assert match.clutches_lost_count_1v3 == 1
+    assert match.clutches_lost_count_1v4 == 0
+    assert match.clutches_lost_count_1v5 == 0
+    assert match.kill_1_count == 0
+    assert match.kill_2_count == 0
+    assert match.kill_3_count == 0
+    assert match.kill_4_count == 0
+    assert match.kill_5_count == 0
+    assert match.rank_points == 4051
+    assert match.rank_name == "DIAMOND V"
+    assert match.points_gained == -18
+    assert match.rank_previous == 4069
+    assert match.kd_ratio == 0
+    assert match.head_shot_percentage == 0
+    assert match.kills_per_round == 0
+    assert match.deaths_per_round == 1.0
+    assert match.assists_per_round == 0
+    assert match.has_win == False
+
+    match = lst[1]
+    assert match.match_uuid == "9681f59e-80db-4b2e-b54b-3631af76b074"
+    assert match.match_timestamp == datetime(2024, 11, 7, 5, 38, 39, 175000, tzinfo=timezone.utc)
+    assert match.match_duration_ms == 1438032
+    assert match.data_center == "Central US"
+    assert match.session_type == "Ranked"
+    assert match.map_name == "Coastline"
+    assert match.is_surrender == False
+    assert match.is_forfeit == False
+    assert match.is_rollback == False
+    assert match.r6_tracker_user_uuid == "877a703b-0d29-4779-8fbf-ccd165c2b7f6"
+    assert match.ubisoft_username == "noSleep_rb6"
+    assert match.operators == "Mozzie,Ace,IQ,Finka"
+    assert match.round_played_count == 6
+    assert match.round_won_count == 4
+    assert match.round_lost_count == 2
+    assert match.round_disconnected_count == 0
+    assert match.kill_count == 6
+    assert match.death_count == 2
+    assert match.assist_count == 1
+    assert match.head_shot_count == 3
+    assert match.tk_count == 0
+    assert match.ace_count == 0
+    assert match.first_kill_count == 0
+    assert match.first_death_count == 0
+    assert match.clutches_win_count == 0
+    assert match.clutches_loss_count == 0
+    assert match.clutches_win_count_1v1 == 0
+    assert match.clutches_win_count_1v2 == 0
+    assert match.clutches_win_count_1v3 == 0
+    assert match.clutches_win_count_1v4 == 0
+    assert match.clutches_win_count_1v5 == 0
+    assert match.clutches_lost_count_1v1 == 0
+    assert match.clutches_lost_count_1v2 == 0
+    assert match.clutches_lost_count_1v3 == 0
+    assert match.clutches_lost_count_1v4 == 0
+    assert match.clutches_lost_count_1v5 == 0
+    assert match.kill_1_count == 1
+    assert match.kill_2_count == 1
+    assert match.kill_3_count == 1
+    assert match.kill_4_count == 0
+    assert match.kill_5_count == 0
+    assert match.rank_points == 4069
+    assert match.rank_name == "DIAMOND V"
+    assert match.points_gained == 21
+    assert match.rank_previous == 4048
+    assert match.kd_ratio == 3
+    assert match.head_shot_percentage == 50.0
+    assert match.kills_per_round == 1.0
+    assert match.deaths_per_round == 0.3333333333333333
+    assert match.assists_per_round == 0.16666666666666666
+    assert match.has_win == True
+
+
+def test_parse_json_from_full_matches_dataset_6_rollback(test_data):
+    """Test if we can parse the data from the JSON file."""
+    _, _, _, _, data_6 = test_data
+    lst = parse_json_from_full_matches(
+        data_6, UserInfo(1, "noSleep_rb6", "noSleep_rb6", "noSleep_rb6", "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC")
+    )
+    assert len(lst) >= 1
+
+    match = lst[3]
+    assert match.match_uuid == "rollback-1735219556"
+    assert match.match_timestamp == datetime(2024, 12, 26, 13, 25, 56, 781231, tzinfo=timezone.utc)
+    assert match.match_duration_ms == 0
+    assert match.data_center == "Unknown"
+    assert match.session_type == "Ranked"
+    assert match.map_name == "Unknown"
+    assert match.is_surrender == False
+    assert match.is_forfeit == False
+    assert match.is_rollback == True
+    assert match.r6_tracker_user_uuid == "17d71d95-21d1-427a-979b-c8798fec55ef"
+    assert match.ubisoft_username == "noSleep_rb6"
+    assert match.operators == ""
+    assert match.round_played_count == 0
+    assert match.round_won_count == 0
+    assert match.round_lost_count == 0
+    assert match.round_disconnected_count == 0
+    assert match.kill_count == 0
+    assert match.death_count == 0
+    assert match.assist_count == 0
+    assert match.head_shot_count == 0
+    assert match.tk_count == 0
+    assert match.ace_count == 0
+    assert match.first_kill_count == 0
+    assert match.first_death_count == 0
+    assert match.clutches_win_count == 0
+    assert match.clutches_loss_count == 0
+    assert match.clutches_win_count_1v1 == 0
+    assert match.clutches_win_count_1v2 == 0
+    assert match.clutches_win_count_1v3 == 0
+    assert match.clutches_win_count_1v4 == 0
+    assert match.clutches_win_count_1v5 == 0
+    assert match.clutches_lost_count_1v1 == 0
+    assert match.clutches_lost_count_1v2 == 0
+    assert match.clutches_lost_count_1v3 == 0
+    assert match.clutches_lost_count_1v4 == 0
+    assert match.clutches_lost_count_1v5 == 0
+    assert match.kill_1_count == 0
+    assert match.kill_2_count == 0
+    assert match.kill_3_count == 0
+    assert match.kill_4_count == 0
+    assert match.kill_5_count == 0
+    assert match.rank_points == 2183
+    assert match.rank_name == "SILVER IV"
+    assert match.points_gained == 24
+    assert match.rank_previous == 2159
+    assert match.kd_ratio == 0
+    assert match.head_shot_percentage == 0
+    assert match.kills_per_round == 0
+    assert match.deaths_per_round == 0
+    assert match.assists_per_round == 0
+    assert match.has_win == False
