@@ -124,7 +124,7 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
             game_not_started += 1
         if aft == "in MENU":
             count_in_menu += 1
-        if (
+        if aft is not None and (
             aft == "Playing Map Training"
             or aft == "Playing SHOOTING RANGE"
             or aft.startswith("ARCADE")
@@ -134,10 +134,13 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
         if bef is not None and aft is None:
             user_leaving += 1
         if (
-            bef == "Playing SHOOTING RANGE"
-            or bef == "Playing Map Training"
-            or bef.startswith("ARCADE")
-            or aft.startswith("VERSUS AI")
+            bef is not None
+            and (
+                bef == "Playing SHOOTING RANGE"
+                or bef == "Playing Map Training"
+                or bef.startswith("ARCADE")
+                or bef.startswith("VERSUS AI")
+            )
         ) and aft == "in MENU":
             done_warming_up += 1
         if bef is not None and bef.startswith("RANKED match") and aft == "in MENU":
