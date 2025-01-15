@@ -22,7 +22,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log
-from deps.siege import get_user_rank_emoji
+from deps.siege import get_list_users_with_rank, get_user_rank_emoji
 from deps.functions import (
     most_common,
 )
@@ -145,12 +145,7 @@ class UserFeatures(commands.Cog):
             # Get everyone in the voice channel
             members = voice_channel.members
             if isinstance(members, list):
-                list_members_in_voice_channel = ""
-                for member in members:
-                    rank = get_user_rank_emoji(self.bot.guild_emoji.get(interaction.guild.id), member)
-                    list_members_in_voice_channel += f"{rank} {member.mention}, "
-                list_members_in_voice_channel = list_members_in_voice_channel[:-2]
-
+                list_members_in_voice_channel = get_list_users_with_rank(self.bot, members, interaction.guild.id)
                 current_count = len(members)
                 missing_count = 5 - current_count if number_of_users_needed is None else number_of_users_needed
                 if missing_count > 0:

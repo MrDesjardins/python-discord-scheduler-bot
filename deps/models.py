@@ -344,7 +344,7 @@ class SiegeActivityAggregation:
         game_not_started: int,
         user_leaving: int,
         warming_up: int,
-        done_warming_up: int,
+        done_warming_up_waiting_in_menu: int,
         done_match_waiting_in_menu: int,
         playing_rank: int,
         playing_standard: int,
@@ -353,7 +353,7 @@ class SiegeActivityAggregation:
         self.game_not_started = game_not_started
         self.user_leaving = user_leaving
         self.warming_up = warming_up
-        self.done_warming_up = done_warming_up
+        self.done_warming_up_waiting_in_menu = done_warming_up_waiting_in_menu
         self.done_match_waiting_in_menu = done_match_waiting_in_menu
         self.playing_rank = playing_rank
         self.playing_standard = playing_standard

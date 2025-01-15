@@ -68,7 +68,7 @@ from deps.values import (
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
-from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_user_rank_emoji
+from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions_r6_tracker import get_user_gaming_session_stats
 
 
@@ -552,7 +552,7 @@ def add_star_if_above_value(value: int, threshold: int = 0) -> str:
     return f"{value}{'⭐' if value > threshold else ''}"
 
 
-async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discord.VoiceChannel) -> None:
+async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_channel: discord.VoiceChannel) -> None:
     """
     Send a message to the main text channel about looking for group to play
     """
@@ -566,6 +566,21 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
         # No user, nothing to do
         return
 
+    # Get the text channel to send the message
+    text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
+    if text_channel_main_siege_id is None:
+        print_warning_log(
+            f"send_automatic_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping."
+        )
+        return
+    channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
+    if not channel:
+        print_warning_log(
+            f"send_automatic_lfg_message: Main Siege text channel not found for guild {guild_name}. Skipping."
+        )
+        return
+
+    # Check the number of users in the voice channel
     user_count = len(dict_users)
     if user_count == 0 or user_count >= 5:
         # No user or too many users, nothing to do
@@ -578,45 +593,36 @@ async def send_automatic_lfg_message(guild: discord.guild, voice_channel: discor
 
     if last_message_time is not None:
         delta = current_time - last_message_time
+        # To avoid spamming, we allow only one message every 10 minutes maximum
         if delta < timedelta(minutes=10):
-            print_log(
-                f"send_automatic_lfg_message: Last message sent less than 10 minutes ago ({delta.total_seconds()} seconds ago) for guild {guild_name}. Skipping."
-            )
             return
 
+    # Get current voice channel information
+    vc_channel: discord.TextChannel = await data_access_get_channel(voice_channel_id)
+    if vc_channel is None:
+        print_warning_log(
+            f"send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild {guild_name}. Skipping."
+        )
+        return
+    user_count_vc = len(vc_channel.members)
+    if user_count_vc >= 5:
+        print_log(
+            f"send_automatic_lfg_message: {user_count_vc} users in the voice channel, no need to send the message."
+        )
+        return
+    needed_user = 5 - user_count_vc
     # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
     try:
         aggregation = get_aggregation_siege_activity(dict_users)
         print_log(
-            f"send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started {aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, done_warming_up {aggregation.done_warming_up}, done_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, playing_standard {aggregation.playing_standard}"
+            f"send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started {aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, done_warming_up {aggregation.done_warming_up_waiting_in_menu}, done_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, playing_standard {aggregation.playing_standard}"
         )
-        if aggregation.done_match_waiting_in_menu > 0 or aggregation.done_warming_up > 0:
-            # Get the text channel to send the message
-            text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
-            if text_channel_main_siege_id is None:
-                print_warning_log(
-                    f"send_automatic_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping."
-                )
-                return
-            channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
-            if not channel:
-                print_warning_log(
-                    f"send_automatic_lfg_message: Main Siege text channel not found for guild {guild_name}. Skipping."
-                )
-                return
-            vc_channel: discord.TextChannel = await data_access_get_channel(voice_channel_id)
-            if vc_channel is None:
-                print_warning_log(
-                    f"send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild {guild_name}. Skipping."
-                )
-                return
-            user_count_vc = len(vc_channel.members)
-            print_log(
-                f"🎮 **{user_count_vc}** users in the <#{voice_channel_id}> are looking for {5-user_count_vc} to play."
-            )
-            # channel.send(
-            #     f"🎮 **{user_count}** users in the voice channel are looking for a group to play. Use the slash command `/lfg` to join them."
-            # )
+        ready_to_play = aggregation.done_match_waiting_in_menu + aggregation.done_warming_up_waiting_in_menu
+        already_playing = aggregation.playing_rank + aggregation.playing_standard
+        if ready_to_play > 0 and ready_to_play > already_playing:
+            list_users = get_list_users_with_rank(bot, vc_channel.members, guild_id)
+            print_log(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
+            # channel.send(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
             data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
     except Exception as e:
         print_error_log(f"send_automatic_lfg_message: Error sending the message: {e}")

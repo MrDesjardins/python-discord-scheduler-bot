@@ -1,9 +1,10 @@
 """ Information about Siege """
 
-from typing import Optional
+from typing import List, Optional
 import discord
 
 from deps.models import ActivityTransition, SiegeActivityAggregation
+from deps.mybot import MyBot
 
 siege_ranks = [
     "Champion",
@@ -110,7 +111,7 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
     game_not_started = 0
     user_leaving = 0
     warming_up = 0
-    done_warming_up = 0
+    done_warming_up_waiting_in_menu = 0
     done_match_waiting_in_menu = 0
     playing_rank = 0
     playing_standard = 0
@@ -142,7 +143,7 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
                 or bef.startswith("VERSUS AI")
             )
         ) and aft == "in MENU":
-            done_warming_up += 1
+            done_warming_up_waiting_in_menu += 1
         if (
             bef is not None
             and (bef.startswith("RANKED match") or bef.startswith("STANDARD match"))
@@ -159,8 +160,20 @@ def get_aggregation_siege_activity(dict_users_activities: dict[int, ActivityTran
         game_not_started,
         user_leaving,
         warming_up,
-        done_warming_up,
+        done_warming_up_waiting_in_menu,
         done_match_waiting_in_menu,
         playing_rank,
         playing_standard,
     )
+
+
+def get_list_users_with_rank(bot: MyBot, members: List[discord.Member], guild_id: int) -> str:
+    """
+    Return a list of users with their rank in a voice channel
+    """
+    list_users = ""
+    for member in members:
+        rank = get_user_rank_emoji(bot.guild_emoji.get(guild_id), member)
+        list_users += f"{rank} {member.mention}, "
+    list_users = list_users[:-2]
+    return list_users

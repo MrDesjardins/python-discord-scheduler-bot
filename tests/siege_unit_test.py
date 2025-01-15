@@ -12,7 +12,7 @@ def test_get_aggregation_siege_activity_no_data():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -28,7 +28,7 @@ def test_get_aggregation_siege_activity_none_entry():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -44,7 +44,7 @@ def test_get_aggregation_siege_activity_no_before_no_after():
     assert result.game_not_started == 1
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -60,7 +60,7 @@ def test_get_aggregation_siege_activity_no_before_after_in_menu():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -76,7 +76,7 @@ def test_get_aggregation_siege_activity_no_before_after_playing_map_training():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 1
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -91,7 +91,7 @@ def test_get_aggregation_siege_activity_no_before_after_playing_shooting_range()
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 1
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -106,7 +106,7 @@ def test_get_aggregation_siege_activity_no_before_after_arcade():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 1
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -121,7 +121,7 @@ def test_get_aggregation_siege_activity_no_before_after_ai():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 1
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -136,7 +136,7 @@ def test_get_aggregation_siege_activity_before_but_no_after():
     assert result.game_not_started == 0
     assert result.user_leaving == 1
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -151,7 +151,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_1():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 1
+    assert result.done_warming_up_waiting_in_menu == 1
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -166,7 +166,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_2():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 1
+    assert result.done_warming_up_waiting_in_menu == 1
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -181,7 +181,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_3():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 1
+    assert result.done_warming_up_waiting_in_menu == 1
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -196,7 +196,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_4():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 1
+    assert result.done_warming_up_waiting_in_menu == 1
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -211,7 +211,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_5():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 1
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -226,7 +226,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_6():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 1
     assert result.playing_rank == 0
     assert result.playing_standard == 0
@@ -241,7 +241,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_7():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 1
     assert result.playing_standard == 0
@@ -257,7 +257,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_8():
     assert result.game_not_started == 0
     assert result.user_leaving == 0
     assert result.warming_up == 0
-    assert result.done_warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 1

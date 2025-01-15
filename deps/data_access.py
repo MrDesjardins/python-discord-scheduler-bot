@@ -77,7 +77,9 @@ async def data_access_get_member(guild_id: discord.Guild, user_id: int) -> Union
     """Get the member by the given guild and user id"""
 
     async def fetch():
-        guild: discord.Guild = await data_access_get_guild(guild_id)
+        guild: Optional[discord.Guild] = await data_access_get_guild(guild_id)
+        if guild is None:
+            return None
         return await guild.fetch_member(user_id)
 
     return await get_cache(True, f"{KEY_MEMBER}:{guild_id}:{user_id}", fetch)
