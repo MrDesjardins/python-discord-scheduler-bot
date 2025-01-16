@@ -155,8 +155,8 @@ async def send_tournament_match_reminder(guild: discord.guild) -> None:
                 if game.user1_id is not None and game.user2_id is not None and game.user_winner_id is None:
                     continue
                 try:
-                    u1_data = await data_access_get_member(guild, game.user1_id)
-                    u2_data = await data_access_get_member(guild, game.user2_id)
+                    u1_data = await data_access_get_member(guild_id, game.user1_id)
+                    u2_data = await data_access_get_member(guild_id, game.user2_id)
                     if u1_data is None or u2_data is None:
                         print_error_log(
                             f"send_tournament_match_reminder: User not found. See user1 {game.user1_id} and user2 {game.user2_id}"

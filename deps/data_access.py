@@ -43,7 +43,7 @@ KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
 
 
-async def data_access_get_guild(guild_id: discord.Guild) -> Union[discord.Guild, None]:
+async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
     """Get the guild by the given guild"""
 
     async def fetch():
@@ -73,7 +73,7 @@ async def data_access_get_user(guild_id: discord.Guild, user_id: int) -> Union[d
     return await get_cache(True, f"{KEY_USER}:{guild_id}:{user_id}", fetch)
 
 
-async def data_access_get_member(guild_id: discord.Guild, user_id: int) -> Union[discord.Member, None]:
+async def data_access_get_member(guild_id: int, user_id: int) -> Union[discord.Member, None]:
     """Get the member by the given guild and user id"""
 
     async def fetch():
