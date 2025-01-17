@@ -55,77 +55,6 @@ class SimpleUserHour:
         self.simple_user = user
         self.hour = hour
 
-
-@dataclasses.dataclass
-class UserMatchInfo:
-    """
-    Represent the information from a single match for a specific user
-    Information coming from this URL:
-        https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/noSleep_rb6?gamemode=pvp_ranked
-    Could also get more detail about the match:
-        https://api.tracker.gg/api/v1/r6siege/ow-ingest/match/get/9681f59e-80db-4b2e-b54b-3631af76b074/877a703b-0d29-4779-8fbf-ccd165c2b7f6
-    """
-
-    def __init__(
-        self,
-        match_uuid: str,
-        r6_tracker_user_uuid: str,
-        ubisoft_username: str,
-        match_timestamp: datetime,
-        match_duration_ms: int,
-        map_name: str,
-        has_win: bool,
-        kill_count: int,
-        death_count: int,
-        assist_count: int,
-        kd_ratio: float,
-        ace_count: int,
-        kill_3_count: int,
-        kill_4_count: int,
-        rank_points: int,
-        points_gained: int,
-        round_count: int,
-        round_win_count: int,
-        tk_count: int,
-        clutches_win_count: int,
-        clutches_loss_count: int,
-        first_death_count: int,
-        first_kill_count: int,
-    ):
-        self.match_uuid = match_uuid
-        self.r6_tracker_user_uuid = r6_tracker_user_uuid
-        self.ubisoft_username = ubisoft_username
-        self.match_timestamp = match_timestamp
-        self.match_duration_ms = match_duration_ms
-        self.map_name = map_name
-        self.has_win = has_win
-        self.kill_count = kill_count
-        self.death_count = death_count
-        self.assist_count = assist_count
-        self.kd_ratio = kd_ratio
-        self.ace_count = ace_count
-        self.kill_3_count = kill_3_count
-        self.kill_4_count = kill_4_count
-        self.rank_points = rank_points
-        self.points_gained = points_gained
-        self.round_count = round_count
-        self.round_win_count = round_win_count
-        self.tk_count = tk_count
-        self.clutches_win_count = clutches_win_count
-        self.clutches_loss_count = clutches_loss_count
-        self.first_death_count = first_death_count
-        self.first_kill_count = first_kill_count
-
-
-@dataclasses.dataclass
-class UserWithUserFullMatchInfo:
-    """Represent the user and their match info"""
-
-    def __init__(self, user: UserInfo, user_match_info: List["UserFullMatchInfo"]):
-        self.user = user
-        self.user_match_info = user_match_info
-
-
 @dataclasses.dataclass
 class UserFullMatchInfo:
     """
@@ -138,7 +67,7 @@ class UserFullMatchInfo:
 
     def __init__(
         self,
-        user_id:int,
+        user_id: int,
         match_uuid: str,
         match_timestamp: datetime,
         match_duration_ms: int,
@@ -244,6 +173,13 @@ class UserFullMatchInfo:
         self.assists_per_round = assists_per_round
         self.has_win = has_win
 
+@dataclasses.dataclass
+class UserWithUserFullMatchInfo:
+    """Represent the user and their match info"""
+
+    def __init__(self, user: UserInfo, user_match_info: List[UserFullMatchInfo]):
+        self.user = user
+        self.user_match_info = user_match_info
 
 @dataclasses.dataclass
 class UserMatchInfoSessionAggregate:
@@ -271,7 +207,7 @@ class UserMatchInfoSessionAggregate:
         total_clutches_loss_count: int,
         total_first_death_count: int,
         total_first_kill_count: int,
-        matches_recent: List[UserMatchInfo],
+        matches_recent: List[UserFullMatchInfo],
     ):
         self.ubisoft_username_active = ubisoft_username_active
         self.match_count = match_count
@@ -310,7 +246,7 @@ class UserQueueForStats:
 class UserWithUserMatchInfo:
     """Represent the user and their match info"""
 
-    def __init__(self, user: UserQueueForStats, user_match_info: List["UserMatchInfo"]):
+    def __init__(self, user: UserQueueForStats, user_match_info: List[UserFullMatchInfo]):
         self.user = user
         self.user_match_info = user_match_info
 

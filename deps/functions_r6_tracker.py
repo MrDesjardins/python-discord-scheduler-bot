@@ -8,7 +8,7 @@ from dateutil import parser
 import requests
 from bs4 import BeautifulSoup
 from deps.data_access_data_class import UserInfo
-from deps.models import UserFullMatchInfo, UserMatchInfo, UserMatchInfoSessionAggregate
+from deps.models import UserFullMatchInfo, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
 from deps.log import print_error_log
 from deps.functions import get_url_user_profile_overview
@@ -70,65 +70,7 @@ def download_stub_file() -> Optional[str]:
         return data
 
 
-def parse_json_from_matches(data_dict, ubisoft_username: str) -> List[UserMatchInfo]:
-    """Function to parse the JSON dictionary into dataclasses"""
-    try:
-        matches = data_dict["data"]["matches"]
-        if not isinstance(matches, list) or len(matches) == 0:
-            return []
-    except KeyError as e:
-        print_error_log(f"parse_json_from_matches: KeyError: {e} not found in the JSON data.")
-        return []
-    except TypeError as e:
-        print_error_log(f"parse_json_from_matches: TypeError: Unexpected data format - {e}")
-        return []
-    # Loopp all matches
-    match_infos = []
-    for match in matches:
-        try:
-            # Skip the match if it's a rollback
-            if match["metadata"]["isRollback"] is True:
-                continue
-            segments = match.get("segments", [])
-            if not segments:
-                print("Warning: Empty segments in match data.")
-                continue  # Skip if segments are empty
-            segment = segments[0]
-            stats = segment["stats"]
-            match_infos.append(
-                UserMatchInfo(
-                    match_uuid=match["attributes"]["id"],
-                    r6_tracker_user_uuid=segment["attributes"]["playerId"],
-                    ubisoft_username=ubisoft_username,
-                    match_timestamp=parser.parse(match["metadata"]["timestamp"]),
-                    match_duration_ms=match["metadata"]["duration"],
-                    map_name=match["metadata"]["sessionMapName"],
-                    has_win=stats["wins"]["value"] == 1,
-                    ace_count=stats["aces"]["value"],
-                    kill_3_count=stats["kills3K"]["value"],
-                    kill_4_count=stats["kills4K"]["value"],
-                    assist_count=stats["assists"]["value"],
-                    death_count=stats["deaths"]["value"],
-                    kd_ratio=stats["kdRatio"]["value"],
-                    kill_count=stats["kills"]["value"],
-                    tk_count=stats["teamKills"]["value"],
-                    rank_points=stats["rankPoints"]["value"],
-                    points_gained=stats["rankPointsDelta"]["value"],
-                    round_count=stats["roundsPlayed"]["value"],
-                    round_win_count=stats["roundsWon"]["value"],
-                    clutches_win_count=stats["clutches"]["value"],
-                    clutches_loss_count=stats["clutchesLost"]["value"],
-                    first_death_count=stats["firstDeaths"]["value"],
-                    first_kill_count=stats["firstBloods"]["value"],
-                )
-            )
-        except (KeyError, IndexError, TypeError) as e:
-            print_error_log(f"parse_json_from_matches: Error processing match data: {e}")
-            continue
-    return match_infos
-
-
-def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserMatchInfo]:
+def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFullMatchInfo]:
     """
     Function to parse the JSON dictionary into dataclasses
     The parse function returns more information than the one for the summary.
@@ -219,13 +161,15 @@ def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserMat
 
 
 def get_user_gaming_session_stats(
-    username: str, from_datetime: datetime, list_matches: List[UserMatchInfo]
+    username: str, from_datetime: datetime, list_matches: List[UserFullMatchInfo]
 ) -> Optional[UserMatchInfoSessionAggregate]:
     """
     Get the aggregate of the user's gaming session. A gaming session is from the time we pass. It should be the last ~24h.
     """
     # Get the matches after the from_datetime
-    matches_recent = [match for match in list_matches if match.match_timestamp > from_datetime]
+    matches_recent = [
+        match for match in list_matches if match.match_timestamp > from_datetime and match.is_rollback is False
+    ]
     if len(matches_recent) == 0:
         return None
     return UserMatchInfoSessionAggregate(

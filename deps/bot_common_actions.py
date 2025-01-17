@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Union
 from gtts import gTTS
 import discord
-from deps.browser import download_full_matches_async, download_matches_async
+from deps.browser import download_full_matches_async
 from deps.analytic_data_access import (
     data_access_set_r6_tracker_id,
     fetch_user_info_by_user_id,
@@ -362,14 +362,12 @@ async def adjust_role_from_ubisoft_max_account(
     return max_rank
 
 
-async def send_session_stats_directly(
-    member: discord.Member, guild_id: int, last_hours: int
-) -> Optional[UserMatchInfoSessionAggregate]:
+async def send_session_stats_directly(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
     """
     Get the statistic of a user and post it
     """
     await send_session_stats_to_queue(member, guild_id)
-    await post_queued_user_stats(False, last_hours)
+    await post_queued_user_stats(False)
 
 
 async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
@@ -408,7 +406,7 @@ async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> 
     print_log(f"User {member_name} added to the queue to get the stats")
 
 
-async def post_queued_user_stats(check_time_delay: bool = True, last_hour: int = STATS_HOURS_WINDOW_IN_PAST) -> None:
+async def post_queued_user_stats(check_time_delay: bool = True) -> None:
     """
     Get the stats for all the users in the queue and post it
     The function relies on opening a browser once and get all the users from the queue to get their stats at the same time
@@ -438,21 +436,22 @@ async def post_queued_user_stats(check_time_delay: bool = True, last_hour: int =
         return
 
     # Accumulate all the stats for all the users before posting them
-    await download_matches_async(last_hour, users, post_process_callback=post_post_queued_user_stats)
+    await download_full_matches_async(users, post_process_callback=post_post_queued_user_stats)
 
 
 async def post_post_queued_user_stats(
-    last_hour: int, users: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
+    users: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
 ) -> None:
     """Post to the channel the stats for the"""
     if len(users) != len(all_users_matches):
         print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(users)}")
-    await send_channel_list_stats(all_users_matches, last_hour)
+    await send_channel_list_stats(all_users_matches)
 
 
-async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo], last_hour: int) -> None:
+async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo]) -> None:
     """Post on the channel all the stats"""
     current_time = datetime.now(timezone.utc)
+    last_hour = STATS_HOURS_WINDOW_IN_PAST
     time_past = current_time - timedelta(hours=last_hour)
     for user_matches in all_users_matches:
         user_info = user_matches.user.user_info

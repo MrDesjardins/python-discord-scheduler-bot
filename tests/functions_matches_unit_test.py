@@ -1,12 +1,11 @@
 import json
-import pytest
 from datetime import datetime, timezone
+import pytest
 from deps.data_access_data_class import UserInfo
-from deps.functions_r6_tracker import (
-    get_user_gaming_session_stats,
-    parse_json_from_full_matches,
-    parse_json_from_matches,
-)
+from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_json_from_full_matches
+
+mock_user1 = UserInfo(1, "noSleep_rb6", "noSleep_rb6", "noSleep_rb6", "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC")
+mock_user2 = UserInfo(2, "joechod", "joechod", "joechod", None, "UTC")
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +37,7 @@ def test_data_exist_for_tests(test_data):
 def test_get_r6tracker_user_recent_matches(test_data):
     """Test if we can parse the data from the JSON file."""
     data_1, _, _, _, _ = test_data
-    lst = parse_json_from_matches(data_1, "noSleep_rb6")
+    lst = parse_json_from_full_matches(data_1, mock_user1)
     assert len(lst) >= 1
 
     match = lst[0]
@@ -74,7 +73,7 @@ def test_get_r6tracker_user_recent_matches(test_data):
 def test_individual_gaming_session_stats(test_data):
     """Test if we can get an aggregate of a session."""
     data_1, _, _, _, _ = test_data
-    lst = parse_json_from_matches(data_1, "noSleep_rb6")
+    lst = parse_json_from_full_matches(data_1, mock_user1)
     result = get_user_gaming_session_stats("noSleep_rb6", datetime.fromisoformat("2024-11-07T00:00:00.000+00:00"), lst)
     assert result.match_count == 8
     assert result.match_win_count == 4
@@ -95,7 +94,7 @@ def test_individual_gaming_session_stats(test_data):
 def test_get_r6tracker_user_recent_matches2(test_data):
     """Test if we can parse the data from the JSON file."""
     _, data_3, _, _, _ = test_data
-    lst = parse_json_from_matches(data_3, "joechod")
+    lst = parse_json_from_full_matches(data_3, mock_user2)
     assert len(lst) >= 1
     assert lst[0].map_name == "Villa"
     assert lst[1].map_name == "Chalet"
@@ -106,7 +105,7 @@ def test_get_r6tracker_user_recent_matches2(test_data):
 def test_get_r6tracker_user_recent_matches_aggregation2(test_data):
     """Test if we can parse the data from the JSON file."""
     _, _, data_4, _, _ = test_data
-    lst = parse_json_from_matches(data_4, "noSleep_rb6")
+    lst = parse_json_from_full_matches(data_4, mock_user1)
     datetime_last = datetime.fromisoformat("2024-11-09T00:00:00.000+00:00")
     agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
     assert len(lst) >= 1
@@ -126,10 +125,32 @@ def test_get_r6tracker_user_recent_matches_aggregation2(test_data):
     assert agg.total_round_with_4k == 1
 
 
+def test_get_r6tracker_user_recent_matches_with_rollback(test_data):
+    """Test if we can parse the data from the JSON file."""
+    _, _, _, _, data_6 = test_data
+    lst = parse_json_from_full_matches(data_6, mock_user1)
+    datetime_last = datetime.fromisoformat("2024-12-26T00:00:00.000+00:00")
+    agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
+    assert len(lst) == 21
+    assert len([match for match in lst if match.is_rollback]) == 1 # One rollback
+    assert [match.map_name for match in agg.matches_recent] == [
+        "Villa",
+        "Chalet",
+        "Consulate",
+        "Clubhouse",
+        "Kafe Dostoyevsky",
+        "Outback",
+    ]
+    assert agg.match_count == 6
+    assert agg.match_win_count == 2
+    assert agg.total_kill_count == 23
+    assert agg.total_round_with_4k == 1
+
+
 def test_get_r6tracker_user_recent_matches_aggregation3(test_data):
     """Test if we can parse the data from the JSON file."""
     _, _, _, data_5, _ = test_data
-    lst = parse_json_from_matches(data_5, "noSleep_rb6")
+    lst = parse_json_from_full_matches(data_5, mock_user1)
     datetime_last = datetime.fromisoformat("2024-11-11T00:00:00.000+00:00")
     agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
     assert len(lst) >= 1
@@ -144,16 +165,14 @@ def test_get_r6tracker_user_recent_matches_aggregation3(test_data):
 def test_get_r6tracker_user_recent_matches_rollback(test_data):
     """Test that we skip the rollback"""
     _, _, _, _, data_6 = test_data
-    lst = parse_json_from_matches(data_6, "noSleep_rb6")
-    assert len(lst) == 20, "Should skip the rollback, one match is skipped"
+    lst = parse_json_from_full_matches(data_6, mock_user1)
+    assert len(lst) == 21, "Should not skip the rollback"
 
 
 def test_parse_json_from_full_matches_dataset_1(test_data):
     """Test if we can parse the data from the JSON file."""
     data_1, _, _, _, _ = test_data
-    lst = parse_json_from_full_matches(
-        data_1, UserInfo(1, "noSleep_rb6", "noSleep_rb6", None, "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC")
-    )
+    lst = parse_json_from_full_matches(data_1, mock_user1)
     assert len(lst) >= 1
 
     match = lst[0]
@@ -163,9 +182,9 @@ def test_parse_json_from_full_matches_dataset_1(test_data):
     assert match.data_center == "Central US"
     assert match.session_type == "Ranked"
     assert match.map_name == "Bank"
-    assert match.is_surrender == False
-    assert match.is_forfeit == False
-    assert match.is_rollback == False
+    assert match.is_surrender is False
+    assert match.is_forfeit is False
+    assert match.is_rollback is False
     assert match.r6_tracker_user_uuid == "877a703b-0d29-4779-8fbf-ccd165c2b7f6"
     assert match.ubisoft_username == "noSleep_rb6"
     assert match.operators == "Mozzie,Capitão,Thatcher,Nomad"
@@ -207,7 +226,7 @@ def test_parse_json_from_full_matches_dataset_1(test_data):
     assert match.kills_per_round == 0
     assert match.deaths_per_round == 1.0
     assert match.assists_per_round == 0
-    assert match.has_win == False
+    assert match.has_win is False
 
     match = lst[1]
     assert match.match_uuid == "9681f59e-80db-4b2e-b54b-3631af76b074"
@@ -216,9 +235,9 @@ def test_parse_json_from_full_matches_dataset_1(test_data):
     assert match.data_center == "Central US"
     assert match.session_type == "Ranked"
     assert match.map_name == "Coastline"
-    assert match.is_surrender == False
-    assert match.is_forfeit == False
-    assert match.is_rollback == False
+    assert match.is_surrender is False
+    assert match.is_forfeit is False
+    assert match.is_rollback is False
     assert match.r6_tracker_user_uuid == "877a703b-0d29-4779-8fbf-ccd165c2b7f6"
     assert match.ubisoft_username == "noSleep_rb6"
     assert match.operators == "Mozzie,Ace,IQ,Finka"
@@ -260,15 +279,13 @@ def test_parse_json_from_full_matches_dataset_1(test_data):
     assert match.kills_per_round == 1.0
     assert match.deaths_per_round == 0.3333333333333333
     assert match.assists_per_round == 0.16666666666666666
-    assert match.has_win == True
+    assert match.has_win is True
 
 
 def test_parse_json_from_full_matches_dataset_6_rollback(test_data):
     """Test if we can parse the data from the JSON file."""
     _, _, _, _, data_6 = test_data
-    lst = parse_json_from_full_matches(
-        data_6, UserInfo(1, "noSleep_rb6", "noSleep_rb6", "noSleep_rb6", "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC")
-    )
+    lst = parse_json_from_full_matches(data_6, mock_user1)
     assert len(lst) >= 1
 
     match = lst[3]
@@ -278,9 +295,9 @@ def test_parse_json_from_full_matches_dataset_6_rollback(test_data):
     assert match.data_center == "Unknown"
     assert match.session_type == "Ranked"
     assert match.map_name == "Unknown"
-    assert match.is_surrender == False
-    assert match.is_forfeit == False
-    assert match.is_rollback == True
+    assert match.is_surrender is False
+    assert match.is_forfeit is False
+    assert match.is_rollback is True
     assert match.r6_tracker_user_uuid == "17d71d95-21d1-427a-979b-c8798fec55ef"
     assert match.ubisoft_username == "noSleep_rb6"
     assert match.operators == ""
@@ -322,4 +339,4 @@ def test_parse_json_from_full_matches_dataset_6_rollback(test_data):
     assert match.kills_per_round == 0
     assert match.deaths_per_round == 0
     assert match.assists_per_round == 0
-    assert match.has_win == False
+    assert match.has_win is False

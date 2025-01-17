@@ -16,7 +16,6 @@ from deps.values import (
     COMMAND_SET_USER_MAX_RANK_ACCOUNT_OTHER_USER,
     COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER,
     COMMAND_STATS_MATCHES,
-    STATS_HOURS_WINDOW_IN_PAST,
 )
 from ui.timezone_view import TimeZoneView
 from deps.mybot import MyBot
@@ -106,17 +105,12 @@ class ModeratorOnUserBehalf(commands.Cog):
 
     @app_commands.command(name=COMMAND_STATS_MATCHES)
     @commands.has_permissions(administrator=True)
-    async def mod_stats(
-        self,
-        interaction: discord.Interaction,
-        member: discord.Member,
-        last_hours: int = STATS_HOURS_WINDOW_IN_PAST,
-    ):
+    async def mod_stats(self, interaction: discord.Interaction, member: discord.Member):
         """Show the statistics for the moderator"""
         await interaction.response.defer(ephemeral=True)
         guild_id = interaction.guild.id
         member = await data_access_get_member(guild_id, member.id)
-        res = await send_session_stats_directly(member, guild_id, last_hours)
+        res = await send_session_stats_directly(member, guild_id)
         if res is None:
             await interaction.followup.send("No stats available", ephemeral=True)
         else:

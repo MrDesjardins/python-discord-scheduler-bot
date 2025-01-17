@@ -1,4 +1,9 @@
+"""
+Integration test to check if the matches information is downloaded correctly
+"""
+
 from unittest.mock import patch
+from deps.data_access_data_class import UserInfo
 from deps.browser_context_manager import BrowserContextManager
 
 
@@ -16,5 +21,6 @@ class TestMatchStatsDownload:
         mock_error_log.return_value = None
 
         with BrowserContextManager() as context:
-            context.download_matches("isleep_rb6")
+            user = UserInfo(357551747146842124, "Patrick", "noSleep_rb6", "isleep_rb6", None, "east")
+            context.download_full_matches(user)
         assert mock_error_log.call_count == 0
