@@ -75,7 +75,7 @@ def local_menu():
         "[3] Get Latest Logs",
         "[4] Lint",
         "[5] Visualizations",
-        "[6] Run Tests",
+        "[6] Run Unit Tests",
         "[7] Run Coverage Tests",
         "[q] Back",
     ]
@@ -320,8 +320,10 @@ def watch_log_journal() -> None:
     """
     try:
         # Execute the journalctl command
+        command = "journalctl -u gametimescheduler.service -f"
+        print(f"Command: {command}")
         result = subprocess.run(
-            ["journalctl", "-u", "gametimescheduler.service", "-f"],  # Specify the shell and script path
+            command,  # Specify the shell and script path
             text=True,  # Return the output as a string
             capture_output=True,  # Capture stdout and stderr
             check=False,  # Do not raise an exception if the script fails
@@ -368,8 +370,10 @@ def run_unit_tests() -> None:
     print("Running unit tests...")
     try:
         # Execute the bash script
+        command = "pytest -v -s ./tests/*_unit_test.py"
+        print(f"Command: {command}")
         result = subprocess.run(
-            ["pytest", "-v", "-s", "./tests/*_unit_test.py"],  # Specify the shell and script path
+            command,  # Specify the shell and script path
             text=True,  # Return the output as a string
             capture_output=True,  # Capture stdout and stderr
             check=True,  # Raise an exception if the script fails
@@ -392,16 +396,10 @@ def run_unit_test_coverage() -> None:
     print("Running coverage unit tests...")
     try:
         # Execute the bash script
+        command = "coverage run -m pytest -v -s ./tests/*_unit_test.py"
+        print(f"Command: {command}")
         result = subprocess.run(
-            [
-                "coverage",
-                "run",
-                "-m",
-                "pytest",
-                "-v",
-                "-s",
-                "./tests/*_unit_test.py",
-            ],  # Specify the shell and script path
+            command,  # Specify the shell and script path
             text=True,  # Return the output as a string
             capture_output=True,  # Capture stdout and stderr
             check=True,  # Raise an exception if the script fails
@@ -412,11 +410,14 @@ def run_unit_test_coverage() -> None:
             print(f"Script failed with error:\n{result.stderr}")
 
         # Execute the bash script
+        command = "coverage report -m"
+        print(f"Command: {command}")
         result = subprocess.run(
-            ["coverage", "report", "-m"],  # Specify the shell and script path
+            command,  # Specify the shell and script path
             text=True,  # Return the output as a string
             capture_output=True,  # Capture stdout and stderr
             check=True,  # Raise an exception if the script fails
+            shell=True,  # Allows the * to be expanded by the shell
         )
         # Check if the script executed successfully
         if result.returncode == 0:
