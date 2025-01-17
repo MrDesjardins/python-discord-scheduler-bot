@@ -627,18 +627,24 @@ async def persist_siege_matches_cross_guilds(from_time: datetime, to_time: datet
     await download_full_matches_async(users, post_process_callback=post_persist_siege_matches_cross_guilds)
 
 
-async def post_persist_siege_matches_cross_guilds(matches: List[UserWithUserMatchInfo]) -> None:
+async def post_persist_siege_matches_cross_guilds(
+    users: List[UserInfo], all_users_matches: List[UserWithUserMatchInfo]
+) -> None:
     """
     Persist the match info in the database
     Persist the r6 tracker UUID in the user profile table if available
     """
+    if len(users) != len(all_users_matches):
+        print_log(
+            f"post_persist_siege_matches_cross_guilds: Not all users have been processed. {len(all_users_matches)}/{len(users)}"
+        )
     # Use the matches that we downloaded
-    for match in matches:
+    for match in all_users_matches:
         # Save the matches in the database
         insert_if_nonexistant_full_match_info(match.user, match.user_match_info)
 
         # Add r6 tracker UUID to the user profile table if available
-        if match.user.r6_tracker_active_id is None and len(matches) > 0:
+        if match.user.r6_tracker_active_id is None and len(all_users_matches) > 0:
             # Update user with the R6 tracker if if it wasn't available before
-            r6_id = matches[0].r6_user_id
+            r6_id = all_users_matches[0].r6_user_id
             data_access_set_r6_tracker_id(match.user.id, r6_id)

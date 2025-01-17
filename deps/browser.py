@@ -61,12 +61,16 @@ async def download_full_matches_async(users: List[UserInfo], post_process_callba
         # Offload the blocking task to a thread
         loop = asyncio.get_event_loop()
         matches = await loop.run_in_executor(None, blocking_task)
+    except Exception as e:
+        print_error_log(f"download_full_matches_async: Error during match download: {e}")
+        return []
 
+    try:
         if post_process_callback:
             # Schedule the callback back on the main thread
-            loop.call_soon(asyncio.create_task, post_process_callback(matches))
+            loop.call_soon(asyncio.create_task, post_process_callback(users, matches))
 
         return matches
     except Exception as e:
-        print_error_log(f"download_full_matches_async: Error during match download: {e}")
+        print_error_log(f"download_full_matches_async: callback: {e}")
         return []
