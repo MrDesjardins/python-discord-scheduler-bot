@@ -45,7 +45,13 @@ def main():
 
 def raspberry_pi_menu():
     """Menu for actions on the Raspberry PI"""
-    options = ["[1] Service Status", "[2] Restart Service", "[3] Upgrade Code", "[q] Back"]
+    options = [
+        "[1] Service Status",
+        "[2] Restart Service",
+        "[3] Upgrade Code",
+        "[4] Watch Journal Log Live",
+        "[q] Back",
+    ]
     terminal_menu = TerminalMenu(options, title="Raspberry Actions", show_shortcut_hints=True)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
@@ -55,6 +61,8 @@ def raspberry_pi_menu():
     elif menu_entry_index == 2:
         update_code()
     elif menu_entry_index == 3:
+        watch_log_journal()
+    elif menu_entry_index == 4:
         return
     main()
 
@@ -84,9 +92,9 @@ def local_menu():
     elif menu_entry_index == 4:
         show_visualization_menu()
     elif menu_entry_index == 5:
-        run_tests()
+        run_unit_tests()
     elif menu_entry_index == 6:
-        run_test_coverage()
+        run_unit_test_coverage()
     elif menu_entry_index == 7:
         return
 
@@ -306,6 +314,28 @@ def update_code() -> None:
         print(f"An exception occurred: {e}")
 
 
+def watch_log_journal() -> None:
+    """
+    Watch the journal log live using journalctl
+    """
+    try:
+        # Execute the journalctl command
+        result = subprocess.run(
+            ["journalctl", "-u", "gametimescheduler.service", "-f"],  # Specify the shell and script path
+            text=True,  # Return the output as a string
+            capture_output=True,  # Capture stdout and stderr
+            check=False,  # Do not raise an exception if the script fails
+        )
+
+        # Check if the script executed successfully
+        if result.returncode == 0:
+            print("Script output:\n", result.stdout)
+        else:
+            print(f"Script failed with error:\n{result.stderr}")
+    except Exception as e:
+        print(f"An exception occurred: {e}")
+
+
 def save_dependencies() -> None:
     """
     Save the current dependencies to a requirements.txt file
@@ -331,43 +361,51 @@ def save_dependencies() -> None:
         print(f"An exception occurred: {e}")
 
 
-def run_tests() -> None:
+def run_unit_tests() -> None:
     """
     Run the unit tests and integration tests using the unittest library
     """
-    # Create a stream to capture test runner output
-    test_output = io.StringIO()
-
-    # Create a test loader and discover tests from the 'tests' directory
-    loader = unittest.TestLoader()
-    tests = loader.discover("tests", pattern="*_test.py")
-
-    # Create a test runner that outputs to the test_output stream
-    runner = unittest.TextTestRunner(stream=test_output, verbosity=2)
-
-    # Run the tests
-    result = runner.run(tests)
-    # Print captured output
-    print("Test output:")
-    print(test_output.getvalue())
-
-    # Print the overall result
-    if result.wasSuccessful():
-        print("All tests passed.")
-    else:
-        print(f"Tests failed. Failures: {len(result.failures)}. Errors: {len(result.errors)}.")
-
-
-def run_test_coverage() -> None:
-    """Unit Test Code Coverage"""
-    print("Running coverage tests...")
+    print("Running unit tests...")
     try:
         # Execute the bash script
         result = subprocess.run(
-            ["coverage", "run", "-m", "pytest", "-v", "-s", "./tests"],  # Specify the shell and script path
+            ["pytest", "-v", "-s", "./tests/*_unit_test.py"],  # Specify the shell and script path
             text=True,  # Return the output as a string
             capture_output=True,  # Capture stdout and stderr
             check=True,  # Raise an exception if the script fails
+            shell=True,  # Allows the * to be expanded by the shell
+        )
+
+        # Check if the script executed successfully
+        if result.returncode == 0:
+            print("Script output:\n", result.stdout)
+        else:
+            print(f"Script failed with error:\n{result.stderr}")
+    except subprocess.CalledProcessError as e:
+        print(f"Script failed with error:\n{e.stderr}")
+    except Exception as e:
+        print(f"An exception occurred: {e}")
+
+
+def run_unit_test_coverage() -> None:
+    """Unit Test Code Coverage"""
+    print("Running coverage unit tests...")
+    try:
+        # Execute the bash script
+        result = subprocess.run(
+            [
+                "coverage",
+                "run",
+                "-m",
+                "pytest",
+                "-v",
+                "-s",
+                "./tests/*_unit_test.py",
+            ],  # Specify the shell and script path
+            text=True,  # Return the output as a string
+            capture_output=True,  # Capture stdout and stderr
+            check=True,  # Raise an exception if the script fails
+            shell=True,  # Allows the * to be expanded by the shell
         )
         # Check if the script executed successfully
         if result.returncode != 0:

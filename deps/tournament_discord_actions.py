@@ -153,24 +153,25 @@ async def send_tournament_match_reminder(guild: discord.guild) -> None:
             tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
             for game in tournament_games:
                 if game.user1_id is not None and game.user2_id is not None and game.user_winner_id is None:
-                    continue
-                try:
-                    u1_data = await data_access_get_member(guild_id, game.user1_id)
-                    u2_data = await data_access_get_member(guild_id, game.user2_id)
-                    if u1_data is None or u2_data is None:
+                    try:
+                        u1_data = await data_access_get_member(guild_id, game.user1_id)
+                        u2_data = await data_access_get_member(guild_id, game.user2_id)
+                        if u1_data is None or u2_data is None:
+                            print_error_log(
+                                f"send_tournament_match_reminder: User not found. See user1 {game.user1_id} and user2 {game.user2_id}"
+                            )
+                            continue
+                        user_1_display_name = u1_data.mention
+                        user_2_display_name = u2_data.mention
+                        msg += (
+                            f"\n➡️ {user_1_display_name} and {user_2_display_name} for tournament: `{tournament.name}`"
+                        )
+                        need_reminder = True
+                    except Exception as e:
                         print_error_log(
-                            f"send_tournament_match_reminder: User not found. See user1 {game.user1_id} and user2 {game.user2_id}"
+                            f"send_tournament_match_reminder: Error getting user info: {e}. See user1 {game.user1_id} and user2 {game.user2_id}"
                         )
                         continue
-                    user_1_display_name = u1_data.display_name
-                    user_2_display_name = u2_data.display_name
-                    msg += f"\n➡️ {user_1_display_name} and {user_2_display_name} for tournament: `{tournament.name}`"
-                    need_reminder = True
-                except Exception as e:
-                    print_error_log(
-                        f"send_tournament_match_reminder: Error getting user info: {e}. See user1 {game.user1_id} and user2 {game.user2_id}"
-                    )
-                    continue
         if need_reminder:
             await channel.send(content=msg)
     else:

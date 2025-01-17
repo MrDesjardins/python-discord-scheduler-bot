@@ -1,13 +1,11 @@
 """ Common Actions that the bots Cogs or Bots can invoke """
 
-import asyncio
 import os
-import random
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Union
 from gtts import gTTS
 import discord
-from deps.browser_context_manager import BrowserContextManager
+from deps.browser import download_full_matches_async, download_matches_async
 from deps.analytic_data_access import (
     data_access_set_r6_tracker_id,
     fetch_user_info_by_user_id,
@@ -45,8 +43,6 @@ from deps.models import (
     ActivityTransition,
     SimpleUser,
     SimpleUserHour,
-    UserFullMatchInfo,
-    UserMatchInfo,
     UserMatchInfoSessionAggregate,
     UserQueueForStats,
     UserWithUserMatchInfo,
@@ -437,27 +433,18 @@ async def post_queued_user_stats(check_time_delay: bool = True, last_hour: int =
         # print_log(f"post_queued_user_stats: {len(users)} users in the queue after delta time")
     else:
         users = list_users
-    # Accumulate all the stats for all the users before posting them
-    all_users_matches: List[UserWithUserMatchInfo] = []
-    # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
-    # Then, in the loop, use the cookies to get the stats using the API
-    try:
-        with BrowserContextManager() as context:
-            for user in users:
-                try:
-                    matches: List[UserMatchInfo] = context.download_matches(user.user_info.ubisoft_username_active)
-                    all_users_matches.append(UserWithUserMatchInfo(user, matches))
-                    if len(users) > 1:
-                        await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
-                except Exception as e:
-                    print_error_log(
-                        f"post_queued_user_stats: Error getting the user ({user.user_info.display_name}) stats from R6 tracker: {e}"
-                    )
-                    continue  # Skip to the next user
-    except Exception as e:
-        print_error_log(f"post_queued_user_stats: Error opening the browser context: {e}")
 
-    # End of the browser context
+    if len(users) == 0:
+        return
+
+    # Accumulate all the stats for all the users before posting them
+    await download_matches_async(last_hour, users, post_process_callback=post_post_queued_user_stats)
+
+
+async def post_post_queued_user_stats(
+    last_hour: int, users: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
+) -> None:
+    """Post to the channel the stats for the"""
     if len(users) != len(all_users_matches):
         print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(users)}")
     await send_channel_list_stats(all_users_matches, last_hour)
@@ -638,27 +625,21 @@ async def persist_siege_matches_cross_guilds(from_time: datetime, to_time: datet
 
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API
-    try:
-        with BrowserContextManager() as context:
-            for user in users:
-                try:
-                    matches: List[UserFullMatchInfo] = context.download_full_matches(user.user_info)
-                    # Save the matches
-                    insert_if_nonexistant_full_match_info(user, matches)
+    await download_full_matches_async(users, post_process_callback=post_persist_siege_matches_cross_guilds)
 
-                    # Add r6 tracker UUID to the user profile table if available
-                    if user.r6_tracker_active_id is None and len(matches) > 0:
-                        # Update user with the R6 tracker if if it wasn't available before
-                        r6_id = matches[0].r6_user_id
-                        data_access_set_r6_tracker_id(user.id, r6_id)
 
-                    if len(users) > 1:
-                        await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
+async def post_persist_siege_matches_cross_guilds(matches: List[UserWithUserMatchInfo]) -> None:
+    """
+    Persist the match info in the database
+    Persist the r6 tracker UUID in the user profile table if available
+    """
+    # Use the matches that we downloaded
+    for match in matches:
+        # Save the matches in the database
+        insert_if_nonexistant_full_match_info(match.user, match.user_match_info)
 
-                except Exception as e:
-                    print_error_log(
-                        f"post_queued_user_stats: Error getting the user ({user.user_info.display_name}) stats from R6 tracker: {e}"
-                    )
-                    continue  # Skip to the next user
-    except Exception as e:
-        print_error_log(f"post_queued_user_stats: Error opening the browser context: {e}")
+        # Add r6 tracker UUID to the user profile table if available
+        if match.user.r6_tracker_active_id is None and len(matches) > 0:
+            # Update user with the R6 tracker if if it wasn't available before
+            r6_id = matches[0].r6_user_id
+            data_access_set_r6_tracker_id(match.user.id, r6_id)
