@@ -434,14 +434,12 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
 
     if len(users) == 0:
         return
-
+    users_info = [user.user_info for user in users]
     # Accumulate all the stats for all the users before posting them
-    await download_full_matches_async(users, post_process_callback=post_post_queued_user_stats)
+    await download_full_matches_async(users_info, post_process_callback=post_post_queued_user_stats)
 
 
-async def post_post_queued_user_stats(
-    users: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
-) -> None:
+async def post_post_queued_user_stats(users: List[UserInfo], all_users_matches: List[UserWithUserMatchInfo]) -> None:
     """Post to the channel the stats for the"""
     if len(users) != len(all_users_matches):
         print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(users)}")
