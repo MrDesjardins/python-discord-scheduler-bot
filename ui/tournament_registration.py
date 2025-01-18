@@ -8,6 +8,7 @@ from deps.tournament_data_class import Tournament
 from deps.tournament_functions import register_for_tournament
 from deps.log import print_error_log, print_warning_log
 from deps.tournament_data_access import get_people_registered_for_tournament
+from deps.values import COMMAND_TOURNAMENT_REGISTER_TOURNAMENT
 
 
 class TournamentRegistration(View):
@@ -60,10 +61,11 @@ class TournamentRegistration(View):
         place_available = tournament.max_players - len(tournament_users)
         if place_available == 0:
             await channel.send(
-                f'{interaction.user.mention} has registered for the tournament "{tournament.name}". The tournament is full and will start on {date_start}.'
+                f'{interaction.user.mention} has registered for the tournament "{tournament.name}".\n\nThe tournament is full and will start on {date_start}.'
             )
         else:
             await channel.send(
-                f'{interaction.user.mention} has registered for the tournament "{tournament.name}". Only {place_available} spots available.'
+                f'{interaction.user.mention} has registered for the tournament "{tournament.name}"!\n\nOnly {place_available} more spots available. Hurry, the tournament starts on {date_start}. Use the command /`{COMMAND_TOURNAMENT_REGISTER_TOURNAMENT}` to join.'
             )
+
         return True

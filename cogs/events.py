@@ -50,7 +50,7 @@ class MyEventsCog(commands.Cog):
         print_log(f"Bot latency: {bot.latency} seconds")
         tasks = []
         for guild in bot.guilds:
-            print_log(f"Checking in guild: {guild.name} ({guild.id})")
+            print_log(f"Checking in guild: {guild.name} ({guild.id}) - Created the {guild.created_at}")
             print_log(f"\tGuild {guild.name} has {guild.member_count} members, setting the commands")
             guild_obj = discord.Object(id=guild.id)
 

@@ -1,6 +1,7 @@
 """ Model for the tournament feature """
 
 from __future__ import annotations
+import dataclasses
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -48,3 +49,13 @@ class TournamentNode:
         self.timestamp = timestamp
         self.next_game1: Optional[TournamentNode] = None
         self.next_game2: Optional[TournamentNode] = None
+
+
+@dataclasses.dataclass
+class TournamentResult:
+    """Represents the result of a tournament"""
+
+    first_place_user_id: int
+    second_place_user_id: int
+    third_place_user_id_1: int
+    third_place_user_id_2: int

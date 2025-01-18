@@ -6,7 +6,7 @@ import random
 from typing import Dict, List, Optional
 from deps.data_access_data_class import UserInfo
 from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_models import TournamentNode
+from deps.tournament_models import TournamentNode, TournamentResult
 from deps.tournament_data_access import (
     data_access_create_bracket,
     fetch_tournament_by_id,
@@ -501,3 +501,48 @@ def get_node_by_levels(root: TournamentNode) -> List[List[TournamentNode]]:
 
     traverse(root, depth=0)
     return levels
+
+
+def get_tournament_final_result_positions(root: TournamentNode) -> Optional[TournamentResult]:
+    """
+    Get the final result of the tournament.
+    First position, then the second position and the two third positions
+    """
+    levels = get_node_by_levels(root)
+    if len(levels) == 0:
+        return None
+
+    final_level = levels[-1]
+    if len(final_level) == 0:
+        return None
+
+    # The final node is the winner
+    final_game = final_level[0]
+    if final_game.user_winner_id is None:
+        return None  # The tournament is not yet finished
+
+    first_position = final_game.user_winner_id
+
+    # The second node is the loser of the final
+    second_position = final_game.user1_id if final_game.user2_id == final_game.user_winner_id else final_game.user2_id
+
+    # The third nodes are the losers of the semi-final
+    semi_finals = levels[-2]
+    if len(semi_finals) != 2:
+        return None
+
+    if semi_finals[0].user_winner_id is None or semi_finals[1].user_winner_id is None:
+        return None
+    third_position_1 = (
+        semi_finals[0].user1_id if semi_finals[0].user2_id == semi_finals[0].user_winner_id else semi_finals[0].user2_id
+    )
+    third_position_2 = (
+        semi_finals[1].user1_id if semi_finals[1].user2_id == semi_finals[1].user_winner_id else semi_finals[1].user2_id
+    )
+
+    return TournamentResult(
+        first_place_user_id=first_position,
+        second_place_user_id=second_position,
+        third_place_user_id_1=third_position_1,
+        third_place_user_id_2=third_position_2,
+    )

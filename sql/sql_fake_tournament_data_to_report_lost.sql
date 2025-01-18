@@ -1,10 +1,10 @@
 -- Create a fake tournament data for testing purposes
 -- Delete Everything
-DELETE FROM user_tournament;
+DELETE FROM user_tournament WHERE tournament_id = 123123;
 
-DELETE FROM tournament_game;
+DELETE FROM tournament_game WHERE tournament_id = 123123;
 
-DELETE FROM tournament;
+DELETE FROM tournament WHERE id = 123123;
 
 -- Create a fake tournament
 INSERT INTO
@@ -17,19 +17,21 @@ INSERT INTO
     end_date,
     best_of,
     max_players,
-    maps
+    maps,
+    has_started
   )
 VALUES
   (
     123123,
     1281020861591326803,
-    'Fake Tournament #1',
-    '2024-12-01 00:00:00',
-    '2024-12-10 00:00:00',
-    '2024-12-23 00:00:00',
+    'Fake Tournament #2',
+    '2025-01-01 00:00:00',
+    '2025-01-10 00:00:00',
+    '2025-01-31 00:00:00',
     3,
     8,
-    'oregon,villa,clubhouse,kafe,consulate'
+    'oregon,villa,clubhouse,kafe,consulate',
+    false
   );
 
 -- Create fake tournament players

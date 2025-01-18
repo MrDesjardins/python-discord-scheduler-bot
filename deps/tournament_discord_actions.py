@@ -4,7 +4,7 @@ The function might be used by several different Discord interactions.
 """
 
 import io
-from typing import List, Optional
+from typing import List, Optional, Union
 import discord
 from deps.data_access import (
     data_access_get_channel,
@@ -27,6 +27,7 @@ from deps.values import (
     COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT,
     COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT,
 )
+from deps.tournament_models import TournamentNode
 
 
 def generate_bracket_file(tournament_id: int, file_name: str = "tournament_bracket.png") -> Optional[discord.File]:
@@ -35,12 +36,12 @@ def generate_bracket_file(tournament_id: int, file_name: str = "tournament_brack
     """
     tournament: Tournament = fetch_tournament_by_id(tournament_id)
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
-    tournament_tree = build_tournament_tree(tournament_games)
+    tournament_tree: Optional[TournamentNode] = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         print_error_log(
             f"generate_braket_file: Failed to build tournament tree for tournament {tournament_id}. Skipping."
         )
-
+        return None
     # Generate the tournament bracket image
     img_bytes = plot_tournament_bracket(tournament, tournament_tree, False)
     if img_bytes is None:

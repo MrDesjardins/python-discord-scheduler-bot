@@ -13,6 +13,7 @@ from deps.tournament_functions import (
     auto_assign_winner,
     build_tournament_tree,
     can_register_to_tournament,
+    get_tournament_final_result_positions,
     has_node_without_user,
     register_for_tournament,
     resize_tournament,
@@ -582,3 +583,74 @@ def test_auto_assign_set_the_root_user():
     assert nodes[1].id == 7
     assert nodes[1].user1_id == 3
     assert nodes[1].user2_id == 6
+
+
+def test_get_tournament_final_result_positions_when_tournament_completed():
+    """
+    Test the result of the tournament when it is completed
+    """
+    #                            [7:U1=3, U2=6]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=6, U2=8]
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=5, U2=6] [4:U1=7, U2=8]
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, 5, 6, 6, t1, None, None, None, None),
+        TournamentGame(4, 1, 7, 8, 8, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, 3, t1, None, None, 1, 2),
+        TournamentGame(6, 1, 6, 8, 6, t1, None, None, 3, 4),
+        TournamentGame(7, 1, 3, 6, 3, t1, None, None, 5, 6),
+    ]
+    root = build_tournament_tree(tournament_games)
+    results = get_tournament_final_result_positions(root)
+    assert results.first_place_user_id == 3
+    assert results.second_place_user_id == 6
+    assert results.third_place_user_id_1 == 2
+    assert results.third_place_user_id_2 == 8
+
+
+def test_get_tournament_final_result_positions_final_match_not_done():
+    """
+    Test the result of the tournament when it is completed
+    """
+    #                            [7:U1=3, U2=6]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=6, U2=8]
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=5, U2=6] [4:U1=7, U2=8]
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, 5, 6, 6, t1, None, None, None, None),
+        TournamentGame(4, 1, 7, 8, 8, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, 3, t1, None, None, 1, 2),
+        TournamentGame(6, 1, 6, 8, 6, t1, None, None, 3, 4),
+        TournamentGame(7, 1, 3, 6, None, t1, None, None, 5, 6),  # None for the winner
+    ]
+    root = build_tournament_tree(tournament_games)
+    results = get_tournament_final_result_positions(root)
+    assert results is None
+
+def test_get_tournament_final_result_positions_semi_final_match_not_done():
+    """
+    Test the result of the tournament when it is completed
+    """
+    #                            [7:U1=3, U2=6]
+    #                            /           \
+    #              [5:U1=3, U2=2]            [6:U1=6, U2=8]
+    #                /        \                 /         \
+    #    [1:U1=3, U2=4] [2:U1=1, U2=2] [3:U1=5, U2=6] [4:U1=7, U2=8]
+    tournament_games = [
+        TournamentGame(1, 1, 3, 4, 3, t1, None, None, None, None),
+        TournamentGame(2, 1, 1, 2, 2, t1, None, None, None, None),
+        TournamentGame(3, 1, 5, 6, 6, t1, None, None, None, None),
+        TournamentGame(4, 1, 7, 8, 8, t1, None, None, None, None),
+        TournamentGame(5, 1, 3, 2, None, t1, None, None, 1, 2),
+        TournamentGame(6, 1, 6, 8, None, t1, None, None, 3, 4),
+        TournamentGame(7, 1, None, None, None, t1, None, None, 5, 6),  # None for the winner
+    ]
+    root = build_tournament_tree(tournament_games)
+    results = get_tournament_final_result_positions(root)
+    assert results is None

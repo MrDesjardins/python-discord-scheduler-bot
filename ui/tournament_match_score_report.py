@@ -4,11 +4,16 @@ from typing import List
 import discord
 from discord.ui import Select, View
 from deps.data_access import data_access_get_member
-from deps.tournament_data_class import Tournament
-from deps.tournament_functions import report_lost_tournament
+from deps.tournament_data_class import Tournament, TournamentGame
+from deps.tournament_functions import (
+    build_tournament_tree,
+    get_tournament_final_result_positions,
+    report_lost_tournament,
+)
 from deps.log import print_error_log
 from deps.tournament_models import TournamentNode
 from deps.tournament_discord_actions import generate_bracket_file
+from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
 
 
 class TournamentMatchScoreReport(View):
@@ -60,7 +65,7 @@ class TournamentMatchScoreReport(View):
             self.tournament_id = tournament_id
             if self.round_lost is None or self.round_won is None:
                 await interaction.response.send_message(
-                    f"Tournament selected: {tournament_id}. Now select rounds.", ephemeral=True
+                    f"Now select the number of round you lost and the number of round you won.", ephemeral=True
                 )
             else:
                 await interaction.response.defer()
@@ -103,19 +108,52 @@ class TournamentMatchScoreReport(View):
                     guild_id=interaction.guild_id, user_id=completed_node.user_winner_id
                 )
                 player_win_display_name = player_win.mention
-            except:
+            except Exception as e:
+                # Might go in here in development since there is no member in the guild
+                print_error_log(f"process_tournament_result: Error while fetching member: {e}")
                 player_win_display_name = completed_node.user_winner_id
             await interaction.followup.send(
                 f"{player_win_display_name} wins against {player_lose.mention} on {completed_node.map} with a score of {completed_node.score}",
                 ephemeral=False,
             )
 
+            tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(self.tournament_id)
+            tournament_tree = build_tournament_tree(tournament_games)
+            if tournament_tree is None:
+                print_error_log(
+                    f"TournamentMatchScoreReport: Failed to build tournament tree for tournament {self.tournament_id}. Skipping."
+                )
+            final_score = get_tournament_final_result_positions(tournament_tree)
             file = generate_bracket_file(self.tournament_id)
-            await interaction.followup.send(file=file, ephemeral=False)
+            if final_score is None:
+                await interaction.followup.send(file=file, ephemeral=False)
+            else:
+                try:
+                    m1 = await data_access_get_member(interaction.guild_id, final_score.first_place_user_id)
+                    first_place = m1.mention if m1 else "Unknown"
+                    m2 = await data_access_get_member(interaction.guild_id, final_score.second_place_user_id)
+                    second_place = m2.mention if m2 else "Unknown"
+                    m3_1 = await data_access_get_member(interaction.guild_id, final_score.third_place_user_id_1)
+                    third_place1 = m3_1.mention if m3_1 else "Unknown"
+                    m3_2 = await data_access_get_member(interaction.guild_id, final_score.third_place_user_id_2)
+                    third_place2 = m3_2.mention if m3_2 else "Unknown"
+                except Exception as e:
+                    # Might go in here in development since there is no member in the guild
+                    print_error_log(f"process_tournament_result: Error while fetching member: {e}")
+                    first_place = "Unknown"
+                    second_place = "Unknown"
+                    third_place1 = "Unknown"
+                    third_place2 = "Unknown"
+                # await interaction.response.send_message(file=file, ephemeral=False)
+                await interaction.followup.send(file=file, ephemeral=False)
+                await interaction.followup.send(
+                    f"The tournament **{tournament.name}** has finished!\n Winners are:\n🥇 {first_place}\n🥈 {second_place}\n🥉 {third_place1} & {third_place2}",
+                    ephemeral=False,
+                )
 
         else:
             print_error_log(f"Error while reporting lost: {result.text}")
             await interaction.followup.send(
-                f"Cannot report lost match: {result.text}. Please contact a moderator.",
+                f"Cannot report lost match: {result.text} Please contact a moderator if you should have reported a match.",
                 ephemeral=True,
             )
