@@ -7,7 +7,7 @@ from typing import List
 
 from deps.data_access_data_class import UserInfo
 from deps.browser_context_manager import BrowserContextManager
-from deps.models import UserFullMatchInfo, UserQueueForStats, UserWithUserMatchInfo
+from deps.models import UserFullMatchInfo, UserWithUserMatchInfo
 from deps.log import print_error_log
 
 
@@ -20,7 +20,7 @@ async def run_in_executor(func, *args):
         return await loop.run_in_executor(pool, func, *args)
 
 
-async def download_full_matches(users: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
+async def download_full_matches(users: List[UserInfo]) -> List[UserWithUserMatchInfo]:
     """
     Download the maximum information for matches with the goal to persist the data into the database
     """
@@ -31,7 +31,7 @@ async def download_full_matches(users: List[UserQueueForStats]) -> List[UserWith
         with BrowserContextManager() as context:
             for user in users:
                 try:
-                    matches: List[UserFullMatchInfo] = context.download_full_matches(user.user_info)
+                    matches: List[UserFullMatchInfo] = context.download_full_matches(user)
                     all_users_matches.append(UserWithUserMatchInfo(user, matches))
 
                     if len(users) > 1:
@@ -39,7 +39,7 @@ async def download_full_matches(users: List[UserQueueForStats]) -> List[UserWith
 
                 except Exception as e:
                     print_error_log(
-                        f"post_queued_user_stats: Error getting the user ({user.user_info.display_name}) stats from R6 tracker: {e}"
+                        f"post_queued_user_stats: Error getting the user ({user.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
     except Exception as e:
