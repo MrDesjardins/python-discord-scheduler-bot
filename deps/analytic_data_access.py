@@ -11,7 +11,7 @@ from deps.cache import (
     get_cache,
 )
 from deps.functions import ensure_utc
-from deps.models import UserFullMatchInfo
+from deps.models import UserFullMatchStats
 from deps.log import print_error_log
 
 KEY_USER_INFO = "user_info"
@@ -260,7 +260,7 @@ def data_access_set_r6_tracker_id(user_id: int, r6_tracker_active_id: str) -> No
     database_manager.get_cursor().execute(
         """
     UPDATE user_info
-      SET r6_tracker_active_id = :name
+      SET r6_tracker_active_id = :r6_tracker_active_id
       WHERE id = :user_id
     """,
         {"user_id": user_id, "r6_tracker_active_id": r6_tracker_active_id},
@@ -313,7 +313,7 @@ def get_active_user_info(from_time: datetime, to_time: datetime) -> list[UserInf
     return [user_info for user_info in user_infos if user_info.ubisoft_username_active is not None]
 
 
-def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: list[UserFullMatchInfo]) -> None:
+def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: list[UserFullMatchStats]) -> None:
     """
     We have a list of full match info, we want to insert them if they do not exist
     A match might exist in the case we fetched more and the user already had some matches recorded.

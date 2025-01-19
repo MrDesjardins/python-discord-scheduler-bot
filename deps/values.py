@@ -104,6 +104,7 @@ COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"  # Acts like a feature flag
 COMMAND_VERSION = "modversion"
 COMMAND_RESET_CACHE = "modresetcache"  # Only owner of the server can execute that one
 COMMAND_STATS_MATCHES = "modstatsmatches"
+COMMAND_STATS_ACTIVE_USER = "modstatsactiveusers"
 
 # URL from TRN (third-party)
 URL_TRN_PROFILE_MAIN = "https://r6.tracker.network/r6siege/profile/uplay/{account_name}"

@@ -55,8 +55,9 @@ class SimpleUserHour:
         self.simple_user = user
         self.hour = hour
 
+
 @dataclasses.dataclass
-class UserFullMatchInfo:
+class UserFullMatchStats:
     """
     Represent the information from a single match for a specific user
     Information coming from this URL:
@@ -173,13 +174,15 @@ class UserFullMatchInfo:
         self.assists_per_round = assists_per_round
         self.has_win = has_win
 
+
 @dataclasses.dataclass
 class UserWithUserFullMatchInfo:
     """Represent the user and their match info"""
 
-    def __init__(self, user: UserInfo, user_match_info: List[UserFullMatchInfo]):
+    def __init__(self, user: UserInfo, user_match_info: List[UserFullMatchStats]):
         self.user = user
         self.user_match_info = user_match_info
+
 
 @dataclasses.dataclass
 class UserMatchInfoSessionAggregate:
@@ -207,7 +210,7 @@ class UserMatchInfoSessionAggregate:
         total_clutches_loss_count: int,
         total_first_death_count: int,
         total_first_kill_count: int,
-        matches_recent: List[UserFullMatchInfo],
+        matches_recent: List[UserFullMatchStats],
     ):
         self.ubisoft_username_active = ubisoft_username_active
         self.match_count = match_count
@@ -236,19 +239,17 @@ class UserQueueForStats:
     Represent the user that is in the queue to get their stats
     """
 
-    def __init__(self, user_info: UserInfo, guild_id: str, time_queue: datetime):
-        self.user_info = user_info
-        self.guild_id = guild_id
-        self.time_queue = time_queue
+    user_info: UserInfo
+    guild_id: str
+    time_queue: datetime
 
 
 @dataclasses.dataclass
 class UserWithUserMatchInfo:
-    """Represent the user and their match info"""
+    """Represent the user who request stats and their match stats response"""
 
-    def __init__(self, user: UserQueueForStats, user_match_info: List[UserFullMatchInfo]):
-        self.user = user
-        self.user_match_info = user_match_info
+    user_request_stats: UserQueueForStats
+    match_stats: List[UserFullMatchStats]
 
 
 @dataclasses.dataclass

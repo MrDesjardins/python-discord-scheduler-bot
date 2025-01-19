@@ -179,3 +179,14 @@ def ensure_utc(dt: datetime) -> datetime:
         return local_dt.astimezone(timezone.utc)
     # Convert to UTC if not already in UTC
     return dt.astimezone(timezone.utc)
+
+
+def convert_to_datetime(date_str):
+    """Convert a date string to a timezone-aware datetime object (UTC)"""
+    if not date_str:  # Handle None or empty string
+        return None
+    # Parse the date string and assume it's in UTC if no timezone is provided
+    dt = datetime.fromisoformat(date_str)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)  # Make the datetime UTC-aware
+    return dt

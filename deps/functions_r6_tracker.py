@@ -8,7 +8,7 @@ from dateutil import parser
 import requests
 from bs4 import BeautifulSoup
 from deps.data_access_data_class import UserInfo
-from deps.models import UserFullMatchInfo, UserMatchInfoSessionAggregate
+from deps.models import UserFullMatchStats, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
 from deps.log import print_error_log
 from deps.functions import get_url_user_profile_overview
@@ -70,7 +70,7 @@ def download_stub_file() -> Optional[str]:
         return data
 
 
-def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFullMatchInfo]:
+def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFullMatchStats]:
     """
     Function to parse the JSON dictionary into dataclasses
     The parse function returns more information than the one for the summary.
@@ -99,7 +99,7 @@ def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFul
             stats = segment["stats"]
 
             match_infos.append(
-                UserFullMatchInfo(
+                UserFullMatchStats(
                     user_id=user_info.id,
                     match_uuid=match.get("attributes", {}).get("id", "Unknown"),
                     match_timestamp=parser.parse(match_metadata.get("timestamp", "1970-01-01T00:00:00Z")),
@@ -161,7 +161,7 @@ def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFul
 
 
 def get_user_gaming_session_stats(
-    username: str, from_datetime: datetime, list_matches: List[UserFullMatchInfo]
+    username: str, from_datetime: datetime, list_matches: List[UserFullMatchStats]
 ) -> Optional[UserMatchInfoSessionAggregate]:
     """
     Get the aggregate of the user's gaming session. A gaming session is from the time we pass. It should be the last ~24h.

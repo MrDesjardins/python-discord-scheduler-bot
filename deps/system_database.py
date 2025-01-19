@@ -209,6 +209,69 @@ class DatabaseManager:
         );
         """
         )
+        ### Betting
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS bet_user_tournament (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(user_id) REFERENCES user_info(id)
+        );
+        """
+        )
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS bet_game (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            game_id INTEGER NOT NULL,
+            probability_user_1_win REAL NOT NULL,
+            probability_user_2_win REAL NOT NULL,
+            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(game_id) REFERENCES tournament_game(id)
+        );
+        """
+        )
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS bet_user_game (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            bet_game_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            user_id_bet_placed INTEGER NOT NULL,
+            time_bet_placed DATETIME NOT NULL,
+            probability_user_win_when_bet_placed REAL NOT NULL,
+            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(bet_game_id) REFERENCES bet_game(id),
+            FOREIGN KEY(user_id) REFERENCES user_info(id),
+            FOREIGN KEY(user_id_bet_placed) REFERENCES user_info(id)
+        );
+        """
+        )
+
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS bet_ledger_entry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            game_id INTEGER NOT NULL,
+            bet_game_id INTEGER NOT NULL,
+            bet_user_game_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(game_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(bet_game_id) REFERENCES bet_game(id),
+            FOREIGN KEY(bet_user_game_id) REFERENCES bet_user_game(id),
+            FOREIGN KEY(user_id) REFERENCES user_info(id)
+        );
+        """
+        )
 
     def get_conn(self):
         """Access to the database connection"""

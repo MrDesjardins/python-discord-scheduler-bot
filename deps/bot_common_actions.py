@@ -439,32 +439,25 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
     await download_full_matches_async(users, post_process_callback=post_post_queued_user_stats)
 
 
-async def post_post_queued_user_stats(
-    user_info: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
-) -> None:
+async def post_post_queued_user_stats(all_users_matches: List[UserWithUserMatchInfo]) -> None:
     """Post to the channel the stats for the"""
-    if len(user_info) != len(all_users_matches):
-        print_log(
-            f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(user_info)}"
-        )
-    await send_channel_list_stats(user_info, all_users_matches)
+
+    await send_channel_list_stats(all_users_matches)
 
 
-async def send_channel_list_stats(
-    user_info_list: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
-) -> None:
+async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> None:
     """Post on the channel all the stats"""
     current_time = datetime.now(timezone.utc)
     last_hour = STATS_HOURS_WINDOW_IN_PAST
     time_past = current_time - timedelta(hours=last_hour)
-    for user_matches in all_users_matches:
-        user_info = user_matches.user
+    for user_stats in users_stats:
+        user_info = user_stats.user_request_stats.user_info
         member_id = user_info.id
-        guild_id = user_matches.guild_id
+        guild_id = user_stats.user_request_stats.guild_id
         try:
-            await data_acess_remove_list_member_stats(user_matches.user)
+            await data_acess_remove_list_member_stats(user_stats.user_request_stats)
             aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
-                user_info.ubisoft_username_active, time_past, user_matches.user_match_info
+                user_info.ubisoft_username_active, time_past, user_stats.match_stats
             )
             if aggregation is None:
                 print_log(
@@ -631,24 +624,20 @@ async def persist_siege_matches_cross_guilds(from_time: datetime, to_time: datet
     await download_full_matches_async(users_stats, post_process_callback=post_persist_siege_matches_cross_guilds)
 
 
-async def post_persist_siege_matches_cross_guilds(
-    users_stats: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
-) -> None:
+async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWithUserMatchInfo]) -> None:
     """
     Persist the match info in the database
     Persist the r6 tracker UUID in the user profile table if available
     """
-    if len(users_stats) != len(all_users_matches):
-        print_log(
-            f"post_persist_siege_matches_cross_guilds: Not all users have been processed. {len(all_users_matches)}/{len(users_stats)}"
-        )
     # Use the matches that we downloaded
-    for match in all_users_matches:
+    for user_and_matches in all_users_matches:
         # Save the matches in the database
-        insert_if_nonexistant_full_match_info(match.user, match.user_match_info)
+        user_info = user_and_matches.user_request_stats.user_info
+        match_stats = user_and_matches.match_stats
+        insert_if_nonexistant_full_match_info(user_info, match_stats)
 
         # Add r6 tracker UUID to the user profile table if available
-        if match.user.r6_tracker_active_id is None and len(all_users_matches) > 0:
+        if user_info.r6_tracker_active_id is None and len(match_stats) > 0:
             # Update user with the R6 tracker if if it wasn't available before
-            r6_id = all_users_matches[0].r6_user_id
-            data_access_set_r6_tracker_id(match.user.id, r6_id)
+            r6_id = match_stats[0].r6_tracker_user_uuid
+            data_access_set_r6_tracker_id(user_info.id, r6_id)

@@ -3,8 +3,8 @@ Create Fake Data for Testing Analytics
 """
 
 import json
-import pytest
 from datetime import datetime
+import pytest
 from deps.data_access_data_class import UserInfo
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.analytic_data_access import (

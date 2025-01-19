@@ -11,8 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc
 from xvfbwrapper import Xvfb
 from bs4 import BeautifulSoup
-from deps.data_access_data_class import UserInfo
-from deps.models import UserFullMatchInfo
+from deps.models import UserFullMatchStats, UserQueueForStats
 from deps.log import print_error_log, print_log
 from deps.functions_r6_tracker import parse_json_from_full_matches
 from deps.functions import get_url_api_ranked_matches, get_url_user_ranked_matches
@@ -87,7 +86,7 @@ class BrowserContextManager:
             # Throw the exception to __exit__
             raise e
 
-    def download_full_matches(self, user_info: UserInfo) -> List[UserFullMatchInfo]:
+    def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
         """
         Download the matches for the given Ubisoft username
         This is version 2 of download_matches. It contains a lost more fields.
@@ -95,7 +94,7 @@ class BrowserContextManager:
         """
         # # Step 1: Download the page content
         self.counter += 1
-        ubisoft_user_name = user_info.ubisoft_username_active
+        ubisoft_user_name = user_queued.user_info.ubisoft_username_active
         api_url = get_url_api_ranked_matches(ubisoft_user_name)
         self.driver.get(api_url)
         # Wait until the page contains the expected JSON data
@@ -123,7 +122,7 @@ class BrowserContextManager:
                     with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
                         file.write(json.dumps(data, indent=4))
                 # Step 6: Parse the JSON data to extract the matches
-                return parse_json_from_full_matches(data, user_info)
+                return parse_json_from_full_matches(data, user_queued.user_info)
             except json.JSONDecodeError as e:
                 print_error_log(f"download_matches: Error parsing JSON: {e}")
         else:

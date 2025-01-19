@@ -1,7 +1,8 @@
+from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.bot_common_actions import send_session_stats_directly, update_vote_message
+from deps.bot_common_actions import persist_siege_matches_cross_guilds, send_session_stats_directly, update_vote_message
 from deps.data_access import (
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_message,
@@ -15,13 +16,15 @@ from deps.values import (
     COMMAND_SET_USER_TIME_ZONE_OTHER_USER,
     COMMAND_SET_USER_MAX_RANK_ACCOUNT_OTHER_USER,
     COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER,
+    COMMAND_STATS_ACTIVE_USER,
     COMMAND_STATS_MATCHES,
 )
-from ui.timezone_view import TimeZoneView
+from deps.log import print_log
 from deps.mybot import MyBot
 from deps.models import SimpleUser
 from deps.functions import get_empty_votes, get_last_schedule_message, get_time_choices
 from deps.siege import get_user_rank_emoji
+from ui.timezone_view import TimeZoneView
 
 
 class ModeratorOnUserBehalf(commands.Cog):
@@ -115,6 +118,18 @@ class ModeratorOnUserBehalf(commands.Cog):
             await interaction.followup.send("No stats available", ephemeral=True)
         else:
             await interaction.delete_original_response()
+
+    @app_commands.command(name=COMMAND_STATS_ACTIVE_USER)
+    @commands.has_permissions(administrator=True)
+    async def mod_stats_active_users(self, interaction: discord.Interaction):
+        """Compute the statistic for the active user"""
+        await interaction.response.defer(ephemeral=True)
+        print_log(f"mod_stats_active_users: Daily fetch stats and save in database, current time {datetime.now()}")
+        now_utc = datetime.now(timezone.utc)
+        begin_time = now_utc - timedelta(days=1)
+        end_time = now_utc
+        await persist_siege_matches_cross_guilds(begin_time, end_time)
+        await interaction.followup.send("Done", ephemeral=True)
 
 
 async def setup(bot):

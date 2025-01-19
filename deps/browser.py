@@ -4,10 +4,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import random
 from typing import List
-
-from deps.data_access_data_class import UserInfo
 from deps.browser_context_manager import BrowserContextManager
-from deps.models import UserFullMatchInfo, UserWithUserMatchInfo
+from deps.models import UserFullMatchStats, UserQueueForStats, UserWithUserMatchInfo
 from deps.log import print_error_log
 
 
@@ -20,7 +18,7 @@ async def run_in_executor(func, *args):
         return await loop.run_in_executor(pool, func, *args)
 
 
-async def download_full_matches(users: List[UserInfo]) -> List[UserWithUserMatchInfo]:
+async def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
     """
     Download the maximum information for matches with the goal to persist the data into the database
     """
@@ -29,17 +27,17 @@ async def download_full_matches(users: List[UserInfo]) -> List[UserWithUserMatch
     # Then, in the loop, use the cookies to get the stats using the API
     try:
         with BrowserContextManager() as context:
-            for user in users:
+            for user_queue in users_queued:
                 try:
-                    matches: List[UserFullMatchInfo] = context.download_full_matches(user)
-                    all_users_matches.append(UserWithUserMatchInfo(user, matches))
+                    matches: List[UserFullMatchStats] = context.download_full_matches(user_queue)
+                    all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
 
-                    if len(users) > 1:
+                    if len(users_queued) > 1:
                         await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
 
                 except Exception as e:
                     print_error_log(
-                        f"post_queued_user_stats: Error getting the user ({user.display_name}) stats from R6 tracker: {e}"
+                        f"post_queued_user_stats: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
     except Exception as e:
@@ -47,7 +45,7 @@ async def download_full_matches(users: List[UserInfo]) -> List[UserWithUserMatch
     return all_users_matches
 
 
-async def download_full_matches_async(users: List[UserInfo], post_process_callback=None):
+async def download_full_matches_async(users_queue_stats: List[UserQueueForStats], post_process_callback=None):
     """
     Run the blocking download_full_matches in another thread and perform a post-processing task
     in the main thread after completion.
@@ -55,12 +53,12 @@ async def download_full_matches_async(users: List[UserInfo], post_process_callba
 
     def blocking_task():
         # Run the long-running function (must be made synchronous)
-        return asyncio.run(download_full_matches(users))
+        return asyncio.run(download_full_matches(users_queue_stats))
 
     try:
         # Offload the blocking task to a thread
         loop = asyncio.get_event_loop()
-        matches = await loop.run_in_executor(None, blocking_task)
+        list_users_and_matches: List[UserWithUserMatchInfo] = await loop.run_in_executor(None, blocking_task)
     except Exception as e:
         print_error_log(f"download_full_matches_async: Error during match download: {e}")
         return []
@@ -68,9 +66,9 @@ async def download_full_matches_async(users: List[UserInfo], post_process_callba
     try:
         if post_process_callback:
             # Schedule the callback back on the main thread
-            loop.call_soon(asyncio.create_task, post_process_callback(users, matches))
+            loop.call_soon(asyncio.create_task, post_process_callback(list_users_and_matches))
 
-        return matches
+        return list_users_and_matches
     except Exception as e:
         print_error_log(f"download_full_matches_async: callback: {e}")
         return []

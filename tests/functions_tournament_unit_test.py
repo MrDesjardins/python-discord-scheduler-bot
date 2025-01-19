@@ -7,7 +7,6 @@ import copy
 from typing import List
 from unittest.mock import patch
 from datetime import datetime, timezone
-from deps.data_access_data_class import UserInfo
 from deps.tournament_functions import (
     assign_people_to_games,
     auto_assign_winner,

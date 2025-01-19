@@ -6,7 +6,6 @@ from unittest.mock import patch
 import asyncio
 from datetime import datetime, timezone
 import pytest
-from deps.data_access_data_class import UserInfo
 from deps.cache import remove_cache, set_cache
 from deps.data_access import (
     KEY_QUEUE_USER_STATS,
