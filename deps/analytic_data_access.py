@@ -32,6 +32,7 @@ def delete_all_tables() -> None:
     database_manager.get_cursor().execute("DELETE FROM user_info")
     database_manager.get_cursor().execute("DELETE FROM user_activity")
     database_manager.get_cursor().execute("DELETE FROM user_weights")
+    database_manager.get_cursor().execute("DELETE FROM user_full_match_info")
     database_manager.get_conn().commit()
 
 
