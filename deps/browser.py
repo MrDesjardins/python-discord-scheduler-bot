@@ -33,7 +33,7 @@ async def download_full_matches(users_queued: List[UserQueueForStats]) -> List[U
                     all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
 
                     if len(users_queued) > 1:
-                        await asyncio.sleep(random.uniform(0.5, 2))  # Sleep 0.5 to 2 seconds between each request
+                        await asyncio.sleep(random.uniform(1, 5))  # Sleep few seconds between each request
 
                 except Exception as e:
                     print_error_log(

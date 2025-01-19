@@ -329,12 +329,22 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
 
     # Construct a query using AND and OR instead of row-value comparisons
     conditions = " OR ".join(["(match_uuid = ? AND user_id = ?)" for _ in match_user_pairs])
+
+    if not conditions.strip():  # Ensure conditions exist
+        print_log("insert_if_nonexistant_full_match_info: No pair to insert, leaving the function early")
+        return
+
     query = f"""
         SELECT match_uuid, user_id
         FROM user_full_match_info
         WHERE {conditions}
     """
     params = [item for pair in match_user_pairs for item in pair]
+
+    if len(params) == 0:
+        print_log("insert_if_nonexistant_full_match_info: No match to insert, leaving the function early")
+        return
+
     # Get the list of match that is already in the database that matches a match+user pair
     database_manager.get_cursor().execute(query, params)
 

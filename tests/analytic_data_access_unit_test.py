@@ -264,3 +264,42 @@ def test_insert_if_nonexistant_full_match_info(test_data):
     insert_if_nonexistant_full_match_info(user_info, matches_4)
     insert_if_nonexistant_full_match_info(user_info, matches_5)
     insert_if_nonexistant_full_match_info(user_info, matches_6)
+
+
+def test_insert_if_nonexistant_no_match(test_data):
+    """
+    Test if there isn't any match to insert
+    """
+    data_1, data_3, data_4, data_5, data_6 = test_data
+
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+    )
+
+    insert_if_nonexistant_full_match_info(user_info, [])
+
+def test_insert_if_nonexistant_with_duplicate(test_data):
+    """
+    Test if there isn't any match to insert
+    """
+    data_1, data_3, data_4, data_5, data_6 = test_data
+
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+    )
+
+    matches_1 = parse_json_from_full_matches(data_1, user_info)
+    insert_if_nonexistant_full_match_info(user_info, matches_1)
+    insert_if_nonexistant_full_match_info(user_info, matches_1)
