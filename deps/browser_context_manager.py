@@ -116,7 +116,7 @@ class BrowserContextManager:
             try:
                 # Step 5: Parse the JSON data
                 data = json.loads(json_data)
-                print_log(f"download_matches: JSON data successfully parsed for {ubisoft_user_name}")
+                print_log(f"download_matches: JSON found for {ubisoft_user_name}")
                 # Save the JSON data to a file for debugging
                 if os.getenv("ENV") == "dev":
                     with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
