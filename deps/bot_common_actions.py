@@ -439,14 +439,14 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
     await download_full_matches_async(users_info, post_process_callback=post_post_queued_user_stats)
 
 
-async def post_post_queued_user_stats(users: List[UserInfo], all_users_matches: List[UserWithUserMatchInfo]) -> None:
+async def post_post_queued_user_stats(user_info:List[UserInfo], all_users_matches: List[UserWithUserMatchInfo]) -> None:
     """Post to the channel the stats for the"""
-    if len(users) != len(all_users_matches):
-        print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(users)}")
-    await send_channel_list_stats(all_users_matches)
+    if len(user_info) != len(all_users_matches):
+        print_log(f"post_queued_user_stats: Not all users have been processed. {len(all_users_matches)}/{len(user_info)}")
+    await send_channel_list_stats(user_info, all_users_matches)
 
 
-async def send_channel_list_stats(all_users_matches: List[UserWithUserMatchInfo]) -> None:
+async def send_channel_list_stats(user_info_list:List[UserInfo], all_users_matches: List[UserWithUserMatchInfo]) -> None:
     """Post on the channel all the stats"""
     current_time = datetime.now(timezone.utc)
     last_hour = STATS_HOURS_WINDOW_IN_PAST
