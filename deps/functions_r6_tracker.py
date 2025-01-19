@@ -80,7 +80,9 @@ def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFul
         if not isinstance(matches, list) or len(matches) == 0:
             return []
     except KeyError as e:
-        print_error_log(f"parse_json_from_full_matches: KeyError: {e} not found in the JSON data.")
+        print_error_log(
+            f"parse_json_from_full_matches: KeyError: {e} not found in the JSON data when parsing for active user: {user_info.ubisoft_username_active}."
+        )
         return []
     except TypeError as e:
         print_error_log(f"parse_json_from_full_matches: TypeError: Unexpected data format - {e}")

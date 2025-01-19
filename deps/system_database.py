@@ -153,7 +153,8 @@ class DatabaseManager:
         self.get_cursor().execute(
             """
         CREATE TABLE IF NOT EXISTS user_full_match_info (
-            match_uuid TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            match_uuid TEXT NOT NULL,
             user_id INTEGER NOT NULL,
             match_timestamp DATETIME NOT NULL,
             match_duration_ms INTEGER NOT NULL,

@@ -12,7 +12,7 @@ from deps.cache import (
 )
 from deps.functions import ensure_utc
 from deps.models import UserFullMatchStats
-from deps.log import print_error_log
+from deps.log import print_error_log, print_log
 
 KEY_USER_INFO = "user_info"
 KEY_TOURNAMENT_GUILD = "tournament_guild"
@@ -318,24 +318,34 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     We have a list of full match info, we want to insert them if they do not exist
     A match might exist in the case we fetched more and the user already had some matches recorded.
     """
-    match_ids = [match.match_uuid for match in list_matches]
-    # Get the list of match that is already in the database from the IDS we have downloaded
-    database_manager.get_cursor().execute(
-        f"""
-        SELECT match_uuid
+
+    match_user_pairs = [
+        (
+            match.match_uuid,
+            match.user_id,
+        )
+        for match in list_matches
+    ]
+
+    placeholders = ", ".join(["(?, ?)"] * len(match_user_pairs))
+    query = f"""
+        SELECT match_uuid, user_id
         FROM user_full_match_info
-        WHERE match_uuid IN ({",".join("?" for _ in match_ids)})
-        """,
-        match_ids,
+        WHERE (match_uuid, user_id) IN ({placeholders})
+        """
+    params = [item for pair in match_user_pairs for item in pair]
+    # Get the list of match that is already in the database that matches a match+user pair
+    database_manager.get_cursor().execute(query, params)
+
+    existing_records = database_manager.get_cursor().fetchall()
+    existing_set = set(existing_records)
+    filtered_data = [obj for obj in list_matches if (obj.match_uuid, obj.user_id) not in existing_set]
+    print_log(
+        f"insert_if_nonexistant_full_match_info: Found {len(filtered_data)} new matches to insert out of {len(list_matches)}"
     )
-    existing_match_ids = set(row[0] for row in database_manager.get_cursor().fetchall())
-
-    # Filter the list of match to only insert the one that do not exist
-    matches_not_exist = [match for match in list_matches if match.match_uuid not in existing_match_ids]
-
     # Try to insert the match that are not yet in the database
     try:
-        for match in matches_not_exist:
+        for match in filtered_data:
             database_manager.get_cursor().execute(
                 """
             INSERT INTO user_full_match_info (
