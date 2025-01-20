@@ -9,16 +9,41 @@ from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUse
 from deps.system_database import database_manager
 
 SELECT_BET_USER_GAME = """
-          bet_user_game.id, 
-          bet_user_game.tournament_id, 
-          bet_user_game.bet_game_id, 
-          bet_user_game.user_id, 
-          bet_user_game.amount, 
-          bet_user_game.user_id_bet_placed, 
-          bet_user_game.time_bet_placed, 
-          bet_user_game.probability_user_win_when_bet_placed,
-          bet_user_game.bet_distributed
-          """
+    bet_user_game.id, 
+    bet_user_game.tournament_id, 
+    bet_user_game.bet_game_id, 
+    bet_user_game.user_id, 
+    bet_user_game.amount, 
+    bet_user_game.user_id_bet_placed, 
+    bet_user_game.time_bet_placed, 
+    bet_user_game.probability_user_win_when_bet_placed,
+    bet_user_game.bet_distributed
+"""
+
+SELECT_BET_USER_TOURNAMENT = """
+    bet_user_tournament.id, 
+    bet_user_tournament.tournament_id, 
+    bet_user_tournament.user_id, 
+    bet_user_tournament.amount 
+"""
+
+SELECT_BET_GAME = """
+    bet_game.id, 
+    bet_game.tournament_id, 
+    bet_game.game_id, 
+    bet_game.probability_user_1_win, 
+    bet_game.probability_user_2_win,
+    bet_game.bet_distributed
+"""
+SELECT_LEDGER = """
+    bet_ledger_entry.id,
+    bet_ledger_entry.tournament_id, 
+    bet_ledger_entry.game_id, 
+    bet_ledger_entry.bet_game_id, 
+    bet_ledger_entry.bet_user_game_id, 
+    bet_ledger_entry.user_id, 
+    bet_ledger_entry.amount
+"""
 
 
 def delete_all_bet_tables() -> None:
@@ -38,13 +63,15 @@ def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: 
     """
     Get the wallet of a user for a specific tournament
     """
-    database_manager.get_cursor().execute(
-        """
-        SELECT id, tournament_id, user_id, amount 
-        FROM bet_user_tournament 
+    query = f"""
+        SELECT 
+        {SELECT_BET_USER_TOURNAMENT}
+        FROM bet_user_tournament
         WHERE tournament_id = :tournament_id 
         AND user_id = :user_id 
-        """,
+        """
+    database_manager.get_cursor().execute(
+        query,
         {"tournament_id": tournament_id, "user_id": user_id},
     )
     row = database_manager.get_cursor().fetchone()
@@ -89,18 +116,14 @@ def data_access_fetch_bet_games_by_tournament_id(tournament_id: int) -> List[Bet
     """
     Fetch all the bet games for a tournament
     """
-    database_manager.get_cursor().execute(
-        """
+    query = f"""
         SELECT 
-          id, 
-          tournament_id, 
-          game_id, 
-          probability_user_1_win, 
-          probability_user_2_win,
-          bet_distributed
+        {SELECT_BET_GAME}
         FROM bet_game
         WHERE tournament_id = :tournament_id
-        """,
+        """
+    database_manager.get_cursor().execute(
+        query,
         {"tournament_id": tournament_id},
     )
     rows = database_manager.get_cursor().fetchall()
@@ -210,8 +233,7 @@ def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> 
     """
     Get all the bet games that are ready for distribution
     """
-    database_manager.get_cursor().execute(
-        f"""
+    query = f"""
         SELECT 
         {SELECT_BET_USER_GAME}
         FROM bet_user_game
@@ -224,7 +246,9 @@ def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> 
           bet_user_game.tournament_id = :tournament_id
         AND 
           bet_user_game.bet_distributed = false
-        """,
+        """
+    database_manager.get_cursor().execute(
+        query,
         {"tournament_id": tournament_id},
     )
     rows = database_manager.get_cursor().fetchall()
@@ -295,19 +319,14 @@ def data_access_update_bet_game_distribution_completed(bet_id: int, auto_commit:
 
 def data_access_get_bet_ledger_entry_for_tournament(tournament_id: int) -> None:
     """Get the list of entry for a specific tournament"""
-    database_manager.get_cursor().execute(
-        """
+    query = f"""
         SELECT
-            id,
-            tournament_id, 
-            game_id, 
-            bet_game_id, 
-            bet_user_game_id, 
-            user_id, 
-            amount
+            {SELECT_LEDGER}
         FROM bet_ledger_entry
         WHERE tournament_id = :tournament_id
-            """,
+    """
+    database_manager.get_cursor().execute(
+        query,
         {"tournament_id": tournament_id},
     )
     rows = database_manager.get_cursor().fetchall()
