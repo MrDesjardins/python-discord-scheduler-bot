@@ -311,9 +311,18 @@ async def test_placing_bet_on_inexisting_game(mock_fetch_tournament, mock_fetch_
         place_bet_for_game(1, 99999999, 1001, 99.65, 1)
 
 
+@patch("deps.bet.bet_functions.data_access_update_user_wallet_for_tournament")
+@patch("deps.bet.bet_functions.data_access_create_bet_user_game")
 @patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
-async def test_placing_bet_on_game_that_no_exist(mock_fetch_tournament, mock_fetch_bet_games) -> None:
+@patch("deps.bet.bet_functions.get_bet_user_wallet_for_tournament")
+async def test_placing_bet_on_game_that_no_exist(
+    mock_wallet,
+    mock_fetch_tournament,
+    mock_fetch_bet_games,
+    mock_create_bet_user_game,
+    mock_update_user_wallet_for_tournament,
+) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
     # Arrange
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
@@ -326,6 +335,7 @@ async def test_placing_bet_on_game_that_no_exist(mock_fetch_tournament, mock_fet
         TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
         TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
     ]
+    mock_wallet.return_value = BetUserTournament(1, 1, 100, 10.99)
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = [
         BetGame(1, 1, 1, 0.5, 0.5, False),
@@ -334,15 +344,25 @@ async def test_placing_bet_on_game_that_no_exist(mock_fetch_tournament, mock_fet
         BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_create_bet_user_game.return_value = None
+    mock_update_user_wallet_for_tournament.return_value = None
     # Act
     with pytest.raises(ValueError, match="The game does not exist"):
         place_bet_for_game(1, 2, 1001, 99.65, 1)
 
 
+@patch("deps.bet.bet_functions.data_access_update_user_wallet_for_tournament")
+@patch("deps.bet.bet_functions.data_access_create_bet_user_game")
 @patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
 @patch("deps.bet.bet_functions.get_bet_user_wallet_for_tournament")
-async def test_placing_bet_on_game_without_fund(mock_wallet, mock_fetch_tournament, mock_fetch_bet_games) -> None:
+async def test_placing_bet_on_game_without_fund(
+    mock_wallet,
+    mock_fetch_tournament,
+    mock_fetch_bet_games,
+    mock_create_bet_user_game,
+    mock_update_user_wallet_for_tournament,
+) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
     # Arrange
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
@@ -355,6 +375,8 @@ async def test_placing_bet_on_game_without_fund(mock_wallet, mock_fetch_tourname
         TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
         TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
     ]
+
+    mock_wallet.return_value = BetUserTournament(1, 1, 100, 10.99)
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = [
         BetGame(1, 1, 1, 0.5, 0.5, False),
@@ -363,8 +385,8 @@ async def test_placing_bet_on_game_without_fund(mock_wallet, mock_fetch_tourname
         BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
-
-    mock_wallet.return_value = BetUserTournament(1, 1, 100, 10.99)
+    mock_create_bet_user_game.return_value = None
+    mock_update_user_wallet_for_tournament.return_value = None
     # Act
     with pytest.raises(ValueError, match="The user does not have enough money"):
         place_bet_for_game(1, 2, 1001, 11, 1)

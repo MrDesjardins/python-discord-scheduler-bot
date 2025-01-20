@@ -5,7 +5,7 @@ Logic that interact with the database
 from datetime import datetime
 from typing import List, Optional
 
-from deps.bet.bet_data_class import BetGame, BetUserGame, BetUserTournament
+from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.system_database import database_manager
 
 SELECT_BET_USER_GAME = """
@@ -53,7 +53,9 @@ def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: 
     return BetUserTournament.from_db_row(row)
 
 
-def data_access_update_user_wallet_for_tournament(bet_user_id: int, amount: float) -> None:
+def data_access_update_user_wallet_for_tournament(
+    bet_user_tournament_id: int, amount: float, auto_commit: bool = False
+) -> None:
     """
     Update the wallet of a user for a specific tournament
     """
@@ -61,11 +63,12 @@ def data_access_update_user_wallet_for_tournament(bet_user_id: int, amount: floa
         """
         UPDATE bet_user_tournament 
         SET amount = :amount 
-        WHERE id = :bet_user_id
+        WHERE id = :bet_user_tournament_id
         """,
-        {"bet_user_id": bet_user_id, "amount": amount},
+        {"bet_user_tournament_id": bet_user_tournament_id, "amount": amount},
     )
-    database_manager.get_conn().commit()
+    if auto_commit:
+        database_manager.get_conn().commit()
 
 
 def data_access_create_bet_user_wallet_for_tournament(tournament_id: int, user_id: int, initial_amount: float) -> None:
@@ -137,21 +140,22 @@ def data_access_create_bet_game(
     database_manager.get_conn().commit()
 
 
-def data_access_fetch_bet_user_game_by_tournament_id(tournament_id: int) -> List[BetUserTournament]:
+def data_access_fetch_bet_user_game_by_tournament_id(tournament_id: int) -> List[BetUserGame]:
     """
     Fetch all the bet games for a tournament
     """
-    database_manager.get_cursor().execute(
-        """
+    query = f"""
         SELECT 
         {SELECT_BET_USER_GAME}
         FROM bet_user_game
         WHERE tournament_id = :tournament_id
-        """,
+        """
+    database_manager.get_cursor().execute(
+        query,
         {"tournament_id": tournament_id},
     )
     rows = database_manager.get_cursor().fetchall()
-    return [BetUserTournament.from_db_row(row) for row in rows]
+    return [BetUserGame.from_db_row(row) for row in rows]
 
 
 def data_access_create_bet_user_game(
@@ -202,7 +206,7 @@ def data_access_create_bet_user_game(
     database_manager.get_conn().commit()
 
 
-def data_access_get_bet_game_ready_for_distribution(tournament_id: int) -> List[BetGame]:
+def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> List[BetUserGame]:
     """
     Get all the bet games that are ready for distribution
     """
@@ -225,3 +229,86 @@ def data_access_get_bet_game_ready_for_distribution(tournament_id: int) -> List[
     )
     rows = database_manager.get_cursor().fetchall()
     return [BetUserGame.from_db_row(row) for row in rows]
+
+
+def data_access_insert_bet_ledger_entry(entry: BetLedgerEntry, auto_commit: bool = False) -> None:
+    """Insert in the table the bet ledger entry"""
+    database_manager.get_cursor().execute(
+        """
+        INSERT INTO bet_ledger_entry (
+          tournament_id,
+          game_id,
+          bet_game_id,
+          bet_user_game_id,
+          user_id,
+          amount
+        )
+        VALUES (
+          :tournament_id,
+          :game_id,
+          :bet_game_id,
+          :bet_user_game_id,
+          :user_id,
+          :amount
+        )
+        """,
+        {
+            "tournament_id": entry.tournament_id,
+            "game_id": entry.game_id,
+            "bet_game_id": entry.bet_game_id,
+            "bet_user_game_id": entry.bet_user_game_id,
+            "user_id": entry.user_id,
+            "amount": entry.amount,
+        },
+    )
+    if auto_commit:
+        database_manager.get_conn().commit()
+
+
+def data_access_update_bet_user_game_distribution_completed(bet_id: int, auto_commit: bool = False) -> None:
+    """Update the bet user game to be distributed"""
+    database_manager.get_cursor().execute(
+        """
+        UPDATE bet_user_game
+        SET bet_distributed = true
+        WHERE id = :bet_id
+        """,
+        {"bet_id": bet_id},
+    )
+    if auto_commit:
+        database_manager.get_conn().commit()
+
+
+def data_access_update_bet_game_distribution_completed(bet_id: int, auto_commit: bool = False) -> None:
+    """Update the bet game to be distributed"""
+    database_manager.get_cursor().execute(
+        """
+        UPDATE bet_game
+        SET bet_distributed = true
+        WHERE id = :bet_id
+        """,
+        {"bet_id": bet_id},
+    )
+    if auto_commit:
+        database_manager.get_conn().commit()
+
+
+def data_access_get_bet_ledger_entry_for_tournament(tournament_id: int) -> None:
+    """Get the list of entry for a specific tournament"""
+    database_manager.get_cursor().execute(
+        """
+        SELECT
+            id,
+            tournament_id, 
+            game_id, 
+            bet_game_id, 
+            bet_user_game_id, 
+            user_id, 
+            amount
+        FROM bet_ledger_entry
+        WHERE tournament_id = :tournament_id
+            """,
+        {"tournament_id": tournament_id},
+    )
+    rows = database_manager.get_cursor().fetchall()
+    return [BetLedgerEntry.from_db_row(row) for row in rows]

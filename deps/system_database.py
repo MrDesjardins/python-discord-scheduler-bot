@@ -5,6 +5,8 @@ Common code for the gatherer and analyse
 import datetime
 import sqlite3
 
+from deps.log import print_error_log
+
 EVENT_CONNECT = "connect"
 EVENT_DISCONNECT = "disconnect"
 DATABASE_NAME = "user_activity.db"
@@ -283,6 +285,30 @@ class DatabaseManager:
     def get_cursor(self):
         """Access to the database cursor"""
         return self.cursor
+
+    def data_access_transaction(self):
+        """Provide a context manager for transactions"""
+        return self.TransactionContext(self)
+
+    class TransactionContext:
+        """Internal class to handle transaction context"""
+
+        def __init__(self, db_manager):
+            self.db_manager = db_manager
+
+        def __enter__(self):
+            """Begin a transaction"""
+            self.db_manager.conn.execute("BEGIN")
+            return self.db_manager.get_cursor()  # Reuse the database manager's cursor
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            """Commit or rollback the transaction"""
+            if exc_type is None:
+                self.db_manager.conn.commit()  # Commit if no exception
+            else:
+                self.db_manager.conn.rollback()  # Rollback if an exception occurred
+                print_error_log(f"system_database:TransactionContext:__exit__: {exc_val}")
+            return True  # Avoid the exception to bubble up
 
 
 database_manager = DatabaseManager(DATABASE_NAME)

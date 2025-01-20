@@ -84,7 +84,7 @@ class BetUserGame:
 
     id: int
     tournament_id: int
-    game_id: int
+    bet_game_id: int
     user_id: int
     amount: float
     user_id_bet_placed: int
@@ -102,7 +102,7 @@ class BetUserGame:
         return BetUserGame(
             id=row[0],
             tournament_id=row[1],
-            game_id=row[2],
+            bet_game_id=row[2],
             user_id=row[3],
             amount=row[4],
             user_id_bet_placed=row[5],
@@ -119,12 +119,20 @@ class BetLedgerEntry:
     id: int
     tournament_id: int
     game_id: int
+    bet_game_id: int
+    bet_user_game_id: int
     user_id: int
     amount: float
 
     @staticmethod
     def from_db_row(row):
         """Create a BetUserGame object from a database row"""
-        return BetLedgerEntry(id=row[0], tournament_id=row[1], game_id=row[2], user_id=row[3], amount=row[4])
-
-
+        return BetLedgerEntry(
+            id=row[0],
+            tournament_id=row[1],
+            game_id=row[2],
+            bet_game_id=row[3],
+            bet_user_game_id=row[4],
+            user_id=row[5],
+            amount=row[6],
+        )

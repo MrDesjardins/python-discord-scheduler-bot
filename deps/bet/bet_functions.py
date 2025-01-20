@@ -10,13 +10,18 @@ from deps.bet.bet_data_access import (
     data_access_create_bet_user_game,
     data_access_create_bet_user_wallet_for_tournament,
     data_access_fetch_bet_games_by_tournament_id,
+    data_access_get_bet_user_game_ready_for_distribution,
     data_access_get_bet_user_wallet_for_tournament,
     data_access_update_user_wallet_for_tournament,
+    data_access_update_bet_user_game_distribution_completed,
+    data_access_update_bet_game_distribution_completed,
+    data_access_insert_bet_ledger_entry,
 )
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.tournament_data_class import TournamentGame
 from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
 from deps.data_access_data_class import UserInfo
+from deps.system_database import database_manager
 
 DEFAULT_MONEY = 1000
 
@@ -79,6 +84,34 @@ def get_total_pool_for_game(
 #     return winning_distributions
 
 
+def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
+    """
+    Get all the TournamentGame that are completed (winner is known) with their BetUserGame list
+    and calculate the gain and lost for each. Close the BetUserGame, the BetGame and update the
+    wallet (bet_user_tournament)
+    """
+    bet_user_games: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
+    tournament_games: TournamentGame = fetch_tournament_games_by_tournament_id(tournament_id)
+
+    for tournament_game in tournament_games:
+        if tournament_game.user_winner_id is None:
+            continue
+        bets = [bet for bet in bet_user_games if bet.tournament_id == tournament_id]
+        winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, bets)
+
+        with database_manager.data_access_transaction():
+            for winning_distribution in winning_distributions:
+                if winning_distribution.amount > 0:
+                    wallet = get_bet_user_wallet_for_tournament(tournament_id, winning_distribution.user_id)
+                    wallet.amount += winning_distribution.amount
+                    data_access_update_user_wallet_for_tournament(wallet.id, wallet.amount)
+                data_access_insert_bet_ledger_entry(winning_distribution)
+            for bet_user_game in bets:
+                data_access_update_bet_user_game_distribution_completed(bet_user_game.id)
+                data_access_update_bet_game_distribution_completed(bet_user_game.bet_game_id)
+        # Auto-Commit after the with if no exception
+
+
 def calculate_gain_lost_for_open_bet_game(
     tournament_game: TournamentGame, bet_on_games: List[BetUserGame], houst_cut=0
 ) -> List[BetLedgerEntry]:
@@ -108,7 +141,9 @@ def calculate_gain_lost_for_open_bet_game(
             BetLedgerEntry(
                 id=0,
                 tournament_id=tournament_game.tournament_id,
-                game_id=bet.game_id,
+                game_id=tournament_game.id,
+                bet_game_id=bet.bet_game_id,
+                bet_user_game_id=bet.id,
                 user_id=bet.user_id,
                 amount=winning_amount,
             )
@@ -201,7 +236,7 @@ def get_open_bet_games_for_tournament(tournament_id: int) -> List[TournamentGame
 
 
 def place_bet_for_game(
-    tournament_id: int, bet_game_id: int, user_id: int, amount: float, user_id_bet_placed: int
+    tournament_id: int, bet_game_id: int, user_who_is_betting_id: int, amount: float, user_id_bet_placed_on: int
 ) -> None:
     """
     Function to call when a user place a bet on a bet_game (not a match)
@@ -221,12 +256,12 @@ def place_bet_for_game(
     if game.user_winner_id is not None:
         raise ValueError("The game is already finished")
     # 2 Get the wallet of the user
-    wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_id)
+    wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_who_is_betting_id)
     if wallet.amount < amount:
         raise ValueError("The user does not have enough money")
 
     # 3 Calculate the probability when the bet is placed
-    if user_id_bet_placed == game.user1_id:
+    if user_id_bet_placed_on == game.user1_id:
         probability = bet_game.probability_user_1_win
     else:
         probability = bet_game.probability_user_2_win
@@ -234,7 +269,7 @@ def place_bet_for_game(
     # 4 Insert the bet into the database
     current_date = datetime.now(timezone.utc)
     data_access_create_bet_user_game(
-        tournament_id, bet_game.id, user_id, amount, user_id_bet_placed, current_date, probability
+        tournament_id, bet_game.id, user_who_is_betting_id, amount, user_id_bet_placed_on, current_date, probability
     )
     wallet.amount -= amount
-    data_access_update_user_wallet_for_tournament(wallet.id, wallet.amount)
+    data_access_update_user_wallet_for_tournament(wallet.id, wallet.amount, True)
