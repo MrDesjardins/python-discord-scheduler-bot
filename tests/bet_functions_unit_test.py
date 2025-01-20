@@ -5,14 +5,14 @@ Unit test for the bet functions
 from unittest.mock import patch
 from datetime import datetime, timezone
 import pytest
-from deps.bet.bet_data_access import delete_all_tables, fetch_bet_games_by_tournament_id
+from deps.bet.bet_data_access import delete_all_bet_tables, data_access_fetch_bet_games_by_tournament_id
 from deps.bet.bet_data_class import BetGame, BetUserGame, BetUserTournament
 from deps.bet.bet_functions import (
     DEFAULT_MONEY,
-    calculate_all_winning_bets_for_a_game,
+    calculate_gain_lost_for_open_bet_game,
     get_open_bet_games_for_tournament,
     get_total_pool_for_game,
-    get_wallet_for_tournament,
+    get_bet_user_wallet_for_tournament,
     place_bet_for_game,
     system_generate_game_odd,
 )
@@ -27,7 +27,7 @@ def setup_and_teardown():
     """Setup and Teardown for the test"""
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
-    delete_all_tables()
+    delete_all_bet_tables()
 
     # Yield control to the test functions
     yield
@@ -42,10 +42,10 @@ def test_get_total_pool_for_game() -> None:
     """
     tournament_game = TournamentGame(1, 2, 300, 400, 300, "3-5", "Villa", fake_date, None, None)
     bet_on_games = [
-        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4),
-        BetUserGame(2, 1, 2, 1002, 20, 300, fake_date, 0.4),
-        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4),
-        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4),
+        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4, False),
+        BetUserGame(2, 1, 2, 1002, 20, 300, fake_date, 0.4, False),
+        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4, False),
+        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4, False),
     ]
     total_amount_bet, total_amount_bet_on_user_1, total_amount_bet_on_user_2 = get_total_pool_for_game(
         tournament_game, bet_on_games
@@ -58,57 +58,105 @@ def test_get_total_pool_for_game() -> None:
 @patch("deps.bet.bet_functions.get_total_pool_for_game")
 def test_calculate_all_bets_for_a_game_winner_user_1(mock_get_total_pool_for_game) -> None:
     """
-    Test the get_total_pool_for_game function
+    Test the result of a bet with 2 winners and 3 losers
     """
     mock_get_total_pool_for_game.return_value = (75, 30, 45)
-    tournament_game = TournamentGame(1, 2, 300, 400, 300, "3-5", "Villa", fake_date, None, None)
+    tournament_game = TournamentGame(1, 2, 300, 400, 300, "3-5", "Villa", fake_date, None, None)  # Winner is 300
     bet_on_games = [
-        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4),
-        BetUserGame(2, 1, 2, 1002, 20, 300, fake_date, 0.4),
-        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4),
-        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4),
-        BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4),
+        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4, False),  # Winner
+        BetUserGame(2, 1, 2, 1002, 20, 300, fake_date, 0.4, False),  # Winner
+        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4, False),
+        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4, False),
+        BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4, False),
     ]
-    winnings = calculate_all_winning_bets_for_a_game(tournament_game, bet_on_games)
+    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games)
+    assert len(all_bets) == 5
+    winnings = [x for x in all_bets if x.amount > 0]
     assert len(winnings) == 2
     assert winnings[0].amount == 25
     assert winnings[1].amount == 50
 
 
 @patch("deps.bet.bet_functions.get_total_pool_for_game")
-def test_calculate_all_bets_for_a_game_winner_user_2(mock_get_total_pool_for_game) -> None:
+def test_calculate_all_bets_for_a_game_winner_user_with_diff_dynamic_odd(mock_get_total_pool_for_game) -> None:
     """
-    Test the get_total_pool_for_game function
+    Test the result of a bet with 2 winners and 3 losers
     """
     mock_get_total_pool_for_game.return_value = (75, 30, 45)
-    tournament_game = TournamentGame(1, 2, 300, 400, 400, "3-5", "Villa", fake_date, None, None)
+    tournament_game = TournamentGame(1, 2, 300, 400, 300, "3-5", "Villa", fake_date, None, None)  # Winner is 300
     bet_on_games = [
-        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4),
-        BetUserGame(2, 1, 2, 1002, 20, 300, fake_date, 0.4),
-        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4),
-        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4),
-        BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4),
+        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4, False),  # Winner
+        BetUserGame(2, 1, 2, 1002, 10, 300, fake_date, 0.5, False),  # Winner, augmented odd (will do less money)
+        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4, False),
+        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4, False),
+        BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4, False),
     ]
-    winnings = calculate_all_winning_bets_for_a_game(tournament_game, bet_on_games)
-    assert len(winnings) == 3
+    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games)
+    assert len(all_bets) == 5
+    winnings = [x for x in all_bets if x.amount > 0]
+    assert len(winnings) == 2
     assert winnings[0].amount == 25
-    assert winnings[1].amount == pytest.approx(41.666, abs=1e-3)
-    assert winnings[2].amount == pytest.approx(8.333, abs=1e-3)
+    assert winnings[1].amount == 20
+
+
+@patch("deps.bet.bet_functions.get_total_pool_for_game")
+def test_calculate_all_bets_for_a_game_winner_house_cut(mock_get_total_pool_for_game) -> None:
+    """
+    Test the result of a bet with 2 winners and 3 losers
+    """
+    mock_get_total_pool_for_game.return_value = (75, 30, 45)
+    tournament_game = TournamentGame(1, 2, 300, 400, 300, "3-5", "Villa", fake_date, None, None)  # Winner is 300
+    bet_on_games = [
+        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4, False),  # Winner
+        BetUserGame(2, 1, 2, 1002, 20, 300, fake_date, 0.4, False),  # Winner
+        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4, False),
+        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4, False),
+        BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4, False),
+    ]
+    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games, 0.1)
+    assert len(all_bets) == 5
+    winnings = [x for x in all_bets if x.amount > 0]
+    assert len(winnings) == 2
+    assert winnings[0].amount == pytest.approx(22.727272, abs=1e-3)
+    assert winnings[1].amount == pytest.approx(45.454545, abs=1e-3)
+
+
+@patch("deps.bet.bet_functions.get_total_pool_for_game")
+def test_calculate_all_bets_for_a_game_winner_user_2(mock_get_total_pool_for_game) -> None:
+    """
+    Test the result of a bet with 3 winners and 2 losers
+    """
+    mock_get_total_pool_for_game.return_value = (75, 30, 45)
+    tournament_game = TournamentGame(1, 2, 300, 400, 400, "3-5", "Villa", fake_date, None, None)  # Winner is 400
+    bet_on_games = [
+        BetUserGame(1, 1, 2, 1001, 10, 300, fake_date, 0.4, False),
+        BetUserGame(2, 1, 2, 1002, 20, 300, fake_date, 0.4, False),
+        BetUserGame(3, 1, 2, 1003, 15, 400, fake_date, 0.4, False),  # Winner
+        BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4, False),  # Winner
+        BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4, False),  # Winner
+    ]
+    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games)
+    assert len(all_bets) == 5
+    winnings = [x for x in all_bets if x.amount > 0]
+    assert len(winnings) == 3
+    assert winnings[0].amount == 37.5
+    assert winnings[1].amount == pytest.approx(62.5, abs=1e-3)
+    assert winnings[2].amount == pytest.approx(12.5, abs=1e-3)
 
 
 def test_moneyline_odd_user():
     """
     Test the moneyline_odd_user_1 function
     """
-    bet_game = BetGame(1, 1, 2, 0.5, 0.5)
+    bet_game = BetGame(1, 1, 2, 0.5, 0.5, False)
     assert bet_game.moneyline_odd_user_1() == -100
     assert bet_game.moneyline_odd_user_2() == -100
 
-    bet_game = BetGame(1, 1, 2, 0.4, 0.6)
+    bet_game = BetGame(1, 1, 2, 0.4, 0.6, False)
     assert bet_game.moneyline_odd_user_1() == 250
     assert bet_game.moneyline_odd_user_2() == -150
 
-    bet_game = BetGame(1, 1, 2, 0.6, 0.4)
+    bet_game = BetGame(1, 1, 2, 0.6, 0.4, False)
     assert bet_game.moneyline_odd_user_1() == -150
     assert bet_game.moneyline_odd_user_2() == 250
 
@@ -117,33 +165,33 @@ def test_get_wallet_for_tournament_no_wallet():
     """
     Test the get_wallet_for_tournament function
     """
-    wallet = get_wallet_for_tournament(1, 1)
+    wallet = get_bet_user_wallet_for_tournament(1, 1)
     assert wallet is not None
 
 
-@patch("deps.bet.bet_functions.create_user_wallet_for_tournament")
+@patch("deps.bet.bet_functions.data_access_create_bet_user_wallet_for_tournament")
 def test_get_wallet_for_tournament_no_wallet_creation(mock_create):
     """
     Test the get_wallet_for_tournament function
     """
     mock_create.return_value = BetUserTournament(67, 44, 12, 100)
-    get_wallet_for_tournament(44, 12)
+    get_bet_user_wallet_for_tournament(44, 12)
     mock_create.assert_called_once_with(44, 12, DEFAULT_MONEY)
 
 
-@patch("deps.bet.bet_functions.get_user_wallet_for_tournament")
+@patch("deps.bet.bet_functions.data_access_get_bet_user_wallet_for_tournament")
 def test_get_wallet_for_tournament_with_wallet(mock_get_user_wallet_for_tournament):
     """
     Test the get_wallet_for_tournament function
     """
     mock_get_user_wallet_for_tournament.return_value = BetUserTournament(121, 1, 1, 100)
-    wallet = get_wallet_for_tournament(1, 1)
+    wallet = get_bet_user_wallet_for_tournament(1, 1)
     mock_get_user_wallet_for_tournament.assert_called_once_with(1, 1)
     assert wallet is not None
     assert wallet.id == 121
 
 
-@patch("deps.bet.bet_functions.fetch_bet_games_by_tournament_id")
+@patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
 async def test_generating_odd_for_tournament_games(mock_fetch_tournament, mock_fetch_bet_games) -> None:
     """Test that generate the odd for the tournament games"""
@@ -167,11 +215,11 @@ async def test_generating_odd_for_tournament_games(mock_fetch_tournament, mock_f
     mock_fetch_tournament.assert_called_once_with(1)
     mock_fetch_bet_games.assert_called_once_with(1)
 
-    bet_games = fetch_bet_games_by_tournament_id(1)
+    bet_games = data_access_fetch_bet_games_by_tournament_id(1)
     assert len(bet_games) == 4
 
 
-@patch("deps.bet.bet_functions.fetch_bet_games_by_tournament_id")
+@patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
 async def test_get_open_bet_games_for_tournament(mock_fetch_tournament, mock_fetch_bet_games) -> None:
     """Test that generate the odd for the tournament games"""
@@ -188,10 +236,10 @@ async def test_get_open_bet_games_for_tournament(mock_fetch_tournament, mock_fet
     ]
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = [
-        BetGame(1, 1, 1, 0.5, 0.5),
-        BetGame(2, 1, 2, 0.5, 0.5),
-        BetGame(3, 1, 3, 0.5, 0.5),
-        BetGame(4, 1, 4, 0.5, 0.5),
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 2, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
     # Act
@@ -207,7 +255,7 @@ async def test_get_open_bet_games_for_tournament(mock_fetch_tournament, mock_fet
     assert len([game for game in bet_games if game.id == 4]) == 1
 
 
-@patch("deps.bet.bet_functions.fetch_bet_games_by_tournament_id")
+@patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
 async def test_placing_bet_on_completed_game(mock_fetch_tournament, mock_fetch_bet_games) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
@@ -224,10 +272,10 @@ async def test_placing_bet_on_completed_game(mock_fetch_tournament, mock_fetch_b
     ]
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = [
-        BetGame(1, 1, 1, 0.5, 0.5),
-        BetGame(2, 1, 2, 0.5, 0.5),
-        BetGame(3, 1, 3, 0.5, 0.5),
-        BetGame(4, 1, 4, 0.5, 0.5),
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 2, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
     # Act
@@ -235,7 +283,7 @@ async def test_placing_bet_on_completed_game(mock_fetch_tournament, mock_fetch_b
         place_bet_for_game(1, 1, 1001, 99.65, 1)
 
 
-@patch("deps.bet.bet_functions.fetch_bet_games_by_tournament_id")
+@patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
 async def test_placing_bet_on_inexisting_game(mock_fetch_tournament, mock_fetch_bet_games) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
@@ -252,10 +300,10 @@ async def test_placing_bet_on_inexisting_game(mock_fetch_tournament, mock_fetch_
     ]
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = [
-        BetGame(1, 1, 1, 0.5, 0.5),
-        BetGame(2, 1, 2, 0.5, 0.5),
-        BetGame(3, 1, 3, 0.5, 0.5),
-        BetGame(4, 1, 4, 0.5, 0.5),
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 2, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
     # Act
@@ -263,7 +311,7 @@ async def test_placing_bet_on_inexisting_game(mock_fetch_tournament, mock_fetch_
         place_bet_for_game(1, 99999999, 1001, 99.65, 1)
 
 
-@patch("deps.bet.bet_functions.fetch_bet_games_by_tournament_id")
+@patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
 async def test_placing_bet_on_game_that_no_exist(mock_fetch_tournament, mock_fetch_bet_games) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
@@ -280,10 +328,10 @@ async def test_placing_bet_on_game_that_no_exist(mock_fetch_tournament, mock_fet
     ]
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = [
-        BetGame(1, 1, 1, 0.5, 0.5),
-        BetGame(2, 1, 200, 0.5, 0.5),
-        BetGame(3, 1, 3, 0.5, 0.5),
-        BetGame(4, 1, 4, 0.5, 0.5),
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 200, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
     # Act
@@ -291,9 +339,9 @@ async def test_placing_bet_on_game_that_no_exist(mock_fetch_tournament, mock_fet
         place_bet_for_game(1, 2, 1001, 99.65, 1)
 
 
-@patch("deps.bet.bet_functions.fetch_bet_games_by_tournament_id")
+@patch("deps.bet.bet_functions.data_access_fetch_bet_games_by_tournament_id")
 @patch("deps.bet.bet_functions.fetch_tournament_games_by_tournament_id")
-@patch("deps.bet.bet_functions.get_wallet_for_tournament")
+@patch("deps.bet.bet_functions.get_bet_user_wallet_for_tournament")
 async def test_placing_bet_on_game_without_fund(mock_wallet, mock_fetch_tournament, mock_fetch_bet_games) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
     # Arrange
@@ -309,10 +357,10 @@ async def test_placing_bet_on_game_without_fund(mock_wallet, mock_fetch_tourname
     ]
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = [
-        BetGame(1, 1, 1, 0.5, 0.5),
-        BetGame(2, 1, 2, 0.5, 0.5),
-        BetGame(3, 1, 3, 0.5, 0.5),
-        BetGame(4, 1, 4, 0.5, 0.5),
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 2, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
 

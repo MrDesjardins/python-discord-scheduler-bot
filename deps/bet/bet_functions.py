@@ -6,12 +6,12 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from deps.analytic_data_access import fetch_user_info_by_user_id
 from deps.bet.bet_data_access import (
-    create_bet_game,
-    create_bet_user_game,
-    create_user_wallet_for_tournament,
-    fetch_bet_games_by_tournament_id,
-    get_user_wallet_for_tournament,
-    update_user_wallet_for_tournament,
+    data_access_create_bet_game,
+    data_access_create_bet_user_game,
+    data_access_create_bet_user_wallet_for_tournament,
+    data_access_fetch_bet_games_by_tournament_id,
+    data_access_get_bet_user_wallet_for_tournament,
+    data_access_update_user_wallet_for_tournament,
 )
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.tournament_data_class import TournamentGame
@@ -38,51 +38,93 @@ def get_total_pool_for_game(
     return total_amount_bet, total_amount_bet_on_user_1, total_amount_bet_on_user_2
 
 
-def calculate_all_winning_bets_for_a_game(
-    tournament_game: TournamentGame, bet_on_games: List[BetUserGame]
+# def calculate_gain_lost_for_open_bet_game(
+#     tournament_game: TournamentGame, bet_on_games: List[BetUserGame]
+# ) -> List[BetLedgerEntry]:
+#     """
+#     Calculate the distribution of gains and losses for a game
+#     Called when:
+#         This is called at the end of a game (we know the winner)
+#     Algo use a shared pool
+#     """
+#     bet_on_games_not_distributed = [bet for bet in bet_on_games if not bet.bet_distributed]
+
+#     total_amount_bet, total_amount_bet_on_user_1, total_amount_bet_on_user_2 = get_total_pool_for_game(
+#         tournament_game, bet_on_games
+#     )
+#     houst_cut = 0  # 0.05
+#     net_pool = total_amount_bet * (1 - houst_cut)
+#     winner_id = tournament_game.user_winner_id
+#     if winner_id is None:
+#         return []
+#     if winner_id == tournament_game.user1_id:
+#         multiplier = net_pool / total_amount_bet_on_user_1
+#     else:
+#         multiplier = net_pool / total_amount_bet_on_user_2
+#     winning_distributions: List[BetLedgerEntry] = []
+#     for bet in bet_on_games_not_distributed:
+#         if bet.user_id_bet_placed == winner_id:
+#             winning_amount = bet.amount * multiplier
+#         else:
+#             winning_amount = 0
+#         winning_distributions.append(
+#             BetLedgerEntry(
+#                 id=0,
+#                 tournament_id=tournament_game.tournament_id,
+#                 game_id=bet.game_id,
+#                 user_id=bet.user_id,
+#                 amount=winning_amount,
+#             )
+#         )
+#     return winning_distributions
+
+
+def calculate_gain_lost_for_open_bet_game(
+    tournament_game: TournamentGame, bet_on_games: List[BetUserGame], houst_cut=0
 ) -> List[BetLedgerEntry]:
     """
     Calculate the distribution of gains and losses for a game
     Called when:
         This is called at the end of a game (we know the winner)
+    Algo use a conventional odd and support dynamic odd
+    The algo uses the Overround.
+    Vigorish would be adjusted_odd = fair_odd * (1 - houst_cut)
     """
-    total_amount_bet, total_amount_bet_on_user_1, total_amount_bet_on_user_2 = get_total_pool_for_game(
-        tournament_game, bet_on_games
-    )
-    houst_cut = 0  # 0.05
-    net_pool = total_amount_bet * (1 - houst_cut)
+    bet_on_games_not_distributed = [bet for bet in bet_on_games if not bet.bet_distributed]
+
     winner_id = tournament_game.user_winner_id
     if winner_id is None:
         return []
-    if winner_id == tournament_game.user1_id:
-        multiplier = net_pool / total_amount_bet_on_user_1
-    else:
-        multiplier = net_pool / total_amount_bet_on_user_2
+
     winning_distributions: List[BetLedgerEntry] = []
-    for bet in bet_on_games:
+    for bet in bet_on_games_not_distributed:
         if bet.user_id_bet_placed == winner_id:
-            winning_amount = bet.amount * multiplier
-            winning_distributions.append(
-                BetLedgerEntry(
-                    id=0,
-                    tournament_id=tournament_game.tournament_id,
-                    game_id=bet.game_id,
-                    user_id=bet.user_id,
-                    amount=winning_amount,
-                )
+            fair_odd = 1 / bet.probability_user_win_when_bet_placed
+            adjusted_odd = fair_odd / (1 + houst_cut)
+            winning_amount = bet.amount * adjusted_odd
+        else:
+            winning_amount = 0
+        winning_distributions.append(
+            BetLedgerEntry(
+                id=0,
+                tournament_id=tournament_game.tournament_id,
+                game_id=bet.game_id,
+                user_id=bet.user_id,
+                amount=winning_amount,
             )
+        )
     return winning_distributions
 
 
-def get_wallet_for_tournament(tournament_id: int, user_id: int) -> BetUserTournament:
+def get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> BetUserTournament:
     """
     Get the wallet of a user for a specific tournament
     """
-    wallet: Optional[BetUserTournament] = get_user_wallet_for_tournament(tournament_id, user_id)
+    wallet: Optional[BetUserTournament] = data_access_get_bet_user_wallet_for_tournament(tournament_id, user_id)
 
     if wallet is None:
-        create_user_wallet_for_tournament(tournament_id, user_id, DEFAULT_MONEY)
-        wallet = get_user_wallet_for_tournament(tournament_id, user_id)
+        data_access_create_bet_user_wallet_for_tournament(tournament_id, user_id, DEFAULT_MONEY)
+        wallet = data_access_get_bet_user_wallet_for_tournament(tournament_id, user_id)
     return wallet
 
 
@@ -94,12 +136,14 @@ async def system_generate_game_odd(tournament_id: int) -> None:
     This function should be used:
         1) When a new tournament is created
         2) When a new game is created (two reports are created)
+
+    This function is idempotent
     """
     # 1 Get the tournament games
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
 
     # 2 Get the current bet_game for the tournament
-    bet_games: List[BetGame] = fetch_bet_games_by_tournament_id(tournament_id)
+    bet_games: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
 
     # 3 Get the tournament games without bet_game
     # 3.1 Create a dictionary of the ids of the bet_game
@@ -127,18 +171,18 @@ async def system_generate_game_odd(tournament_id: int) -> None:
             odd_user1 = 0.5
             odd_user2 = 0.5
         # 4.3 Insert the generated odd into the database
-        create_bet_game(tournament_id, game.id, odd_user1, odd_user2)
+        data_access_create_bet_game(tournament_id, game.id, odd_user1, odd_user2)
 
 
 def get_open_bet_games_for_tournament(tournament_id: int) -> List[TournamentGame]:
     """
-    Get all the possible game to bet on for a specific tournament
+    Get all the possible game where bet_game are legit to receive bets
     """
     # 1 Get the tournament games
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
 
     # 2 Get the current bet_game for the tournament
-    bet_games: List[BetGame] = fetch_bet_games_by_tournament_id(tournament_id)
+    bet_games: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
 
     # 3 Get the tournament games without bet_game
     # 3.1 Create a dictionary of the ids of the bet_game
@@ -160,10 +204,10 @@ def place_bet_for_game(
     tournament_id: int, bet_game_id: int, user_id: int, amount: float, user_id_bet_placed: int
 ) -> None:
     """
-    Place a bet for a specific game
+    Function to call when a user place a bet on a bet_game (not a match)
     """
     # 1 Get the bet game
-    bet_games_tournament: List[BetGame] = fetch_bet_games_by_tournament_id(tournament_id)
+    bet_games_tournament: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     bet_games: List[BetGame] = [game for game in bet_games_tournament if game.id == bet_game_id]
     if len(bet_games) == 0:
         raise ValueError("The Bet on this game does not exist")
@@ -177,7 +221,7 @@ def place_bet_for_game(
     if game.user_winner_id is not None:
         raise ValueError("The game is already finished")
     # 2 Get the wallet of the user
-    wallet: BetUserTournament = get_wallet_for_tournament(tournament_id, user_id)
+    wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_id)
     if wallet.amount < amount:
         raise ValueError("The user does not have enough money")
 
@@ -189,6 +233,8 @@ def place_bet_for_game(
 
     # 4 Insert the bet into the database
     current_date = datetime.now(timezone.utc)
-    create_bet_user_game(tournament_id, bet_game.id, user_id, amount, user_id_bet_placed, current_date, probability)
+    data_access_create_bet_user_game(
+        tournament_id, bet_game.id, user_id, amount, user_id_bet_placed, current_date, probability
+    )
     wallet.amount -= amount
-    update_user_wallet_for_tournament(wallet.id, wallet.amount)
+    data_access_update_user_wallet_for_tournament(wallet.id, wallet.amount)

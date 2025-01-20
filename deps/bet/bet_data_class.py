@@ -45,6 +45,7 @@ class BetGame:
     game_id: int
     probability_user_1_win: float
     probability_user_2_win: float
+    bet_distributed: bool
 
     @staticmethod
     def from_db_row(row):
@@ -55,6 +56,7 @@ class BetGame:
             game_id=row[2],
             probability_user_1_win=row[3],
             probability_user_2_win=row[4],
+            bet_distributed=bool(row[5]),
         )
 
     def odd_user_1(self):
@@ -92,6 +94,7 @@ class BetUserGame:
     and we want to know the odds at the time of the bet
     """
     probability_user_win_when_bet_placed: float
+    bet_distributed: bool
 
     @staticmethod
     def from_db_row(row):
@@ -105,12 +108,13 @@ class BetUserGame:
             user_id_bet_placed=row[5],
             time_bet_placed=convert_to_datetime(row[6]),
             probability_user_win_when_bet_placed=row[7],
+            bet_distributed=bool(row[8]),
         )
 
 
 @dataclasses.dataclass
 class BetLedgerEntry:
-    """Represent the amount distributed to the winners of a bet"""
+    """Represent the amount distributed to the winners/loser of a bet"""
 
     id: int
     tournament_id: int
@@ -122,3 +126,5 @@ class BetLedgerEntry:
     def from_db_row(row):
         """Create a BetUserGame object from a database row"""
         return BetLedgerEntry(id=row[0], tournament_id=row[1], game_id=row[2], user_id=row[3], amount=row[4])
+
+

@@ -66,7 +66,7 @@ def data_access_insert_tournament(
     return tournament_id
 
 
-def data_access_create_bracket(tournament_id: int, total_players: int) -> List[dict]:
+def data_access_create_bracket(tournament_id: int, total_players: int) -> None:
     """
     Create the games to be part of the tournament brackets
     """
@@ -74,6 +74,16 @@ def data_access_create_bracket(tournament_id: int, total_players: int) -> List[d
     current_level = []
 
     cursor = database_manager.get_cursor()
+
+    # Create only if not already created
+    cursor.execute(
+        """
+        SELECT 1 FROM tournament_game WHERE tournament_id = ?;
+    """,
+        (tournament_id,),
+    )
+    if cursor.fetchone() is not None:
+        return
 
     leaf_game_count = math.ceil(total_players / 2)
     # Generate leaf games (starting games at the bottom of the bracket)

@@ -5,11 +5,23 @@ Logic that interact with the database
 from datetime import datetime
 from typing import List, Optional
 
-from deps.bet.bet_data_class import BetGame, BetUserTournament
+from deps.bet.bet_data_class import BetGame, BetUserGame, BetUserTournament
 from deps.system_database import database_manager
 
+SELECT_BET_USER_GAME = """
+          bet_user_game.id, 
+          bet_user_game.tournament_id, 
+          bet_user_game.bet_game_id, 
+          bet_user_game.user_id, 
+          bet_user_game.amount, 
+          bet_user_game.user_id_bet_placed, 
+          bet_user_game.time_bet_placed, 
+          bet_user_game.probability_user_win_when_bet_placed,
+          bet_user_game.bet_distributed
+          """
 
-def delete_all_tables() -> None:
+
+def delete_all_bet_tables() -> None:
     """
     Delete all tables
     """
@@ -22,7 +34,7 @@ def delete_all_tables() -> None:
     database_manager.init_database()
 
 
-def get_user_wallet_for_tournament(tournament_id: int, user_id: int) -> Optional[BetUserTournament]:
+def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> Optional[BetUserTournament]:
     """
     Get the wallet of a user for a specific tournament
     """
@@ -41,7 +53,7 @@ def get_user_wallet_for_tournament(tournament_id: int, user_id: int) -> Optional
     return BetUserTournament.from_db_row(row)
 
 
-def update_user_wallet_for_tournament(wallet_id: int, amount: float) -> None:
+def data_access_update_user_wallet_for_tournament(bet_user_id: int, amount: float) -> None:
     """
     Update the wallet of a user for a specific tournament
     """
@@ -49,14 +61,14 @@ def update_user_wallet_for_tournament(wallet_id: int, amount: float) -> None:
         """
         UPDATE bet_user_tournament 
         SET amount = :amount 
-        WHERE wallet_id = :wallet_id
+        WHERE id = :bet_user_id
         """,
-        {"wallet_id": wallet_id, "amount": amount},
+        {"bet_user_id": bet_user_id, "amount": amount},
     )
     database_manager.get_conn().commit()
 
 
-def create_user_wallet_for_tournament(tournament_id: int, user_id: int, initial_amount: float) -> None:
+def data_access_create_bet_user_wallet_for_tournament(tournament_id: int, user_id: int, initial_amount: float) -> None:
     """
     Create a wallet for a user for a specific tournament
     """
@@ -70,7 +82,7 @@ def create_user_wallet_for_tournament(tournament_id: int, user_id: int, initial_
     database_manager.get_conn().commit()
 
 
-def fetch_bet_games_by_tournament_id(tournament_id: int) -> List[BetGame]:
+def data_access_fetch_bet_games_by_tournament_id(tournament_id: int) -> List[BetGame]:
     """
     Fetch all the bet games for a tournament
     """
@@ -81,7 +93,8 @@ def fetch_bet_games_by_tournament_id(tournament_id: int) -> List[BetGame]:
           tournament_id, 
           game_id, 
           probability_user_1_win, 
-          probability_user_2_win
+          probability_user_2_win,
+          bet_distributed
         FROM bet_game
         WHERE tournament_id = :tournament_id
         """,
@@ -91,7 +104,7 @@ def fetch_bet_games_by_tournament_id(tournament_id: int) -> List[BetGame]:
     return [BetGame.from_db_row(row) for row in rows]
 
 
-def create_bet_game(
+def data_access_create_bet_game(
     tournament_id: int, game_id: int, probability_user_1_win: float, probability_user_2_win: float
 ) -> None:
     """
@@ -103,13 +116,15 @@ def create_bet_game(
           tournament_id, 
           game_id, 
           probability_user_1_win, 
-          probability_user_2_win
+          probability_user_2_win,
+          bet_distributed
         ) 
         VALUES (
           :tournament_id,
           :game_id,
           :probability_user_1_win,
-          :probability_user_2_win
+          :probability_user_2_win,
+          false
         )
         """,
         {
@@ -122,21 +137,14 @@ def create_bet_game(
     database_manager.get_conn().commit()
 
 
-def fetch_bet_user_game_by_tournament_id(tournament_id: int) -> List[BetUserTournament]:
+def data_access_fetch_bet_user_game_by_tournament_id(tournament_id: int) -> List[BetUserTournament]:
     """
     Fetch all the bet games for a tournament
     """
     database_manager.get_cursor().execute(
         """
         SELECT 
-          id, 
-          tournament_id, 
-          bet_game_id, 
-          user_id, 
-          amount, 
-          user_id_bet_placed, 
-          time_bet_placed, 
-          probability_user_win_when_bet_placed
+        {SELECT_BET_USER_GAME}
         FROM bet_user_game
         WHERE tournament_id = :tournament_id
         """,
@@ -146,7 +154,7 @@ def fetch_bet_user_game_by_tournament_id(tournament_id: int) -> List[BetUserTour
     return [BetUserTournament.from_db_row(row) for row in rows]
 
 
-def create_bet_user_game(
+def data_access_create_bet_user_game(
     tournament_id: int,
     bet_game_id: int,
     user_id: int,
@@ -167,7 +175,9 @@ def create_bet_user_game(
               amount,
               user_id_bet_placed,
               time_bet_placed,
-              probability_user_win_when_bet_placed)
+              probability_user_win_when_bet_placed,
+              bet_distributed
+              )
             VALUES (
               :tournament_id,
               :bet_game_id,
@@ -175,7 +185,8 @@ def create_bet_user_game(
               :amount,
               :user_id_bet_placed,
               :time_bet_placed,
-              :probability_user_win_when_bet_placed
+              :probability_user_win_when_bet_placed,
+              false
             )
             """,
         {
@@ -189,3 +200,28 @@ def create_bet_user_game(
         },
     )
     database_manager.get_conn().commit()
+
+
+def data_access_get_bet_game_ready_for_distribution(tournament_id: int) -> List[BetGame]:
+    """
+    Get all the bet games that are ready for distribution
+    """
+    database_manager.get_cursor().execute(
+        f"""
+        SELECT 
+        {SELECT_BET_USER_GAME}
+        FROM bet_user_game
+        INNER JOIN bet_game 
+          ON bet_user_game.bet_game_id = bet_game.id
+        INNER JOIN tournament_game
+          ON bet_game.game_id = tournament_game.id
+          AND tournament_game.user_winner_id IS NOT NULL
+        WHERE
+          bet_user_game.tournament_id = :tournament_id
+        AND 
+          bet_user_game.bet_distributed = false
+        """,
+        {"tournament_id": tournament_id},
+    )
+    rows = database_manager.get_cursor().fetchall()
+    return [BetUserGame.from_db_row(row) for row in rows]

@@ -231,6 +231,7 @@ class DatabaseManager:
             game_id INTEGER NOT NULL,
             probability_user_1_win REAL NOT NULL,
             probability_user_2_win REAL NOT NULL,
+            bet_distributed BOOLEAN DEFAULT 0,
             FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
             FOREIGN KEY(game_id) REFERENCES tournament_game(id)
         );
@@ -247,6 +248,7 @@ class DatabaseManager:
             user_id_bet_placed INTEGER NOT NULL,
             time_bet_placed DATETIME NOT NULL,
             probability_user_win_when_bet_placed REAL NOT NULL,
+            bet_distributed BOOLEAN DEFAULT 0,
             FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
             FOREIGN KEY(bet_game_id) REFERENCES bet_game(id),
             FOREIGN KEY(user_id) REFERENCES user_info(id),
