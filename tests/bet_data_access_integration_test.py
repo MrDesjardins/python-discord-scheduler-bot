@@ -26,6 +26,7 @@ from deps.tournament_data_access import (
     register_user_for_tournament,
 )
 from deps.tournament_functions import report_lost_tournament, start_tournaments
+from deps.bet import bet_functions
 
 
 @pytest.fixture(autouse=True)
@@ -198,8 +199,7 @@ async def test_distribute_gain_on_recent_ended_game_losing_bet_scenario() -> Non
     bet_user_game = data_access_fetch_bet_user_game_by_tournament_id(tournament_id)
     assert bet_user_game[0].bet_distributed is True
 
-
-@patch("deps.bet.bet_functions.data_access_update_user_wallet_for_tournament")
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet_mock) -> None:
     """Test the distribution to the user who won the bet"""
     # Arrange

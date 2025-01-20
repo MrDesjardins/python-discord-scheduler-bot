@@ -12,7 +12,7 @@ from deps.bet.bet_data_access import (
     data_access_fetch_bet_games_by_tournament_id,
     data_access_get_bet_user_game_ready_for_distribution,
     data_access_get_bet_user_wallet_for_tournament,
-    data_access_update_user_wallet_for_tournament,
+    data_access_update_bet_user_tournament,
     data_access_update_bet_user_game_distribution_completed,
     data_access_update_bet_game_distribution_completed,
     data_access_insert_bet_ledger_entry,
@@ -104,7 +104,7 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
                 if winning_distribution.amount > 0:
                     wallet = get_bet_user_wallet_for_tournament(tournament_id, winning_distribution.user_id)
                     wallet.amount += winning_distribution.amount
-                    data_access_update_user_wallet_for_tournament(wallet.id, wallet.amount)
+                    data_access_update_bet_user_tournament(wallet.id, wallet.amount)
                 data_access_insert_bet_ledger_entry(winning_distribution)
             for bet_user_game in bets:
                 data_access_update_bet_user_game_distribution_completed(bet_user_game.id)
@@ -272,4 +272,4 @@ def place_bet_for_game(
         tournament_id, bet_game.id, user_who_is_betting_id, amount, user_id_bet_placed_on, current_date, probability
     )
     wallet.amount -= amount
-    data_access_update_user_wallet_for_tournament(wallet.id, wallet.amount, True)
+    data_access_update_bet_user_tournament(wallet.id, wallet.amount, True)

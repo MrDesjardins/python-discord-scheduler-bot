@@ -53,7 +53,7 @@ def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: 
     return BetUserTournament.from_db_row(row)
 
 
-def data_access_update_user_wallet_for_tournament(
+def data_access_update_bet_user_tournament(
     bet_user_tournament_id: int, amount: float, auto_commit: bool = False
 ) -> None:
     """
