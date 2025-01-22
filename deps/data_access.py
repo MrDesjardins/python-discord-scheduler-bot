@@ -80,7 +80,11 @@ async def data_access_get_member(guild_id: int, user_id: int) -> Union[discord.M
         guild: Optional[discord.Guild] = await data_access_get_guild(guild_id)
         if guild is None:
             return None
-        return await guild.fetch_member(user_id)
+        try:
+            result = await guild.fetch_member(user_id)
+            return result
+        except discord.errors.NotFound:
+            return None
 
     return await get_cache(True, f"{KEY_MEMBER}:{guild_id}:{user_id}", fetch)
 
@@ -301,7 +305,10 @@ async def data_acess_remove_list_member_stats(user_queued_for_stats: UserQueueFo
 
         # Search to see if the user id is already in the list (maybe few minutes ago it was added to the list)
         for user_in_list in list_users:
-            if user_in_list.user_info.id == user_queued_for_stats.user_info.id and user_in_list.guild_id == user_queued_for_stats.guild_id:
+            if (
+                user_in_list.user_info.id == user_queued_for_stats.user_info.id
+                and user_in_list.guild_id == user_queued_for_stats.guild_id
+            ):
                 list_users.remove(user_in_list)
                 break  # Break because we know maximum one entry per user
         set_cache(True, f"{KEY_QUEUE_USER_STATS}", list_users, ONE_DAY_TTL)

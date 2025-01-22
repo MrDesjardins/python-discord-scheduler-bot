@@ -64,8 +64,10 @@ class MyEventsCog(commands.Cog):
             print_log(f"\tSynced {len(synced)} commands for guild {guild.name}.")
 
             commands_reg = await bot.tree.fetch_commands(guild=guild_obj)
-            for command in commands_reg:
-                print_log(f"\t✅ /{command.name}")
+            names = [command.name for command in commands_reg]
+            sorted_names = sorted(names)
+            for command in sorted_names:
+                print_log(f"\t✅ /{command}")
 
             bot.guild_emoji[guild.id] = {}
             for emoji in guild.emojis:

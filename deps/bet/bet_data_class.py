@@ -6,14 +6,14 @@ import datetime
 from deps.functions import convert_to_datetime
 
 
-def moneyline_odd(prob: float) -> float:
+def moneyline_odd(prob: float) -> int:
     """
     Return the moneyline odd for a given probability
     """
     if prob < 0.5:
-        return 100 / prob
+        return int(100 / prob)
     else:
-        return -1 * ((100 * prob) / (1 - prob))
+        return int(-1 * ((100 * prob) / (1 - prob)))
 
 
 @dataclasses.dataclass
