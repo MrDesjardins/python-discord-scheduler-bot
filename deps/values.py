@@ -126,6 +126,6 @@ COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT = "seebrackettournament"
 
 # Betting
 COMMAND_BET_LEADERBOARD = "betleaderboard"
-#COMMAND_BET_MARKET = "betmarket"
+COMMAND_BET_ACTIVE_TOURNAMENT = "betactivetournament"
 COMMAND_BET = "bet"
 COMMAND_BET_WALLET = "betwallet"

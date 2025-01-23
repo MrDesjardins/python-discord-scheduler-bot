@@ -8,10 +8,11 @@ from deps.bet.bet_functions import get_bet_user_wallet_for_tournament
 from deps.tournament_data_access import (
     fetch_active_tournament_by_guild,
 )
-from deps.values import COMMAND_BET, COMMAND_BET_WALLET
+from deps.values import COMMAND_BET, COMMAND_BET_ACTIVE_TOURNAMENT, COMMAND_BET_WALLET
 from deps.mybot import MyBot
 from deps.log import print_warning_log
 from deps.tournament_data_class import Tournament
+from ui.bet_tournament_selector_for_active_tournament import BetTournamentSelectorForActiveMarket
 from ui.bet_tournament_selector_for_market import BetTournamentSelectorForMarket
 
 
@@ -91,6 +92,26 @@ class UserBetFeatures(commands.Cog):
             "Choose the tournament to see the market",
             view=view,
             ephemeral=True,
+        )
+
+    @app_commands.command(name=COMMAND_BET_ACTIVE_TOURNAMENT)
+    async def bet_active_tournament(self, interaction: discord.Interaction):
+        guild_id = interaction.guild.id
+        list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
+        if len(list_tournaments) == 0:
+            print_warning_log(
+                f"place_bet: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+            )
+            await interaction.response.send_message(
+                "No active tournament available to visualize active bets.", ephemeral=True
+            )
+            return
+        view = BetTournamentSelectorForActiveMarket(list_tournaments)
+
+        await interaction.response.send_message(
+            "Choose the tournament to see the active bets",
+            view=view,
+            ephemeral=False,
         )
 
 
