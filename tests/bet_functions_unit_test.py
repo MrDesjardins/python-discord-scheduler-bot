@@ -10,6 +10,7 @@ from deps.bet.bet_data_access import delete_all_bet_tables, data_access_fetch_be
 from deps.bet.bet_data_class import BetGame, BetUserGame, BetUserTournament
 from deps.bet.bet_functions import (
     DEFAULT_MONEY,
+    MIN_BET_AMOUNT,
     calculate_gain_lost_for_open_bet_game,
     get_open_bet_games_for_tournament,
     get_total_pool_for_game,
@@ -390,6 +391,128 @@ async def test_placing_bet_on_game_without_fund(
     # Act
     with pytest.raises(ValueError, match="The user does not have enough money"):
         place_bet_for_game(1, 2, 1001, 11, 1)
+
+
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+async def test_placing_bet_on_game_you_are_part(
+    mock_wallet,
+    mock_fetch_tournament,
+    mock_fetch_bet_games,
+    mock_create_bet_user_game,
+    mock_update_user_wallet_for_tournament,
+) -> None:
+    """Test the scenario of the user who place a bet on a completed game"""
+    # Arrange
+    now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
+    list_tournament_games: TournamentGame = [
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, 7, 8, None, None, None, now_date, None, None),
+        TournamentGame(5, 1, 9, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
+    ]
+
+    mock_wallet.return_value = BetUserTournament(1, 1, 100, 1000)
+    mock_fetch_tournament.return_value = list_tournament_games
+    list_existing_bet_games = [
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 2, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
+    ]
+    mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_create_bet_user_game.return_value = None
+    mock_update_user_wallet_for_tournament.return_value = None
+    # Act
+    with pytest.raises(ValueError, match="The user cannot bet on a game where he is playing"):
+        place_bet_for_game(1, 1, 1, 99.99, 1)
+
+
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+async def test_placing_bet_on_game_good_scenario(
+    mock_wallet,
+    mock_fetch_tournament,
+    mock_fetch_bet_games,
+    mock_create_bet_user_game,
+    mock_update_user_wallet_for_tournament,
+) -> None:
+    """Test the scenario of the user who place a bet on a completed game"""
+    # Arrange
+    now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
+    list_tournament_games: TournamentGame = [
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, 7, 8, None, None, None, now_date, None, None),
+        TournamentGame(5, 1, 9, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
+    ]
+
+    mock_wallet.return_value = BetUserTournament(1, 1, 100, 1000)
+    mock_fetch_tournament.return_value = list_tournament_games
+    list_existing_bet_games = [
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 2, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
+    ]
+    mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_create_bet_user_game.return_value = None
+    mock_update_user_wallet_for_tournament.return_value = None
+    # Act
+    place_bet_for_game(1, 2, 1, 99.99, 1)
+
+
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+async def test_placing_bet_on_game_too_small_amount(
+    mock_wallet,
+    mock_fetch_tournament,
+    mock_fetch_bet_games,
+    mock_create_bet_user_game,
+    mock_update_user_wallet_for_tournament,
+) -> None:
+    """Test the scenario of the user who place a bet on a completed game"""
+    # Arrange
+    now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
+    list_tournament_games: TournamentGame = [
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, 7, 8, None, None, None, now_date, None, None),
+        TournamentGame(5, 1, 9, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
+    ]
+
+    mock_wallet.return_value = BetUserTournament(1, 1, 100, 1000)
+    mock_fetch_tournament.return_value = list_tournament_games
+    list_existing_bet_games = [
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(2, 1, 2, 0.5, 0.5, False),
+        BetGame(3, 1, 3, 0.5, 0.5, False),
+        BetGame(4, 1, 4, 0.5, 0.5, False),
+    ]
+    mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_create_bet_user_game.return_value = None
+    mock_update_user_wallet_for_tournament.return_value = None
+    # Act
+    with pytest.raises(ValueError, match=f"The minimum amount to bet is \${MIN_BET_AMOUNT}"):
+        place_bet_for_game(1, 2, 1, 0.99, 1)
 
 
 @patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)

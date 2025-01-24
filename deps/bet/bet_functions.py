@@ -25,6 +25,7 @@ from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 
 DEFAULT_MONEY = 1000
+MIN_BET_AMOUNT = 10
 
 
 def get_total_pool_for_game(
@@ -256,6 +257,10 @@ def place_bet_for_game(
     game: TournamentGame = game[0]
     if game.user_winner_id is not None:
         raise ValueError("The game is already finished")
+    if game.user1_id == user_who_is_betting_id or game.user2_id == user_who_is_betting_id:
+        raise ValueError("The user cannot bet on a game where he is playing")
+    if amount < MIN_BET_AMOUNT:
+        raise ValueError(f"The minimum amount to bet is ${MIN_BET_AMOUNT}")
     # 2 Get the wallet of the user
     wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_who_is_betting_id)
     if wallet.amount < amount:
