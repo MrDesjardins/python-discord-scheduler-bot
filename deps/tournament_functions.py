@@ -546,3 +546,10 @@ def get_tournament_final_result_positions(root: TournamentNode) -> Optional[Tour
         third_place_user_id_1=third_position_1,
         third_place_user_id_2=third_position_2,
     )
+
+
+def clean_maps_input(raw_maps: str) -> str:
+    """
+    Clean the input of maps by removing the spaces and making the string lowercase
+    """
+    return ",".join(map(lambda x: x.strip().lower(), raw_maps.split(",")))

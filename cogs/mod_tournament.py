@@ -24,7 +24,7 @@ from deps.log import print_warning_log
 from deps.tournament_models import BestOf, TournamentSize
 from deps.tournament_values import TOURNAMENT_MAPS
 from deps.tournament_data_class import Tournament
-from deps.tournament_functions import start_tournament
+from deps.tournament_functions import clean_maps_input, start_tournament
 from ui.tournament_match_score_report import TournamentMatchScoreReport
 
 
@@ -73,6 +73,7 @@ class ModTournament(commands.Cog):
         end_date: str = date.today().strftime("%Y-%m-%d"),
         best_of: BestOf = BestOf.THREE,
         max_users: TournamentSize = TournamentSize.SIXTEEN,
+        maps: str = TOURNAMENT_MAPS,
     ):
         """Create a tournament"""
         await interaction.response.defer(ephemeral=True)
@@ -90,6 +91,7 @@ class ModTournament(commands.Cog):
         end_date_date = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         best_of_number = best_of.value
         max_users_number = max_users.value
+        clean_maps = clean_maps_input(maps)
         data_access_insert_tournament(
             guild_id,
             name,
@@ -98,7 +100,7 @@ class ModTournament(commands.Cog):
             end_date_date,
             best_of_number,
             max_users_number,
-            TOURNAMENT_MAPS,
+            clean_maps,
         )
         await interaction.followup.send(f"Created tournament {name}", ephemeral=True)
 
