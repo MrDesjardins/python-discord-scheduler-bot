@@ -186,8 +186,15 @@ async def system_generate_game_odd(tournament_id: int) -> None:
     # 3.1 Create a dictionary of the ids of the bet_game
     bet_game_ids = {game.game_id for game in bet_games}
 
-    # 3.2 Get the games without bet_game
-    games_without_bet_game = [game for game in tournament_games if game.id not in bet_game_ids]
+    # 3.2 Get the games without bet_game that have 2 users but without winner yet
+    games_without_bet_game = [
+        game
+        for game in tournament_games
+        if game.id not in bet_game_ids
+        and game.user1_id is not None
+        and game.user2_id is not None
+        and game.user_winner_id is None
+    ]
 
     # 3.3 Remove from the game without bet game the one that have already a winner and those without two users
     games_without_bet_game = [
@@ -205,8 +212,7 @@ async def system_generate_game_odd(tournament_id: int) -> None:
             odd_user2 = 0.5
         else:
             # Here find a way like getting the user MMR
-            odd_user1 = 0.5
-            odd_user2 = 0.5
+            odd_user1, odd_user2 = await define_odds_between_two_users(game.user1_id, game.user2_id)
         # 4.3 Insert the generated odd into the database
         data_access_create_bet_game(tournament_id, game.id, odd_user1, odd_user2)
 
@@ -296,3 +302,13 @@ async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
         msg += f"{rank} - {user1_display} - ${wallet.amount:.2f}\n"
         rank += 1
     return msg.strip()
+
+
+async def define_odds_between_two_users(user1_id: int, user2_id: int) -> tuple[float, float]:
+    """
+    Function to call when a user place a bet on a bet_game (not a match)
+    """
+    # Here find a way like getting the user MMR
+    odd_user1 = 0.5
+    odd_user2 = 0.5
+    return odd_user1, odd_user2

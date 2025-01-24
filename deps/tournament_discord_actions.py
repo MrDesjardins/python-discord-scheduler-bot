@@ -120,7 +120,7 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
         msg += f"\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
         for tournament in tournaments:
             try:
-                start_tournament(tournament)
+                await start_tournament(tournament)
                 msg += f"\n{tournament.name}"
 
             except Exception as e:

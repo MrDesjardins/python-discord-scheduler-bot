@@ -66,7 +66,7 @@ class TournamentMatchScoreReport(View):
             self.tournament_id = tournament_id
             if self.round_lost is None or self.round_won is None:
                 await interaction.response.send_message(
-                    f"Now select the number of round you lost and the number of round you won.", ephemeral=True
+                    "Now select the number of round you lost and the number of round you won.", ephemeral=True
                 )
             else:
                 await interaction.response.defer()
@@ -93,7 +93,7 @@ class TournamentMatchScoreReport(View):
         """Processes the tournament match result."""
 
         score_string = f"{self.round_won}-{self.round_lost}"
-        result = report_lost_tournament(self.tournament_id, interaction.user.id, score_string)
+        result = await report_lost_tournament(self.tournament_id, interaction.user.id, score_string)
         tournament = next((t for t in self.list_tournaments if t.id == self.tournament_id), None)
 
         if not tournament:

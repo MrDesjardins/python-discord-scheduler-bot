@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from collections import deque
 import random
 from typing import Dict, List, Optional
+from deps.bet.bet_functions import system_generate_game_odd
 from deps.data_access_data_class import UserInfo
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_models import TournamentNode, TournamentResult
@@ -12,7 +13,6 @@ from deps.tournament_data_access import (
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     get_people_registered_for_tournament,
-    get_tournaments_starting_today,
     register_user_for_tournament,
     save_tournament,
     save_tournament_games,
@@ -70,19 +70,7 @@ def register_for_tournament(tournament_id: int, user_id: int) -> Reason:
         return reason
 
 
-def start_tournaments(starting_date: datetime) -> None:
-    """
-    Every day, check if the tournament start date is the current date to block registration and
-    assign people to tournament games.
-    """
-
-    # Get the list of tournaments that are starting today from all guilds
-    tournaments = get_tournaments_starting_today(starting_date)
-    for tournament in tournaments:
-        start_tournament(tournament)
-
-
-def start_tournament(tournament: Tournament) -> None:
+async def start_tournament(tournament: Tournament) -> None:
     """
     Start a specific tournament
     Create the bracket
@@ -109,9 +97,13 @@ def start_tournament(tournament: Tournament) -> None:
     node_to_save2: List[TournamentGame] = auto_assign_winner(tournament_games)
     # Save the nodes that was determined as auto in
     save_tournament_games(node_to_save2)
+
     # Tournament status
     tournament.has_started = True
     save_tournament(tournament)
+
+    # Generate bet_game
+    await system_generate_game_odd(tournament.id)
 
 
 def has_node_without_user(dict_nodes: dict[int, TournamentGame], node: TournamentGame) -> bool:
@@ -357,7 +349,7 @@ def assign_people_to_games(
     return leaf_nodes
 
 
-def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reason:
+async def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reason:
     """
     Report a user as lost in the tournament.
 
@@ -421,6 +413,8 @@ def report_lost_tournament(tournament_id: int, user_id: int, score: str) -> Reas
     node_to_save2: List[TournamentNode] = auto_assign_winner(tournament_games)
     save_tournament_games(node_to_save2)
 
+    # Generate bet_game
+    await system_generate_game_odd(tournament_id)
     return Reason(True, None, node)
 
 

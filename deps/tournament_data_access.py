@@ -12,6 +12,19 @@ from deps.tournament_data_class import Tournament, TournamentGame
 KEY_TOURNAMENT_GUILD = "tournament_guild"
 KEY_TOURNAMENT_GAMES = "tournament_games"
 
+SELECT_TOURNAMENT = """
+    tournament.id,
+    tournament.guild_id,
+    tournament.name,
+    tournament.registration_date,
+    tournament.start_date,
+    tournament.end_date,
+    tournament.best_of,
+    tournament.max_players,
+    tournament.maps,
+    tournament.has_started
+    """
+
 
 def delete_all_tournament_tables() -> None:
     """
@@ -124,26 +137,18 @@ def data_access_create_bracket(tournament_id: int, total_players: int) -> None:
 def fetch_tournament_start_today(guild_id: int) -> List[Tournament]:
     """Fetch all tournament that are not over that the user are registered"""
     current_time = datetime.now(timezone.utc)
+    query = f"""
+        SELECT 
+        {SELECT_TOURNAMENT},
+        0 as current_user_count
+        FROM tournament
+        WHERE tournament.guild_id = :guild_id
+        AND date(tournament.start_date) == date(:current_time);
+        """
     result = (
         database_manager.get_cursor()
         .execute(
-            """
-                SELECT 
-                    tournament.id,
-                    tournament.guild_id,
-                    tournament.name,
-                    tournament.registration_date,
-                    tournament.start_date,
-                    tournament.end_date,
-                    tournament.best_of,
-                    tournament.max_players,
-                    tournament.maps,
-                    tournament.has_started,
-                    0 as current_user_count
-                FROM tournament
-                WHERE tournament.guild_id = :guild_id
-                AND date(tournament.start_date) == date(:current_time);
-                """,
+            query,
             {"guild_id": guild_id, "current_time": current_time},
         )
         .fetchall()
@@ -158,21 +163,9 @@ def fetch_tournament_open_registration(guild_id: int) -> List[Tournament]:
     that the amount of player is not reached the maximum
     """
     current_time = datetime.now(timezone.utc)
-    result = (
-        database_manager.get_cursor()
-        .execute(
-            """
+    query = f"""
                 SELECT 
-                    tournament.id,
-                    tournament.guild_id,
-                    tournament.name,
-                    tournament.registration_date,
-                    tournament.start_date,
-                    tournament.end_date,
-                    tournament.best_of,
-                    tournament.max_players,
-                    tournament.maps,
-                    tournament.has_started,
+                    {SELECT_TOURNAMENT},
                     count(user_tournament.id) as current_user_count
                 FROM tournament
                 LEFT JOIN
@@ -185,7 +178,11 @@ def fetch_tournament_open_registration(guild_id: int) -> List[Tournament]:
                 GROUP BY tournament.id
                 HAVING
                     tournament.max_players > current_user_count;
-                """,
+                """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            query,
             {"guild_id": guild_id, "current_time": current_time},
         )
         .fetchall()
@@ -196,21 +193,9 @@ def fetch_tournament_open_registration(guild_id: int) -> List[Tournament]:
 def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) -> List[Tournament]:
     """Fetch all tournament that are not over that the user are registered"""
     current_time = datetime.now(timezone.utc)
-    result = (
-        database_manager.get_cursor()
-        .execute(
-            """
+    query = f"""
                 SELECT 
-                    tournament.id,
-                    tournament.guild_id,
-                    tournament.name,
-                    tournament.registration_date,
-                    tournament.start_date,
-                    tournament.end_date,
-                    tournament.best_of,
-                    tournament.max_players,
-                    tournament.maps,
-                    tournament.has_started,
+                    {SELECT_TOURNAMENT},
                     0 as current_user_count
                 FROM tournament
                 INNER JOIN
@@ -221,7 +206,11 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
                 WHERE tournament.guild_id = :guild_id
                     AND date(tournament.end_date) >= date(:current_time)
                     AND date(tournament.start_date) <= date(:current_time);
-                """,
+                """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            query,
             {"user_id": user_id, "guild_id": guild_id, "current_time": current_time},
         )
         .fetchall()
@@ -232,21 +221,9 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
 def fetch_tournament_not_completed_for_user(guild_id: int, user_id: int) -> List[Tournament]:
     """Fetch all tournament that are not over that the user are registered"""
     current_time = datetime.now(timezone.utc)
-    result = (
-        database_manager.get_cursor()
-        .execute(
-            """
+    query = f"""
                 SELECT 
-                    tournament.id,
-                    tournament.guild_id,
-                    tournament.name,
-                    tournament.registration_date,
-                    tournament.start_date,
-                    tournament.end_date,
-                    tournament.best_of,
-                    tournament.max_players,
-                    tournament.maps,
-                    tournament.has_started,
+                    {SELECT_TOURNAMENT},
                     0 as current_user_count
                 FROM tournament
                 INNER JOIN
@@ -256,7 +233,11 @@ def fetch_tournament_not_completed_for_user(guild_id: int, user_id: int) -> List
                     AND user_tournament.user_id = :user_id
                 WHERE tournament.guild_id = :guild_id
                     AND date(tournament.end_date) >= date(:current_time);
-                """,
+                """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            query,
             {"user_id": user_id, "guild_id": guild_id, "current_time": current_time},
         )
         .fetchall()
@@ -269,21 +250,9 @@ def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: int) -> 
     Fetch all tournements that we can register to for a guild and a specific user
     """
     current_time = datetime.now(timezone.utc)
-    result = (
-        database_manager.get_cursor()
-        .execute(
-            """
+    query = f"""
             SELECT 
-                tournament.id,
-                tournament.guild_id,
-                tournament.name,
-                tournament.registration_date,
-                tournament.start_date,
-                tournament.end_date,
-                tournament.best_of,
-                tournament.max_players,
-                tournament.maps,
-                tournament.has_started,
+                {SELECT_TOURNAMENT},
                 0 as current_user_count
             FROM tournament
             WHERE tournament.guild_id = :guild_id
@@ -295,7 +264,11 @@ def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: int) -> 
                     WHERE user_tournament.tournament_id = tournament.id 
                     AND user_tournament.user_id = :user_id
                 );
-            """,
+            """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            query,
             {"user_id": user_id, "guild_id": guild_id, "current_time": current_time},
         )
         .fetchall()
@@ -308,27 +281,19 @@ def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
     Fetch all tournements that we can register to for a guild
     """
     current_time = datetime.now(timezone.utc)
-    result = (
-        database_manager.get_cursor()
-        .execute(
-            """
+    query = f"""
             SELECT 
-                id,
-                guild_id,
-                name ,
-                registration_date,
-                start_date,
-                end_date,
-                best_of,
-                max_players,
-                maps,
-                has_started,
+                {SELECT_TOURNAMENT},
                 0 as current_user_count
             FROM tournament
             WHERE guild_id = :guild_id 
                 AND date(start_date) <= date(:current_time) 
                 AND date(end_date) >= date(:current_time);
-            """,
+            """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            query,
             {"guild_id": guild_id, "current_time": current_time},
         )
         .fetchall()
@@ -384,34 +349,6 @@ def block_registration_today_tournament_start(date_to_start: datetime) -> None:
         (date_only,),
     )
     database_manager.get_conn().commit()
-
-
-def get_tournaments_starting_today(date_to_start: datetime) -> List[Tournament]:
-    """
-    Get the list of tournaments that are starting today.
-    """
-    date_only = date_to_start.isoformat()  # Get today's date when the function is called
-
-    database_manager.get_cursor().execute(
-        """
-        SELECT 
-            id,
-            guild_id,
-            name,
-            registration_date,
-            start_date,
-            end_date,
-            best_of,
-            max_players,
-            maps,
-            has_started
-        FROM tournament
-        WHERE date(start_date) = date(?);
-        """,
-        (date_only,),
-    )
-
-    return [Tournament(*row) for row in database_manager.get_cursor().fetchall()]
 
 
 def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
@@ -482,25 +419,17 @@ def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
     """
     Fetch a tournament by its ID.
     """
-    result = (
-        database_manager.get_cursor()
-        .execute(
-            """
+    query = f"""
             SELECT 
-                id,
-                guild_id,
-                name,
-                registration_date,
-                start_date,
-                end_date,
-                best_of,
-                max_players,
-                maps,
-                has_started,
+                 {SELECT_TOURNAMENT},
                 0 as current_user_count
             FROM tournament
             WHERE id = :tournament_id;
-            """,
+            """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            query,
             {"tournament_id": tournament_id},
         )
         .fetchone()

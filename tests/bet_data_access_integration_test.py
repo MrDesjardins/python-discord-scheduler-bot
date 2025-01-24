@@ -7,7 +7,6 @@ from deps.bet.bet_functions import (
     distribute_gain_on_recent_ended_game,
     get_bet_user_wallet_for_tournament,
     place_bet_for_game,
-    system_generate_game_odd,
 )
 from deps.bet.bet_data_access import (
     data_access_create_bet_user_wallet_for_tournament,
@@ -22,11 +21,13 @@ from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_man
 from deps.tournament_data_access import (
     data_access_insert_tournament,
     delete_all_tournament_tables,
+    fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     register_user_for_tournament,
 )
-from deps.tournament_functions import report_lost_tournament, start_tournaments
+from deps.tournament_functions import report_lost_tournament, start_tournament
 from deps.bet import bet_functions
+from deps.tournament_data_class import Tournament
 
 
 @pytest.fixture(autouse=True)
@@ -85,8 +86,8 @@ async def test_get_bet_game_ready_for_distribution_no_bet_placed() -> None:
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    start_tournaments(datetime(2021, 1, 2))
-    await system_generate_game_odd(tournament_id)
+    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    await start_tournament(tournament)
     # Tournament started but no bet by any user
     # Act
     bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
@@ -105,8 +106,8 @@ async def test_get_bet_game_ready_for_distribution_one_game_done_with_one_user_l
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    start_tournaments(datetime(2021, 1, 2))
-    await system_generate_game_odd(tournament_id)
+    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
@@ -114,7 +115,7 @@ async def test_get_bet_game_ready_for_distribution_one_game_done_with_one_user_l
     place_bet_for_game(
         tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
     )  # Bet user 1
-    report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # Lost user 2
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # Lost user 2
     # Act
     bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
 
@@ -133,8 +134,8 @@ async def test_distribute_gain_on_recent_ended_game_winning_bet_scenario() -> No
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    start_tournaments(datetime(2021, 1, 2))
-    await system_generate_game_odd(tournament_id)
+    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
@@ -142,7 +143,7 @@ async def test_distribute_gain_on_recent_ended_game_winning_bet_scenario() -> No
     place_bet_for_game(
         tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
     )  # Bet user 1
-    report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # Lost user 2
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # Lost user 2
     # Act
     distribute_gain_on_recent_ended_game(tournament_id)  # Winner bet here
     # Assert
@@ -171,8 +172,8 @@ async def test_distribute_gain_on_recent_ended_game_losing_bet_scenario() -> Non
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    start_tournaments(datetime(2021, 1, 2))
-    await system_generate_game_odd(tournament_id)
+    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
@@ -180,7 +181,7 @@ async def test_distribute_gain_on_recent_ended_game_losing_bet_scenario() -> Non
     place_bet_for_game(
         tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
     )  # Bet user 1
-    report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user1_id, "1-1")  # Lost user 1
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user1_id, "1-1")  # Lost user 1
     # Act
     distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
     # Assert user wallet (bet_user_tournament)
@@ -199,6 +200,7 @@ async def test_distribute_gain_on_recent_ended_game_losing_bet_scenario() -> Non
     bet_user_game = data_access_fetch_bet_user_game_by_tournament_id(tournament_id)
     assert bet_user_game[0].bet_distributed is True
 
+
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet_mock) -> None:
     """Test the distribution to the user who won the bet"""
@@ -211,8 +213,8 @@ async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    start_tournaments(datetime(2021, 1, 2))
-    await system_generate_game_odd(tournament_id)
+    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
@@ -220,7 +222,7 @@ async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet
     place_bet_for_game(
         tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
     )  # Bet user 1
-    report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # User 1 win
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # User 1 win
     # Act
     update_wallet_mock.side_effect = Exception("Error")
     distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here

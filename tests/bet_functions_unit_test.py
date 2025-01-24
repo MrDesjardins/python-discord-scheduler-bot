@@ -2,7 +2,7 @@
 Unit test for the bet functions
 """
 
-from unittest.mock import patch
+from unittest.mock import patch, call
 from datetime import datetime, timezone
 import pytest
 from deps.data_access_data_class import UserInfo
@@ -192,9 +192,13 @@ def test_get_wallet_for_tournament_with_wallet(mock_get_user_wallet_for_tourname
     assert wallet.id == 121
 
 
+@patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
 @patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
-async def test_generating_odd_for_tournament_games(mock_fetch_tournament, mock_fetch_bet_games) -> None:
+@patch.object(bet_functions, bet_functions.data_access_create_bet_game.__name__)
+async def test_generating_odd_for_tournament_games_for_only_game_without_ones_and_unknown_user(
+    mock_create_bet_game, mock_fetch_tournament, mock_fetch_bet_games, mock_fetch_user
+) -> None:
     """Test that generate the odd for the tournament games"""
     # Arrange
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
@@ -210,19 +214,94 @@ async def test_generating_odd_for_tournament_games(mock_fetch_tournament, mock_f
     mock_fetch_tournament.return_value = list_tournament_games
     list_existing_bet_games = []
     mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_fetch_user.return_value = None
     # Act
     await system_generate_game_odd(1)
     # Assert
     mock_fetch_tournament.assert_called_once_with(1)
     mock_fetch_bet_games.assert_called_once_with(1)
+    assert mock_create_bet_game.call_args_list == [
+        call(1, 1, 0.5, 0.5),
+        call(1, 2, 0.5, 0.5),
+        call(1, 3, 0.5, 0.5),
+        call(1, 4, 0.5, 0.5),
+    ]
 
-    bet_games = data_access_fetch_bet_games_by_tournament_id(1)
-    assert len(bet_games) == 4
+
+@patch.object(bet_functions, bet_functions.define_odds_between_two_users.__name__)
+@patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_create_bet_game.__name__)
+async def test_generating_odd_for_tournament_games_for_only_game_without_ones_and_known_user(
+    mock_create_bet_game, mock_fetch_tournament, mock_fetch_bet_games, mock_fetch_user, mock_define_odds
+) -> None:
+    """Test that generate the odd for the tournament games"""
+    # Arrange
+    now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
+    list_tournament_games: TournamentGame = [
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, 7, 8, None, None, None, now_date, None, None),
+        TournamentGame(5, 1, None, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
+    ]
+    mock_fetch_tournament.return_value = list_tournament_games
+    list_existing_bet_games = []
+    mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
+    mock_define_odds.return_value = (0.5, 0.5)
+    mock_create_bet_game.return_value = None
+    # Act
+    await system_generate_game_odd(1)
+    # Assert
+    mock_fetch_tournament.assert_called_once_with(1)
+    mock_fetch_bet_games.assert_called_once_with(1)
+    mock_define_odds.call_count = 4
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
 @patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
-async def test_get_open_bet_games_for_tournament(mock_fetch_tournament, mock_fetch_bet_games) -> None:
+@patch.object(bet_functions, bet_functions.data_access_create_bet_game.__name__)
+async def test_generating_odd_for_tournament_games_calls_create_bet(
+    mock_create_bet_game, mock_fetch_tournament, mock_fetch_bet_games
+) -> None:
+    """Test that generate the odd for the tournament games"""
+    # Arrange
+    now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
+    list_tournament_games: TournamentGame = [
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, 7, 8, None, None, None, now_date, None, None),
+        TournamentGame(5, 1, None, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
+    ]
+    mock_fetch_tournament.return_value = list_tournament_games
+    mock_fetch_bet_games.return_value = []
+    mock_create_bet_game.return_value = None
+    await system_generate_game_odd(1)
+    mock_fetch_bet_games.return_value = [
+        BetGame(1, 1, 1, 0.5, 0.5, False),
+        BetGame(1, 1, 2, 0.5, 0.5, False),
+        BetGame(1, 1, 3, 0.5, 0.5, False),
+        BetGame(1, 1, 4, 0.5, 0.5, False),
+    ]
+    # Act
+    await system_generate_game_odd(1)
+    # Assert
+    mock_create_bet_game.call_count = 4
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_create_bet_game.__name__)
+async def test_get_open_bet_games_for_tournament(
+    mock_create_bet_game, mock_fetch_tournament, mock_fetch_bet_games
+) -> None:
     """Test that generate the odd for the tournament games"""
     # Arrange
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
@@ -243,6 +322,7 @@ async def test_get_open_bet_games_for_tournament(mock_fetch_tournament, mock_fet
         BetGame(4, 1, 4, 0.5, 0.5, False),
     ]
     mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_create_bet_game.return_value = None
     # Act
     await system_generate_game_odd(1)
     # Assert
@@ -254,6 +334,42 @@ async def test_get_open_bet_games_for_tournament(mock_fetch_tournament, mock_fet
     assert len([game for game in bet_games if game.id == 2]) == 1
     assert len([game for game in bet_games if game.id == 3]) == 1
     assert len([game for game in bet_games if game.id == 4]) == 1
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_create_bet_game.__name__)
+@patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
+async def test_system_generate_game_odd_with_game_without_two_users(
+    mock_fetch_user, mock_create_bet_game, mock_fetch_tournament, mock_fetch_bet_games
+) -> None:
+    """Test that generate the odd for the tournament games"""
+    # Arrange
+    now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
+    list_tournament_games: TournamentGame = [
+        TournamentGame(1, 1, 1, 2, 1, "3-5", None, now_date, None, None),
+        TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
+        TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
+        TournamentGame(4, 1, None, 8, None, None, None, now_date, None, None),
+        TournamentGame(5, 1, 9, None, None, None, None, now_date, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, now_date, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
+    ]
+    mock_fetch_tournament.return_value = list_tournament_games
+    list_existing_bet_games = []
+    mock_fetch_bet_games.return_value = list_existing_bet_games
+    mock_create_bet_game.return_value = None
+    mock_fetch_user.return_value = None
+    # Act
+    await system_generate_game_odd(1)
+    # Assert
+    mock_fetch_tournament.assert_called_once_with(1)
+    mock_fetch_bet_games.assert_called_once_with(1)
+    # We do not have 4 and 5 because one of the two are None
+    assert mock_create_bet_game.call_args_list == [
+        call(1, 2, 0.5, 0.5),
+        call(1, 3, 0.5, 0.5),
+    ]
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
