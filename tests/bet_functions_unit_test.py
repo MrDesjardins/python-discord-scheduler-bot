@@ -5,6 +5,7 @@ Unit test for the bet functions
 from unittest.mock import patch
 from datetime import datetime, timezone
 import pytest
+from deps.data_access_data_class import UserInfo
 from deps.bet.bet_data_access import delete_all_bet_tables, data_access_fetch_bet_games_by_tournament_id
 from deps.bet.bet_data_class import BetGame, BetUserGame, BetUserTournament
 from deps.bet.bet_functions import (
@@ -16,7 +17,7 @@ from deps.bet.bet_functions import (
     place_bet_for_game,
     system_generate_game_odd,
 )
-from deps.tournament_data_class import TournamentGame
+from deps.tournament_data_class import Tournament, TournamentGame
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.bet import bet_functions
 
@@ -389,3 +390,37 @@ async def test_placing_bet_on_game_without_fund(
     # Act
     with pytest.raises(ValueError, match="The user does not have enough money"):
         place_bet_for_game(1, 2, 1001, 11, 1)
+
+
+@patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
+async def test_generate_msg_bet_leaderboard_no_users(mock_get_all_wallet) -> None:
+    """
+    Test the generate_msg_bet_leaderboard function
+    """
+    # Arrange
+    mock_get_all_wallet.return_value = []
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    # Act
+    msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
+    # Assert
+    assert msg == ""
+
+
+@patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
+async def test_generate_msg_bet_leaderboard_users(mock_fetch_user, mock_get_all_wallet) -> None:
+    """
+    Test the generate_msg_bet_leaderboard function
+    """
+    # Arrange
+    mock_get_all_wallet.return_value = [
+        BetUserTournament(1, 2, 100, 10.99),
+        BetUserTournament(2, 2, 200, 20.99),
+        BetUserTournament(3, 2, 300, 30.99),
+    ]
+    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    # Act
+    msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
+    # Assert
+    assert msg == "1 - User 300 - $30.99\n2 - User 200 - $20.99\n3 - User 100 - $10.99"

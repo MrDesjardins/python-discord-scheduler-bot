@@ -10,6 +10,7 @@ from deps.bet.bet_data_access import (
     data_access_create_bet_user_game,
     data_access_create_bet_user_wallet_for_tournament,
     data_access_fetch_bet_games_by_tournament_id,
+    data_access_get_all_wallet_for_tournament,
     data_access_get_bet_user_game_ready_for_distribution,
     data_access_get_bet_user_wallet_for_tournament,
     data_access_update_bet_user_tournament,
@@ -18,7 +19,7 @@ from deps.bet.bet_data_access import (
     data_access_insert_bet_ledger_entry,
 )
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
-from deps.tournament_data_class import TournamentGame
+from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
@@ -273,3 +274,20 @@ def place_bet_for_game(
     )
     wallet.amount -= amount
     data_access_update_bet_user_tournament(wallet.id, wallet.amount, True)
+
+
+async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
+    """
+    Get a message that is a list of all the user who betted on a tournament in order of larger amountin their wallet
+    """
+    wallets: List[BetUserTournament] = data_access_get_all_wallet_for_tournament(tournament_id=tournament.id)
+    wallets_sorted = sorted(wallets, key=lambda x: x.amount, reverse=True)
+    msg = ""
+    rank = 1
+    for wallet in wallets_sorted:
+        member1 = await fetch_user_info_by_user_id(wallet.user_id)
+        user1_display = member1.display_name if member1 else wallet.user1_id
+
+        msg += f"{rank} - {user1_display} - ${wallet.amount:.2f}\n"
+        rank += 1
+    return msg.strip()

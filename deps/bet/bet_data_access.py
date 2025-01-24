@@ -59,7 +59,25 @@ def delete_all_bet_tables() -> None:
     database_manager.init_database()
 
 
-def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> Optional[BetUserTournament]:
+def data_access_get_all_wallet_for_tournament(tournament_id: int) -> List[BetUserTournament]:
+    """
+    Get the wallet of a user for a specific tournament
+    """
+    query = f"""
+        SELECT 
+        {SELECT_BET_USER_TOURNAMENT}
+        FROM bet_user_tournament
+        WHERE tournament_id = :tournament_id 
+        """
+    database_manager.get_cursor().execute(
+        query,
+        {"tournament_id": tournament_id},
+    )
+    rows = database_manager.get_cursor().fetchall()
+    return [BetUserTournament.from_db_row(row) for row in rows]
+
+
+def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> List[BetUserTournament]:
     """
     Get the wallet of a user for a specific tournament
     """

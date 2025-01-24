@@ -3,6 +3,7 @@
 from typing import List
 import discord
 from discord.ui import Select, View
+from bet.bet_functions import generate_msg_bet_leaderboard
 from deps.data_access import data_access_get_member
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_functions import (
@@ -96,7 +97,9 @@ class TournamentMatchScoreReport(View):
         tournament = next((t for t in self.list_tournaments if t.id == self.tournament_id), None)
 
         if not tournament:
-            print_error_log(f"Tournament not found for id {self.tournament_id}")
+            print_error_log(
+                f"TournamentMatchScoreReport: process_tournament_result:Tournament not found for id {self.tournament_id}"
+            )
             await interaction.followup.send("Tournament not found. Please try again.", ephemeral=True)
             return
 
@@ -110,7 +113,9 @@ class TournamentMatchScoreReport(View):
                 player_win_display_name = player_win.mention
             except Exception as e:
                 # Might go in here in development since there is no member in the guild
-                print_error_log(f"process_tournament_result: Error while fetching member: {e}")
+                print_error_log(
+                    f"TournamentMatchScoreReport: process_tournament_result: Error while fetching member: {e}"
+                )
                 player_win_display_name = completed_node.user_winner_id
             await interaction.followup.send(
                 f"{player_win_display_name} wins against {player_lose.mention} on {completed_node.map} with a score of {completed_node.score}",
@@ -121,13 +126,14 @@ class TournamentMatchScoreReport(View):
             tournament_tree = build_tournament_tree(tournament_games)
             if tournament_tree is None:
                 print_error_log(
-                    f"TournamentMatchScoreReport: Failed to build tournament tree for tournament {self.tournament_id}. Skipping."
+                    f"TournamentMatchScoreReport: process_tournament_result: Failed to build tournament tree for tournament {self.tournament_id}. Skipping."
                 )
             final_score = get_tournament_final_result_positions(tournament_tree)
             file = generate_bracket_file(self.tournament_id)
             if final_score is None:
                 await interaction.followup.send(file=file, ephemeral=False)
             else:
+                # Tournament is over. We show the winners
                 try:
                     m1 = await data_access_get_member(interaction.guild_id, final_score.first_place_user_id)
                     first_place = m1.mention if m1 else "Unknown"
@@ -139,21 +145,34 @@ class TournamentMatchScoreReport(View):
                     third_place2 = m3_2.mention if m3_2 else "Unknown"
                 except Exception as e:
                     # Might go in here in development since there is no member in the guild
-                    print_error_log(f"process_tournament_result: Error while fetching member: {e}")
+                    print_error_log(
+                        f"TournamentMatchScoreReport: process_tournament_result: Error while fetching member: {e}"
+                    )
                     first_place = "Unknown"
                     second_place = "Unknown"
                     third_place1 = "Unknown"
                     third_place2 = "Unknown"
-                # await interaction.response.send_message(file=file, ephemeral=False)
                 await interaction.followup.send(file=file, ephemeral=False)
                 await interaction.followup.send(
                     f"The tournament **{tournament.name}** has finished!\n Winners are:\n🥇 {first_place}\n🥈 {second_place}\n🥉 {third_place1} & {third_place2}",
                     ephemeral=False,
                 )
-
+                # Generate leaderboard at the end of the tournament
+                try:
+                    msg_better_list = generate_msg_bet_leaderboard(tournament)
+                except Exception as e:
+                    print_error_log(
+                        f"TournamentMatchScoreReport: process_tournament_result: Error while generating bet leaderboard: {e}"
+                    )
+                    msg_better_list = ""
+                if msg_better_list != "":
+                    await interaction.followup.send(
+                        f"Top Better for the tournament **{tournament.name}** are:\n{msg_better_list}",
+                        ephemeral=False,
+                    )
         else:
             print_error_log(f"Error while reporting lost: {result.text}")
             await interaction.followup.send(
-                f"Cannot report lost match: {result.text} Please contact a moderator if you should have reported a match.",
+                f"TournamentMatchScoreReport: process_tournament_result: Cannot report lost match: {result.text} Please contact a moderator if you should have reported a match.",
                 ephemeral=True,
             )
