@@ -12,6 +12,7 @@ from deps.tournament_functions import (
     auto_assign_winner,
     build_tournament_tree,
     can_register_to_tournament,
+    clean_maps_input,
     get_tournament_final_result_positions,
     has_node_without_user,
     register_for_tournament,
@@ -632,6 +633,7 @@ def test_get_tournament_final_result_positions_final_match_not_done():
     results = get_tournament_final_result_positions(root)
     assert results is None
 
+
 def test_get_tournament_final_result_positions_semi_final_match_not_done():
     """
     Test the result of the tournament when it is completed
@@ -653,3 +655,30 @@ def test_get_tournament_final_result_positions_semi_final_match_not_done():
     root = build_tournament_tree(tournament_games)
     results = get_tournament_final_result_positions(root)
     assert results is None
+
+
+def test_clean_map_single_with_spaces():
+    """
+    Test to clean the map with spaces
+    """
+    map = "  map  "
+    cleaned_map = clean_maps_input(map)
+    assert cleaned_map == "map"
+
+
+def test_clean_map_many_with_spaces():
+    """
+    Test to clean the map with spaces
+    """
+    map = "map1, map2"
+    cleaned_map = clean_maps_input(map)
+    assert cleaned_map == "map1,map2"
+
+
+def test_clean_map_many_with_spaces_and_upper_case():
+    """
+    Test to clean the map with spaces
+    """
+    map = "map1, map2, Map3, MAP4"
+    cleaned_map = clean_maps_input(map)
+    assert cleaned_map == "map1,map2,map3,map4"
