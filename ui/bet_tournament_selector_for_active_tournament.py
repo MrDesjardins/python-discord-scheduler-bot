@@ -66,23 +66,23 @@ class BetTournamentSelectorForActiveMarket(View):
                     tournament_game = tournament_games_dict.get(bet_game.game_id, None)
                     if tournament_game is not None:
 
-                        member1 = await data_access_get_member(interaction.guild_id, tournament_game.user1_id)
-                        user1_display = member1.mention if member1 else tournament_game.user1_id
+                        member1 = await fetch_user_info_by_user_id(tournament_game.user1_id)
+                        user1_display = member1.display_name if member1 else tournament_game.user1_id
                         user1_odd = bet_game.odd_user_1()
 
-                        member2 = await data_access_get_member(interaction.guild_id, tournament_game.user2_id)
-                        user2_display = member2.mention if member2 else tournament_game.user2_id
+                        member2 = await fetch_user_info_by_user_id(tournament_game.user2_id)
+                        user2_display = member2.display_name if member2 else tournament_game.user2_id
                         user2_odd = bet_game.odd_user_2()
 
                         user_who_put_the_bed_id = bet.user_id
-                        member3 = await data_access_get_member(interaction.guild_id, user_who_put_the_bed_id)
-                        user3_display = member3.mention if member3 else user_who_put_the_bed_id
+                        member3 = await fetch_user_info_by_user_id(user_who_put_the_bed_id)
+                        user3_display = member3.display_name if member3 else user_who_put_the_bed_id
 
                         user_on_who_the_bed_is_on = (
                             user1_display if bet.user_id_bet_placed == tournament_game.user1_id else user2_display
                         )
 
-                        msg += f"💰 {user3_display} placed a bet of **${bet.amount:.2f}** on {user_on_who_the_bed_is_on} in the game of {user1_display} ({user1_odd}) vs {user2_display} ({user2_odd})\n"
+                        msg += f"💰 {user3_display} placed a bet of **${bet.amount:.2f}** on {user_on_who_the_bed_is_on} in the game of {user1_display} ({user1_odd:.2f}) vs {user2_display} ({user2_odd:.2f})\n"
 
             if msg == "":
                 msg = f"No active bet for this tournament. Use the command `/{COMMAND_BET}` to place a bet."
