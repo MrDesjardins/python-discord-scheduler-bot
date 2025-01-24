@@ -10,7 +10,7 @@ from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_i
 from deps.bet.bet_functions import get_bet_user_wallet_for_tournament, place_bet_for_game
 from deps.bet.bet_data_class import BetGame, BetUserTournament
 from deps.tournament_data_class import Tournament, TournamentGame
-from deps.log import print_error_log
+from deps.log import print_error_log, print_warning_log
 from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
 
 
@@ -237,9 +237,12 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
                 self.view.user_bet_on_id,
             )
         except ValueError as e:
+            print_warning_log(f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: {e}")
+            await interaction.followup.send("An error occurred while placing the bet: {e}", ephemeral=True)
+        except Exception as e:
             print_error_log(f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: {e}")
             await interaction.followup.send(
-                "An error occurred while placing the bet. Please try again: {e}", ephemeral=True
+                "An error occurred while placing the bet. Please notify a moderator.", ephemeral=True
             )
         # Send the follow-up message
         if self.view.user_info1 is not None and self.view.user_info2 is not None:
