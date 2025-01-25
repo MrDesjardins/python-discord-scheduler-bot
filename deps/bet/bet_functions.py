@@ -4,7 +4,7 @@ Function to calculate the gain and lost of bets
 
 from datetime import datetime, timezone
 from typing import List, Optional
-from deps.analytic_data_access import fetch_user_info_by_user_id
+from deps.analytic_data_access import data_access_fetch_user_full_match_info, fetch_user_info_by_user_id
 from deps.bet.bet_data_access import (
     data_access_create_bet_game,
     data_access_create_bet_user_game,
@@ -233,7 +233,7 @@ async def system_generate_game_odd(tournament_id: int) -> None:
             odd_user2 = 0.5
         else:
             # Here find a way like getting the user MMR
-            odd_user1, odd_user2 = await define_odds_between_two_users(game.user1_id, game.user2_id)
+            odd_user1, odd_user2 = define_odds_between_two_users(game.user1_id, game.user2_id)
         # 4.3 Insert the generated odd into the database
         data_access_create_bet_game(tournament_id, game.id, odd_user1, odd_user2)
 
@@ -325,11 +325,34 @@ async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
     return msg.strip()
 
 
-async def define_odds_between_two_users(user1_id: int, user2_id: int) -> tuple[float, float]:
+def define_odds_between_two_users(user1_id: int, user2_id: int) -> tuple[float, float]:
     """
     Function to call when a user place a bet on a bet_game (not a match)
+
+    Logic:
+    1) Get the stats of the two users
+    2) Calculate the average kill count
+    3) Calculate the odd for each user by dividing the average kill count by the sum of the two average kill count
     """
     # Here find a way like getting the user MMR
-    odd_user1 = 0.5
-    odd_user2 = 0.5
+    user_1_stats = data_access_fetch_user_full_match_info(user1_id)
+    user_2_stats = data_access_fetch_user_full_match_info(user2_id)
+
+    total_game_1 = len(user_1_stats)
+    total_game_2 = len(user_2_stats)
+
+    if total_game_1 == 0 or total_game_2 == 0:
+        return 0.5, 0.5
+
+    sum_kill_count_1 = sum([game.kill_count for game in user_1_stats])
+    sum_kill_count_2 = sum([game.kill_count for game in user_2_stats])
+
+    avg_kill_count_1 = sum_kill_count_1 / total_game_1 if total_game_1 > 0 else 0
+    avg_kill_count_2 = sum_kill_count_2 / total_game_2 if total_game_2 > 0 else 0
+
+    odd_user1 = (
+        avg_kill_count_1 / (avg_kill_count_1 + avg_kill_count_2) if avg_kill_count_1 + avg_kill_count_2 > 0 else 0.5
+    )
+    odd_user2 = 1 - odd_user1
+
     return odd_user1, odd_user2

@@ -12,6 +12,7 @@ from deps.bet.bet_functions import (
     DEFAULT_MONEY,
     MIN_BET_AMOUNT,
     calculate_gain_lost_for_open_bet_game,
+    define_odds_between_two_users,
     distribute_gain_on_recent_ended_game,
     get_open_bet_games_for_tournament,
     get_total_pool_for_game,
@@ -22,6 +23,7 @@ from deps.bet.bet_functions import (
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.bet import bet_functions
+from deps.models import UserFullMatchStats
 
 fake_date = datetime(2024, 9, 20, 13, 20, 0, 6318)
 
@@ -760,3 +762,207 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_losing_bet(
     mock_data_access_insert_bet_ledger_entry.assert_called_once_with(ledger_entry_1)
     mock_data_access_update_bet_user_game_distribution_completed.assert_called_once_with(7)
     mock_data_access_update_bet_game_distribution_completed.assert_called_once_with(33)
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_user_full_match_info.__name__)
+def test_define_odds_between_two_users_users_no_data(mock_data_access_full_match) -> None:
+    """
+    Test when both users does not have data
+    """
+    data_user_1 = []
+    data_user_2 = []
+    mock_data_access_full_match.side_effect = lambda user_id: data_user_1 if user_id == 1 else data_user_2
+    result = define_odds_between_two_users(1, 2)
+    assert result == (0.5, 0.5)
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_user_full_match_info.__name__)
+def test_define_odds_between_two_users_one_user_no_data(mock_data_access_full_match) -> None:
+    """
+    Test when one of the two users does not have data
+    """
+    data_user_1 = [
+        UserFullMatchStats(
+            id=None,
+            user_id=1,
+            match_uuid="match-uuid-1",
+            match_timestamp=fake_date,
+            match_duration_ms=60000,
+            data_center="US East",
+            session_type="ranked",
+            map_name="villa",
+            is_surrender=False,
+            is_forfeit=False,
+            is_rollback=False,
+            r6_tracker_user_uuid="111-222-333-444",
+            ubisoft_username="noSleep_rb6",
+            operators="ace,bandit",
+            round_played_count=3,
+            round_won_count=3,
+            round_lost_count=0,
+            round_disconnected_count=0,
+            kill_count=5,
+            death_count=1,
+            assist_count=2,
+            head_shot_count=2,
+            tk_count=0,
+            ace_count=0,
+            first_kill_count=1,
+            first_death_count=1,
+            clutches_win_count=0,
+            clutches_loss_count=0,
+            clutches_win_count_1v1=0,
+            clutches_win_count_1v2=0,
+            clutches_win_count_1v3=0,
+            clutches_win_count_1v4=0,
+            clutches_win_count_1v5=0,
+            clutches_lost_count_1v1=0,
+            clutches_lost_count_1v2=0,
+            clutches_lost_count_1v3=0,
+            clutches_lost_count_1v4=0,
+            clutches_lost_count_1v5=0,
+            kill_1_count=1,
+            kill_2_count=1,
+            kill_3_count=1,
+            kill_4_count=1,
+            kill_5_count=1,
+            rank_points=4567,
+            rank_name="Diamond 3",
+            points_gained=23,
+            rank_previous=4544,
+            kd_ratio=0.7,
+            head_shot_percentage=0.34,
+            kills_per_round=1,
+            deaths_per_round=2,
+            assists_per_round=1,
+            has_win=True,
+        )
+    ]
+    data_user_2 = []
+    mock_data_access_full_match.side_effect = lambda user_id: data_user_1 if user_id == 1 else data_user_2
+    result = define_odds_between_two_users(1, 2)
+    assert result == (0.5, 0.5)
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_user_full_match_info.__name__)
+def test_define_odds_between_two_users_one_user_no_data(mock_data_access_full_match) -> None:
+    """
+    Test when both users have data
+    """
+    data_user_1 = [
+        UserFullMatchStats(
+            id=None,
+            user_id=1,
+            match_uuid="match-uuid-1",
+            match_timestamp=fake_date,
+            match_duration_ms=60000,
+            data_center="US East",
+            session_type="ranked",
+            map_name="villa",
+            is_surrender=False,
+            is_forfeit=False,
+            is_rollback=False,
+            r6_tracker_user_uuid="111-222-333-444",
+            ubisoft_username="noSleep_rb6",
+            operators="ace,bandit",
+            round_played_count=3,
+            round_won_count=3,
+            round_lost_count=0,
+            round_disconnected_count=0,
+            kill_count=10,
+            death_count=1,
+            assist_count=2,
+            head_shot_count=2,
+            tk_count=0,
+            ace_count=0,
+            first_kill_count=1,
+            first_death_count=1,
+            clutches_win_count=0,
+            clutches_loss_count=0,
+            clutches_win_count_1v1=0,
+            clutches_win_count_1v2=0,
+            clutches_win_count_1v3=0,
+            clutches_win_count_1v4=0,
+            clutches_win_count_1v5=0,
+            clutches_lost_count_1v1=0,
+            clutches_lost_count_1v2=0,
+            clutches_lost_count_1v3=0,
+            clutches_lost_count_1v4=0,
+            clutches_lost_count_1v5=0,
+            kill_1_count=1,
+            kill_2_count=1,
+            kill_3_count=1,
+            kill_4_count=1,
+            kill_5_count=1,
+            rank_points=4567,
+            rank_name="Diamond 3",
+            points_gained=23,
+            rank_previous=4544,
+            kd_ratio=0.7,
+            head_shot_percentage=0.34,
+            kills_per_round=1,
+            deaths_per_round=2,
+            assists_per_round=1,
+            has_win=True,
+        )
+    ]
+    data_user_2 = [
+        UserFullMatchStats(
+            id=None,
+            user_id=1,
+            match_uuid="match-uuid-1",
+            match_timestamp=fake_date,
+            match_duration_ms=60000,
+            data_center="US East",
+            session_type="ranked",
+            map_name="villa",
+            is_surrender=False,
+            is_forfeit=False,
+            is_rollback=False,
+            r6_tracker_user_uuid="111-222-333-444",
+            ubisoft_username="noSleep_rb6",
+            operators="ace,bandit",
+            round_played_count=3,
+            round_won_count=3,
+            round_lost_count=0,
+            round_disconnected_count=0,
+            kill_count=5,
+            death_count=1,
+            assist_count=2,
+            head_shot_count=2,
+            tk_count=0,
+            ace_count=0,
+            first_kill_count=1,
+            first_death_count=1,
+            clutches_win_count=0,
+            clutches_loss_count=0,
+            clutches_win_count_1v1=0,
+            clutches_win_count_1v2=0,
+            clutches_win_count_1v3=0,
+            clutches_win_count_1v4=0,
+            clutches_win_count_1v5=0,
+            clutches_lost_count_1v1=0,
+            clutches_lost_count_1v2=0,
+            clutches_lost_count_1v3=0,
+            clutches_lost_count_1v4=0,
+            clutches_lost_count_1v5=0,
+            kill_1_count=1,
+            kill_2_count=1,
+            kill_3_count=1,
+            kill_4_count=1,
+            kill_5_count=1,
+            rank_points=4567,
+            rank_name="Diamond 3",
+            points_gained=23,
+            rank_previous=4544,
+            kd_ratio=0.7,
+            head_shot_percentage=0.34,
+            kills_per_round=1,
+            deaths_per_round=2,
+            assists_per_round=1,
+            has_win=True,
+        )
+    ]
+    mock_data_access_full_match.side_effect = lambda user_id: data_user_1 if user_id == 1 else data_user_2
+    result = define_odds_between_two_users(1, 2)
+    assert result == (pytest.approx(0.666, abs=1e-3), pytest.approx(0.333, abs=1e-3))
