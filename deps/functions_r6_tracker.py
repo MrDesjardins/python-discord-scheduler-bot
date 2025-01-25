@@ -102,6 +102,7 @@ def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFul
 
             match_infos.append(
                 UserFullMatchStats(
+                    id=None,
                     user_id=user_info.id,
                     match_uuid=match.get("attributes", {}).get("id", "Unknown"),
                     match_timestamp=parser.parse(match_metadata.get("timestamp", "1970-01-01T00:00:00Z")),

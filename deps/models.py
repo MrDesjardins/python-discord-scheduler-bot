@@ -3,9 +3,10 @@
 import dataclasses
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from deps.data_access_data_class import UserInfo
+from deps.functions_date import convert_to_datetime
 
 
 class DayOfWeek(Enum):
@@ -68,6 +69,7 @@ class UserFullMatchStats:
 
     def __init__(
         self,
+        id: Union[int, None],
         user_id: int,
         match_uuid: str,
         match_timestamp: datetime,
@@ -121,6 +123,7 @@ class UserFullMatchStats:
         assists_per_round: int,
         has_win: bool,
     ):
+        self.id = id
         self.user_id = user_id
         self.match_uuid = match_uuid
         self.match_timestamp = match_timestamp
@@ -173,6 +176,65 @@ class UserFullMatchStats:
         self.deaths_per_round = deaths_per_round
         self.assists_per_round = assists_per_round
         self.has_win = has_win
+
+    @staticmethod
+    def from_db_row(row):
+        """Create a Tournament object from a database row"""
+        return UserFullMatchStats(
+            id=row[0],
+            user_id=row[1],
+            match_uuid=row[2],
+            match_timestamp=convert_to_datetime(row[3]),
+            match_duration_ms=row[4],
+            data_center=row[5],
+            session_type=row[6],
+            map_name=row[7],
+            is_surrender=bool(row[8]),
+            is_forfeit=bool(row[9]),
+            is_rollback=bool(row[10]),
+            r6_tracker_user_uuid=row[11],
+            ubisoft_username=row[12],
+            operators=row[13],
+            round_played_count=row[14],
+            round_won_count=row[15],
+            round_lost_count=row[16],
+            round_disconnected_count=row[17],
+            kill_count=row[18],
+            death_count=row[19],
+            assist_count=row[20],
+            head_shot_count=row[21],
+            tk_count=row[22],
+            ace_count=row[23],
+            first_kill_count=row[24],
+            first_death_count=row[25],
+            clutches_win_count=row[26],
+            clutches_loss_count=row[27],
+            clutches_win_count_1v1=row[28],
+            clutches_win_count_1v2=row[29],
+            clutches_win_count_1v3=row[30],
+            clutches_win_count_1v4=row[31],
+            clutches_win_count_1v5=row[32],
+            clutches_lost_count_1v1=row[33],
+            clutches_lost_count_1v2=row[34],
+            clutches_lost_count_1v3=row[35],
+            clutches_lost_count_1v4=row[36],
+            clutches_lost_count_1v5=row[37],
+            kill_1_count=row[38],
+            kill_2_count=row[39],
+            kill_3_count=row[40],
+            kill_4_count=row[41],
+            kill_5_count=row[42],
+            rank_points=row[43],
+            rank_name=row[44],
+            points_gained=row[45],
+            rank_previous=row[46],
+            kd_ratio=row[47],
+            head_shot_percentage=row[48],
+            kills_per_round=row[49],
+            deaths_per_round=row[50],
+            assists_per_round=row[51],
+            has_win=bool(row[52])
+        )
 
 
 @dataclasses.dataclass

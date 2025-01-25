@@ -3,14 +3,14 @@ Module to gather user activity data and calculate the time spent together
 """
 
 import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from deps.data_access_data_class import UserInfo, UserActivity
 from deps.system_database import database_manager
 from deps.analytic_functions import compute_users_weights
 from deps.cache import (
     get_cache,
 )
-from deps.functions import ensure_utc
+from deps.functions_date import ensure_utc
 from deps.models import UserFullMatchStats
 from deps.log import print_error_log, print_log
 
@@ -23,8 +23,64 @@ USER_INFO_SELECT_FIELD = (
     "id, display_name, ubisoft_username_max, ubisoft_username_active, r6_tracker_active_id, time_zone"
 )
 
+SELECT_USER_FULL_MATCH_INFO = """
+    user_full_match_info.id,
+    user_full_match_info.match_uuid,
+    user_full_match_info.user_id,
+    user_full_match_info.match_timestamp,
+    user_full_match_info.match_duration_ms,
+    user_full_match_info.data_center,
+    user_full_match_info.session_type,
+    user_full_match_info.map_name,
+    user_full_match_info.is_surrender,
+    user_full_match_info.is_forfeit,
+    user_full_match_info.is_rollback,
+    user_full_match_info.r6_tracker_user_uuid,
+    user_full_match_info.ubisoft_username,
+    user_full_match_info.operators,
+    user_full_match_info.round_played_count,
+    user_full_match_info.round_won_count,
+    user_full_match_info.round_lost_count,
+    user_full_match_info.round_disconnected_count,
+    user_full_match_info.kill_count,
+    user_full_match_info.death_count,
+    user_full_match_info.assist_count,
+    user_full_match_info.head_shot_count,
+    user_full_match_info.tk_count,
+    user_full_match_info.ace_count,
+    user_full_match_info.first_kill_count,
+    user_full_match_info.first_death_count,
+    user_full_match_info.clutches_win_count,
+    user_full_match_info.clutches_loss_count,
+    user_full_match_info.clutches_win_count_1v1,
+    user_full_match_info.clutches_win_count_1v2,
+    user_full_match_info.clutches_win_count_1v3,
+    user_full_match_info.clutches_win_count_1v4,
+    user_full_match_info.clutches_win_count_1v5,
+    user_full_match_info.clutches_lost_count_1v1,
+    user_full_match_info.clutches_lost_count_1v2,
+    user_full_match_info.clutches_lost_count_1v3,
+    user_full_match_info.clutches_lost_count_1v4,
+    user_full_match_info.clutches_lost_count_1v5,
+    user_full_match_info.kill_1_count,
+    user_full_match_info.kill_2_count,
+    user_full_match_info.kill_3_count,
+    user_full_match_info.kill_4_count,
+    user_full_match_info.kill_5_count,
+    user_full_match_info.rank_points,
+    user_full_match_info.rank_name,
+    user_full_match_info.points_gained,
+    user_full_match_info.rank_previous,
+    user_full_match_info.kd_ratio,
+    user_full_match_info.head_shot_percentage,
+    user_full_match_info.kills_per_round,
+    user_full_match_info.deaths_per_round,
+    user_full_match_info.assists_per_round,
+    user_full_match_info.has_win
+"""
 
-def delete_all_tables() -> None:
+
+def delete_all_analytic_tables() -> None:
     """
     Delete all tables
     """
@@ -241,12 +297,14 @@ def data_access_set_ubisoft_username_max(user_id: int, username: str) -> None:
 
 def data_access_set_ubisoft_username_active(user_id: int, username: str) -> None:
     """
-    Set the timezone for a user
+    Set the active user name and reset the R6 Tracker ID which will be set back from the active
+    user name once the user play
     """
     database_manager.get_cursor().execute(
         """
     UPDATE user_info
-      SET ubisoft_username_active = :name
+      SET ubisoft_username_active = :name,
+      SET r6_tracker_active_id = NULL
       WHERE id = :user_id
     """,
         {"user_id": user_id, "name": username},
@@ -270,10 +328,15 @@ def data_access_set_r6_tracker_id(user_id: int, r6_tracker_active_id: str) -> No
 
 
 def upsert_user_info(
-    user_id, display_name, user_max_account_name, user_active_account, r6_tracker_active_id, user_timezone
+    user_id: int,
+    display_name: str,
+    user_max_account_name: str,
+    user_active_account: str,
+    r6_tracker_active_id: Union[str, None],
+    user_timezone: str,
 ) -> None:
     """
-    Log a user activity in the database
+    Insert or Update the user info
     """
     database_manager.get_cursor().execute(
         """
@@ -356,6 +419,7 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
         f"insert_if_nonexistant_full_match_info: Found {len(filtered_data)} new matches to insert out of {len(list_matches)}"
     )
     # Try to insert the match that are not yet in the database
+    # Todo: Batch insert
     try:
         for match in filtered_data:
             database_manager.get_cursor().execute(
@@ -527,3 +591,27 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     except Exception as e:
         print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}")
         raise e
+
+
+def data_access_fetch_user_full_match_info(
+    user_id: int, page_number_zero_index: int = 0, page_size: int = 50
+) -> list[UserFullMatchStats]:
+    """
+    Fetch all connect and disconnect events from the user_activity table
+    """
+    query = f"""
+        SELECT {SELECT_USER_FULL_MATCH_INFO}
+        FROM user_full_match_info
+        WHERE user_full_match_info.user_id = :user_id
+        ORDER BY match_timestamp DESC
+        LIMIT :page_size OFFSET :offset
+        """
+    print(query)
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"user_id": user_id, "page_size": page_size, "offset": page_number_zero_index * page_size},
+        )
+    ).fetchall()
+    # Convert the result to a list of Stats
+    return [UserFullMatchStats.from_db_row(row) for row in result]

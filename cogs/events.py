@@ -29,8 +29,7 @@ from deps.data_access import (
 )
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
-from deps.functions import get_empty_votes
-
+from deps.functions_model import get_empty_votes
 from deps.models import ActivityTransition, SimpleUser
 from deps.siege import get_siege_activity, get_user_rank_emoji
 from deps.values import EMOJI_TO_TIME

@@ -7,7 +7,7 @@ from deps.data_access import data_access_set_users_auto_schedule
 from deps.models import SimpleUser, SimpleUserHour
 from deps.siege import get_user_rank_emoji
 from deps.values import COMMAND_SCHEDULE_REMOVE, COMMAND_SCHEDULE_SEE, DAYS_OF_WEEK
-from deps.functions import get_supported_time_time_label
+from deps.functions_model import get_supported_time_time_label
 
 
 class ScheduleDayHours(View):

@@ -3,7 +3,7 @@
 import dataclasses
 import datetime
 
-from deps.functions import convert_to_datetime
+from deps.functions_date import convert_to_datetime
 
 
 def moneyline_odd(prob: float) -> int:

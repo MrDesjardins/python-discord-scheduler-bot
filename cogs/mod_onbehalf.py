@@ -22,7 +22,8 @@ from deps.values import (
 from deps.log import print_log
 from deps.mybot import MyBot
 from deps.models import SimpleUser
-from deps.functions import get_empty_votes, get_last_schedule_message, get_time_choices
+from deps.functions_model import get_empty_votes
+from deps.functions import get_last_schedule_message, get_time_choices
 from deps.siege import get_user_rank_emoji
 from ui.timezone_view import TimeZoneView
 

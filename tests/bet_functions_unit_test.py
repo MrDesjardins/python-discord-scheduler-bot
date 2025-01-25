@@ -25,6 +25,8 @@ from deps.bet import bet_functions
 
 fake_date = datetime(2024, 9, 20, 13, 20, 0, 6318)
 
+HOUSE_CUT = 0  # The house cut between 0 and 1 is the percentage of the money that the house takes
+
 
 @pytest.fixture(autouse=True)
 def setup_and_teardown():
@@ -71,7 +73,7 @@ def test_calculate_all_bets_for_a_game_winner_user_1() -> None:
         BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4, False),
         BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4, False),
     ]
-    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games)
+    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games, HOUSE_CUT)
     assert len(all_bets) == 5
     winnings = [x for x in all_bets if x.amount > 0]
     assert len(winnings) == 2
@@ -91,7 +93,7 @@ def test_calculate_all_bets_for_a_game_winner_user_with_diff_dynamic_odd() -> No
         BetUserGame(4, 1, 2, 1004, 25, 400, fake_date, 0.4, False),
         BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4, False),
     ]
-    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games)
+    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games, HOUSE_CUT)
     assert len(all_bets) == 5
     winnings = [x for x in all_bets if x.amount > 0]
     assert len(winnings) == 2
@@ -133,7 +135,7 @@ def test_calculate_all_bets_for_a_game_winner_user_2() -> None:
         BetUserGame(5, 1, 2, 1005, 5, 400, fake_date, 0.4, False),  # Winner
     ]
     # Act
-    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games)
+    all_bets = calculate_gain_lost_for_open_bet_game(tournament_game, bet_on_games, HOUSE_CUT)
     # Assert
     assert len(all_bets) == 5
     winnings = [x for x in all_bets if x.amount > 0]
@@ -547,7 +549,7 @@ async def test_placing_bet_on_game_you_are_part(
     mock_create_bet_user_game.return_value = None
     mock_update_user_wallet_for_tournament.return_value = None
     # Act
-    with pytest.raises(ValueError, match="The user cannot bet on a game where he is playing"):
+    with pytest.raises(ValueError, match="The user cannot bet on a game where he/she is playing"):
         place_bet_for_game(1, 1, 1, 99.99, 1)
 
 

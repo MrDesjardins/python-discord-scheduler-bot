@@ -130,13 +130,13 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
                 data_access_insert_bet_ledger_entry(winning_distribution)
             for bet_user_game in bet_user_games:
                 data_access_update_bet_user_game_distribution_completed(bet_user_game.id)
-            for bet_game in bet_games:
-                data_access_update_bet_game_distribution_completed(bet_game.id)
+    for bet_game in bet_games:
+        data_access_update_bet_game_distribution_completed(bet_game.id)
         # Auto-Commit after the with if no exception
 
 
 def calculate_gain_lost_for_open_bet_game(
-    tournament_game: TournamentGame, bet_on_games: List[BetUserGame], houst_cut=0
+    tournament_game: TournamentGame, bet_on_games: List[BetUserGame], houst_cut_fraction=0
 ) -> List[BetLedgerEntry]:
     """
     Calculate the distribution of gains and losses for a game
@@ -156,7 +156,7 @@ def calculate_gain_lost_for_open_bet_game(
     for bet in bet_on_games_not_distributed:
         if bet.user_id_bet_placed == winner_id:
             fair_odd = 1 / bet.probability_user_win_when_bet_placed
-            adjusted_odd = fair_odd / (1 + houst_cut)
+            adjusted_odd = fair_odd / (1 + houst_cut_fraction)
             winning_amount = bet.amount * adjusted_odd
         else:
             winning_amount = 0

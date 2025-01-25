@@ -4,13 +4,11 @@ from typing import Dict, List
 from datetime import datetime, timezone
 from unittest.mock import patch
 import pytz
+from deps.functions_model import get_daily_string_message, get_empty_votes, get_supported_time_time_label
+from deps.functions_date import get_current_hour_eastern
 from deps.functions import (
-    get_current_hour_eastern,
-    get_daily_string_message,
-    get_empty_votes,
     get_reactions,
     get_sha,
-    get_supported_time_time_label,
     get_time_choices,
     get_url_user_profile_main,
     get_url_user_profile_overview,
@@ -80,7 +78,7 @@ def test_get_supported_time_time_label():
     ]
 
 
-@patch("deps.functions.datetime")
+@patch("deps.functions_date.datetime")
 def test_get_current_hour_eastern_time(mock_datetime):
     """Return the current hour in Eastern Time"""
     # Mock the current time in UTC (11:10am UTC)
@@ -103,7 +101,7 @@ def test_get_current_hour_eastern_time(mock_datetime):
     assert result == "6am"
 
 
-@patch("deps.functions.datetime")
+@patch("deps.functions_date.datetime")
 def test_get_current_hour_eastern_time_plus_hour(mock_datetime):
     """Return the current hour in Eastern Time"""
     # Mock the current time in UTC (11:10am UTC)
@@ -126,7 +124,7 @@ def test_get_current_hour_eastern_time_plus_hour(mock_datetime):
     assert result == "7am"
 
 
-@patch("deps.functions.datetime")
+@patch("deps.functions_date.datetime")
 def test_get_current_hour_eastern_time_plus_hour_double_digit(mock_datetime):
     """Return the current hour in Eastern Time"""
     # Mock the current time in UTC (11:10am UTC)
@@ -155,7 +153,7 @@ def test_get_sha():
     assert len(sha) > 8
 
 
-@patch("deps.functions.date")
+@patch("deps.functions_model.date")
 def test_daily_message(mock_date):
     """Test the construction of the daily message with emoji"""
     mock_date.today.return_value = datetime(2024, 11, 30)

@@ -48,9 +48,9 @@ from deps.models import (
     UserWithUserMatchInfo,
 )
 from deps.log import print_error_log, print_log, print_warning_log
+from deps.functions_model import get_empty_votes
+from deps.functions_date import get_current_hour_eastern
 from deps.functions import (
-    get_current_hour_eastern,
-    get_empty_votes,
     get_last_schedule_message,
     get_reactions,
     get_url_user_profile_main,

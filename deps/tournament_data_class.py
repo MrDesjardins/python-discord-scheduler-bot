@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Optional
 from datetime import datetime
-from deps.functions import convert_to_datetime
+from deps.functions_date import convert_to_datetime
 
 
 @dataclass

@@ -24,7 +24,8 @@ from deps.values import (
 )
 from deps.log import print_log, print_warning_log
 from deps.models import DayOfWeek, SimpleUser, SimpleUserHour
-from deps.functions import get_empty_votes, get_last_schedule_message
+from deps.functions_model import get_empty_votes
+from deps.functions import get_last_schedule_message
 from deps.siege import get_user_rank_emoji
 from deps.mybot import MyBot
 

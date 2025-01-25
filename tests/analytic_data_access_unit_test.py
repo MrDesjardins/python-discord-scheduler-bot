@@ -9,7 +9,7 @@ from deps.data_access_data_class import UserInfo
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.analytic_data_access import (
     compute_users_weights,
-    delete_all_tables,
+    delete_all_analytic_tables,
     fetch_all_user_activities,
     fetch_user_info_by_user_id_list,
     insert_if_nonexistant_full_match_info,
@@ -45,7 +45,7 @@ def setup_and_teardown():
     """Setup and Teardown for the test"""
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
-    delete_all_tables()
+    delete_all_analytic_tables()
 
     # Yield control to the test functions
     yield
@@ -159,7 +159,7 @@ def test_many_users_same_channel():
 @pytest.fixture
 def setup_user_info_analytic():
     database_manager.set_database_name(DATABASE_NAME_TEST)
-    delete_all_tables()
+    delete_all_analytic_tables()
 
     yield
 
