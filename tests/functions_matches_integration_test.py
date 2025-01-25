@@ -13,7 +13,7 @@ import deps.log
 
 
 @patch.object(deps.log, deps.log.print_error_log.__name__)
-def test_matches(self, mock_error_log):
+def test_matches(mock_error_log):
     """Test to check if the matches information is downloaded correctly"""
     mock_error_log.return_value = None
 

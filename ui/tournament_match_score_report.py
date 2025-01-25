@@ -3,7 +3,7 @@
 from typing import List
 import discord
 from discord.ui import Select, View
-from bet.bet_functions import generate_msg_bet_leaderboard
+from deps.bet.bet_functions import generate_msg_bet_leaderboard
 from deps.data_access import data_access_get_member
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_functions import (

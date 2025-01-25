@@ -6,12 +6,13 @@ from unittest.mock import patch, call
 from datetime import datetime, timezone
 import pytest
 from deps.data_access_data_class import UserInfo
-from deps.bet.bet_data_access import delete_all_bet_tables, data_access_fetch_bet_games_by_tournament_id
-from deps.bet.bet_data_class import BetGame, BetUserGame, BetUserTournament
+from deps.bet.bet_data_access import delete_all_bet_tables
+from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.bet.bet_functions import (
     DEFAULT_MONEY,
     MIN_BET_AMOUNT,
     calculate_gain_lost_for_open_bet_game,
+    distribute_gain_on_recent_ended_game,
     get_open_bet_games_for_tournament,
     get_total_pool_for_game,
     get_bet_user_wallet_for_tournament,
@@ -663,3 +664,97 @@ async def test_generate_msg_bet_leaderboard_users(mock_fetch_user, mock_get_all_
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
     assert msg == "1 - User 300 - $30.99\n2 - User 200 - $20.99\n3 - User 100 - $10.99"
+
+
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_game_ready_to_close.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.calculate_gain_lost_for_open_bet_game.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_insert_bet_ledger_entry.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_game_distribution_completed.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_game_distribution_completed.__name__)
+def test_distribute_gain_on_recent_ended_game_success_scenario_winning_bet(
+    mock_data_access_update_bet_game_distribution_completed,
+    mock_data_access_update_bet_user_game_distribution_completed,
+    mock_data_access_insert_bet_ledger_entry,
+    mock_data_access_update_bet_user_tournament,
+    mock_get_bet_user_wallet_for_tournament,
+    mock_calculate_gain_lost_for_open_bet_game,
+    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_data_access_get_bet_game_ready_to_close,
+    mock_fetch_tournament_games_by_tournament_id,
+) -> None:
+    """
+    Unit test that checks if the specific call to the database occurs according to the scenario
+    that there is a single bet on a game that just ended
+    """
+    # Arrange
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    mock_fetch_tournament_games_by_tournament_id.return_value = [
+        TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
+    ]
+    mock_data_access_get_bet_game_ready_to_close.return_value = [BetGame(33, tournament.id, 1, 0.5, 0.5, False)]
+    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+        BetUserGame(7, 1, 33, 13, 99.98, 10, fake_date, 0.5, False)
+    ]
+    ledger_entry_1 = BetLedgerEntry(888, 1, 1, 33, 7, 13, 99.98)
+    mock_calculate_gain_lost_for_open_bet_game.return_value = [ledger_entry_1]
+    bet_user_tour = BetUserTournament(62, 1, 100, 500)
+    mock_get_bet_user_wallet_for_tournament.return_value = bet_user_tour
+
+    # Act
+    distribute_gain_on_recent_ended_game(1)
+    # Assert
+    mock_data_access_update_bet_user_tournament.assert_called_once_with(62, 599.98)
+    mock_data_access_insert_bet_ledger_entry.assert_called_once_with(ledger_entry_1)
+    mock_data_access_update_bet_user_game_distribution_completed.assert_called_once_with(7)
+    mock_data_access_update_bet_game_distribution_completed.assert_called_once_with(33)
+
+
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_game_ready_to_close.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.calculate_gain_lost_for_open_bet_game.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_insert_bet_ledger_entry.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_game_distribution_completed.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_game_distribution_completed.__name__)
+def test_distribute_gain_on_recent_ended_game_success_scenario_losing_bet(
+    mock_data_access_update_bet_game_distribution_completed,
+    mock_data_access_update_bet_user_game_distribution_completed,
+    mock_data_access_insert_bet_ledger_entry,
+    mock_data_access_update_bet_user_tournament,
+    mock_get_bet_user_wallet_for_tournament,
+    mock_calculate_gain_lost_for_open_bet_game,
+    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_data_access_get_bet_game_ready_to_close,
+    mock_fetch_tournament_games_by_tournament_id,
+) -> None:
+    """
+    Unit test for a bet that failed, it should not give the money but still register in the ledger
+    and close the game bet + user bet
+    """
+    # Arrange
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    mock_fetch_tournament_games_by_tournament_id.return_value = [
+        TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
+    ]
+    mock_data_access_get_bet_game_ready_to_close.return_value = [BetGame(33, tournament.id, 1, 0.5, 0.5, False)]
+    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+        BetUserGame(7, 1, 33, 13, 99.98, 11, fake_date, 0.5, False)
+    ]
+    ledger_entry_1 = BetLedgerEntry(888, 1, 1, 33, 7, 13, 99.98)
+    mock_calculate_gain_lost_for_open_bet_game.return_value = [ledger_entry_1]
+    bet_user_tour = BetUserTournament(62, 1, 100, 500)
+    mock_get_bet_user_wallet_for_tournament.return_value = bet_user_tour
+
+    # Act
+    distribute_gain_on_recent_ended_game(1)
+    # Assert
+    mock_data_access_update_bet_user_tournament.asset_called_none()
+    mock_data_access_insert_bet_ledger_entry.assert_called_once_with(ledger_entry_1)
+    mock_data_access_update_bet_user_game_distribution_completed.assert_called_once_with(7)
+    mock_data_access_update_bet_game_distribution_completed.assert_called_once_with(33)

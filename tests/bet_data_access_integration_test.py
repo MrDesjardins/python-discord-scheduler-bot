@@ -4,7 +4,6 @@ from datetime import datetime
 from unittest.mock import patch
 import pytest
 from deps.bet.bet_functions import (
-    distribute_gain_on_recent_ended_game,
     get_bet_user_wallet_for_tournament,
     place_bet_for_game,
 )
@@ -113,14 +112,22 @@ async def test_get_bet_game_ready_for_distribution_one_game_done_with_one_user_l
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
     place_bet_for_game(
-        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
+        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.tournament_game_id].user1_id
     )  # Bet user 1
-    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # Lost user 2
-    # Act
-    bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
 
     # Assert
-    assert len(bet_games) == 1
+    bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
+    assert len(bet_games) == 0  # Because the game is not yet ended
+    bet_all_games = data_access_fetch_bet_user_game_by_tournament_id(tournament_id)
+    assert len(bet_all_games) == 1  # The game is not yet ended, so we have 1 (the bet placed
+    # Act
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.tournament_game_id].user2_id, "1-1")  # Lost user 2
+
+    # Assert
+    bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
+    assert len(bet_games) == 0  # The game ended and the code distributed the gain
+    bet_all_games = data_access_fetch_bet_user_game_by_tournament_id(tournament_id)
+    assert len(bet_all_games) == 1  # The game closed remains in the database
 
 
 async def test_distribute_gain_on_recent_ended_game_winning_bet_scenario() -> None:
@@ -141,11 +148,10 @@ async def test_distribute_gain_on_recent_ended_game_winning_bet_scenario() -> No
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
     place_bet_for_game(
-        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
+        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.tournament_game_id].user1_id
     )  # Bet user 1
-    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # Lost user 2
     # Act
-    distribute_gain_on_recent_ended_game(tournament_id)  # Winner bet here
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.tournament_game_id].user2_id, "1-1")  # Lost user 2
     # Assert
     user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=1009)
     assert user_wallet.amount == 1010
@@ -179,11 +185,10 @@ async def test_distribute_gain_on_recent_ended_game_losing_bet_scenario() -> Non
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
     place_bet_for_game(
-        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
+        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.tournament_game_id].user1_id
     )  # Bet user 1
-    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user1_id, "1-1")  # Lost user 1
-    # Act
-    distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
+    # Act (call distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.tournament_game_id].user1_id, "1-1")  # Lost user 1
     # Assert user wallet (bet_user_tournament)
     user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=1009)
     assert user_wallet.amount == 990
@@ -220,12 +225,11 @@ async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
     place_bet_for_game(
-        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.game_id].user1_id
+        tournament_id, one_bet_game.id, user_placing_the_bet_id, 10, games_dict[one_bet_game.tournament_game_id].user1_id
     )  # Bet user 1
-    await report_lost_tournament(tournament_id, games_dict[one_bet_game.game_id].user2_id, "1-1")  # User 1 win
-    # Act
-    update_wallet_mock.side_effect = Exception("Error")
-    distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
+    update_wallet_mock.side_effect = Exception("Error")  # <----- Mock the error
+    # Act (report lost call distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
+    await report_lost_tournament(tournament_id, games_dict[one_bet_game.tournament_game_id].user2_id, "1-1")  # User 1 win
     # Assert user wallet (bet_user_tournament)
     user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=1009)
     assert user_wallet.amount == 1000  # did not change! because of the error (rollback)

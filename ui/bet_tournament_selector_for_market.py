@@ -57,9 +57,13 @@ class BetTournamentSelectorForMarket(View):
 
                 # 2 Get the current bet_game for the tournament
                 bet_games: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
-                self.game_by_bet_game_id = {game.game_id: game for game in bet_games}
+                self.game_by_bet_game_id = {game.tournament_game_id: game for game in bet_games}
                 self.bet_game_by_bet_game_id = {game.id: game for game in bet_games}
-                games_with_bet_game = [game for game in tournament_games if game.id in self.game_by_bet_game_id]
+                games_with_bet_game = [
+                    game
+                    for game in tournament_games
+                    if game.id in self.game_by_bet_game_id and game.user_winner_id is None
+                ]
                 options: List[discord.SelectOption] = []
                 for game in games_with_bet_game:
                     user_info1: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user1_id)
@@ -70,6 +74,12 @@ class BetTournamentSelectorForMarket(View):
                         continue
                     text_display = f"{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"
                     options.append(discord.SelectOption(label=text_display, value=str(bet_game_for_game.id)))
+                if len(options) == 0:
+                    await interaction.response.send_message(
+                        "No games available to bet in this tournament. Please try again later.", ephemeral=True
+                    )
+                    return
+
                 # Disable all buttons
                 for item in self.children:
                     item.disabled = True
@@ -123,7 +133,7 @@ class BetTournamentSelectorForMarket(View):
                     (
                         game
                         for game in fetch_tournament_games_by_tournament_id(self.tournament_id)
-                        if game.id == self.bet_game_chosen.game_id
+                        if game.id == self.bet_game_chosen.tournament_game_id
                     ),
                     None,
                 )
@@ -219,15 +229,6 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
         # Acknowledge the submission and close the modal
         await interaction.response.defer()  # This closes the modal after the submission
 
-        if self.view.amount > self.view.amount:
-            print_error_log(
-                f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: Not enough funds asked {self.view.amount} but has {self.view.amount}"
-            )
-            await interaction.response.send_message(
-                "Insufficient balance. Please enter a lower amount.", ephemeral=True
-            )
-            return
-        # Save in the database
         try:
             place_bet_for_game(
                 self.view.tournament_id,
@@ -238,12 +239,14 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
             )
         except ValueError as e:
             print_warning_log(f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: {e}")
-            await interaction.followup.send("An error occurred while placing the bet: {e}", ephemeral=True)
+            await interaction.followup.send(f"An error occurred while placing the bet: {e}", ephemeral=True)
+            return
         except Exception as e:
             print_error_log(f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: {e}")
             await interaction.followup.send(
                 "An error occurred while placing the bet. Please notify a moderator.", ephemeral=True
             )
+            return
         # Send the follow-up message
         if self.view.user_info1 is not None and self.view.user_info2 is not None:
 

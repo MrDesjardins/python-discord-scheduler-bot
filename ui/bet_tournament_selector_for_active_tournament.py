@@ -61,7 +61,7 @@ class BetTournamentSelectorForActiveMarket(View):
             for bet in bet_user_games:
                 bet_game = bet_game_dict.get(bet.bet_game_id, None)
                 if bet_game is not None:
-                    tournament_game = tournament_games_dict.get(bet_game.game_id, None)
+                    tournament_game = tournament_games_dict.get(bet_game.tournament_game_id, None)
                     if tournament_game is not None:
 
                         member1 = await fetch_user_info_by_user_id(tournament_game.user1_id)

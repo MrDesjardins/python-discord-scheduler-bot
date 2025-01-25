@@ -261,7 +261,7 @@ VALUES
 INSERT INTO
   bet_game (
     tournament_id,
-    game_id,
+    tournament_game_id,
     probability_user_1_win,
     probability_user_2_win,
     bet_distributed
@@ -272,7 +272,7 @@ VALUES
 INSERT INTO
   bet_game (
     tournament_id,
-    game_id,
+    tournament_game_id,
     probability_user_1_win,
     probability_user_2_win,
     bet_distributed
@@ -283,7 +283,7 @@ VALUES
 INSERT INTO
   bet_game (
     tournament_id,
-    game_id,
+    tournament_game_id,
     probability_user_1_win,
     probability_user_2_win,
     bet_distributed

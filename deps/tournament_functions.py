@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from collections import deque
 import random
 from typing import Dict, List, Optional
-from deps.bet.bet_functions import system_generate_game_odd
+from deps.bet.bet_functions import distribute_gain_on_recent_ended_game, system_generate_game_odd
 from deps.data_access_data_class import UserInfo
 from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_models import TournamentNode, TournamentResult
@@ -91,12 +91,13 @@ async def start_tournament(tournament: Tournament) -> None:
     node_to_save: List[TournamentGame] = assign_people_to_games(tournament, tournament_games, people)
 
     # Save the games
-    save_tournament_games(node_to_save)
+    # save_tournament_games(node_to_save)
 
     # Auto assign user as a winner if there is no possible opponent in the other side of the bracket
     node_to_save2: List[TournamentGame] = auto_assign_winner(tournament_games)
+
     # Save the nodes that was determined as auto in
-    save_tournament_games(node_to_save2)
+    save_tournament_games(node_to_save + node_to_save2)
 
     # Tournament status
     tournament.has_started = True
@@ -412,6 +413,9 @@ async def report_lost_tournament(tournament_id: int, user_id: int, score: str) -
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     node_to_save2: List[TournamentNode] = auto_assign_winner(tournament_games)
     save_tournament_games(node_to_save2)
+
+    # Close bets of the games (mostly the one reported)
+    distribute_gain_on_recent_ended_game(tournament_id)
 
     # Generate bet_game
     await system_generate_game_odd(tournament_id)

@@ -230,12 +230,12 @@ class DatabaseManager:
         CREATE TABLE IF NOT EXISTS bet_game (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tournament_id INTEGER NOT NULL,
-            game_id INTEGER NOT NULL,
+            tournament_game_id INTEGER NOT NULL,
             probability_user_1_win REAL NOT NULL,
             probability_user_2_win REAL NOT NULL,
             bet_distributed BOOLEAN DEFAULT 0,
             FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
-            FOREIGN KEY(game_id) REFERENCES tournament_game(id)
+            FOREIGN KEY(tournament_game_id) REFERENCES tournament_game(id)
         );
         """
         )
@@ -264,13 +264,13 @@ class DatabaseManager:
         CREATE TABLE IF NOT EXISTS bet_ledger_entry (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             tournament_id INTEGER NOT NULL,
-            game_id INTEGER NOT NULL,
+            tournament_game_id INTEGER NOT NULL,
             bet_game_id INTEGER NOT NULL,
             bet_user_game_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             amount REAL NOT NULL,
             FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
-            FOREIGN KEY(game_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(tournament_game_id) REFERENCES tournament_game(id),
             FOREIGN KEY(bet_game_id) REFERENCES bet_game(id),
             FOREIGN KEY(bet_user_game_id) REFERENCES bet_user_game(id),
             FOREIGN KEY(user_id) REFERENCES user_info(id)

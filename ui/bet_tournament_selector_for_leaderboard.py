@@ -3,15 +3,9 @@
 from typing import List
 import discord
 from discord.ui import View
-from bet.bet_functions import generate_msg_bet_leaderboard
-from deps.analytic_data_access import fetch_user_info_by_user_id
-from deps.bet.bet_data_access import (
-    data_access_get_all_wallet_for_tournament,
-)
-from deps.bet.bet_data_class import BetGame, BetUserGame, BetUserTournament
+from deps.bet.bet_functions import generate_msg_bet_leaderboard
 from deps.tournament_data_class import Tournament
 from deps.values import COMMAND_BET
-from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
 
 
 class BetTournamentSelectorForLeaderboard(View):
@@ -40,7 +34,7 @@ class BetTournamentSelectorForLeaderboard(View):
             for item in self.children:
                 self.remove_item(item)
             tournament = next((t for t in self.list_tournaments if t.id == tournament_id), None)
-            msg = generate_msg_bet_leaderboard(tournament)
+            msg = await generate_msg_bet_leaderboard(tournament)
             if msg == "":
                 msg = f"No user who betted on this tournament. Use the command `/{COMMAND_BET}` to place a bet."
             else:

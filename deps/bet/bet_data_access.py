@@ -30,7 +30,7 @@ SELECT_BET_USER_TOURNAMENT = """
 SELECT_BET_GAME = """
     bet_game.id, 
     bet_game.tournament_id, 
-    bet_game.game_id, 
+    bet_game.tournament_game_id, 
     bet_game.probability_user_1_win, 
     bet_game.probability_user_2_win,
     bet_game.bet_distributed
@@ -38,7 +38,7 @@ SELECT_BET_GAME = """
 SELECT_LEDGER = """
     bet_ledger_entry.id,
     bet_ledger_entry.tournament_id, 
-    bet_ledger_entry.game_id, 
+    bet_ledger_entry.tournament_game_id, 
     bet_ledger_entry.bet_game_id, 
     bet_ledger_entry.bet_user_game_id, 
     bet_ledger_entry.user_id, 
@@ -149,7 +149,7 @@ def data_access_fetch_bet_games_by_tournament_id(tournament_id: int) -> List[Bet
 
 
 def data_access_create_bet_game(
-    tournament_id: int, game_id: int, probability_user_1_win: float, probability_user_2_win: float
+    tournament_id: int, tournament_game_id: int, probability_user_1_win: float, probability_user_2_win: float
 ) -> None:
     """
     Create a bet game
@@ -158,14 +158,14 @@ def data_access_create_bet_game(
         """
         INSERT INTO bet_game(
           tournament_id, 
-          game_id, 
+          tournament_game_id, 
           probability_user_1_win, 
           probability_user_2_win,
           bet_distributed
         ) 
         VALUES (
           :tournament_id,
-          :game_id,
+          :tournament_game_id,
           :probability_user_1_win,
           :probability_user_2_win,
           false
@@ -173,7 +173,7 @@ def data_access_create_bet_game(
         """,
         {
             "tournament_id": tournament_id,
-            "game_id": game_id,
+            "tournament_game_id": tournament_game_id,
             "probability_user_1_win": probability_user_1_win,
             "probability_user_2_win": probability_user_2_win,
         },
@@ -249,7 +249,7 @@ def data_access_create_bet_user_game(
 
 def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> List[BetUserGame]:
     """
-    Get all the bet games that are ready for distribution
+    Get all the bet games user that are ready for distribution
     """
     query = f"""
         SELECT 
@@ -258,7 +258,7 @@ def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> 
         INNER JOIN bet_game 
           ON bet_user_game.bet_game_id = bet_game.id
         INNER JOIN tournament_game
-          ON bet_game.game_id = tournament_game.id
+          ON bet_game.tournament_game_id = tournament_game.id
           AND tournament_game.user_winner_id IS NOT NULL
         WHERE
           bet_user_game.tournament_id = :tournament_id
@@ -273,13 +273,37 @@ def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> 
     return [BetUserGame.from_db_row(row) for row in rows]
 
 
+def data_access_get_bet_game_ready_to_close(tournament_id: int) -> List[BetGame]:
+    """
+    Get all the bet games that are ready for distribution
+    """
+    query = f"""
+        SELECT 
+        {SELECT_BET_GAME}
+        FROM bet_game
+        INNER JOIN tournament_game
+          ON bet_game.tournament_game_id = tournament_game.id
+          AND tournament_game.user_winner_id IS NOT NULL
+        WHERE
+          bet_game.tournament_id = :tournament_id
+        AND 
+          bet_game.bet_distributed = false
+        """
+    database_manager.get_cursor().execute(
+        query,
+        {"tournament_id": tournament_id},
+    )
+    rows = database_manager.get_cursor().fetchall()
+    return [BetGame.from_db_row(row) for row in rows]
+
+
 def data_access_insert_bet_ledger_entry(entry: BetLedgerEntry, auto_commit: bool = False) -> None:
     """Insert in the table the bet ledger entry"""
     database_manager.get_cursor().execute(
         """
         INSERT INTO bet_ledger_entry (
           tournament_id,
-          game_id,
+          tournament_game_id,
           bet_game_id,
           bet_user_game_id,
           user_id,
@@ -287,7 +311,7 @@ def data_access_insert_bet_ledger_entry(entry: BetLedgerEntry, auto_commit: bool
         )
         VALUES (
           :tournament_id,
-          :game_id,
+          :tournament_game_id,
           :bet_game_id,
           :bet_user_game_id,
           :user_id,
@@ -296,7 +320,7 @@ def data_access_insert_bet_ledger_entry(entry: BetLedgerEntry, auto_commit: bool
         """,
         {
             "tournament_id": entry.tournament_id,
-            "game_id": entry.game_id,
+            "tournament_game_id": entry.tournament_game_id,
             "bet_game_id": entry.bet_game_id,
             "bet_user_game_id": entry.bet_user_game_id,
             "user_id": entry.user_id,

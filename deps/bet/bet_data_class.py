@@ -42,7 +42,7 @@ class BetGame:
 
     id: int
     tournament_id: int
-    game_id: int
+    tournament_game_id: int
     probability_user_1_win: float
     probability_user_2_win: float
     bet_distributed: bool
@@ -53,7 +53,7 @@ class BetGame:
         return BetGame(
             id=row[0],
             tournament_id=row[1],
-            game_id=row[2],
+            tournament_game_id=row[2],
             probability_user_1_win=row[3],
             probability_user_2_win=row[4],
             bet_distributed=bool(row[5]),
@@ -84,6 +84,9 @@ class BetUserGame:
 
     id: int
     tournament_id: int
+    """
+    The bet game id (NOT the tournament game id)
+    """
     bet_game_id: int
     user_id: int
     amount: float
@@ -118,7 +121,7 @@ class BetLedgerEntry:
 
     id: int
     tournament_id: int
-    game_id: int
+    tournament_game_id: int
     bet_game_id: int
     bet_user_game_id: int
     user_id: int
@@ -130,7 +133,7 @@ class BetLedgerEntry:
         return BetLedgerEntry(
             id=row[0],
             tournament_id=row[1],
-            game_id=row[2],
+            tournament_game_id=row[2],
             bet_game_id=row[3],
             bet_user_game_id=row[4],
             user_id=row[5],

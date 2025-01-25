@@ -4,6 +4,7 @@ from typing import List
 from unittest.mock import patch
 import pytest
 from datetime import datetime, timezone
+from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_id
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.tournament_data_access import (
     data_access_insert_tournament,
@@ -490,7 +491,8 @@ async def test_full_tournament():
         mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
         tournament: Tournament = fetch_tournament_by_id(tournament_id)
         await start_tournament(tournament)
-
+    bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+    assert len(bet_games_to_assert) == 3
     tournament: Tournament = fetch_tournament_by_id(tournament_id)
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
@@ -519,6 +521,8 @@ async def test_full_tournament():
             )
             report_result = await report_lost_tournament(tournament_id, u1, "7-5")
             assert report_result.is_successful is True, report_result.text
+            bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+            assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 2
             plot_tournament_bracket(
                 tournament,
                 build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
@@ -561,3 +565,5 @@ async def test_full_tournament():
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
     assert tournament_tree.user_winner_id == u3
+    bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+    assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 0

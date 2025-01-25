@@ -11,6 +11,7 @@ from deps.bet.bet_data_access import (
     data_access_create_bet_user_wallet_for_tournament,
     data_access_fetch_bet_games_by_tournament_id,
     data_access_get_all_wallet_for_tournament,
+    data_access_get_bet_game_ready_to_close,
     data_access_get_bet_user_game_ready_for_distribution,
     data_access_get_bet_user_wallet_for_tournament,
     data_access_update_bet_user_tournament,
@@ -23,6 +24,7 @@ from deps.tournament_data_class import Tournament, TournamentGame
 from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
+from deps.log import print_error_log
 
 DEFAULT_MONEY = 1000
 MIN_BET_AMOUNT = 10
@@ -89,18 +91,36 @@ def get_total_pool_for_game(
 def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
     """
     Get all the TournamentGame that are completed (winner is known) with their BetUserGame list
-    and calculate the gain and lost for each. Close the BetUserGame, the BetGame and update the
-    wallet (bet_user_tournament)
+    and calculate the gain and lost for each.
+    Goals:
+        1) Close the BetUserGame (if some users bet on a game)
+        2) Close the BetGame (separated in case no user bet on a game)
+        3) Distribute gain in wallet (bet_user_tournament if winner)
     """
-    bet_user_games: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
     tournament_games: TournamentGame = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games_dict = {tournament_game.id: tournament_game for tournament_game in tournament_games}
+    bet_games: List[BetGame] = data_access_get_bet_game_ready_to_close(tournament_id)
+    bet_games_dict = {game.id: game for game in bet_games}
+    bet_user_games: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
 
-    for tournament_game in tournament_games:
+    # Loop the bet_user_games and calculate the gain and lost
+    for bet_user_game in bet_user_games:
+        bet_game = bet_games_dict.get(bet_user_game.bet_game_id, None)
+        if bet_game is None:
+            print_error_log(
+                f"distribute_gain_on_recent_ended_game: bet_game not found for bet_user_game {bet_user_game.bet_game_id}"
+            )
+            continue
+        tournament_game = tournament_games_dict.get(bet_game.tournament_game_id, None)
+        if tournament_game is None:
+            print_error_log(
+                f"distribute_gain_on_recent_ended_game: TournamentGame not found for bet_game {bet_game.id}"
+            )
+            continue
         if tournament_game.user_winner_id is None:
             continue
-        bets = [bet for bet in bet_user_games if bet.tournament_id == tournament_id]
-        winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, bets)
 
+        winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games)
         with database_manager.data_access_transaction():
             for winning_distribution in winning_distributions:
                 if winning_distribution.amount > 0:
@@ -108,9 +128,10 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
                     wallet.amount += winning_distribution.amount
                     data_access_update_bet_user_tournament(wallet.id, wallet.amount)
                 data_access_insert_bet_ledger_entry(winning_distribution)
-            for bet_user_game in bets:
+            for bet_user_game in bet_user_games:
                 data_access_update_bet_user_game_distribution_completed(bet_user_game.id)
-                data_access_update_bet_game_distribution_completed(bet_user_game.bet_game_id)
+            for bet_game in bet_games:
+                data_access_update_bet_game_distribution_completed(bet_game.id)
         # Auto-Commit after the with if no exception
 
 
@@ -143,7 +164,7 @@ def calculate_gain_lost_for_open_bet_game(
             BetLedgerEntry(
                 id=0,
                 tournament_id=tournament_game.tournament_id,
-                game_id=tournament_game.id,
+                tournament_game_id=tournament_game.id,
                 bet_game_id=bet.bet_game_id,
                 bet_user_game_id=bet.id,
                 user_id=bet.user_id,
@@ -184,7 +205,7 @@ async def system_generate_game_odd(tournament_id: int) -> None:
 
     # 3 Get the tournament games without bet_game
     # 3.1 Create a dictionary of the ids of the bet_game
-    bet_game_ids = {game.game_id for game in bet_games}
+    bet_game_ids = {game.tournament_game_id for game in bet_games}
 
     # 3.2 Get the games without bet_game that have 2 users but without winner yet
     games_without_bet_game = [
@@ -229,7 +250,7 @@ def get_open_bet_games_for_tournament(tournament_id: int) -> List[TournamentGame
 
     # 3 Get the tournament games without bet_game
     # 3.1 Create a dictionary of the ids of the bet_game
-    bet_game_ids = {game.game_id for game in bet_games}
+    bet_game_ids = {game.tournament_game_id for game in bet_games}
 
     # 3.2 Get the games that have 2 userrs but without winner yet
     games_without_bet_game = [
@@ -255,16 +276,16 @@ def place_bet_for_game(
     if len(bet_games) == 0:
         raise ValueError("The Bet on this game does not exist")
     bet_game = bet_games[0]
-    game_id = bet_game.game_id
+    tournament_game_id = bet_game.tournament_game_id
     games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
-    game: List[TournamentGame] = [game for game in games if game.id == game_id]
+    game: List[TournamentGame] = [game for game in games if game.id == tournament_game_id]
     if len(game) == 0:
         raise ValueError("The game does not exist")
     game: TournamentGame = game[0]
     if game.user_winner_id is not None:
         raise ValueError("The game is already finished")
     if game.user1_id == user_who_is_betting_id or game.user2_id == user_who_is_betting_id:
-        raise ValueError("The user cannot bet on a game where he is playing")
+        raise ValueError("The user cannot bet on a game where he/she is playing")
     if amount < MIN_BET_AMOUNT:
         raise ValueError(f"The minimum amount to bet is ${MIN_BET_AMOUNT}")
     # 2 Get the wallet of the user
