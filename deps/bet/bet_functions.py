@@ -14,6 +14,7 @@ from deps.bet.bet_data_access import (
     data_access_get_bet_game_ready_to_close,
     data_access_get_bet_user_game_ready_for_distribution,
     data_access_get_bet_user_wallet_for_tournament,
+    data_access_update_bet_game_probability,
     data_access_update_bet_user_tournament,
     data_access_update_bet_user_game_distribution_completed,
     data_access_update_bet_game_distribution_completed,
@@ -28,6 +29,7 @@ from deps.log import print_error_log
 
 DEFAULT_MONEY = 1000
 MIN_BET_AMOUNT = 10
+DYNAMIC_ADJUSTMENT_PERCENTAGE = 1.1
 
 
 def get_total_pool_for_game(
@@ -275,7 +277,7 @@ def place_bet_for_game(
     bet_games: List[BetGame] = [game for game in bet_games_tournament if game.id == bet_game_id]
     if len(bet_games) == 0:
         raise ValueError("The Bet on this game does not exist")
-    bet_game = bet_games[0]
+    bet_game: BetGame = bet_games[0]
     tournament_game_id = bet_game.tournament_game_id
     games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     game: List[TournamentGame] = [game for game in games if game.id == tournament_game_id]
@@ -294,7 +296,8 @@ def place_bet_for_game(
         raise ValueError("The user does not have enough money")
 
     # 3 Calculate the probability when the bet is placed
-    if user_id_bet_placed_on == game.user1_id:
+    is_user_1 = user_id_bet_placed_on == game.user1_id
+    if is_user_1:
         probability = bet_game.probability_user_1_win
     else:
         probability = bet_game.probability_user_2_win
@@ -306,6 +309,23 @@ def place_bet_for_game(
     )
     wallet.amount -= amount
     data_access_update_bet_user_tournament(wallet.id, wallet.amount, True)
+
+    try:
+        dynamically_adjust_bet_game_odd(bet_game, is_user_1)
+        data_access_update_bet_game_probability(bet_game, True)
+    except Exception as e:
+        print_error_log(f"place_bet_for_game: Error adjusting the odd: {e}")
+
+
+def dynamically_adjust_bet_game_odd(game: BetGame, reduce_probability_user_1: bool) -> None:
+    """Adjust the odd of a bet_game when a user place a bet"""
+
+    if reduce_probability_user_1:
+        game.probability_user_1_win *= DYNAMIC_ADJUSTMENT_PERCENTAGE
+        game.probability_user_2_win = 1 - game.probability_user_1_win
+    else:
+        game.probability_user_2_win *= DYNAMIC_ADJUSTMENT_PERCENTAGE
+        game.probability_user_1_win = 1 - game.probability_user_2_win
 
 
 async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:

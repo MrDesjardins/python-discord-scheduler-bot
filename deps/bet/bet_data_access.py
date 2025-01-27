@@ -373,3 +373,18 @@ def data_access_get_bet_ledger_entry_for_tournament(tournament_id: int) -> None:
     )
     rows = database_manager.get_cursor().fetchall()
     return [BetLedgerEntry.from_db_row(row) for row in rows]
+
+
+def data_access_update_bet_game_probability(bet_game: BetGame, auto_commit: bool = False) -> None:
+    """Update the bet game probability"""
+    database_manager.get_cursor().execute(
+        """
+        UPDATE bet_game
+        SET probability_user_1_win = :p1,
+        probability_user_2_win = :p2
+        WHERE id = :bet_id
+        """,
+        {"bet_id": bet_game.id, "p1": bet_game.probability_user_1_win, "p2": bet_game.probability_user_2_win},
+    )
+    if auto_commit:
+        database_manager.get_conn().commit()
