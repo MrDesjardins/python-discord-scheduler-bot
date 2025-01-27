@@ -391,18 +391,22 @@ async def data_access_update_voice_user_list(
 
     # Save the user which is None or a full activity detail
     user_map[user_id] = to_save
-    print_log(f"data_access_update_voice_user_list: Update voice user list: {len(user_map.keys())}")
-    set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
+    data_access_set_voice_user_list(guild_id, channel_id, user_map)    
 
 
-async def data_access_get_last_bot_message_in_main_text_channel(guild_id: int) -> Union[datetime, None]:
+async def data_access_get_last_bot_message_in_main_text_channel(
+    guild_id: int, voice_channel_id: int
+) -> Union[datetime, None]:
     """Get the last date time that the bot sent a message in the main text channel in ISO format"""
-    return await get_cache(False, f"{KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL}:{guild_id}")
+    return await get_cache(False, f"{KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL}:{guild_id}:{voice_channel_id}")
 
 
 def data_access_set_last_bot_message_in_main_text_channel(
     guild_id: int,
+    voice_channel_id: int,
     date_time: datetime,
 ) -> None:
     """Get the last date time that the bot sent a message in the main text channel in ISO format"""
-    set_cache(False, f"{KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL}:{guild_id}", date_time, ONE_HOUR_TTL)
+    set_cache(
+        False, f"{KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL}:{guild_id}:{voice_channel_id}", date_time, ONE_HOUR_TTL
+    )

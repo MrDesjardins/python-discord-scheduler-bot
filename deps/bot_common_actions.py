@@ -572,12 +572,14 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
         )
 
     current_time = datetime.now(timezone.utc)
-    last_message_time: Optional[datetime] = await data_access_get_last_bot_message_in_main_text_channel(guild_id)
+    last_message_time: Optional[datetime] = await data_access_get_last_bot_message_in_main_text_channel(
+        guild_id, voice_channel_id
+    )
 
     if last_message_time is not None:
         delta = current_time - last_message_time
-        # To avoid spamming, we allow only one message every 10 minutes maximum
-        if delta < timedelta(minutes=10):
+        # To avoid spamming, we allow only one message every x minutes maximum
+        if delta < timedelta(minutes=15):
             return
 
     # Get current voice channel information
@@ -589,9 +591,9 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
         return
     user_count_vc = len(vc_channel.members)
     if user_count_vc >= 5:
-        print_log(
-            f"send_automatic_lfg_message: {user_count_vc} users in the voice channel, no need to send the message."
-        )
+        # print_log(
+        #     f"send_automatic_lfg_message: {user_count_vc} users in the voice channel, no need to send the message."
+        # )
         return
     needed_user = 5 - user_count_vc
     # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
@@ -605,8 +607,8 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
         if ready_to_play > 0 and ready_to_play > already_playing:
             list_users = get_list_users_with_rank(bot, vc_channel.members, guild_id)
             print_log(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
-            # channel.send(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
-            data_access_set_last_bot_message_in_main_text_channel(guild_id, current_time)
+            channel.send(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
+            data_access_set_last_bot_message_in_main_text_channel(guild_id, voice_channel_id, current_time)
     except Exception as e:
         print_error_log(f"send_automatic_lfg_message: Error sending the message: {e}")
         return
