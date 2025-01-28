@@ -22,7 +22,8 @@ SELECT_TOURNAMENT = """
     tournament.best_of,
     tournament.max_players,
     tournament.maps,
-    tournament.has_started
+    tournament.has_started,
+    tournament.has_finished
     """
 
 
@@ -204,6 +205,7 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
                     tournament.id = user_tournament.tournament_id
                     AND user_tournament.user_id = :user_id
                 WHERE tournament.guild_id = :guild_id
+                    AND is_finished = 0
                     AND date(tournament.end_date) >= date(:current_time)
                     AND date(tournament.start_date) <= date(:current_time);
                 """
@@ -287,6 +289,7 @@ def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
                 0 as current_user_count
             FROM tournament
             WHERE guild_id = :guild_id 
+                AND has_started = 1
                 AND date(start_date) <= date(:current_time) 
                 AND date(end_date) >= date(:current_time);
             """
@@ -344,9 +347,25 @@ def block_registration_today_tournament_start(date_to_start: datetime) -> None:
         """
         UPDATE tournament
         SET has_started = 1
-        WHERE date(start_date) = date(?);
+        WHERE date(start_date) = date(:date_only);
         """,
-        (date_only,),
+        {"date_only": date_only},
+    )
+    database_manager.get_conn().commit()
+
+
+def data_access_end_tournament(tournament_id: int) -> None:
+    """
+    Close a tournament
+    """
+
+    database_manager.get_cursor().execute(
+        """
+        UPDATE tournament
+        SET has_finished = 1
+        WHERE id = :tournament_id;
+        """,
+        {"tournament_id": tournament_id},
     )
     database_manager.get_conn().commit()
 
@@ -381,10 +400,11 @@ def save_tournament(tournament: Tournament) -> Tournament:
     cursor.execute(
         """
         UPDATE tournament
-            SET max_players = :max_players
+            SET max_players = :max_players,
+            has_started = :has_started,
         WHERE id = :tournament_id;
         """,
-        {"max_players": tournament.max_players, "tournament_id": tournament.id},
+        {"max_players": tournament.max_players, "tournament_id": tournament.id, "has_started": tournament.has_started},
     )
 
     database_manager.get_conn().commit()

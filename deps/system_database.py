@@ -113,7 +113,8 @@ class DatabaseManager:
             best_of INTEGER NOT NULL,
             max_players INTEGER NOT NULL,
             maps TEXT NOT NULL,
-            has_started INTEGER DEFAULT 0
+            has_started INTEGER DEFAULT 0,
+            has_finished INTEGER DEFAULT 0
         );
         """
         )

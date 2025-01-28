@@ -14,7 +14,7 @@ from deps.tournaments.tournament_functions import (
 from deps.log import print_error_log
 from deps.tournaments.tournament_models import TournamentNode
 from deps.tournaments.tournament_discord_actions import generate_bracket_file
-from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
+from deps.tournaments.tournament_data_access import data_access_end_tournament, fetch_tournament_games_by_tournament_id
 
 
 class TournamentMatchScoreReport(View):
@@ -157,6 +157,13 @@ class TournamentMatchScoreReport(View):
                     f"The tournament **{tournament.name}** has finished!\n Winners are:\n🥇 {first_place}\n🥈 {second_place}\n🥉 {third_place1} & {third_place2}",
                     ephemeral=False,
                 )
+                # Tournament update to done
+                try:
+                    data_access_end_tournament(self.tournament_id)
+                except Exception as e:
+                    print_error_log(
+                        f"TournamentMatchScoreReport: process_tournament_result: Error while ending tournament: {e}"
+                    )
                 # Generate leaderboard at the end of the tournament
                 try:
                     msg_better_list = generate_msg_bet_leaderboard(tournament)

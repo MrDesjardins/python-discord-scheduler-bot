@@ -607,7 +607,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
         if ready_to_play > 0 and ready_to_play > already_playing:
             list_users = get_list_users_with_rank(bot, vc_channel.members, guild_id)
             print_log(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
-            channel.send(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
+            await channel.send(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
             data_access_set_last_bot_message_in_main_text_channel(guild_id, voice_channel_id, current_time)
     except Exception as e:
         print_error_log(f"send_automatic_lfg_message: Error sending the message: {e}")
