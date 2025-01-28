@@ -290,6 +290,7 @@ def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
             FROM tournament
             WHERE guild_id = :guild_id 
                 AND has_started = 1
+                AND has_finished = 0
                 AND date(start_date) <= date(:current_time) 
                 AND date(end_date) >= date(:current_time);
             """
