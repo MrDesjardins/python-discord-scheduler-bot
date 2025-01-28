@@ -21,7 +21,7 @@ from deps.bet.bet_functions import (
     place_bet_for_game,
     system_generate_game_odd,
 )
-from deps.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.bet import bet_functions
 from deps.models import UserFullMatchStats

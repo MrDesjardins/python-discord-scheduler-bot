@@ -7,7 +7,7 @@ import math
 from typing import List, Optional
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
-from deps.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 
 KEY_TOURNAMENT_GUILD = "tournament_guild"
 KEY_TOURNAMENT_GAMES = "tournament_games"

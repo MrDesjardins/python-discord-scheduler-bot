@@ -4,10 +4,10 @@ from typing import List
 import discord
 from discord.ui import View
 from deps.data_access import data_access_get_channel, data_access_get_guild_tournament_text_channel_id
-from deps.tournament_data_class import Tournament
-from deps.tournament_functions import register_for_tournament
+from deps.tournaments.tournament_data_class import Tournament
+from deps.tournaments.tournament_functions import register_for_tournament
 from deps.log import print_error_log, print_warning_log
-from deps.tournament_data_access import get_people_registered_for_tournament
+from deps.tournaments.tournament_data_access import get_people_registered_for_tournament
 from deps.values import COMMAND_TOURNAMENT_REGISTER_TOURNAMENT
 
 

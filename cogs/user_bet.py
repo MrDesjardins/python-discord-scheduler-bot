@@ -5,13 +5,13 @@ from discord import app_commands
 
 from deps.bet.bet_data_class import BetUserTournament
 from deps.bet.bet_functions import get_bet_user_wallet_for_tournament
-from deps.tournament_data_access import (
+from deps.tournaments.tournament_data_access import (
     fetch_active_tournament_by_guild,
 )
 from deps.values import COMMAND_BET, COMMAND_BET_ACTIVE_TOURNAMENT, COMMAND_BET_LEADERBOARD, COMMAND_BET_WALLET
 from deps.mybot import MyBot
 from deps.log import print_warning_log
-from deps.tournament_data_class import Tournament
+from deps.tournaments.tournament_data_class import Tournament
 from ui.bet_tournament_selector_for_active_tournament import BetTournamentSelectorForActiveMarket
 from ui.bet_tournament_selector_for_leaderboard import BetTournamentSelectorForLeaderboard
 from ui.bet_tournament_selector_for_market import BetTournamentSelectorForMarket

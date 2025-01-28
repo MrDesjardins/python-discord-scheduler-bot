@@ -7,7 +7,7 @@ import copy
 from typing import List
 from unittest.mock import patch
 from datetime import datetime, timezone
-from deps.tournament_functions import (
+from deps.tournaments.tournament_functions import (
     assign_people_to_games,
     auto_assign_winner,
     build_tournament_tree,
@@ -18,9 +18,9 @@ from deps.tournament_functions import (
     register_for_tournament,
     resize_tournament,
 )
-from deps.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.models import Reason
-from deps.tournament_models import TournamentNode
+from deps.tournaments.tournament_models import TournamentNode
 from tests.mock_model import (
     mock_user1,
     mock_user2,
@@ -31,6 +31,7 @@ from tests.mock_model import (
     mock_user7,
     mock_user8,
 )
+from deps.tournaments import tournament_functions
 
 lock = asyncio.Lock()
 
@@ -106,125 +107,129 @@ def test_build_tournament_tree_partial_first_round():
     assert tree.next_game2.next_game2.next_game2 is None
 
 
-def test_can_register_tournament_does_not_exist():
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__, return_value=None)
+def test_can_register_tournament_does_not_exist(mock_fetch_tournament_by_id):
     """Test to check if a user can register for a tournament that does not exist"""
-    with patch("deps.tournament_functions.fetch_tournament_by_id", return_value=None):
-        reason: Reason = can_register_to_tournament(1, 1)
-        assert reason.is_successful is False
-        assert reason.text == "The tournament does not exist."
+    reason: Reason = can_register_to_tournament(1, 1)
+    assert reason.is_successful is False
+    assert reason.text == "The tournament does not exist."
 
 
-@patch("deps.tournament_functions.datetime")
-def test_can_register_tournament_has_started(mock_datetime):
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__)
+def test_can_register_tournament_has_started(mock_tournament, mock_datetime):
     """Test to check if a user can register for a tournament when registration has not started"""
     mock_datetime.now.return_value = t1
     fake_tournament2 = copy.copy(fake_tournament)
     fake_tournament2.has_started = 1
-    with patch(
-        "deps.tournament_functions.fetch_tournament_by_id",
-        return_value=fake_tournament2,
-    ):
-        reason: Reason = can_register_to_tournament(1, 1)
-        assert reason.is_successful is False
-        assert reason.text == "The tournament has already started."
+    mock_tournament.has_started = 1
+
+    reason: Reason = can_register_to_tournament(1, 1)
+    assert reason.is_successful is False
+    assert reason.text == "The tournament has already started."
 
 
-@patch("deps.tournament_functions.datetime")
-def test_can_register_tournament_registration_not_started(mock_datetime):
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__)
+def test_can_register_tournament_registration_not_started(mock_tournament, mock_datetime):
     """Test to check if a user can register for a tournament when registration has not started"""
     mock_datetime.now.return_value = t1
-    with patch(
-        "deps.tournament_functions.fetch_tournament_by_id",
-        return_value=fake_tournament,
-    ):
-        reason: Reason = can_register_to_tournament(1, 1)
-        assert reason.is_successful is False
-        assert reason.text == "Registration is not open yet."
+    fake_tournament2 = copy.copy(fake_tournament)
+    mock_tournament.return_value = fake_tournament2
+
+    reason: Reason = can_register_to_tournament(1, 1)
+    assert reason.is_successful is False
+    assert reason.text == "Registration is not open yet."
 
 
-@patch("deps.tournament_functions.datetime")
-def test_can_register_tournament_registration_closed(mock_datetime):
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__)
+def test_can_register_tournament_registration_closed(mock_tournament, mock_datetime):
     """Test to check if a user can register for a tournament when registration is closed"""
     mock_datetime.now.return_value = t5
-    with patch(
-        "deps.tournament_functions.fetch_tournament_by_id",
-        return_value=fake_tournament,
-    ):
-        reason: Reason = can_register_to_tournament(1, 1)
-        assert reason.is_successful is False
-        assert reason.text == "Registration is closed."
+    fake_tournament2 = copy.copy(fake_tournament)
+    mock_tournament.return_value = fake_tournament2
+    reason: Reason = can_register_to_tournament(1, 1)
+    assert reason.is_successful is False
+    assert reason.text == "Registration is closed."
 
 
-@patch("deps.tournament_functions.datetime")
-def test_can_register_tournament_tournament_full(mock_datetime):
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__)
+@patch.object(tournament_functions, tournament_functions.get_people_registered_for_tournament.__name__)
+def test_can_register_tournament_tournament_full(mock_get_people, mock_tournament, mock_datetime):
     """Test to check if a user can register for a tournament when it is full"""
     mock_datetime.now.return_value = t3
-    with patch(
-        "deps.tournament_functions.fetch_tournament_by_id",
-        return_value=fake_tournament,
-    ):
-        with patch(
-            "deps.tournament_functions.get_people_registered_for_tournament",
-            return_value=[mock_user2, mock_user3, mock_user4, mock_user5],
-        ):
-            reason: Reason = can_register_to_tournament(1, 1)
-            assert reason.is_successful is False
-            assert reason.text == "The tournament is full."
+    fake_tournament2 = copy.copy(fake_tournament)
+    mock_tournament.return_value = fake_tournament2
+    mock_get_people.return_value = [mock_user1, mock_user2, mock_user3, mock_user4, mock_user5]
+    reason: Reason = can_register_to_tournament(1, 1)
+    assert reason.is_successful is False
+    assert reason.text == "The tournament is full."
 
 
-@patch("deps.tournament_functions.datetime")
-def test_can_register_tournament_already_registered(mock_datetime):
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__)
+@patch.object(tournament_functions, tournament_functions.get_people_registered_for_tournament.__name__)
+def test_can_register_tournament_already_registered(mock_get_people, mock_tournament, mock_datetime):
     """Test to check if a user can register for a tournament when they are already registered"""
     mock_datetime.now.return_value = t3
-    with patch(
-        "deps.tournament_functions.fetch_tournament_by_id",
-        return_value=fake_tournament,
-    ):
-        with patch("deps.tournament_functions.get_people_registered_for_tournament", return_value=[mock_user1]):
-            reason: Reason = can_register_to_tournament(1, 1)
-            assert reason.is_successful is False
-            assert reason.text == "You are already registered for the tournament."
+    fake_tournament2 = copy.copy(fake_tournament)
+    mock_tournament.return_value = fake_tournament2
+    mock_get_people.return_value = [mock_user1]
+    reason: Reason = can_register_to_tournament(1, 1)
+    assert reason.is_successful is False
+    assert reason.text == "You are already registered for the tournament."
 
 
-@patch("deps.tournament_functions.datetime")
-def test_can_register_tournament_success(mock_datetime):
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__)
+@patch.object(tournament_functions, tournament_functions.get_people_registered_for_tournament.__name__)
+def test_can_register_tournament_success(mock_get_people, mock_tournament, mock_datetime):
     """Test to check if a user can register for a tournament successfully"""
     mock_datetime.now.return_value = t3
-    with patch(
-        "deps.tournament_functions.fetch_tournament_by_id",
-        return_value=fake_tournament,
-    ):
-        with patch("deps.tournament_functions.get_people_registered_for_tournament", return_value=[]):
-            reason: Reason = can_register_to_tournament(1, 1)
-            assert reason.is_successful is True
-            assert reason.text is None
+    fake_tournament2 = copy.copy(fake_tournament)
+    mock_tournament.return_value = fake_tournament2
+    mock_get_people.return_value = []
+    reason: Reason = can_register_to_tournament(1, 1)
+    assert reason.is_successful is True
+    assert reason.text is None
 
 
-def test_register_for_tournament_only_register_when_can_register():
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.register_user_for_tournament.__name__)
+@patch.object(tournament_functions, tournament_functions.can_register_to_tournament.__name__)
+def test_register_for_tournament_only_register_when_can_register(
+    mock_can_register_to_tournament, mock_register_user_for_tournament, mock_datetime
+):
     """Test to check if a user can register for a tournament when they are already registered"""
-    with patch("deps.tournament_functions.can_register_to_tournament", return_value=Reason(True)):
-        with patch("deps.tournament_functions.register_user_for_tournament") as mock_register:
-            with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
-                mock_tournament_functions_datetime.now.return_value = t2
-                reason: Reason = register_for_tournament(1, 2)
-                mock_register.assert_called()
-                mock_register.assert_called_with(1, 2, t2)
-                assert reason.is_successful is True
+    mock_can_register_to_tournament.return_value = Reason(True)
+    mock_register_user_for_tournament.return_value = None
+    mock_datetime.now.return_value = t2
+
+    reason: Reason = register_for_tournament(1, 2)
+    mock_register_user_for_tournament.assert_called()
+    mock_register_user_for_tournament.assert_called_with(1, 2, t2)
+    assert reason.is_successful is True
 
 
-def test_register_for_tournament_only_register_when_cannot_register():
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_functions.register_user_for_tournament.__name__)
+@patch.object(tournament_functions, tournament_functions.can_register_to_tournament.__name__)
+def test_register_for_tournament_only_register_when_cannot_register(
+    mock_can_register_to_tournament, mock_register_user_for_tournament, mock_datetime
+):
     """Test to check if we return the rason of the can_register and dont call register"""
-    with patch(
-        "deps.tournament_functions.can_register_to_tournament", return_value=Reason(False, "Reason from can_register")
-    ):
-        with patch("deps.tournament_functions.register_user_for_tournament") as mock_register:
-            reason: Reason = register_for_tournament(1, 2)
-            mock_register.assert_not_called()
-            assert reason.is_successful is False
-            assert reason.text == "Reason from can_register"
+    mock_can_register_to_tournament.return_value = Reason(False, "Reason from can_register")
+    mock_register_user_for_tournament.return_value = None
+    mock_datetime.now.return_value = t2
+    reason: Reason = register_for_tournament(1, 2)
+    mock_register_user_for_tournament.assert_not_called()
+    assert reason.is_successful is False
+    assert reason.text == "Reason from can_register"
 
-
-def test_assign_people_to_games_where_one_participant_alone():
+@patch("deps.tournaments.tournament_functions.random.shuffle")
+def test_assign_people_to_games_where_one_participant_alone(mock_shuffle):
     """Test to assign people to games when there are the maximum number of participants"""
     tournament = fake_tournament
     tournament_games = [
@@ -238,28 +243,27 @@ def test_assign_people_to_games_where_one_participant_alone():
     ]
     people = [mock_user1, mock_user2, mock_user3, mock_user4, mock_user5]
 
-    with patch("random.shuffle") as mock_shuffle:
-        mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
-        result: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
-        # Assertions
-        assert len(result) == 5  # Should only include enough leaf nodes for people
-        assert result[0].user1_id == 1
-        assert result[0].user2_id == 2
-        assert result[0].map is not None
-        assert result[1].user1_id == 3
-        assert result[1].user2_id == 4
-        assert result[1].map is not None
-        assert result[2].user1_id == 5
-        assert result[2].user2_id is None
-        assert result[2].map is None
-        assert result[3].user1_id is None
-        assert result[3].user2_id is None
-        assert result[3].map is None
-        # Ensure random.shuffle was called once
-        mock_shuffle.assert_called_once_with(people)
+    mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
+    result: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
+    # Assertions
+    assert len(result) == 5  # Should only include enough leaf nodes for people
+    assert result[0].user1_id == 1
+    assert result[0].user2_id == 2
+    assert result[0].map is not None
+    assert result[1].user1_id == 3
+    assert result[1].user2_id == 4
+    assert result[1].map is not None
+    assert result[2].user1_id == 5
+    assert result[2].user2_id is None
+    assert result[2].map is None
+    assert result[3].user1_id is None
+    assert result[3].user2_id is None
+    assert result[3].map is None
+    # Ensure random.shuffle was called once
+    mock_shuffle.assert_called_once_with(people)
 
-
-def test_assign_people_to_games_when_full_participant():
+@patch("deps.tournaments.tournament_functions.random.shuffle")
+def test_assign_people_to_games_when_full_participant(mock_shuffle):
     """Test to assign people to games when there are the maximum number of participants"""
     tournament = fake_tournament
     tournament_games = [
@@ -273,25 +277,24 @@ def test_assign_people_to_games_when_full_participant():
     ]
     people = [mock_user1, mock_user2, mock_user3, mock_user4, mock_user5, mock_user6, mock_user7, mock_user8]
 
-    with patch("random.shuffle") as mock_shuffle:
-        mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
-        result: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
-        # Assertions
-        assert len(result) == 4  # Should only include enough leaf nodes for people
-        assert result[0].user1_id == 1
-        assert result[0].user2_id == 2
-        assert result[0].map is not None
-        assert result[1].user1_id == 3
-        assert result[1].user2_id == 4
-        assert result[1].map is not None
-        assert result[2].user1_id == 5
-        assert result[2].user2_id == 6
-        assert result[2].map is not None
-        assert result[3].user1_id == 7
-        assert result[3].user2_id == 8
-        assert result[3].map is not None
-        # Ensure random.shuffle was called once
-        mock_shuffle.assert_called_once_with(people)
+    mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
+    result: List[TournamentNode] = assign_people_to_games(tournament, tournament_games, people)
+    # Assertions
+    assert len(result) == 4  # Should only include enough leaf nodes for people
+    assert result[0].user1_id == 1
+    assert result[0].user2_id == 2
+    assert result[0].map is not None
+    assert result[1].user1_id == 3
+    assert result[1].user2_id == 4
+    assert result[1].map is not None
+    assert result[2].user1_id == 5
+    assert result[2].user2_id == 6
+    assert result[2].map is not None
+    assert result[3].user1_id == 7
+    assert result[3].user2_id == 8
+    assert result[3].map is not None
+    # Ensure random.shuffle was called once
+    mock_shuffle.assert_called_once_with(people)
 
 
 def test_resize_tournament_already_full_no_resize():

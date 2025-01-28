@@ -9,7 +9,7 @@ from deps.bet.bet_data_access import delete_all_bet_tables, data_access_fetch_be
 from deps.bet.bet_functions import (
     system_generate_game_odd,
 )
-from deps.tournament_data_class import TournamentGame
+from deps.tournaments.tournament_data_class import TournamentGame
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.bet import bet_functions
 

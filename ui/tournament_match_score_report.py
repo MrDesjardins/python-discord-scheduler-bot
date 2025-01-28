@@ -5,16 +5,16 @@ import discord
 from discord.ui import Select, View
 from deps.bet.bet_functions import generate_msg_bet_leaderboard
 from deps.data_access import data_access_get_member
-from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_functions import (
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_functions import (
     build_tournament_tree,
     get_tournament_final_result_positions,
     report_lost_tournament,
 )
 from deps.log import print_error_log
-from deps.tournament_models import TournamentNode
-from deps.tournament_discord_actions import generate_bracket_file
-from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
+from deps.tournaments.tournament_models import TournamentNode
+from deps.tournaments.tournament_discord_actions import generate_bracket_file
+from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
 
 
 class TournamentMatchScoreReport(View):

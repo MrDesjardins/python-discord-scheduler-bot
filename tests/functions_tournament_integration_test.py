@@ -6,21 +6,21 @@ import pytest
 from datetime import datetime, timezone
 from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_id
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
-from deps.tournament_data_access import (
+from deps.tournaments.tournament_data_access import (
     data_access_insert_tournament,
     delete_all_tournament_tables,
     fetch_tournament_games_by_tournament_id,
     fetch_tournament_open_registration,
 )
-from deps.tournament_functions import (
+from deps.tournaments.tournament_functions import (
     build_tournament_tree,
     register_for_tournament,
     report_lost_tournament,
     fetch_tournament_by_id,
     start_tournament,
 )
-from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_visualizer import plot_tournament_bracket
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_visualizer import plot_tournament_bracket
 from tests.mock_model import mock_user1, mock_user2, mock_user3, mock_user4, mock_user5, mock_user6
 
 CHANNEL1_ID = 100
@@ -69,7 +69,7 @@ async def test_full_registration_tournament():
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
         assert register_result.is_successful is True
@@ -88,7 +88,7 @@ async def test_full_registration_tournament():
     node1_user2 = tournament_tree.next_game1.user2_id  # Will win, then lose
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
     node2_user2 = tournament_tree.next_game2.user2_id  # Will win
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user1, "7-5")
         assert report_result.is_successful is True, report_result.text
@@ -119,7 +119,7 @@ async def test_partial_one_registration_tournament():
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
         assert register_result.is_successful is True
@@ -136,7 +136,7 @@ async def test_partial_one_registration_tournament():
     node1_user1 = tournament_tree.next_game1.user1_id  # Will lose
     node1_user2 = tournament_tree.next_game1.user2_id  # Will win, then lose
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user1, "7-5")
         assert report_result.is_successful is True, report_result.text
@@ -165,7 +165,7 @@ async def test_very_small_participation_reduce_tournament_size():
         16,  # Very large, 16 places but only 4 registrations
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
         assert register_result.is_successful is True
@@ -185,7 +185,7 @@ async def test_very_small_participation_reduce_tournament_size():
     node1_user2 = tournament_tree.next_game1.user2_id  # Will win, then lose
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
     node2_user2 = tournament_tree.next_game2.user2_id  # Will lose
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user1, "7-5")
         assert report_result.is_successful is True
@@ -214,7 +214,7 @@ async def test_partial_registration_tournament_report_not_in_tournament():
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
         assert register_result.is_successful is True
@@ -230,7 +230,7 @@ async def test_partial_registration_tournament_report_not_in_tournament():
     tournament: Tournament = fetch_tournament_by_id(tournament_id)
     await start_tournament(tournament)
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, 1111111111222222, "7-5")
         assert report_result.is_successful is False
@@ -251,7 +251,7 @@ async def test_reporting_if_already_lost():
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
         assert register_result.is_successful is True
@@ -271,7 +271,7 @@ async def test_reporting_if_already_lost():
     tournament_tree = build_tournament_tree(tournament_games)
     node1_user2 = tournament_tree.next_game1.next_game1.user2_id
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user2, "7-5")
         assert report_result.is_successful is True, report_result.text
@@ -296,7 +296,7 @@ async def test_partial_registration_tournament_two_level_lost():
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
         assert register_result.is_successful is True
@@ -320,7 +320,7 @@ async def test_partial_registration_tournament_two_level_lost():
     node2_user2 = tournament_tree.next_game1.next_game2.user2_id
     node3_user1 = tournament_tree.next_game2.next_game1.user1_id
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user2, "7-5")
         assert report_result.is_successful is True
@@ -371,7 +371,7 @@ async def test_daily_registration_message_no_tournament_available():
         2,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
-    with patch("deps.tournament_data_access.datetime") as mock_datetime:
+    with patch("deps.tournaments.tournament_data_access.datetime") as mock_datetime:
         mock_datetime.now.return_value = before_all_registration
         list_tournaments = fetch_tournament_open_registration(GUILD_ID)
         assert len(list_tournaments) == 0
@@ -409,7 +409,7 @@ async def test_daily_registration_message_tournament_available():
         2,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
-    with patch("deps.tournament_data_access.datetime") as mock_datetime:
+    with patch("deps.tournaments.tournament_data_access.datetime") as mock_datetime:
         mock_datetime.now.return_value = register_date_start
         list_tournaments = fetch_tournament_open_registration(GUILD_ID)
         assert len(list_tournaments) == 1
@@ -433,8 +433,8 @@ async def test_daily_registration_message_tournament_available_but_no_space():
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
 
-    with patch("deps.tournament_data_access.datetime") as mock_datetime:
-        with patch("deps.tournament_functions.datetime") as mock_datetime2:
+    with patch("deps.tournaments.tournament_data_access.datetime") as mock_datetime:
+        with patch("deps.tournaments.tournament_functions.datetime") as mock_datetime2:
             mock_datetime.now.return_value = register_date_start
             mock_datetime2.now.return_value = register_date_start
 
@@ -472,7 +472,7 @@ async def test_full_tournament():
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
     )
 
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
         register_result = register_for_tournament(tournament_id, USER1_ID)
         assert register_result.is_successful is True, register_result.text
@@ -502,8 +502,8 @@ async def test_full_tournament():
     u4 = tournament_tree.next_game1.next_game2.user2_id
     u5 = tournament_tree.next_game2.next_game1.user1_id
     u6 = tournament_tree.next_game2.next_game1.user2_id
-    with patch("deps.tournament_functions.datetime") as mock_tournament_functions_datetime:
-        with patch("deps.tournament_visualizer.fetch_user_info") as mock_fetch_user_info:
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
+        with patch("deps.tournaments.tournament_visualizer.fetch_user_info") as mock_fetch_user_info:
             mock_tournament_functions_datetime.now.return_value = date_start
             mock_fetch_user_info.return_value = {
                 1: mock_user1,

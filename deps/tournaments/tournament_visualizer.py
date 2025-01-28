@@ -5,10 +5,10 @@ import os
 from typing import Optional
 from PIL import Image, ImageDraw, ImageFont
 from deps.analytic_data_access import fetch_user_info
-from deps.tournament_models import TournamentNode
-from deps.tournament_data_class import Tournament
+from deps.tournaments.tournament_models import TournamentNode
+from deps.tournaments.tournament_data_class import Tournament
 from deps.values import COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT
-from deps.tournament_functions import get_node_by_levels
+from deps.tournaments.tournament_functions import get_node_by_levels
 
 font_path = os.path.abspath("./fonts/Minecraft.ttf")
 font1 = ImageFont.truetype(font_path, 16)

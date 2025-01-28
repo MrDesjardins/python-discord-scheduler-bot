@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 import pytz
 from deps.mybot import MyBot
 from deps.log import print_log
-from deps.tournament_discord_actions import (
+from deps.tournaments.tournament_discord_actions import (
     send_tournament_match_reminder,
     send_tournament_registration_to_a_guild,
     send_tournament_starting_to_a_guild,

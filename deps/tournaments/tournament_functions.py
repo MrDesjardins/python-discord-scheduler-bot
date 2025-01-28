@@ -6,9 +6,9 @@ import random
 from typing import Dict, List, Optional
 from deps.bet.bet_functions import distribute_gain_on_recent_ended_game, system_generate_game_odd
 from deps.data_access_data_class import UserInfo
-from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_models import TournamentNode, TournamentResult
-from deps.tournament_data_access import (
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_models import TournamentNode, TournamentResult
+from deps.tournaments.tournament_data_access import (
     data_access_create_bracket,
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,

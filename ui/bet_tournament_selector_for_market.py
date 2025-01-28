@@ -9,9 +9,9 @@ from deps.data_access_data_class import UserInfo
 from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_id
 from deps.bet.bet_functions import get_bet_user_wallet_for_tournament, place_bet_for_game
 from deps.bet.bet_data_class import BetGame, BetUserTournament
-from deps.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.log import print_error_log, print_warning_log
-from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
+from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
 
 
 class BetTournamentSelectorForMarket(View):

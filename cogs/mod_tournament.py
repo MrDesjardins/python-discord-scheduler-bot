@@ -3,7 +3,7 @@ from typing import List
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.tournament_data_access import (
+from deps.tournaments.tournament_data_access import (
     data_access_insert_tournament,
     fetch_tournament_active_to_interact_for_user,
     fetch_tournament_by_id,
@@ -21,10 +21,10 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_warning_log
-from deps.tournament_models import BestOf, TournamentSize
-from deps.tournament_values import TOURNAMENT_MAPS
-from deps.tournament_data_class import Tournament
-from deps.tournament_functions import clean_maps_input, start_tournament
+from deps.tournaments.tournament_models import BestOf, TournamentSize
+from deps.tournaments.tournament_values import TOURNAMENT_MAPS
+from deps.tournaments.tournament_data_class import Tournament
+from deps.tournaments.tournament_functions import clean_maps_input, start_tournament
 from ui.tournament_match_score_report import TournamentMatchScoreReport
 
 

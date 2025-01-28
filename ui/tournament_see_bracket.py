@@ -3,8 +3,8 @@
 from typing import List
 import discord
 from discord.ui import View
-from deps.tournament_data_class import Tournament
-from deps.tournament_discord_actions import generate_bracket_file
+from deps.tournaments.tournament_data_class import Tournament
+from deps.tournaments.tournament_discord_actions import generate_bracket_file
 
 
 class TournamentSeeBracket(View):

@@ -9,9 +9,9 @@ from deps.bet.bet_data_access import (
     data_access_fetch_bet_user_game_by_tournament_id,
 )
 from deps.bet.bet_data_class import BetGame, BetUserGame
-from deps.tournament_data_class import Tournament
+from deps.tournaments.tournament_data_class import Tournament
 from deps.values import COMMAND_BET
-from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
+from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
 
 
 class BetTournamentSelectorForActiveMarket(View):

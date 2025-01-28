@@ -11,23 +11,23 @@ from deps.data_access import (
     data_access_get_guild_tournament_text_channel_id,
     data_access_get_member,
 )
-from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_functions import build_tournament_tree, start_tournament
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_functions import build_tournament_tree, start_tournament
 from deps.log import print_error_log, print_log
-from deps.tournament_data_access import (
+from deps.tournaments.tournament_data_access import (
     fetch_active_tournament_by_guild,
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     fetch_tournament_open_registration,
     fetch_tournament_start_today,
 )
-from deps.tournament_visualizer import plot_tournament_bracket
+from deps.tournaments.tournament_visualizer import plot_tournament_bracket
 from deps.values import (
     COMMAND_TOURNAMENT_REGISTER_TOURNAMENT,
     COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT,
     COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT,
 )
-from deps.tournament_models import TournamentNode
+from deps.tournaments.tournament_models import TournamentNode
 
 
 def generate_bracket_file(tournament_id: int, file_name: str = "tournament_bracket.png") -> Optional[discord.File]:

@@ -17,16 +17,16 @@ from deps.bet.bet_data_access import (
     data_access_get_bet_user_game_ready_for_distribution,
 )
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
-from deps.tournament_data_access import (
+from deps.tournaments.tournament_data_access import (
     data_access_insert_tournament,
     delete_all_tournament_tables,
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     register_user_for_tournament,
 )
-from deps.tournament_functions import report_lost_tournament, start_tournament
+from deps.tournaments.tournament_functions import report_lost_tournament, start_tournament
 from deps.bet import bet_functions
-from deps.tournament_data_class import Tournament
+from deps.tournaments.tournament_data_class import Tournament
 
 
 @pytest.fixture(autouse=True)

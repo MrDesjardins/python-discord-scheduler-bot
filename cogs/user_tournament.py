@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from deps.tournament_data_access import (
+from deps.tournaments.tournament_data_access import (
     fetch_tournament_not_completed_for_user,
     fetch_tournament_active_to_interact_for_user,
     fetch_tournament_by_guild_user_can_register,
@@ -16,7 +16,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_warning_log
-from deps.tournament_data_class import Tournament
+from deps.tournaments.tournament_data_class import Tournament
 from ui.tournament_match_score_report import TournamentMatchScoreReport
 from ui.tournament_registration import TournamentRegistration
 from ui.tournament_see_bracket import TournamentSeeBracket

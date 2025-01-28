@@ -4,7 +4,7 @@ from typing import List
 import discord
 from discord.ui import View
 from deps.bet.bet_functions import generate_msg_bet_leaderboard
-from deps.tournament_data_class import Tournament
+from deps.tournaments.tournament_data_class import Tournament
 from deps.values import COMMAND_BET
 
 

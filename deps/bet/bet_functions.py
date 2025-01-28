@@ -21,8 +21,8 @@ from deps.bet.bet_data_access import (
     data_access_insert_bet_ledger_entry,
 )
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
-from deps.tournament_data_class import Tournament, TournamentGame
-from deps.tournament_data_access import fetch_tournament_games_by_tournament_id
+from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.log import print_error_log
