@@ -648,7 +648,11 @@ async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWi
         # Save the matches in the database
         user_info = user_and_matches.user_request_stats.user_info
         match_stats = user_and_matches.match_stats
-        insert_if_nonexistant_full_match_info(user_info, match_stats)
+        try:
+            insert_if_nonexistant_full_match_info(user_info, match_stats)
+        except Exception as e:
+            print_error_log(f"post_persist_siege_matches_cross_guilds: Error saving the match info: {e}")
+            continue
 
         # Add r6 tracker UUID to the user profile table if available
         if user_info.r6_tracker_active_id is None and len(match_stats) > 0:

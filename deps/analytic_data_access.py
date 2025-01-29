@@ -3,6 +3,7 @@ Module to gather user activity data and calculate the time spent together
 """
 
 import datetime
+import json
 from typing import Dict, List, Optional, Union
 from deps.analytic_models import UserOperatorCount
 from deps.data_access_data_class import UserInfo, UserActivity
@@ -396,7 +397,7 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     conditions = " OR ".join(["(match_uuid = ? AND user_id = ?)" for _ in match_user_pairs])
 
     if not conditions.strip():  # Ensure conditions exist
-        print_log("insert_if_nonexistant_full_match_info: No pair to insert, leaving the function early")
+        print_log("insert_if_nonexistant_full_match_info: No user-match pair to insert, leaving the function early")
         return
 
     query = f"""
@@ -417,12 +418,14 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     existing_set = set(existing_records)
     filtered_data = [obj for obj in list_matches if (obj.match_uuid, obj.user_id) not in existing_set]
     print_log(
-        f"insert_if_nonexistant_full_match_info: Found {len(filtered_data)} new matches to insert out of {len(list_matches)}"
+        f"insert_if_nonexistant_full_match_info: Found {len(filtered_data)} new matches to insert out of {len(list_matches)} for {user_info.display_name}"
     )
     # Try to insert the match that are not yet in the database
     # Todo: Batch insert
+    last_match = {}
     try:
         for match in filtered_data:
+            last_match = match
             database_manager.get_cursor().execute(
                 """
             INSERT INTO user_full_match_info (
@@ -590,7 +593,8 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
             )
         database_manager.get_conn().commit()
     except Exception as e:
-        print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}")
+        stringify_match = json.dumps(last_match, indent=4)
+        print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}\n{stringify_match}")
         raise e
 
 
