@@ -763,7 +763,7 @@ async def test_generate_msg_bet_leaderboard_no_users(mock_get_all_wallet) -> Non
     """
     # Arrange
     mock_get_all_wallet.return_value = []
-    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
     # Act
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
@@ -783,7 +783,7 @@ async def test_generate_msg_bet_leaderboard_users(mock_fetch_user, mock_get_all_
         BetUserTournament(3, 2, 300, 30.99),
     ]
     mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
-    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False,0)
     # Act
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
@@ -815,7 +815,7 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_winning_bet(
     that there is a single bet on a game that just ended
     """
     # Arrange
-    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False,False, 0)
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
     ]
@@ -862,7 +862,7 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_losing_bet(
     and close the game bet + user bet
     """
     # Arrange
-    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, 0)
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False,False, 0)
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
     ]

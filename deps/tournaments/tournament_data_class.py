@@ -20,6 +20,7 @@ class Tournament:
     max_players: int
     maps: str
     has_started: bool
+    has_finished: bool
     registered_user_count: int = 0  # Default value
 
     @staticmethod
@@ -36,7 +37,8 @@ class Tournament:
             max_players=row[7],
             maps=row[8],
             has_started=bool(row[9]),  # Convert integer to boolean
-            registered_user_count=row[10],
+            has_finished=bool(row[10]),  # Convert integer to boolean
+            registered_user_count=row[11],
         )
 
 

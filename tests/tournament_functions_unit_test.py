@@ -42,7 +42,7 @@ t4 = datetime(2024, 11, 26, 12, 30, 0, tzinfo=timezone.utc)
 t5 = datetime(2024, 11, 27, 12, 30, 0, tzinfo=timezone.utc)
 t6 = datetime(2024, 11, 28, 12, 30, 0, tzinfo=timezone.utc)
 
-fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3", False)
+fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3", False, False, 0)
 
 
 def test_build_tournament_tree_full_first_round():
@@ -228,6 +228,7 @@ def test_register_for_tournament_only_register_when_cannot_register(
     assert reason.is_successful is False
     assert reason.text == "Reason from can_register"
 
+
 @patch("deps.tournaments.tournament_functions.random.shuffle")
 def test_assign_people_to_games_where_one_participant_alone(mock_shuffle):
     """Test to assign people to games when there are the maximum number of participants"""
@@ -261,6 +262,7 @@ def test_assign_people_to_games_where_one_participant_alone(mock_shuffle):
     assert result[3].map is None
     # Ensure random.shuffle was called once
     mock_shuffle.assert_called_once_with(people)
+
 
 @patch("deps.tournaments.tournament_functions.random.shuffle")
 def test_assign_people_to_games_when_full_participant(mock_shuffle):
