@@ -10,3 +10,12 @@ class UserInfoWithCount:
 
     user: UserInfo
     count: int
+
+
+@dataclass
+class UserOperatorCount:
+    """User info about the operator with a count"""
+
+    user: str  # Display name
+    operator_name: str
+    count: int

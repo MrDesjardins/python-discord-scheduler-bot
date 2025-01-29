@@ -6,6 +6,7 @@ from deps.bot_common_actions import (
     persist_siege_matches_cross_guilds,
     post_queued_user_stats,
     send_daily_question_to_a_guild,
+    send_daily_stats_to_a_guild,
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
@@ -14,6 +15,7 @@ local_tz = pytz.timezone("America/Los_Angeles")
 utc_tz = pytz.timezone("UTC")
 time_send_daily_message = time(hour=7, minute=0, second=0, tzinfo=local_tz)
 time_fetch_matches = time(hour=23, minute=30, second=0, tzinfo=local_tz)
+time_send_daily_stats = time(hour=10, minute=35, second=0, tzinfo=local_tz)
 
 
 class MyTasksCog(commands.Cog):
@@ -30,6 +32,7 @@ class MyTasksCog(commands.Cog):
         self.send_queue_user_stats.start()  # Start the task when the cog is loaded
         self.send_daily_question_to_all_guild_task.start()  # Start the task when the cog is loaded
         self.daily_saving_active_user_match_stats_task.start()  # Start the task when the cog is loaded
+        self.send_daily_stats_to_all_guild_task.start()  # Start the task when the cog is loaded
 
     @tasks.loop(minutes=16)
     async def check_voice_channel_task(self):
@@ -73,6 +76,15 @@ class MyTasksCog(commands.Cog):
         end_time = now_utc
         await persist_siege_matches_cross_guilds(begin_time, end_time)
 
+    @tasks.loop(time=time_send_daily_stats)
+    async def send_daily_stats_to_all_guild_task(self):
+        """
+        Send only once every day the question for each guild who has the bot
+        """
+        print_log(f"Sending daily stats message, current time {datetime.now()}")
+        for guild in self.bot.guilds:
+            await send_daily_stats_to_a_guild(self.bot, guild)
+
     ### ============================ BEFORE LOOP ============================ ###
 
     @check_voice_channel_task.before_loop
@@ -91,6 +103,12 @@ class MyTasksCog(commands.Cog):
     async def before_daily_saving_active_user_match_stats_task(self):
         """Wait for the download matches task for the bot ready"""
         print_log("MyTasksCog>daily_saving_active_user_match_stats_task: Waiting for bot to be ready...")
+        await self.bot.wait_until_ready()   
+    
+    @send_daily_stats_to_all_guild_task.before_loop
+    async def before_send_daily_stats_to_all_guild_task(self):
+        """Wait for the download matches task for the bot ready"""
+        print_log("MyTasksCog>send_daily_stats_to_all_guild_task: Waiting for bot to be ready...")
         await self.bot.wait_until_ready()
 
     ### ============================ UNLOAD COG ============================ ###
@@ -99,6 +117,7 @@ class MyTasksCog(commands.Cog):
         self.send_queue_user_stats.cancel()
         self.send_daily_question_to_all_guild_task.cancel()
         self.daily_saving_active_user_match_stats_task.cancel()
+        self.send_daily_stats_to_all_guild_task.cancel()
 
 
 async def setup(bot):

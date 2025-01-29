@@ -19,7 +19,7 @@ from
   left join user_info on user_info.id = user_full_match_info.user_id
 where
   tk_count > 0
-  and datetime (match_timestamp) > datetime ('2025-01-20')
+  and datetime (match_timestamp) > datetime ('2025-01-01')
 group by
   user_id
 order by

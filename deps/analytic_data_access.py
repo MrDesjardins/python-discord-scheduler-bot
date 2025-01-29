@@ -4,6 +4,7 @@ Module to gather user activity data and calculate the time spent together
 
 import datetime
 from typing import Dict, List, Optional, Union
+from deps.analytic_models import UserOperatorCount
 from deps.data_access_data_class import UserInfo, UserActivity
 from deps.system_database import database_manager
 from deps.analytic_functions import compute_users_weights
@@ -606,7 +607,6 @@ def data_access_fetch_user_full_match_info(
         ORDER BY match_timestamp DESC
         LIMIT :page_size OFFSET :offset
         """
-    print(query)
     result = (
         database_manager.get_cursor().execute(
             query,
@@ -615,3 +615,273 @@ def data_access_fetch_user_full_match_info(
     ).fetchall()
     # Convert the result to a list of Stats
     return [UserFullMatchStats.from_db_row(row) for row in result]
+
+
+def data_access_fetch_tk_count_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+    """
+    Fetch the TK count for each user
+    """
+    query = """
+        SELECT
+            user_full_match_info.user_id,
+            user_info.display_name,
+            count(user_full_match_info.id) as count_tk
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info 
+            ON user_info.id = user_full_match_info.user_id
+        WHERE
+            user_full_match_info.tk_count > 0
+            AND user_full_match_info.match_timestamp >= :from_data
+        GROUP BY user_id
+        ORDER BY count_tk DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    # Convert the result to a dictionary of user_id -> tk_count
+    return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_rollback_count_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+    """
+    Fetch the rollback count for each user
+    """
+    query = """
+        SELECT
+            user_full_match_info.user_id,
+            user_info.display_name,
+            count(user_full_match_info.id) as count_rollbacks
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info 
+            ON user_info.id = user_full_match_info.user_id
+        WHERE
+            user_full_match_info.is_rollback = true
+            AND user_full_match_info.match_timestamp >= :from_data
+        GROUP BY user_id
+        ORDER BY count_rollbacks DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    # Convert the result to a dictionary of user_id -> tk_count
+    return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_avg_kill_match(from_data: datetime) -> list[tuple[int, str, int]]:
+    """
+    Fetch the average kill for each user
+    """
+    query = """
+    SELECT
+        user_id,
+        display_name,
+        avg_kill
+    FROM
+    (
+        SELECT
+            user_full_match_info.user_id,
+            user_info.display_name,
+            sum(user_full_match_info.kill_count) as sum_kill,
+            count(user_full_match_info.id) as count_match,
+            sum(user_full_match_info.kill_count) * 1.0 / count(user_full_match_info.id) as avg_kill
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
+        WHERE
+            is_rollback = false
+            and datetime (match_timestamp) > datetime ('2025-01-21')
+        GROUP BY
+            user_id
+    )
+    ORDER BY
+        avg_kill desc;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    # Convert the result to a dictionary of user_id -> tk_count
+    return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_match_played_count_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+    """
+    Fetch the match count for each user
+    """
+    query = """
+        SELECT
+            user_full_match_info.user_id,
+            user_info.display_name,
+            count(user_full_match_info.id) as count_match
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info 
+            ON user_info.id = user_full_match_info.user_id
+        WHERE
+            user_full_match_info.is_rollback = false
+            AND user_full_match_info.match_timestamp >= :from_data
+        GROUP BY user_id
+        ORDER BY count_match DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    # Convert the result to a dictionary of user_id -> tk_count
+    return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_most_voice_time_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+    """
+    Fetch the match count for each user
+    """
+    query = """
+        SELECT
+            user_full_match_info.user_id,
+            user_info.display_name,
+            count(user_full_match_info.id) as count_match
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info 
+            ON user_info.id = user_full_match_info.user_id
+        WHERE
+            user_full_match_info.is_rollback = false
+            AND user_full_match_info.match_timestamp >= :from_data
+        GROUP BY user_id
+        ORDER BY count_match DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    # Convert the result to a dictionary of user_id -> tk_count
+    return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_users_operators(from_data: datetime) -> list[UserOperatorCount]:
+    """
+    Get a list of user with operator and the count
+    """
+    query = """
+        WITH RECURSIVE
+        split_operators AS (
+            -- Base case: Split the first operator from the string
+            SELECT
+            user_full_match_info.user_id,
+            user_info.display_name,
+            TRIM(
+                SUBSTR (
+                user_full_match_info.operators,
+                0,
+                INSTR (user_full_match_info.operators || ',', ',')
+                )
+            ) AS operator,
+            SUBSTR (
+                user_full_match_info.operators,
+                INSTR (user_full_match_info.operators || ',', ',') + 1
+            ) AS remaining_operators
+            FROM
+            user_full_match_info
+            LEFT JOIN user_info ON user_info.id = user_full_match_info.user_id
+            WHERE
+            match_timestamp >= :from_data
+            UNION ALL
+            -- Recursive case: Split the next operator from the remaining string
+            SELECT
+            user_id,
+            display_name,
+            TRIM(
+                SUBSTR (
+                remaining_operators,
+                0,
+                INSTR (remaining_operators || ',', ',')
+                )
+            ) AS operator,
+            SUBSTR (
+                remaining_operators,
+                INSTR (remaining_operators || ',', ',') + 1
+            ) AS remaining_operators
+            FROM
+            split_operators
+            WHERE
+            remaining_operators <> ''
+        ),
+        operator_counts AS (
+            -- Aggregate the results to count occurrences of each operator
+            SELECT
+            display_name,
+            operator,
+            COUNT(*) AS operator_count
+            FROM
+            split_operators
+            WHERE
+            operator <> ''
+            GROUP BY
+            display_name,
+            operator
+        ),
+        ranked_operators AS (
+            -- Add a row number to rank operators for each person by count
+            SELECT
+            display_name,
+            operator,
+            operator_count,
+            ROW_NUMBER() OVER (
+                PARTITION BY
+                display_name
+                ORDER BY
+                operator_count DESC,
+                operator ASC
+            ) AS rank
+            FROM
+            operator_counts
+        )
+        -- Select only the top 8 operators for each person
+        SELECT
+        display_name,
+        operator,
+        operator_count
+        FROM
+        ranked_operators
+        WHERE
+        rank <= :top
+        ORDER BY
+        display_name ASC,
+        rank ASC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+                "top": 10,
+            },
+        )
+    ).fetchall()
+
+    # Convert to UserOperatorCount
+    return [UserOperatorCount(user=row[0], operator_name=row[1], count=row[2]) for row in result]

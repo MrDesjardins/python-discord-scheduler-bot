@@ -318,6 +318,14 @@ python3 -m pip install -r requirements.txt
 python3 -m pip freeze > requirements.txt
 ```
 
+## SQLite3
+
+Add in your `~/.zshrc` or `~/.bashrc` the following line to have the SQLite3 headers and columns configuration from the root .sqliterc file.
+
+```sh
+alias sqlite3="sqlite3 --init .sqliterc"
+```
+
 # Installation on a Raspberry Pi
 
 1. Update the sources list for apt packages (required in some Raspberry Pi to get Python3) by editing `/etc/apt/sources.list`

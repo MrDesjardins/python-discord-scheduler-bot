@@ -25,6 +25,7 @@ from deps.analytic_functions import (
     users_by_weekday,
 )
 from deps.analytic_data_access import (
+    data_access_fetch_users_operators,
     fetch_all_user_activities,
     fetch_user_activities,
     fetch_user_info,
@@ -204,7 +205,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     return _plot_return(plt, show)
 
 
-def _plot_return(plot: plt, show: bool = True):
+def _plot_return(plot: plt, show: bool = True) -> bytes:
     """
     Return an image or the bytes of the iamge
     """
@@ -697,4 +698,64 @@ def display_user_line_graph_time(user_id: int, show: bool = True, from_day: int 
 
     plt.grid(True)
     plt.tight_layout()
+    return _plot_return(plt, show)
+
+
+def display_user_top_operators(
+    from_date: datetime,
+    show: bool = True,
+) -> bytes:
+    """
+    Generate a matrix heatmap of the top operators used by each user
+    """
+    users_operators_count = data_access_fetch_users_operators(from_date)
+    # Extract unique users and operators
+    users = sorted({item.user for item in users_operators_count})
+    operators = sorted({item.operator_name for item in users_operators_count})
+
+    # Create a mapping for indexing
+    user_index = {name: i for i, name in enumerate(users)}
+    operator_index = {name: i for i, name in enumerate(operators)}
+
+    # Create a matrix for counts
+    matrix = np.zeros((len(operators), len(users)))
+
+    # Populate the matrix
+    for item in users_operators_count:
+        row = operator_index[item.operator_name]
+        col = user_index[item.user]
+        matrix[row, col] = item.count
+
+    # Plot the heatmap
+    fig, ax = plt.subplots(figsize=(12, 8))
+    cax = ax.imshow(matrix, cmap="Blues", aspect="auto")
+
+    # Set axis labels
+    ax.set_xticks(np.arange(len(users)))
+    ax.set_yticks(np.arange(len(operators)))
+    ax.set_xticklabels(users, rotation=45, ha="right")
+    ax.set_yticklabels(operators)
+
+    # Display values on heatmap
+    for i in range(len(operators)):
+        for j in range(len(users)):
+            if matrix[i, j] > 0:  # Only display nonzero values
+                ax.text(
+                    j,
+                    i,
+                    int(matrix[i, j]),
+                    ha="center",
+                    va="center",
+                    fontsize=12,
+                    color="black" if matrix[i, j] < matrix.max() / 2 else "white",
+                )
+
+    # Colorbar
+    cbar = fig.colorbar(cax)
+    cbar.ax.tick_params(labelsize=12)
+
+    ax.set_xlabel("Users", fontsize=14)
+    ax.set_ylabel("Operators", fontsize=14)
+    fig.suptitle("Top User-Operator Count Heatmap", fontsize=16)
+    ax.set_title(f"Since {from_date.strftime('%Y-%m-%d')} to Now", fontsize=14)
     return _plot_return(plt, show)

@@ -1,13 +1,22 @@
 """ Common Actions that the bots Cogs or Bots can invoke """
 
+import io
 import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional, Union
 from gtts import gTTS
 import discord
+from deps.analytic_visualizer import display_user_top_operators
+from deps.analytic_functions import compute_users_voice_channel_time_sec, computer_users_voice_in_out
 from deps.browser import download_full_matches_async
 from deps.analytic_data_access import (
+    data_access_fetch_avg_kill_match,
+    data_access_fetch_match_played_count_by_user,
+    data_access_fetch_rollback_count_by_user,
+    data_access_fetch_tk_count_by_user,
     data_access_set_r6_tracker_id,
+    fetch_all_user_activities,
+    fetch_user_info,
     fetch_user_info_by_user_id,
     get_active_user_info,
     insert_if_nonexistant_full_match_info,
@@ -41,6 +50,7 @@ from deps.date_utils import is_today
 from deps.mybot import MyBot
 from deps.models import (
     ActivityTransition,
+    DayOfWeek,
     SimpleUser,
     SimpleUserHour,
     UserMatchInfoSessionAggregate,
@@ -606,8 +616,10 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
         already_playing = aggregation.playing_rank + aggregation.playing_standard
         if ready_to_play > 0 and ready_to_play > already_playing:
             list_users = get_list_users_with_rank(bot, vc_channel.members, guild_id)
-            print_log(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
-            await channel.send(f"🎮 ${list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
+            print_log(f"🎮 {list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
+            await channel.send(
+                f"🎮 {list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>"
+            )
             data_access_set_last_bot_message_in_main_text_channel(guild_id, voice_channel_id, current_time)
     except Exception as e:
         print_error_log(f"send_automatic_lfg_message: Error sending the message: {e}")
@@ -643,3 +655,76 @@ async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWi
             # Update user with the R6 tracker if if it wasn't available before
             r6_id = match_stats[0].r6_tracker_user_uuid
             data_access_set_r6_tracker_id(user_info.id, r6_id)
+
+
+def build_msg_stats(stats_name: str, info_time_str: str, stats_tuple: list[tuple[int, str, int]]) -> str:
+    """Build a message that can be resused between the stats msg"""
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top 10 {stats_name} {info_time_str}\n```"
+    stats_tuple = stats_tuple[:10]
+    rank = 0
+    previous_tk = -1
+    for tk in stats_tuple:
+        if previous_tk != tk[2]:
+            rank += 1
+            previous_tk = tk[2]
+        msg += f"\n{rank}) {tk[1]} - {tk[2]}"
+    msg += "```"
+    return msg
+
+
+async def send_daily_stats_to_a_guild(bot: MyBot, guild: discord.Guild):
+    """
+    Send the daily schedule stats to a specific guild
+    """
+    guild_id = guild.id
+    DAY = 7
+    channel_id = await data_access_get_main_text_channel_id(guild.id)
+    if channel_id is None:
+        print_error_log(f"\t⚠️ Channel id (main text) not found for guild {guild.name}. Skipping.")
+        return
+    today = date.today()
+    first_day_current_year = datetime(today.year, 1, 1, tzinfo=timezone.utc)
+    last_7_days = today - timedelta(days=DAY)
+    weekday = today.weekday()  # 0 is Monday, 6 is Sunday
+    if weekday == DayOfWeek.SUNDAY:
+        stats = data_access_fetch_tk_count_by_user(first_day_current_year)
+        msg = build_msg_stats("TK", f"since the beginning of {today.year}", stats)
+    elif weekday == DayOfWeek.THURSDAY:
+        stats = data_access_fetch_avg_kill_match(last_7_days)
+        stats = [(tk[0], tk[1], round(tk[2], 2)) for tk in stats]
+        msg = build_msg_stats("average kills/match ", f"in the last {DAY} days", stats)
+    elif weekday == DayOfWeek.WEDNESDAY:
+        stats = data_access_fetch_rollback_count_by_user(last_7_days)
+        msg = build_msg_stats("rollbacks", f"in the last {DAY} days", stats)
+    elif weekday == DayOfWeek.MONDAY:
+        stats = data_access_fetch_match_played_count_by_user(last_7_days)
+        msg = build_msg_stats("rank matches", f"in the last {DAY} days", stats)
+    elif weekday == DayOfWeek.SATURDAY:
+        data_user_activity = fetch_all_user_activities(7, 0)
+        data_user_id_name = fetch_user_info()
+        auser_in_outs = computer_users_voice_in_out(data_user_activity)
+        user_times = compute_users_voice_channel_time_sec(auser_in_outs)
+
+        # Convert seconds to hours for all users
+        user_times_in_hours = {user: time_sec / 3600 for user, time_sec in user_times.items()}
+
+        # Sort users by total time in descending order and select the top N
+        sorted_users = sorted(user_times_in_hours.items(), key=lambda x: x[1], reverse=True)[:10]
+
+        # Get the display name of the user to create a list of tuple with id, username and time
+        stats = [(user_id, data_user_id_name[user_id].display_name, round(time, 2)) for user_id, time in sorted_users]
+        msg = build_msg_stats("hours in voice channels", f"in the last {DAY} days", stats)
+    elif weekday == DayOfWeek.FRIDAY:
+        img_bytes = display_user_top_operators(last_7_days, False)
+        channel: discord.TextChannel = await data_access_get_channel(channel_id)
+        msg = "📊 **Stats of the day: Top Operators**\nHere is the top 10 operators in the last 7 days"
+        bytesio = io.BytesIO(img_bytes)
+        bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
+        file = discord.File(fp=bytesio, filename="plot.png")
+        await channel.send(file=file, content=msg)
+        return
+    else:
+        # Not stats to show for the current day
+        return
+    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    await channel.send(content=msg)

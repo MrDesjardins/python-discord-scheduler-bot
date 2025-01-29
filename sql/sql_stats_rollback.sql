@@ -22,7 +22,7 @@ from
 where
   is_rollback = true
 and
-  datetime(match_timestamp) > datetime('2025-01-20')
+  datetime(match_timestamp) > datetime('2025-01-21')
 group by
   user_id
 order by

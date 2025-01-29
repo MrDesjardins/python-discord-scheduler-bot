@@ -8,6 +8,7 @@ from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_automatic_lfg_message,
+
     send_notification_voice_channel,
     send_session_stats_to_queue,
     update_vote_message,
@@ -33,7 +34,6 @@ from deps.functions_model import get_empty_votes
 from deps.models import ActivityTransition, SimpleUser
 from deps.siege import get_siege_activity, get_user_rank_emoji
 from deps.values import EMOJI_TO_TIME
-
 
 class MyEventsCog(commands.Cog):
     lock = asyncio.Lock()
@@ -91,6 +91,7 @@ class MyEventsCog(commands.Cog):
 
         # Cleanup task that runs every few seconds
         tasks.append(start_periodic_cache_cleanup())
+        
         # Running all tasks concurrently and waiting for them to finish
         await asyncio.gather(*tasks)
 
