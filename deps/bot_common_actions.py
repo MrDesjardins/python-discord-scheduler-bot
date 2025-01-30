@@ -690,20 +690,26 @@ async def send_daily_stats_to_a_guild(bot: MyBot, guild: discord.Guild):
     first_day_current_year = datetime(today.year, 1, 1, tzinfo=timezone.utc)
     last_7_days = today - timedelta(days=DAY)
     weekday = today.weekday()  # 0 is Monday, 6 is Sunday
-    if weekday == DayOfWeek.SUNDAY:
+    if weekday == DayOfWeek.SUNDAY.value:
         stats = data_access_fetch_tk_count_by_user(first_day_current_year)
+        if len(stats) == 0:
+            print_log("No tk stats to show")
+            return
         msg = build_msg_stats("TK", f"since the beginning of {today.year}", stats)
-    elif weekday == DayOfWeek.THURSDAY:
+    elif weekday == DayOfWeek.THURSDAY.value:
         stats = data_access_fetch_avg_kill_match(last_7_days)
         stats = [(tk[0], tk[1], round(tk[2], 2)) for tk in stats]
         msg = build_msg_stats("average kills/match ", f"in the last {DAY} days", stats)
-    elif weekday == DayOfWeek.WEDNESDAY:
+    elif weekday == DayOfWeek.WEDNESDAY.value:
         stats = data_access_fetch_rollback_count_by_user(last_7_days)
+        if len(stats) == 0:
+            print_log("No rollback stats to show")
+            return
         msg = build_msg_stats("rollbacks", f"in the last {DAY} days", stats)
-    elif weekday == DayOfWeek.MONDAY:
+    elif weekday == DayOfWeek.MONDAY.value:
         stats = data_access_fetch_match_played_count_by_user(last_7_days)
         msg = build_msg_stats("rank matches", f"in the last {DAY} days", stats)
-    elif weekday == DayOfWeek.SATURDAY:
+    elif weekday == DayOfWeek.SATURDAY.value:
         data_user_activity = fetch_all_user_activities(7, 0)
         data_user_id_name = fetch_user_info()
         auser_in_outs = computer_users_voice_in_out(data_user_activity)
@@ -718,7 +724,7 @@ async def send_daily_stats_to_a_guild(bot: MyBot, guild: discord.Guild):
         # Get the display name of the user to create a list of tuple with id, username and time
         stats = [(user_id, data_user_id_name[user_id].display_name, round(time, 2)) for user_id, time in sorted_users]
         msg = build_msg_stats("hours in voice channels", f"in the last {DAY} days", stats)
-    elif weekday == DayOfWeek.FRIDAY:
+    elif weekday == DayOfWeek.FRIDAY.value:
         img_bytes = display_user_top_operators(last_7_days, False)
         channel: discord.TextChannel = await data_access_get_channel(channel_id)
         msg = "📊 **Stats of the day: Top Operators**\nHere is the top 10 operators in the last 7 days"

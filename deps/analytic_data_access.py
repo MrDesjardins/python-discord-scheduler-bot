@@ -2,6 +2,7 @@
 Module to gather user activity data and calculate the time spent together
 """
 
+from dataclasses import asdict
 import datetime
 import json
 from typing import Dict, List, Optional, Union
@@ -593,7 +594,7 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
             )
         database_manager.get_conn().commit()
     except Exception as e:
-        stringify_match = json.dumps(last_match, indent=4)
+        stringify_match = json.dumps(asdict(last_match), indent=4)
         print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}\n{stringify_match}")
         raise e
 

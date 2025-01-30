@@ -99,7 +99,11 @@ def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFul
             segment = segments[0]
             metadata = segment["metadata"]
             stats = segment["stats"]
-
+            map_name = match_metadata.get("sessionMapName", "Unknown")
+            if map_name is None:
+                # In some cases, the map name is not available but also few other metadata. We skip.
+                # It is a very rare case. The entry does not show in the website TRN but in the API.
+                continue
             match_infos.append(
                 UserFullMatchStats(
                     id=None,
@@ -109,7 +113,7 @@ def parse_json_from_full_matches(data_dict, user_info: UserInfo) -> List[UserFul
                     match_duration_ms=match_metadata.get("duration", 0) or 0,
                     data_center=match_metadata.get("datacenter", "Unknown"),
                     session_type=match_metadata.get("sessionTypeName", "Unknown"),
-                    map_name=match_metadata.get("sessionMapName", "Unknown"),
+                    map_name=map_name,
                     is_surrender=match_metadata.get("isSurrender", False) or False,
                     is_forfeit=match_metadata.get("isForfeit", False) or False,
                     is_rollback=match_metadata.get("isRollback", False) or False,

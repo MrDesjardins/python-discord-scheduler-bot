@@ -132,7 +132,7 @@ def test_get_r6tracker_user_recent_matches_with_rollback(test_data):
     datetime_last = datetime.fromisoformat("2024-12-26T00:00:00.000+00:00")
     agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
     assert len(lst) == 21
-    assert len([match for match in lst if match.is_rollback]) == 1 # One rollback
+    assert len([match for match in lst if match.is_rollback]) == 1  # One rollback
     assert [match.map_name for match in agg.matches_recent] == [
         "Villa",
         "Chalet",
@@ -340,3 +340,987 @@ def test_parse_json_from_full_matches_dataset_6_rollback(test_data):
     assert match.deaths_per_round == 0
     assert match.assists_per_round == 0
     assert match.has_win is False
+
+
+def test_get_r6tracker_parse_one_map(test_data):
+    """
+    Test that we can load a string
+    """
+    data_dict = json.loads(
+        """{
+            "data": {
+                "matches": [
+                    {
+                        "attributes": {
+                            "id": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                            "sessionType": "ranked",
+                            "sessionGameMode": "bomb",
+                            "sessionMode": "bomb",
+                            "sessionMap": "villa",
+                            "datacenter": "US East",
+                            "gamemode": "pvp_ranked"
+                        },
+                        "metadata": {
+                            "timestamp": "2024-12-28T12:36:40.035+00:00",
+                            "duration": 1308215,
+                            "datacenter": "US East",
+                            "sessionTypeName": "Ranked",
+                            "sessionGameModeName": "Bomb",
+                            "sessionModeName": "Bomb",
+                            "sessionMapName": "Villa",
+                            "sessionMapImageUrl": "https://trackercdn.com/cdn/r6.tracker.network/images/maps/villa.jpg",
+                            "isSurrender": false,
+                            "isForfeit": false,
+                            "isRollback": false,
+                            "hasOverwolfRoster": true,
+                            "overwolfMatchVariants": [
+                                {
+                                    "matchId": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                                    "platformUserId": "17d71d95-21d1-427a-979b-c8798fec55ef",
+                                    "platformUserHandle": "swirlllllll"
+                                },
+                                {
+                                    "matchId": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                                    "platformUserId": "1f0ccd82-7258-46e1-bf90-1b000bc497ab",
+                                    "platformUserHandle": "maxxdaboss_123"
+                                },
+                                {
+                                    "matchId": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                                    "platformUserId": "1fb0bc42-4547-4573-9adc-6d294a1b212f",
+                                    "platformUserHandle": "z3n_on_tt"
+                                }
+                            ],
+                            "gamemodeName": "Ranked",
+                            "hasSessionData": true,
+                            "hasSessionKillRecordsData": false
+                        },
+                        "segments": [
+                            {
+                                "type": "overview",
+                                "attributes": {
+                                    "playerId": "17d71d95-21d1-427a-979b-c8798fec55ef",
+                                    "teamId": 1
+                                },
+                                "metadata": {
+                                    "platformFamily": "pc",
+                                    "platformSlug": "ubi",
+                                    "result": "loss",
+                                    "hasWon": false,
+                                    "status": "connected",
+                                    "hasExtraStats": false,
+                                    "platformUserId": "17d71d95-21d1-427a-979b-c8798fec55ef",
+                                    "platformUserHandle": "swirlllllll",
+                                    "platformUserIdentifier": "swirlllllll",
+                                    "avatarUrl": "https://ubisoft-avatars.akamaized.net/17d71d95-21d1-427a-979b-c8798fec55ef/default_256_256.png",
+                                    "operators": [
+                                        {
+                                            "name": "Fenrir",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/fenrir.png"
+                                        },
+                                        {
+                                            "name": "Ace",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/ace.png"
+                                        },
+                                        {
+                                            "name": "Mute",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/mute.png"
+                                        },
+                                        {
+                                            "name": "Echo",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/echo.png"
+                                        }
+                                    ]
+                                },
+                                "expiryDate": "0001-01-01T00:00:00+00:00",
+                                "stats": {
+                                    "timePlayed": {
+                                        "displayName": "Time Played",
+                                        "metadata": {},
+                                        "value": 1308215,
+                                        "displayValue": "21m 48s",
+                                        "displayType": "TimeMilliseconds"
+                                    },
+                                    "roundsPlayed": {
+                                        "displayName": "Rounds Played",
+                                        "metadata": {},
+                                        "value": 6,
+                                        "displayValue": "6",
+                                        "displayType": "Number"
+                                    },
+                                    "roundsWon": {
+                                        "displayName": "Wins",
+                                        "metadata": {},
+                                        "value": 2,
+                                        "displayValue": "2",
+                                        "displayType": "Number"
+                                    },
+                                    "roundsLost": {
+                                        "displayName": "Losses",
+                                        "metadata": {},
+                                        "value": 4,
+                                        "displayValue": "4",
+                                        "displayType": "Number"
+                                    },
+                                    "roundsDisconnected": {
+                                        "displayName": "Disconnected",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "roundWinPct": {
+                                        "displayName": "Win %",
+                                        "metadata": {},
+                                        "value": 33.33333333333333,
+                                        "displayValue": "33.3%",
+                                        "displayType": "NumberPercentage"
+                                    },
+                                    "score": {
+                                        "displayName": "Score",
+                                        "metadata": {},
+                                        "value": 2,
+                                        "displayValue": "2",
+                                        "displayType": "Number"
+                                    },
+                                    "kills": {
+                                        "displayName": "Kills",
+                                        "metadata": {},
+                                        "value": 6,
+                                        "displayValue": "6",
+                                        "displayType": "Number"
+                                    },
+                                    "deaths": {
+                                        "displayName": "Deaths",
+                                        "metadata": {},
+                                        "value": 5,
+                                        "displayValue": "5",
+                                        "displayType": "Number"
+                                    },
+                                    "assists": {
+                                        "displayName": "Assists",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "headshots": {
+                                        "displayName": "Headshots",
+                                        "metadata": {},
+                                        "value": 5,
+                                        "displayValue": "5",
+                                        "displayType": "Number"
+                                    },
+                                    "teamKills": {
+                                        "displayName": "TKs",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "aces": {
+                                        "displayName": "Aces",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "firstBloods": {
+                                        "displayName": "First Bloods",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "firstDeaths": {
+                                        "displayName": "First Deaths",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches": {
+                                        "displayName": "Clutches",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost": {
+                                        "displayName": "Clutches Lost",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v1": {
+                                        "displayName": "Clutches 1v1",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v2": {
+                                        "displayName": "Clutches 1v2",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v3": {
+                                        "displayName": "Clutches 1v3",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v4": {
+                                        "displayName": "Clutches 1v4",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v5": {
+                                        "displayName": "Clutches 1v5",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v1": {
+                                        "displayName": "Clutches Lost 1v1",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v2": {
+                                        "displayName": "Clutches Lost 1v2",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v3": {
+                                        "displayName": "Clutches Lost 1v3",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v4": {
+                                        "displayName": "Clutches Lost 1v4",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v5": {
+                                        "displayName": "Clutches Lost 1v5",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills1K": {
+                                        "displayName": "Kills 1K",
+                                        "metadata": {},
+                                        "value": 2,
+                                        "displayValue": "2",
+                                        "displayType": "Number"
+                                    },
+                                    "kills2K": {
+                                        "displayName": "Kills 2K",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills3K": {
+                                        "displayName": "Kills 3K",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills4K": {
+                                        "displayName": "Kills 4K",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "kills5K": {
+                                        "displayName": "Aces",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills6K": {
+                                        "displayName": "Kills 6K+",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "rank": {
+                                        "displayName": "Rank",
+                                        "metadata": {},
+                                        "value": 12,
+                                        "displayValue": "12",
+                                        "displayType": "Number"
+                                    },
+                                    "rankPoints": {
+                                        "displayName": "Rank Points",
+                                        "metadata": {
+                                            "name": "SILVER IV",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/ranks/s28/small/silver-4.png",
+                                            "topRankPosition": null
+                                        },
+                                        "value": 2168,
+                                        "displayValue": "2,168",
+                                        "displayType": "Number"
+                                    },
+                                    "topRankPosition": {
+                                        "displayName": "Top Rank Position",
+                                        "metadata": {},
+                                        "value": null,
+                                        "displayValue": null,
+                                        "displayType": "Number"
+                                    },
+                                    "rankPointsDelta": {
+                                        "displayName": "Rank Points Delta",
+                                        "metadata": {
+                                            "name": "SILVER IV",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/ranks/s28/small/silver-4.png"
+                                        },
+                                        "value": -22,
+                                        "displayValue": "-22",
+                                        "displayType": "String"
+                                    },
+                                    "rankPrevious": {
+                                        "displayName": "Rank",
+                                        "metadata": {},
+                                        "value": 12,
+                                        "displayValue": "12",
+                                        "displayType": "Number"
+                                    },
+                                    "rankPointsPrevious": {
+                                        "displayName": "Rank Points",
+                                        "metadata": {},
+                                        "value": 2190,
+                                        "displayValue": "2,190",
+                                        "displayType": "Number"
+                                    },
+                                    "topRankPositionPrevious": {
+                                        "displayName": "Top Rank Position",
+                                        "metadata": {},
+                                        "value": null,
+                                        "displayValue": null,
+                                        "displayType": "Number"
+                                    },
+                                    "kdRatio": {
+                                        "displayName": "K/D",
+                                        "metadata": {},
+                                        "value": 1.2,
+                                        "displayValue": "1.20",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "headshotPct": {
+                                        "displayName": "HS %",
+                                        "metadata": {},
+                                        "value": 83.33333333333334,
+                                        "displayValue": "83.3%",
+                                        "displayType": "NumberPercentage"
+                                    },
+                                    "killsPerRound": {
+                                        "displayName": "Kills/Round",
+                                        "metadata": {},
+                                        "value": 1.0,
+                                        "displayValue": "1.00",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "deathsPerRound": {
+                                        "displayName": "Deaths/Round",
+                                        "metadata": {},
+                                        "value": 0.8333333333333334,
+                                        "displayValue": "0.83",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "assistsPerRound": {
+                                        "displayName": "Assists/Round",
+                                        "metadata": {},
+                                        "value": 0.0,
+                                        "displayValue": "0.00",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "headshotsPerRound": {
+                                        "displayName": "Headshots/Round",
+                                        "metadata": {},
+                                        "value": 0.8333333333333334,
+                                        "displayValue": "0.83",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "esr": {
+                                        "displayName": "ESR",
+                                        "metadata": {},
+                                        "value": 1.0,
+                                        "displayValue": "1.00",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "eloDelta": {
+                                        "displayName": "Elo Delta",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "matches": {
+                                        "displayName": "Matches",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "wins": {
+                                        "displayName": "Wins",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "losses": {
+                                        "displayName": "Losses",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "abandons": {
+                                        "displayName": "Abandons",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "matchesWinPct": {
+                                        "displayName": "Win %",
+                                        "metadata": {},
+                                        "value": 0.0,
+                                        "displayValue": "0.0%",
+                                        "displayType": "NumberPercentage"
+                                    },
+                                    "killsPerMatch": {
+                                        "displayName": "Kills/Match",
+                                        "metadata": {},
+                                        "value": 6,
+                                        "displayValue": "6.00",
+                                        "displayType": "NumberPrecision2"
+                                    }
+                                }
+                            }
+                        ],
+                        "streams": null,
+                        "expiryDate": "0001-01-01T00:00:00+00:00"
+                    }
+                ]
+            }
+        }
+    """
+    )
+    lst = parse_json_from_full_matches(data_dict, mock_user1)
+
+    assert len(lst) >= 1
+
+
+def test_get_r6tracker_parse_with_null_map(test_data):
+    """
+    Test that we can load a string but with a map to null
+    """
+    data_dict = json.loads(
+        """{
+            "data": {
+                "matches": [
+                    {
+                        "attributes": {
+                            "id": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                            "sessionType": "ranked",
+                            "sessionGameMode": "bomb",
+                            "sessionMode": "bomb",
+                            "sessionMap": "villa",
+                            "datacenter": "US East",
+                            "gamemode": "pvp_ranked"
+                        },
+                        "metadata": {
+                            "timestamp": "2024-12-28T12:36:40.035+00:00",
+                            "duration": 1308215,
+                            "datacenter": "US East",
+                            "sessionTypeName": "Ranked",
+                            "sessionGameModeName": "Bomb",
+                            "sessionModeName": "Bomb",
+                            "sessionMapName": null,
+                            "sessionMapImageUrl": "https://trackercdn.com/cdn/r6.tracker.network/images/maps/villa.jpg",
+                            "isSurrender": false,
+                            "isForfeit": false,
+                            "isRollback": false,
+                            "hasOverwolfRoster": true,
+                            "overwolfMatchVariants": [
+                                {
+                                    "matchId": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                                    "platformUserId": "17d71d95-21d1-427a-979b-c8798fec55ef",
+                                    "platformUserHandle": "swirlllllll"
+                                },
+                                {
+                                    "matchId": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                                    "platformUserId": "1f0ccd82-7258-46e1-bf90-1b000bc497ab",
+                                    "platformUserHandle": "maxxdaboss_123"
+                                },
+                                {
+                                    "matchId": "4085b427-bc6f-4e6d-a1cc-97278f0483a3",
+                                    "platformUserId": "1fb0bc42-4547-4573-9adc-6d294a1b212f",
+                                    "platformUserHandle": "z3n_on_tt"
+                                }
+                            ],
+                            "gamemodeName": "Ranked",
+                            "hasSessionData": true,
+                            "hasSessionKillRecordsData": false
+                        },
+                        "segments": [
+                            {
+                                "type": "overview",
+                                "attributes": {
+                                    "playerId": "17d71d95-21d1-427a-979b-c8798fec55ef",
+                                    "teamId": 1
+                                },
+                                "metadata": {
+                                    "platformFamily": "pc",
+                                    "platformSlug": "ubi",
+                                    "result": "loss",
+                                    "hasWon": false,
+                                    "status": "connected",
+                                    "hasExtraStats": false,
+                                    "platformUserId": "17d71d95-21d1-427a-979b-c8798fec55ef",
+                                    "platformUserHandle": "swirlllllll",
+                                    "platformUserIdentifier": "swirlllllll",
+                                    "avatarUrl": "https://ubisoft-avatars.akamaized.net/17d71d95-21d1-427a-979b-c8798fec55ef/default_256_256.png",
+                                    "operators": [
+                                        {
+                                            "name": "Fenrir",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/fenrir.png"
+                                        },
+                                        {
+                                            "name": "Ace",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/ace.png"
+                                        },
+                                        {
+                                            "name": "Mute",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/mute.png"
+                                        },
+                                        {
+                                            "name": "Echo",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/operators/badges/echo.png"
+                                        }
+                                    ]
+                                },
+                                "expiryDate": "0001-01-01T00:00:00+00:00",
+                                "stats": {
+                                    "timePlayed": {
+                                        "displayName": "Time Played",
+                                        "metadata": {},
+                                        "value": 1308215,
+                                        "displayValue": "21m 48s",
+                                        "displayType": "TimeMilliseconds"
+                                    },
+                                    "roundsPlayed": {
+                                        "displayName": "Rounds Played",
+                                        "metadata": {},
+                                        "value": 6,
+                                        "displayValue": "6",
+                                        "displayType": "Number"
+                                    },
+                                    "roundsWon": {
+                                        "displayName": "Wins",
+                                        "metadata": {},
+                                        "value": 2,
+                                        "displayValue": "2",
+                                        "displayType": "Number"
+                                    },
+                                    "roundsLost": {
+                                        "displayName": "Losses",
+                                        "metadata": {},
+                                        "value": 4,
+                                        "displayValue": "4",
+                                        "displayType": "Number"
+                                    },
+                                    "roundsDisconnected": {
+                                        "displayName": "Disconnected",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "roundWinPct": {
+                                        "displayName": "Win %",
+                                        "metadata": {},
+                                        "value": 33.33333333333333,
+                                        "displayValue": "33.3%",
+                                        "displayType": "NumberPercentage"
+                                    },
+                                    "score": {
+                                        "displayName": "Score",
+                                        "metadata": {},
+                                        "value": 2,
+                                        "displayValue": "2",
+                                        "displayType": "Number"
+                                    },
+                                    "kills": {
+                                        "displayName": "Kills",
+                                        "metadata": {},
+                                        "value": 6,
+                                        "displayValue": "6",
+                                        "displayType": "Number"
+                                    },
+                                    "deaths": {
+                                        "displayName": "Deaths",
+                                        "metadata": {},
+                                        "value": 5,
+                                        "displayValue": "5",
+                                        "displayType": "Number"
+                                    },
+                                    "assists": {
+                                        "displayName": "Assists",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "headshots": {
+                                        "displayName": "Headshots",
+                                        "metadata": {},
+                                        "value": 5,
+                                        "displayValue": "5",
+                                        "displayType": "Number"
+                                    },
+                                    "teamKills": {
+                                        "displayName": "TKs",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "aces": {
+                                        "displayName": "Aces",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "firstBloods": {
+                                        "displayName": "First Bloods",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "firstDeaths": {
+                                        "displayName": "First Deaths",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches": {
+                                        "displayName": "Clutches",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost": {
+                                        "displayName": "Clutches Lost",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v1": {
+                                        "displayName": "Clutches 1v1",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v2": {
+                                        "displayName": "Clutches 1v2",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v3": {
+                                        "displayName": "Clutches 1v3",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v4": {
+                                        "displayName": "Clutches 1v4",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutches1v5": {
+                                        "displayName": "Clutches 1v5",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v1": {
+                                        "displayName": "Clutches Lost 1v1",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v2": {
+                                        "displayName": "Clutches Lost 1v2",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v3": {
+                                        "displayName": "Clutches Lost 1v3",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v4": {
+                                        "displayName": "Clutches Lost 1v4",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "clutchesLost1v5": {
+                                        "displayName": "Clutches Lost 1v5",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills1K": {
+                                        "displayName": "Kills 1K",
+                                        "metadata": {},
+                                        "value": 2,
+                                        "displayValue": "2",
+                                        "displayType": "Number"
+                                    },
+                                    "kills2K": {
+                                        "displayName": "Kills 2K",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills3K": {
+                                        "displayName": "Kills 3K",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills4K": {
+                                        "displayName": "Kills 4K",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "kills5K": {
+                                        "displayName": "Aces",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "kills6K": {
+                                        "displayName": "Kills 6K+",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "rank": {
+                                        "displayName": "Rank",
+                                        "metadata": {},
+                                        "value": 12,
+                                        "displayValue": "12",
+                                        "displayType": "Number"
+                                    },
+                                    "rankPoints": {
+                                        "displayName": "Rank Points",
+                                        "metadata": {
+                                            "name": "SILVER IV",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/ranks/s28/small/silver-4.png",
+                                            "topRankPosition": null
+                                        },
+                                        "value": 2168,
+                                        "displayValue": "2,168",
+                                        "displayType": "Number"
+                                    },
+                                    "topRankPosition": {
+                                        "displayName": "Top Rank Position",
+                                        "metadata": {},
+                                        "value": null,
+                                        "displayValue": null,
+                                        "displayType": "Number"
+                                    },
+                                    "rankPointsDelta": {
+                                        "displayName": "Rank Points Delta",
+                                        "metadata": {
+                                            "name": "SILVER IV",
+                                            "imageUrl": "https://trackercdn.com/cdn/r6.tracker.network/ranks/s28/small/silver-4.png"
+                                        },
+                                        "value": -22,
+                                        "displayValue": "-22",
+                                        "displayType": "String"
+                                    },
+                                    "rankPrevious": {
+                                        "displayName": "Rank",
+                                        "metadata": {},
+                                        "value": 12,
+                                        "displayValue": "12",
+                                        "displayType": "Number"
+                                    },
+                                    "rankPointsPrevious": {
+                                        "displayName": "Rank Points",
+                                        "metadata": {},
+                                        "value": 2190,
+                                        "displayValue": "2,190",
+                                        "displayType": "Number"
+                                    },
+                                    "topRankPositionPrevious": {
+                                        "displayName": "Top Rank Position",
+                                        "metadata": {},
+                                        "value": null,
+                                        "displayValue": null,
+                                        "displayType": "Number"
+                                    },
+                                    "kdRatio": {
+                                        "displayName": "K/D",
+                                        "metadata": {},
+                                        "value": 1.2,
+                                        "displayValue": "1.20",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "headshotPct": {
+                                        "displayName": "HS %",
+                                        "metadata": {},
+                                        "value": 83.33333333333334,
+                                        "displayValue": "83.3%",
+                                        "displayType": "NumberPercentage"
+                                    },
+                                    "killsPerRound": {
+                                        "displayName": "Kills/Round",
+                                        "metadata": {},
+                                        "value": 1.0,
+                                        "displayValue": "1.00",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "deathsPerRound": {
+                                        "displayName": "Deaths/Round",
+                                        "metadata": {},
+                                        "value": 0.8333333333333334,
+                                        "displayValue": "0.83",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "assistsPerRound": {
+                                        "displayName": "Assists/Round",
+                                        "metadata": {},
+                                        "value": 0.0,
+                                        "displayValue": "0.00",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "headshotsPerRound": {
+                                        "displayName": "Headshots/Round",
+                                        "metadata": {},
+                                        "value": 0.8333333333333334,
+                                        "displayValue": "0.83",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "esr": {
+                                        "displayName": "ESR",
+                                        "metadata": {},
+                                        "value": 1.0,
+                                        "displayValue": "1.00",
+                                        "displayType": "NumberPrecision2"
+                                    },
+                                    "eloDelta": {
+                                        "displayName": "Elo Delta",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "matches": {
+                                        "displayName": "Matches",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "wins": {
+                                        "displayName": "Wins",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "losses": {
+                                        "displayName": "Losses",
+                                        "metadata": {},
+                                        "value": 1,
+                                        "displayValue": "1",
+                                        "displayType": "Number"
+                                    },
+                                    "abandons": {
+                                        "displayName": "Abandons",
+                                        "metadata": {},
+                                        "value": 0,
+                                        "displayValue": "0",
+                                        "displayType": "Number"
+                                    },
+                                    "matchesWinPct": {
+                                        "displayName": "Win %",
+                                        "metadata": {},
+                                        "value": 0.0,
+                                        "displayValue": "0.0%",
+                                        "displayType": "NumberPercentage"
+                                    },
+                                    "killsPerMatch": {
+                                        "displayName": "Kills/Match",
+                                        "metadata": {},
+                                        "value": 6,
+                                        "displayValue": "6.00",
+                                        "displayType": "NumberPrecision2"
+                                    }
+                                }
+                            }
+                        ],
+                        "streams": null,
+                        "expiryDate": "0001-01-01T00:00:00+00:00"
+                    }
+                ]
+            }
+        }
+    """
+    )
+    lst = parse_json_from_full_matches(data_dict, mock_user1)
+
+    assert len(lst) == 0

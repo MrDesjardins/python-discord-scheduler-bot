@@ -236,9 +236,9 @@ async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet
     # Assert ledger
     full_ledger_entries = data_access_get_bet_ledger_entry_for_tournament(tournament_id)
     assert len(full_ledger_entries) == 0  # No entry because of the error (rollback)
-    # Assert the bet_game to not be yet distributed
+    # Assert the bet_game distributed
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     assert bet_games[0].bet_distributed is False
-    # Assert the bet_user_game to not be yet distributed
+    # Assert the bet_user_game distributed
     bet_user_game = data_access_fetch_bet_user_game_by_tournament_id(tournament_id)
     assert bet_user_game[0].bet_distributed is False

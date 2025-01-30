@@ -106,24 +106,24 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
     bet_user_games: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
 
     # Loop the bet_user_games and calculate the gain and lost
-    for bet_user_game in bet_user_games:
-        bet_game = bet_games_dict.get(bet_user_game.bet_game_id, None)
-        if bet_game is None:
-            print_error_log(
-                f"distribute_gain_on_recent_ended_game: bet_game not found for bet_user_game {bet_user_game.bet_game_id}"
-            )
-            continue
-        tournament_game = tournament_games_dict.get(bet_game.tournament_game_id, None)
-        if tournament_game is None:
-            print_error_log(
-                f"distribute_gain_on_recent_ended_game: TournamentGame not found for bet_game {bet_game.id}"
-            )
-            continue
-        if tournament_game.user_winner_id is None:
-            continue
+    with database_manager.data_access_transaction():
+        for bet_user_game in bet_user_games:
+            bet_game = bet_games_dict.get(bet_user_game.bet_game_id, None)
+            if bet_game is None:
+                print_error_log(
+                    f"distribute_gain_on_recent_ended_game: bet_game not found for bet_user_game {bet_user_game.bet_game_id}"
+                )
+                continue
+            tournament_game = tournament_games_dict.get(bet_game.tournament_game_id, None)
+            if tournament_game is None:
+                print_error_log(
+                    f"distribute_gain_on_recent_ended_game: TournamentGame not found for bet_game {bet_game.id}"
+                )
+                continue
+            if tournament_game.user_winner_id is None:
+                continue
 
-        winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games)
-        with database_manager.data_access_transaction():
+            winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games)
             for winning_distribution in winning_distributions:
                 if winning_distribution.amount > 0:
                     wallet = get_bet_user_wallet_for_tournament(tournament_id, winning_distribution.user_id)
@@ -132,9 +132,9 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
                 data_access_insert_bet_ledger_entry(winning_distribution)
             for bet_user_game in bet_user_games:
                 data_access_update_bet_user_game_distribution_completed(bet_user_game.id)
-    for bet_game in bet_games:
-        data_access_update_bet_game_distribution_completed(bet_game.id)
-        # Auto-Commit after the with if no exception
+        for bet_game in bet_games:
+            data_access_update_bet_game_distribution_completed(bet_game.id)
+    # Auto-Commit after the with if no exception
 
 
 def calculate_gain_lost_for_open_bet_game(

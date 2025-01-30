@@ -402,7 +402,7 @@ def save_tournament(tournament: Tournament) -> Tournament:
         """
         UPDATE tournament
             SET max_players = :max_players,
-            has_started = :has_started,
+            has_started = :has_started
         WHERE id = :tournament_id;
         """,
         {"max_players": tournament.max_players, "tournament_id": tournament.id, "has_started": tournament.has_started},
