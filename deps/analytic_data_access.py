@@ -307,7 +307,7 @@ def data_access_set_ubisoft_username_active(user_id: int, username: str) -> None
         """
     UPDATE user_info
       SET ubisoft_username_active = :name,
-      SET r6_tracker_active_id = NULL
+      r6_tracker_active_id = NULL
       WHERE id = :user_id
     """,
         {"user_id": user_id, "name": username},
