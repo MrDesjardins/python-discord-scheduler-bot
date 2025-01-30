@@ -178,7 +178,6 @@ async def check_voice_channel(bot: MyBot):
     """
     Run when the bot start and every X minutes to update the cache of the users in the voice channel and update the schedule
     """
-    print_log("check_voice_channel: Checking voice channel to sync the schedule")
     for guild in bot.guilds:
         guild_id = guild.id
         text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
@@ -246,8 +245,6 @@ async def check_voice_channel(bot: MyBot):
             data_access_set_reaction_message(guild_id, text_channel_id, message_id, message_votes)
             await update_vote_message(last_message, message_votes)
             print_log(f"check_voice_channel: Updated voice channel cache for {guild.name}")
-        else:
-            print_log(f"check_voice_channel: No new user found in voice channel for {guild.name}")
 
 
 async def send_notification_voice_channel(
