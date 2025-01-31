@@ -38,13 +38,13 @@ class BetTournamentSelectorForMarket(View):
         self.user_info2: Optional[UserInfo] = None
 
         # Dynamically add buttons for each tournament
-        if (len(self.list_tournaments)) == 1:
-            self.tournament_id = self.list_tournaments[0].id
-        else:
-            for tournament in self.list_tournaments:
-                button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
-                button.callback = self.create_button_callback(tournament.id)
-                self.add_item(button)
+        # if (len(self.list_tournaments)) == 1:
+        #     self.tournament_id = self.list_tournaments[0].id
+        # else:
+        for tournament in self.list_tournaments:
+            button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
+            button.callback = self.create_button_callback(tournament.id)
+            self.add_item(button)
 
     def create_button_callback(self, tournament_id: int):
         async def callback(interaction: discord.Interaction):
