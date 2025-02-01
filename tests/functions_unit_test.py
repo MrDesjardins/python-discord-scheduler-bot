@@ -7,7 +7,6 @@ import pytz
 from deps.functions_model import get_daily_string_message, get_empty_votes, get_supported_time_time_label
 from deps.functions_date import get_current_hour_eastern
 from deps.functions import (
-    get_reactions,
     get_sha,
     get_time_choices,
     get_url_user_profile_main,
@@ -38,6 +37,8 @@ def test_get_empty_votes():
     """Return an object with empty list of user for each time"""
     result = get_empty_votes()
     assert result == {
+        "1pm": [],
+        "2pm": [],
         "3pm": [],
         "4pm": [],
         "5pm": [],
@@ -50,19 +51,16 @@ def test_get_empty_votes():
         "12am": [],
         "1am": [],
         "2am": [],
+        "3am": [],
     }
-
-
-def test_get_reactions():
-    """Return of all the emojis that can be used to vote"""
-    result = get_reactions()
-    assert result == ["3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟", "🕚", "🕛", "1️⃣", "2️⃣"]
 
 
 def test_get_supported_time_time_label():
     """Return a list of TimeLabel objects that represent the supported times"""
     result = get_supported_time_time_label()
     assert result == [
+        TimeLabel("1pm", "3pm", "1pm Eastern Time"),
+        TimeLabel("2pm", "3pm", "2pm Eastern Time"),
         TimeLabel("3pm", "3pm", "3pm Eastern Time"),
         TimeLabel("4pm", "4pm", "4pm Eastern Time"),
         TimeLabel("5pm", "5pm", "5pm Eastern Time"),
@@ -75,6 +73,7 @@ def test_get_supported_time_time_label():
         TimeLabel("12am", "12am", "12am Eastern Time"),
         TimeLabel("1am", "1am", "1am Eastern Time"),
         TimeLabel("2am", "2am", "2am Eastern Time"),
+        TimeLabel("3am", "2am", "3am Eastern Time"),
     ]
 
 
@@ -203,8 +202,8 @@ def test_get_url_user_ranked_matches_api_with_name_with_dot():
 def test_choices_items():
     """Assert the number of choices for time"""
     choices = get_time_choices()
-    assert len(choices) == 12
-    assert choices[0].value == "3pm"
-    assert choices[0].name == "3pm"
-    assert choices[11].value == "2am"
-    assert choices[11].name == "2am"
+    assert len(choices) == 15
+    assert choices[0].value == "1pm"
+    assert choices[0].name == "1pm"
+    assert choices[14].value == "3am"
+    assert choices[14].name == "3am"

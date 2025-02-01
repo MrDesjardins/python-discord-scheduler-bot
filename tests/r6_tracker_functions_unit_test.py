@@ -107,7 +107,7 @@ def test_get_r6tracker_user_recent_matches2(test_data):
 
 def test_get_r6tracker_user_recent_matches_aggregation2(test_data):
     """Test if we can parse the data from the JSON file."""
-    _, _, data_4, _, _ = test_data
+    _, _, data_4, _, _, _ = test_data
     lst = parse_json_from_full_matches(data_4, mock_user1)
     datetime_last = datetime.fromisoformat("2024-11-09T00:00:00.000+00:00")
     agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
@@ -171,6 +171,7 @@ def test_get_r6tracker_user_recent_matches_rollback(test_data):
     lst = parse_json_from_full_matches(data_6, mock_user1)
     assert len(lst) == 21, "Should not skip the rollback"
 
+
 def test_get_r6tracker_user_recent_matches_not_none(test_data):
     """Test that we skip the rollback"""
     _, _, _, _, _, data_7 = test_data
@@ -186,6 +187,7 @@ def test_get_r6tracker_user_recent_matches_aggregation4(test_data):
     agg = get_user_gaming_session_stats("GuyHero.", datetime_last, lst)
     assert agg is not None
     assert agg.match_count == 5
+
 
 def test_parse_json_from_full_matches_dataset_1(test_data):
     """Test if we can parse the data from the JSON file."""

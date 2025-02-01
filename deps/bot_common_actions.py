@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from gtts import gTTS
 import discord
+from deps.date_utils import is_today
 from deps.analytic_visualizer import display_user_top_operators
 from deps.analytic_functions import compute_users_voice_channel_time_sec, computer_users_voice_in_out
 from deps.browser import download_full_matches_async
@@ -89,39 +90,39 @@ async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force
 
     channel: discord.TextChannel = await data_access_get_channel(channel_id)
 
-    last_message_id = await data_access_get_daily_message_id(guild_id)
-    last_message = None
+    # last_message_id = await data_access_get_daily_message_id(guild_id)
+    # last_message = None
 
     # ⚠️TEMPORARY CODE START
-    if last_message_id is None:
-        last_message = await get_last_schedule_message(
-            bot, channel, 23
-        )  # 23 just to make sure the script will create a new entry every 24 hours. Giving some buffer to avoid editing the message by the script
-        if last_message is not None:
-            last_message_id = last_message.id
-            data_access_set_daily_message_id(guild_id, last_message_id)
-    # ⚠️TEMPORARY CODE END
-    if last_message_id is not None:
-        last_message = await data_access_get_message(guild_id, channel_id, last_message_id)
+    # if last_message_id is None:
+    last_message = await get_last_schedule_message(
+        bot, channel
+    )  # 23 just to make sure the script will create a new entry every 24 hours. Giving some buffer to avoid editing the message by the script
+    if last_message is not None:
+        # last_message_id = last_message.id
+        if is_today(last_message.created_at):
+            print_warning_log(
+                f"\t⚠️ Daily message already in Discord for guild {guild.name}. Adding in cache and skipping."
+            )
 
-    if last_message is None:
-        votes = None
-    else:
-        votes = await data_access_get_reaction_message(guild_id, channel_id, last_message.id)
+            return
+    # ⚠️TEMPORARY CODE END
+    # if last_message_id is not None:
+    #    last_message = await data_access_get_message(guild_id, channel_id, last_message_id)
+
+    # if last_message is None:
+    #     votes = None
+    # else:
+    #     votes = await data_access_get_reaction_message(guild_id, channel_id, last_message.id)
 
     # Votes can be none because last message was not there or the message was not voted yet
-    if votes is None:
-        votes = get_empty_votes()
+    votes = get_empty_votes()
     embed_msg = get_daily_embed_message(votes)  # The message to show (new or edited)
     view = ScheduleButtons(bot.guild_emoji)  # Always re-create the buttons for the callbacks
-    if last_message is None or force:
-        message: discord.Message = await channel.send(content="", embed=embed_msg, view=view)
-        await auto_assign_user_to_daily_question(guild_id, channel_id, message)
-        data_access_set_daily_message_id(guild_id, message.id)
-        print_log(f"\t✅ Daily new schedule message sent in guild {guild.name}")
-    else:
-        message: discord.Message = await last_message.edit(embed=embed_msg, view=view)
-        print_log(f"\t✅ Daily update schedule message sent in guild {guild.name}")
+    message: discord.Message = await channel.send(content="", embed=embed_msg, view=view)
+    await auto_assign_user_to_daily_question(guild_id, channel_id, message)
+    data_access_set_daily_message_id(guild_id, message.id)
+    print_log(f"\t✅ Daily new schedule message sent in guild {guild.name}")
 
 
 async def check_voice_channel(bot: MyBot):
@@ -150,7 +151,9 @@ async def check_voice_channel(bot: MyBot):
                 f"check_voice_channel: Text channel configured but not found in the guild {guild.name}. Skipping."
             )
             continue
-        last_message_id = await data_access_get_daily_message_id(guild_id)
+        # last_message_id = await data_access_get_daily_message_id(guild_id)
+        last_message = await get_last_schedule_message(bot, text_channel)
+        last_message_id = last_message.id if last_message is not None else None
         if last_message_id is None:
             print_warning_log(f"check_voice_channel: No message found in the channel {text_channel.name}. Skipping.")
             continue

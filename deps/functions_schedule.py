@@ -6,7 +6,6 @@ from typing import Dict, List, Union
 import discord
 from deps.data_access import (
     data_access_get_channel,
-    data_access_get_daily_message_id,
     data_access_get_guild,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_member,
@@ -20,7 +19,7 @@ from deps.log import print_log, print_error_log
 from deps.models import SimpleUser, SimpleUserHour
 from deps.siege import get_user_rank_emoji
 from deps.functions_model import get_empty_votes
-from deps.values import DATE_FORMAT, COMMAND_SCHEDULE_ADD, MSG_UNIQUE_STRING
+from deps.values import DATE_FORMAT, COMMAND_SCHEDULE_ADD, MSG_UNIQUE_STRING, SUPPORTED_TIMES_ARR
 
 lock = asyncio.Lock()
 
@@ -32,9 +31,6 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
     guild_id = interaction.guild_id
     message_id = interaction.message.id
     user_id = interaction.user.id
-
-    last_message_id = await data_access_get_daily_message_id(guild_id)
-    print_log(f"DB Latest Msg ID {last_message_id}, and interaction Msg ID {message_id}")
 
     guild: discord.Guild = await data_access_get_guild(guild_id)
     channel: discord.TextChannel = await data_access_get_channel(channel_id)
@@ -110,7 +106,8 @@ def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> di
     current_date = date.today().strftime(DATE_FORMAT)
     vote_message = f"{MSG_UNIQUE_STRING} today **{current_date}**?"
     vote_message += "\n\n**Schedule**\n"
-    for key_time, users in vote_for_message.items():
+    for key_time in SUPPORTED_TIMES_ARR:
+        users = vote_for_message.get(key_time, [])
         if users:
             vote_message += f"{key_time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
         else:

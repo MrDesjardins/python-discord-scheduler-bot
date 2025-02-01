@@ -6,8 +6,8 @@ from typing import Union, Optional, List
 import discord
 from discord import app_commands
 from deps.values import (
-    EMOJI_TO_TIME,
     MSG_UNIQUE_STRING,
+    SUPPORTED_TIMES_ARR,
     URL_TRN_API_RANKED_MATCHES,
     URL_TRN_PROFILE_MAIN,
     URL_TRN_PROFILE_OVERVIEW,
@@ -16,20 +16,12 @@ from deps.values import (
 from deps.mybot import MyBot
 from deps.siege import siege_ranks
 
-
-def get_reactions() -> List[str]:
-    """
-    Returns a list of all the emojis that can be used to vote.
-    """
-    return list(EMOJI_TO_TIME.keys())
-
-
 def get_time_choices() -> List[app_commands.Choice]:
     """
     Returns a list of OptionChoice objects that represent the supported times.
     """
     supported_times = []
-    for time in EMOJI_TO_TIME.values():
+    for time in SUPPORTED_TIMES_ARR:
         short_label = time
         display_label = time
         supported_times.append(app_commands.Choice(name=short_label, value=display_label))
@@ -51,7 +43,7 @@ async def get_last_schedule_message(
         if (
             message.author.bot
             and message.author == bot.user
-            and message.created_at >= time_threshold
+            # and message.created_at >= time_threshold
             and (message.content.startswith(MSG_UNIQUE_STRING) or len(message.embeds) > 0)
         ):
             last_message = message

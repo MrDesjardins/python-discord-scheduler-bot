@@ -2,11 +2,11 @@ from typing import List, Union
 import discord
 from discord.ext import commands
 from discord import app_commands
+from deps.functions import get_last_schedule_message
 from ui.schedule_day_hours_view import ScheduleDayHours
 from deps.functions_schedule import auto_assign_user_to_daily_question
 from deps.data_access import (
     data_access_get_channel,
-    data_access_get_daily_message_id,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_message,
     data_access_get_users_auto_schedule,
@@ -93,7 +93,9 @@ class UserSchedule(commands.Cog):
             return
 
         channel: discord.TextChannel = await data_access_get_channel(channel_id)
-        last_message_id = await data_access_get_daily_message_id(guild_id)
+        #last_message_id = await data_access_get_daily_message_id(guild_id)
+        last_message = await get_last_schedule_message(self.bot, channel)
+        last_message_id = last_message.id if last_message is not None else None
         if last_message_id is None:
             print_warning_log(f"No message found in the channel {channel.name}. Skipping.")
             await interaction.followup.send(f"Cannot find a schedule message #{channel.name}.", ephemeral=True)

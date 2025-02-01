@@ -4,7 +4,6 @@ from discord.ext import commands
 from discord import app_commands
 from deps.bot_common_actions import persist_siege_matches_cross_guilds, send_session_stats_directly
 from deps.data_access import (
-    data_access_get_daily_message_id,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_message,
     data_access_get_reaction_message,
@@ -24,7 +23,7 @@ from deps.log import print_log
 from deps.mybot import MyBot
 from deps.models import SimpleUser
 from deps.functions_model import get_empty_votes
-from deps.functions import get_time_choices
+from deps.functions import get_last_schedule_message, get_time_choices
 from deps.siege import get_user_rank_emoji
 from deps.functions_schedule import update_vote_message
 from ui.timezone_view import TimeZoneView
@@ -85,8 +84,9 @@ class ModeratorOnUserBehalf(commands.Cog):
         guild_id = interaction.guild.id
         channel: discord.TextChannel = data_access_get_guild_schedule_text_channel_id(guild_id)
         channel_id = channel.id
-
-        last_message_id = await data_access_get_daily_message_id(guild_id)
+        last_message = await get_last_schedule_message(self.bot, channel)
+        last_message_id = last_message.id if last_message is not None else None
+        # last_message_id = await data_access_get_daily_message_id(guild_id)
         if last_message_id is None:
             await interaction.followup.send("No messages found in this channel.", ephemeral=True)
             return

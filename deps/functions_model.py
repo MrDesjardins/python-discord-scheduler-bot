@@ -8,8 +8,8 @@ from typing import Dict, List
 from deps.values import (
     COMMAND_SCHEDULE_ADD,
     DATE_FORMAT,
-    EMOJI_TO_TIME,
     MSG_UNIQUE_STRING,
+    SUPPORTED_TIMES_ARR,
 )
 from deps.models import SimpleUser, TimeLabel
 
@@ -20,7 +20,7 @@ def get_empty_votes() -> Dict[str, List[SimpleUser]]:
     Each array contains SimpleUser
     Result is { '3pm': [], '4pm': [], ... }
     """
-    return {time: [] for time in EMOJI_TO_TIME.values()}
+    return {time: [] for time in SUPPORTED_TIMES_ARR}
 
 
 def get_supported_time_time_label() -> List[TimeLabel]:
@@ -28,7 +28,7 @@ def get_supported_time_time_label() -> List[TimeLabel]:
     Returns a list of TimeLabel objects that represent the supported times.
     """
     supported_times = []
-    for time in EMOJI_TO_TIME.values():
+    for time in SUPPORTED_TIMES_ARR:
         # time[:-2]  # Extracts the numeric part of the time
         short_label = time  # E.g. 2pm
         display_label = time  # E.g. 2pm
