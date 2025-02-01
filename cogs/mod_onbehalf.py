@@ -111,7 +111,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         # Always update the cache
         data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
 
-        await update_vote_message(message, message_votes)
+        await update_vote_message(message, message_votes, self.bot.guild_emoji)
         await interaction.followup.send("User added", ephemeral=True)
 
     @app_commands.command(name=COMMAND_STATS_MATCHES)

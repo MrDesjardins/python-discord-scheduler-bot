@@ -71,7 +71,7 @@ from deps.values import (
 )
 from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions_r6_tracker import get_user_gaming_session_stats
-from deps.functions_schedule import get_daily_embed_message, auto_assign_user_to_daily_question, update_vote_message
+from deps.functions_schedule import adjust_reaction, get_daily_embed_message, auto_assign_user_to_daily_question, update_vote_message
 from ui.schedule_buttons import ScheduleButtons
 
 
@@ -102,9 +102,14 @@ async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force
         # last_message_id = last_message.id
         if is_today(last_message.created_at):
             print_warning_log(
-                f"\t⚠️ Daily message already in Discord for guild {guild.name}. Adding in cache and skipping."
+                f"\t⚠️ Daily message already in Discord for guild {guild.name}. Updating the message and skipping pushing a new message."
             )
-
+            channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, last_message.id)
+            if channel_message_votes is None:
+                channel_message_votes = get_empty_votes()
+            await update_vote_message(
+                last_message, channel_message_votes, bot.guild_emoji
+            )  # Will edit and make the buttons work again
             return
     # ⚠️TEMPORARY CODE END
     # if last_message_id is not None:
@@ -118,9 +123,9 @@ async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force
     # Votes can be none because last message was not there or the message was not voted yet
     votes = get_empty_votes()
     embed_msg = get_daily_embed_message(votes)  # The message to show (new or edited)
-    view = ScheduleButtons(bot.guild_emoji)  # Always re-create the buttons for the callbacks
+    view = ScheduleButtons(bot.guild_emoji, adjust_reaction)  # Always re-create the buttons for the callbacks
     message: discord.Message = await channel.send(content="", embed=embed_msg, view=view)
-    await auto_assign_user_to_daily_question(guild_id, channel_id, message)
+    await auto_assign_user_to_daily_question(guild_id, channel_id, message, bot.guild_emoji)
     data_access_set_daily_message_id(guild_id, message.id)
     print_log(f"\t✅ Daily new schedule message sent in guild {guild.name}")
 
@@ -203,7 +208,7 @@ async def check_voice_channel(bot: MyBot):
             # Always update the cache
             data_access_set_reaction_message(guild_id, text_channel_id, message_id, message_votes)
             last_message: discord.Message = await data_access_get_message(guild_id, text_channel_id, message_id)
-            await update_vote_message(last_message, message_votes)
+            await update_vote_message(last_message, message_votes, bot.guild_emoji)
             print_log(f"check_voice_channel: Updated voice channel cache for {guild.name}")
 
 

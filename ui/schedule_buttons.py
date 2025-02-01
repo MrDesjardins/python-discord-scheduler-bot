@@ -5,7 +5,6 @@ Buttons to vote for schedule times
 import traceback
 from typing import Dict
 import discord
-from deps.functions_schedule import adjust_reaction
 from deps.values import SUPPORTED_TIMES_ARR
 from deps.log import print_error_log
 
@@ -13,10 +12,11 @@ from deps.log import print_error_log
 class ScheduleButtons(discord.ui.View):
     """Buttons for the schedule"""
 
-    def __init__(self, guild_emoji: dict[str, Dict[str, str]]):
+    def __init__(self, guild_emoji: dict[str, Dict[str, str]], callback):
         super().__init__()
         self.guild_emoji = guild_emoji
         self.schedule_times = SUPPORTED_TIMES_ARR
+        self.callback = callback
 
         for time in self.schedule_times:
             button = discord.ui.Button(label=time, style=discord.ButtonStyle.primary, custom_id=time)
@@ -28,7 +28,7 @@ class ScheduleButtons(discord.ui.View):
         try:
             await interaction.response.defer()
             custom_id = interaction.data["custom_id"]
-            await adjust_reaction(self.guild_emoji, interaction, custom_id)
+            await self.callback(self.guild_emoji, interaction, custom_id)
         except Exception as e:
             print_error_log(f"ScheduleButtons>An error occurred: {e}")
             traceback.print_exc()  # Logs full traceback

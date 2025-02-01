@@ -104,7 +104,7 @@ class UserSchedule(commands.Cog):
             print_warning_log(f"Cannot find a message id {last_message_id} in the channel {channel.name}. Skipping.")
             await interaction.followup.send(f"Cannot find a schedule message in #{channel.name}.", ephemeral=True)
             return
-        await auto_assign_user_to_daily_question(guild_id, channel_id, last_message)
+        await auto_assign_user_to_daily_question(guild_id, channel_id, last_message, self.bot.guild_emoji)
 
         await interaction.followup.send(f"Update message in #{channel.name}.", ephemeral=True)
 

@@ -20,6 +20,7 @@ from deps.models import SimpleUser, SimpleUserHour
 from deps.siege import get_user_rank_emoji
 from deps.functions_model import get_empty_votes
 from deps.values import DATE_FORMAT, COMMAND_SCHEDULE_ADD, MSG_UNIQUE_STRING, SUPPORTED_TIMES_ARR
+from ui.schedule_buttons import ScheduleButtons
 
 lock = asyncio.Lock()
 
@@ -66,7 +67,7 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
         await user.send("You can't vote on a message that is older than 24 hours.")
         return
     print_log("adjust_reaction: Start (lock) Adjusting reaction")
-    #async with lock:  # Acquire the lock
+    # async with lock:  # Acquire the lock
     # Cache all users for this message's reactions to avoid redundant API calls
     channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
     if channel_message_votes is None:
@@ -91,14 +92,18 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
     data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
     print_log("adjust_reaction: End Adjusting reaction")
 
-    await update_vote_message(text_message_reaction, channel_message_votes)
+    await update_vote_message(text_message_reaction, channel_message_votes, guild_emoji)
 
 
-async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
+async def update_vote_message(
+    message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]], guild_emoji: dict[str, Dict[str, str]]
+):
     """Update the votes per hour on the bot message"""
     embed_msg = get_daily_embed_message(vote_for_message)
     print_log("update_vote_message: Updated Message")
-    await message.edit(content="", embed=embed_msg)
+    await message.edit(
+        content="", embed=embed_msg, view=ScheduleButtons(guild_emoji, adjust_reaction)
+    )  # Always re-create the buttons for the callbacks)
 
 
 def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> discord.Embed:
@@ -122,7 +127,7 @@ def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> di
 
 
 async def auto_assign_user_to_daily_question(
-    guild_id: int, channel_id: int, message: discord.Message
+    guild_id: int, channel_id: int, message: discord.Message, guild_emoji: dict[str, Dict[str, str]]
 ) -> Dict[str, List[SimpleUser]]:
     """Take the existing schedules for all user and apply it to the message"""
     day_of_week_number = datetime.now().weekday()  # 0 is Monday, 6 is Sunday
@@ -148,7 +153,7 @@ async def auto_assign_user_to_daily_question(
         data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
         print_log(f"Updated message {message_id} with the user schedules for the day {day_of_week_number}")
         print_log(message_votes)
-        await update_vote_message(message, message_votes)
+        await update_vote_message(message, message_votes, guild_emoji)
 
     else:
         print_log(f"No schedule found for the day {day_of_week_number}")
