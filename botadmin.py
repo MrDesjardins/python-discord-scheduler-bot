@@ -320,8 +320,8 @@ def watch_log_journal() -> None:
     """
     try:
         # Execute the journalctl command
-        command = "journalctl -u gametimescheduler.service -f"
-        print(f"Command: {command}")
+        command = ["journalctl", "-u", "gametimescheduler.service", "-f"]
+        print(f"Executing: {' '.join(command)}")
         result = subprocess.run(
             command,  # Specify the shell and script path
             text=True,  # Return the output as a string
