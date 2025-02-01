@@ -205,7 +205,7 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
                     tournament.id = user_tournament.tournament_id
                     AND user_tournament.user_id = :user_id
                 WHERE tournament.guild_id = :guild_id
-                    AND is_finished = 0
+                    AND has_finished = 0
                     AND date(tournament.end_date) >= date(:current_time)
                     AND date(tournament.start_date) <= date(:current_time);
                 """
