@@ -5,6 +5,7 @@ import discord
 from discord.ui import View
 from deps.tournaments.tournament_data_class import Tournament
 from deps.tournaments.tournament_discord_actions import generate_bracket_file
+from deps.log import print_error_log
 
 
 class TournamentSeeBracket(View):
@@ -25,7 +26,14 @@ class TournamentSeeBracket(View):
     def create_button_callback(self, tournament_id: int):
         async def callback(interaction: discord.Interaction):
             """Callback function to handle button presses."""
-            file = generate_bracket_file(tournament_id)
-            await interaction.response.send_message(file=file, ephemeral=False)
+            try:
+                # Defer the response immediately to prevent timeout errors
+                await interaction.response.defer()
+
+                file = generate_bracket_file(tournament_id)
+                await interaction.followup.send(file=file, ephemeral=False)
+            except Exception as e:
+                print_error_log(f"TournamentSeeBracket: (user id {interaction.user.id}) create_button_callback: {e}")
+                await interaction.followup.send("An error occurred while generating the bracket.", ephemeral=True)
 
         return callback

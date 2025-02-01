@@ -783,7 +783,7 @@ async def test_generate_msg_bet_leaderboard_users(mock_fetch_user, mock_get_all_
         BetUserTournament(3, 2, 300, 30.99),
     ]
     mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
-    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False,0)
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
     # Act
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
@@ -815,7 +815,7 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_winning_bet(
     that there is a single bet on a game that just ended
     """
     # Arrange
-    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False,False, 0)
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
     ]
@@ -862,7 +862,7 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_losing_bet(
     and close the game bet + user bet
     """
     # Arrange
-    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False,False, 0)
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
     ]
@@ -1116,3 +1116,11 @@ def test_dynamically_adjust_bet_game_odd_bet_game_several_times() -> None:
     # Assert
     assert bet_game.probability_user_1_win == pytest.approx(0.805, abs=1e-3)
     assert bet_game.probability_user_2_win == pytest.approx(0.194, abs=1e-3)
+
+
+def test_define_odds_between_two_users_users_db() -> None:
+    """
+    Test when both users does not have data
+    """
+    result = define_odds_between_two_users(225233803185094656, 318126349648920577)
+    assert result == (0.5, 0.5)

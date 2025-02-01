@@ -1,5 +1,6 @@
 """ User interface for the bot"""
 
+import traceback
 from typing import List, Optional
 import discord
 from discord.ui import Select, View
@@ -49,59 +50,72 @@ class BetTournamentSelectorForMarket(View):
     def create_button_callback(self, tournament_id: int):
         async def callback(interaction: discord.Interaction):
             """Handles button press for selecting a tournament."""
-            # Defer the response immediately to prevent timeout errors
-            await interaction.response.defer()
+            try:
+                # Defer the response immediately to prevent timeout errors
+                await interaction.response.defer()
 
-            self.tournament_id = tournament_id
-            if self.bet_game_id is None:
-                self.wallet = get_bet_user_wallet_for_tournament(self.tournament_id, interaction.user.id)
-                # 1 Get the tournament games
-                tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+                self.tournament_id = tournament_id
+                if self.bet_game_id is None:
+                    self.wallet = get_bet_user_wallet_for_tournament(self.tournament_id, interaction.user.id)
+                    # 1 Get the tournament games
+                    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
 
-                # 2 Get the current bet_game for the tournament
-                bet_games: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
-                self.game_by_bet_game_id = {game.tournament_game_id: game for game in bet_games}
-                self.bet_game_by_bet_game_id = {game.id: game for game in bet_games}
-                games_with_bet_game = [
-                    game
-                    for game in tournament_games
-                    if game.id in self.game_by_bet_game_id and game.user_winner_id is None
-                ]
-                options: List[discord.SelectOption] = []
-                for game in games_with_bet_game:
-                    user_info1: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user1_id)
-                    user_info2: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user2_id)
-                    bet_game_for_game: Optional[BetGame] = self.game_by_bet_game_id.get(game.id, None)
-                    if bet_game_for_game is None:
-                        print_error_log(f"Bet game not found for game {game.id}")
-                        continue
-                    text_display = f"{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"
-                    options.append(discord.SelectOption(label=text_display, value=str(bet_game_for_game.id)))
-                if len(options) == 0:
-                    await interaction.followup.send(
-                        "No games available to bet in this tournament. Please try again later.", ephemeral=True
+                    # 2 Get the current bet_game for the tournament
+                    bet_games: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+                    self.game_by_bet_game_id = {game.tournament_game_id: game for game in bet_games}
+                    self.bet_game_by_bet_game_id = {game.id: game for game in bet_games}
+                    games_with_bet_game = [
+                        game
+                        for game in tournament_games
+                        if game.id in self.game_by_bet_game_id and game.user_winner_id is None
+                    ]
+                    options: List[discord.SelectOption] = []
+                    for game in games_with_bet_game:
+                        user_info1: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user1_id)
+                        user_info2: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user2_id)
+                        bet_game_for_game: Optional[BetGame] = self.game_by_bet_game_id.get(game.id, None)
+                        if bet_game_for_game is None:
+                            print_error_log(f"Bet game not found for game {game.id}")
+                            continue
+                        text_display = f"{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"
+                        options.append(discord.SelectOption(label=text_display, value=str(bet_game_for_game.id)))
+                    if len(options) == 0:
+                        await interaction.followup.send(
+                            "No games available to bet in this tournament. Please try again later.", ephemeral=True
+                        )
+                        return
+
+                    # Disable all buttons
+                    for item in self.children:
+                        item.disabled = True
+                    # 3 Add the select with the possible bet
+                    self.remove_item(self.bet_game_ui)
+                    self.bet_game_ui = Select(
+                        placeholder="Bet:",
+                        options=options,
+                        custom_id="bet_game_ui",
+                        min_values=1,
+                        max_values=1,
                     )
-                    return
-
-                # Disable all buttons
-                for item in self.children:
-                    item.disabled = True
-                # 3 Add the select with the possible bet
-                self.remove_item(self.bet_game_ui)
-                self.bet_game_ui = Select(
-                    placeholder="Bet:",
-                    options=options,
-                    custom_id="bet_game_ui",
-                    min_values=1,
-                    max_values=1,
-                )
-                self.bet_game_ui.callback = self.handle_bet_game_ui
-                self.add_item(self.bet_game_ui)
-                # Update the interaction message with the new view
-                await interaction.followup.edit_message(
-                    message_id=interaction.message.id,
-                    content=f"Select one of the bets available in the market for this tournament. You have ${self.wallet.amount:.2f}",
-                    view=self,
+                    self.bet_game_ui.callback = self.handle_bet_game_ui
+                    self.add_item(self.bet_game_ui)
+                    # Update the interaction message with the new view
+                    try:
+                        await interaction.followup.edit_message(
+                            message_id=interaction.message.id,
+                            content=f"Select one of the bets available in the market for this tournament. You have ${self.wallet.amount:.2f}",
+                            view=self,
+                        )
+                    except discord.errors.NotFound:
+                        print_error_log(
+                            "BetTournamentSelectorForMarket>: Cannot edit the message because it no longer exists."
+                        )
+                        await interaction.followup.send("The message has expired or been deleted.", ephemeral=True)
+            except Exception as e:
+                print_error_log(f"BetTournamentSelectorForMarket>An error occurred: {e}")
+                traceback.print_exc()  # This prints the full error traceback
+                await interaction.followup.send(
+                    "An unexpected error occurred. Please contact a moderator.", ephemeral=True
                 )
 
         return callback
@@ -225,7 +239,9 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
         try:
             self.view.amount = float(self.amount_ui.value)
         except ValueError as e:
-            print_error_log(f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: {e}")
+            print_error_log(
+                f"bet_tournament_selector_for_market_handle_bet_game_ui: (user id {interaction.user.id}) AmountModal_on_submit: {e}"
+            )
             await interaction.response.send_message("Please enter a valid number.", ephemeral=True)
             return
         # Acknowledge the submission and close the modal
@@ -240,11 +256,15 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
                 self.view.user_bet_on_id,
             )
         except ValueError as e:
-            print_warning_log(f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: {e}")
+            print_warning_log(
+                f"bet_tournament_selector_for_market_handle_bet_game_ui: (user id {interaction.user.id}) AmountModal_on_submit: {e}"
+            )
             await interaction.followup.send(f"An error occurred while placing the bet: {e}", ephemeral=True)
             return
         except Exception as e:
-            print_error_log(f"bet_tournament_selector_for_market_handle_bet_game_ui: AmountModal_on_submit: {e}")
+            print_error_log(
+                f"bet_tournament_selector_for_market_handle_bet_game_ui: (user id {interaction.user.id}) AmountModal_on_submit: {e}"
+            )
             await interaction.followup.send(
                 "An error occurred while placing the bet. Please notify a moderator.", ephemeral=True
             )

@@ -1,11 +1,13 @@
 """ User interface for the bot"""
 
+import traceback
 from typing import List
 import discord
 from discord.ui import View
 from deps.bet.bet_functions import generate_msg_bet_leaderboard
 from deps.tournaments.tournament_data_class import Tournament
 from deps.values import COMMAND_BET
+from deps.log import print_error_log
 
 
 class BetTournamentSelectorForLeaderboard(View):
@@ -24,25 +26,34 @@ class BetTournamentSelectorForLeaderboard(View):
         # else:
         for tournament in self.list_tournaments:
             button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
-            button.callback = self.create_button_callback(tournament.id)
+            button.callback = lambda interaction, tid=tournament.id: self.create_button_callback(tid)(interaction)
             self.add_item(button)
 
     def create_button_callback(self, tournament_id: int):
         async def callback(interaction: discord.Interaction):
             """Handles button press for selecting a tournament."""
-            # Remove all buttons
-            for item in self.children:
-                self.remove_item(item)
-            tournament = next((t for t in self.list_tournaments if t.id == tournament_id), None)
-            msg = await generate_msg_bet_leaderboard(tournament)
-            if msg == "":
-                msg = f"No user who betted on this tournament. Use the command `/{COMMAND_BET}` to place a bet."
-            else:
-                msg = f'Top betters tournament "**{tournament.name}**":\n\n' + msg
-            # Update the interaction message with the new view
-            await interaction.response.edit_message(
-                content=msg,
-                view=self,
-            )
+            try:
+                await interaction.response.defer()
+                # Remove all buttons
+                for item in self.children:
+                    self.remove_item(item)
+                tournament = next((t for t in self.list_tournaments if t.id == tournament_id), None)
+                msg = await generate_msg_bet_leaderboard(tournament)
+                if msg == "":
+                    msg = f"No user who betted on this tournament. Use the command `/{COMMAND_BET}` to place a bet."
+                else:
+                    msg = f'Top betters tournament "**{tournament.name}**":\n\n' + msg
+                    # Update the interaction message with the new view
+                    await interaction.followup.edit_message(
+                        message_id=interaction.message.id,
+                        content=msg,
+                        view=self,
+                    )
+            except Exception as e:
+                print_error_log(f"BetTournamentSelectorForLeaderboard>An error occurred: {e}")
+                traceback.print_exc()  # This prints the full error traceback
+                await interaction.followup.send(
+                    "An unexpected error occurred. Please contact a moderator.", ephemeral=True
+                )
 
         return callback
