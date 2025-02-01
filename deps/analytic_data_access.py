@@ -706,9 +706,8 @@ def data_access_fetch_avg_kill_match(from_data: datetime) -> list[tuple[int, str
         LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
         WHERE
             is_rollback = false
-            and datetime (match_timestamp) > datetime ('2025-01-21')
-        GROUP BY
-            user_id
+            and match_timestamp >= :from_data
+        GROUP BY user_id
     )
     ORDER BY
         avg_kill desc;
@@ -890,3 +889,40 @@ def data_access_fetch_users_operators(from_data: datetime) -> list[UserOperatorC
 
     # Convert to UserOperatorCount
     return [UserOperatorCount(user=row[0], operator_name=row[1], count=row[2]) for row in result]
+
+
+def data_access_fetch_kd_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+    """
+    Get all the kills and count for each user
+    """
+    query = """
+   SELECT
+    user_id,
+    display_name,
+    sum_kill * 1.0 / sum_death as kd
+    FROM
+    (
+        SELECT
+        user_full_match_info.user_id,
+        user_info.display_name,
+        sum(user_full_match_info.kill_count) as sum_kill,
+        sum(user_full_match_info.death_count) as sum_death
+        FROM
+        user_full_match_info
+        LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
+        WHERE
+        is_rollback = false
+        and match_timestamp > datetime ('2025-01-01') GROUP BY user_id
+    )
+    ORDER BY kd DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    # Convert the result to a dictionary of user_id -> tk_count
+    return [(row[0], row[1], row[2]) for row in result]

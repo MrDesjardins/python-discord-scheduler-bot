@@ -12,6 +12,7 @@ from deps.analytic_functions import compute_users_voice_channel_time_sec, comput
 from deps.browser import download_full_matches_async
 from deps.analytic_data_access import (
     data_access_fetch_avg_kill_match,
+    data_access_fetch_kd_by_user,
     data_access_fetch_match_played_count_by_user,
     data_access_fetch_rollback_count_by_user,
     data_access_fetch_tk_count_by_user,
@@ -71,7 +72,12 @@ from deps.values import (
 )
 from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions_r6_tracker import get_user_gaming_session_stats
-from deps.functions_schedule import adjust_reaction, get_daily_embed_message, auto_assign_user_to_daily_question, update_vote_message
+from deps.functions_schedule import (
+    adjust_reaction,
+    get_daily_embed_message,
+    auto_assign_user_to_daily_question,
+    update_vote_message,
+)
 from ui.schedule_buttons import ScheduleButtons
 
 
@@ -622,8 +628,9 @@ async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWi
 
 def build_msg_stats(stats_name: str, info_time_str: str, stats_tuple: list[tuple[int, str, int]]) -> str:
     """Build a message that can be resused between the stats msg"""
-    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top 10 {stats_name} {info_time_str}\n```"
-    stats_tuple = stats_tuple[:10]
+    TOP = 20
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
+    stats_tuple = stats_tuple[:TOP]
     rank = 0
     previous_tk = -1
     for tk in stats_tuple:
@@ -649,25 +656,35 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
     first_day_current_year = datetime(today.year, 1, 1, tzinfo=timezone.utc)
     last_7_days = today - timedelta(days=DAY)
     weekday = today.weekday()  # 0 is Monday, 6 is Sunday
-    if weekday == DayOfWeek.SUNDAY.value:
-        stats = data_access_fetch_tk_count_by_user(first_day_current_year)
+    if weekday == DayOfWeek.MONDAY.value:
+        stats = data_access_fetch_match_played_count_by_user(last_7_days)
+        msg = build_msg_stats("rank matches", f"in the last {DAY} days", stats)
+    elif weekday == DayOfWeek.TUESDAY.value:
+        stats = data_access_fetch_kd_by_user(last_7_days)
         if len(stats) == 0:
-            print_log("No tk stats to show")
+            print_log("No kd stats to show")
             return
-        msg = build_msg_stats("TK", f"since the beginning of {today.year}", stats)
-    elif weekday == DayOfWeek.THURSDAY.value:
-        stats = data_access_fetch_avg_kill_match(last_7_days)
         stats = [(tk[0], tk[1], round(tk[2], 2)) for tk in stats]
-        msg = build_msg_stats("average kills/match ", f"in the last {DAY} days", stats)
+        msg = build_msg_stats("K/D", f"in the last {DAY} days", stats)
     elif weekday == DayOfWeek.WEDNESDAY.value:
         stats = data_access_fetch_rollback_count_by_user(last_7_days)
         if len(stats) == 0:
             print_log("No rollback stats to show")
             return
         msg = build_msg_stats("rollbacks", f"in the last {DAY} days", stats)
-    elif weekday == DayOfWeek.MONDAY.value:
-        stats = data_access_fetch_match_played_count_by_user(last_7_days)
-        msg = build_msg_stats("rank matches", f"in the last {DAY} days", stats)
+    elif weekday == DayOfWeek.THURSDAY.value:
+        stats = data_access_fetch_avg_kill_match(last_7_days)
+        stats = [(tk[0], tk[1], round(tk[2], 2)) for tk in stats]
+        msg = build_msg_stats("average kills/match ", f"in the last {DAY} days", stats)
+    elif weekday == DayOfWeek.FRIDAY.value:
+        img_bytes = display_user_top_operators(last_7_days, False)
+        channel: discord.TextChannel = await data_access_get_channel(channel_id)
+        msg = "📊 **Stats of the day: Top Operators**\nHere is the top 10 operators in the last 7 days"
+        bytesio = io.BytesIO(img_bytes)
+        bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
+        file = discord.File(fp=bytesio, filename="plot.png")
+        await channel.send(file=file, content=msg)
+        return
     elif weekday == DayOfWeek.SATURDAY.value:
         data_user_activity = fetch_all_user_activities(7, 0)
         data_user_id_name = fetch_user_info()
@@ -683,15 +700,12 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
         # Get the display name of the user to create a list of tuple with id, username and time
         stats = [(user_id, data_user_id_name[user_id].display_name, round(time, 2)) for user_id, time in sorted_users]
         msg = build_msg_stats("hours in voice channels", f"in the last {DAY} days", stats)
-    elif weekday == DayOfWeek.FRIDAY.value:
-        img_bytes = display_user_top_operators(last_7_days, False)
-        channel: discord.TextChannel = await data_access_get_channel(channel_id)
-        msg = "📊 **Stats of the day: Top Operators**\nHere is the top 10 operators in the last 7 days"
-        bytesio = io.BytesIO(img_bytes)
-        bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
-        file = discord.File(fp=bytesio, filename="plot.png")
-        await channel.send(file=file, content=msg)
-        return
+    elif weekday == DayOfWeek.SUNDAY.value:
+        stats = data_access_fetch_tk_count_by_user(first_day_current_year)
+        if len(stats) == 0:
+            print_log("No tk stats to show")
+            return
+        msg = build_msg_stats("TK", f"since the beginning of {today.year}", stats)
     else:
         # Not stats to show for the current day
         return
