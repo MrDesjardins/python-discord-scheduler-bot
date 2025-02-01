@@ -6,6 +6,7 @@ from typing import Dict, List, Union
 import discord
 from deps.data_access import (
     data_access_get_channel,
+    data_access_get_daily_message_id,
     data_access_get_guild,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_member,
@@ -31,6 +32,10 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
     guild_id = interaction.guild_id
     message_id = interaction.message.id
     user_id = interaction.user.id
+
+    last_message_id = await data_access_get_daily_message_id(guild_id)
+    print_log(f"DB Latest Msg ID {last_message_id}, and interaction Msg ID {message_id}")
+
     guild: discord.Guild = await data_access_get_guild(guild_id)
     channel: discord.TextChannel = await data_access_get_channel(channel_id)
     text_message_reaction: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
