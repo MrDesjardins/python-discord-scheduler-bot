@@ -24,10 +24,12 @@ class TournamentTasksCog(commands.Cog):
 
     async def start_task(self):
         """Wait for the bot to be ready, then start the task"""
-        await self.bot.wait_until_ready()  # Wait until the bot is ready
+        await self.bot.ready_event.wait()  # Wait for on_ready() to fully complete
+        print_log("TournamentTasksCog>start_task: Bot is ready, starting tasks...")
         self.send_daily_tournament_registration_message.start()  # Start the task when the cog is loaded
         self.send_daily_tournament_start_message.start()  # Start the task when the cog is loaded
         self.send_daily_tournament_match_reminder.start()  # Start the task when the cog is loaded
+        print_log("TournamentTasksCog>start_task: Bot is ready, all tasks started")
 
     @tasks.loop(time=time_send_daily_registration_tournament)
     async def send_daily_tournament_registration_message(self):

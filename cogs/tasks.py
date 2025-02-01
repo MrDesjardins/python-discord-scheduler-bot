@@ -27,12 +27,15 @@ class MyTasksCog(commands.Cog):
 
     async def start_task(self):
         """Wait for the bot to be ready, then start the task"""
-        await self.bot.wait_until_ready()  # Wait until the bot is ready
+        # await self.bot.wait_until_ready()  # Wait until the bot is ready
+        await self.bot.ready_event.wait()  # Wait for on_ready() to fully complete
+        print_log("MyTasksCog>start_task: Bot is ready, starting tasks...")
         self.check_voice_channel_task.start()  # Start the task when the cog is loaded
         self.send_queue_user_stats.start()  # Start the task when the cog is loaded
         self.send_daily_question_to_all_guild_task.start()  # Start the task when the cog is loaded
         self.daily_saving_active_user_match_stats_task.start()  # Start the task when the cog is loaded
         self.send_daily_stats_to_all_guild_task.start()  # Start the task when the cog is loaded
+        print_log("MyTasksCog>start_task: Bot is ready, all tasks started")
 
     @tasks.loop(minutes=16)
     async def check_voice_channel_task(self):

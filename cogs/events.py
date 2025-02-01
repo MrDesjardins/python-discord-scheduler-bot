@@ -87,6 +87,9 @@ class MyEventsCog(commands.Cog):
         # Running all tasks concurrently and waiting for them to finish
         await asyncio.gather(*tasks)
 
+        bot.ready_event.set()
+        print_log("✅ on_ready() completed, bot is fully initialized.")
+
     def check_bot_permissions(self, channel: discord.TextChannel) -> dict:
         """Check the bot permissions in a specific channel"""
         bot_permissions = channel.permissions_for(channel.guild.me)
