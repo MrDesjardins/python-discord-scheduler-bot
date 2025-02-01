@@ -77,7 +77,7 @@ def data_access_get_all_wallet_for_tournament(tournament_id: int) -> List[BetUse
     return [BetUserTournament.from_db_row(row) for row in rows]
 
 
-def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> List[BetUserTournament]:
+def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> BetUserTournament:
     """
     Get the wallet of a user for a specific tournament
     """
@@ -359,7 +359,7 @@ def data_access_update_bet_game_distribution_completed(bet_id: int, auto_commit:
         database_manager.get_conn().commit()
 
 
-def data_access_get_bet_ledger_entry_for_tournament(tournament_id: int) -> None:
+def data_access_get_bet_ledger_entry_for_tournament(tournament_id: int) -> List[BetLedgerEntry]:
     """Get the list of entry for a specific tournament"""
     query = f"""
         SELECT

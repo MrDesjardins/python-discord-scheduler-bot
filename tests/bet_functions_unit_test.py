@@ -846,6 +846,62 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_winning_bet(
 @patch.object(bet_functions, bet_functions.data_access_insert_bet_ledger_entry.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_game_distribution_completed.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_distribution_completed.__name__)
+def test_distribute_gain_on_recent_ended_game_success_scenario_many_winning_bet(
+    mock_data_access_update_bet_game_distribution_completed,
+    mock_data_access_update_bet_user_game_distribution_completed,
+    mock_data_access_insert_bet_ledger_entry,
+    mock_data_access_update_bet_user_tournament,
+    mock_get_bet_user_wallet_for_tournament,
+    mock_calculate_gain_lost_for_open_bet_game,
+    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_data_access_get_bet_game_ready_to_close,
+    mock_fetch_tournament_games_by_tournament_id,
+) -> None:
+    """
+    Unit test that checks if the specific call to the database occurs according to the scenario
+    that there is a single bet on a game that just ended
+    """
+    # Arrange
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    mock_fetch_tournament_games_by_tournament_id.return_value = [
+        TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
+    ]
+    mock_data_access_get_bet_game_ready_to_close.return_value = [BetGame(33, tournament.id, 1, 0.5, 0.5, False)]
+    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+        BetUserGame(7, 1, 33, 13, 350, 10, fake_date, 0.5, False),
+        BetUserGame(8, 1, 33, 14, 150, 10, fake_date, 0.5, False),
+    ]
+    ledger_entry_1 = BetLedgerEntry(888, 1, 1, 33, 7, 13, 350)
+    ledger_entry_2 = BetLedgerEntry(888, 1, 1, 33, 7, 14, 50)
+    mock_calculate_gain_lost_for_open_bet_game.side_effect = [[ledger_entry_1], [ledger_entry_2]]
+    bet_user_tour_1 = BetUserTournament(62, 1, 13, 1000)
+    bet_user_tour_2 = BetUserTournament(63, 1, 14, 1000)
+    mock_get_bet_user_wallet_for_tournament.side_effect = [bet_user_tour_1, bet_user_tour_2]
+
+    # Act
+    distribute_gain_on_recent_ended_game(1)
+    # Assert
+    assert mock_get_bet_user_wallet_for_tournament.call_count == 2
+    calls = mock_data_access_update_bet_user_tournament.call_args_list
+    assert calls == [call(62, 1350), call(63, 1050)]
+    assert mock_data_access_insert_bet_ledger_entry.call_count == 2
+    calls = mock_data_access_insert_bet_ledger_entry.call_args_list
+    assert calls == [call(ledger_entry_1), call(ledger_entry_2)]
+    assert mock_data_access_update_bet_user_game_distribution_completed.call_count == 2
+    calls = mock_data_access_update_bet_user_game_distribution_completed.call_args_list
+    assert calls == [call(7), call(8)]
+    mock_data_access_update_bet_game_distribution_completed.assert_called_once_with(33)
+
+
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_game_ready_to_close.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.calculate_gain_lost_for_open_bet_game.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_insert_bet_ledger_entry.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_game_distribution_completed.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_game_distribution_completed.__name__)
 def test_distribute_gain_on_recent_ended_game_success_scenario_losing_bet(
     mock_data_access_update_bet_game_distribution_completed,
     mock_data_access_update_bet_user_game_distribution_completed,

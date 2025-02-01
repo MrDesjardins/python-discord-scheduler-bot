@@ -4,7 +4,15 @@ from typing import List
 from unittest.mock import patch
 import pytest
 from datetime import datetime, timezone
-from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_id
+from deps.bet.bet_data_class import BetLedgerEntry, BetUserTournament
+from deps.bet.bet_functions import place_bet_for_game
+from deps.bet.bet_data_access import (
+    data_access_fetch_bet_games_by_tournament_id,
+    data_access_get_bet_ledger_entry_for_tournament,
+    data_access_get_bet_user_wallet_for_tournament,
+    data_access_update_bet_user_tournament,
+    delete_all_bet_tables,
+)
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.tournaments.tournament_data_access import (
     data_access_insert_tournament,
@@ -44,6 +52,7 @@ def setup_and_teardown():
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
     delete_all_tournament_tables()
+    delete_all_bet_tables()
 
     # Yield control to the test functions
     yield
@@ -523,6 +532,139 @@ async def test_full_tournament():
             assert report_result.is_successful is True, report_result.text
             bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
             assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 2
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_2.png",
+            )
+            report_result = await report_lost_tournament(tournament_id, u4, "5-2")
+            assert report_result.is_successful is True, report_result.text
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_3.png",
+            )
+            report_result = await report_lost_tournament(tournament_id, u2, "2-4")
+            assert report_result.is_successful is True, report_result.text
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_4.png",
+            )
+            report_result = await report_lost_tournament(tournament_id, u5, "1-2")
+            assert report_result.is_successful is True, report_result.text
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_5.png",
+            )
+            report_result = await report_lost_tournament(tournament_id, u6, "5-2")
+            assert report_result.is_successful is True, report_result.text
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_6.png",
+            )
+    # The tournament is over, get the winner
+    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_tree = build_tournament_tree(tournament_games)
+    assert tournament_tree.user_winner_id == u3
+    bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+    assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 0
+
+
+async def test_full_tournament_many_winning_bet_and_one_lost():
+    """
+    Create a tournament that is not full and perform the operations that user would do until
+    the end of the tournament
+    """
+    #                            [7:U1=3, U2=6]
+    #                            /           \
+    #              [5:U1=2, U2=3]            [6:U1=6, U2=?]
+    #                /        \                 /         \
+    #    [1:U1=1, U2=2] [2:U1=3, U2=4] [3:U1=5, U2=6] [4:U1=?, U2=?]
+    tournament_id = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament",
+        register_date_start,
+        date_start,
+        date_end,
+        3,
+        16,
+        "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+    )
+
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
+        mock_tournament_functions_datetime.now.return_value = after_register_date_start
+        register_result = register_for_tournament(tournament_id, USER1_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER2_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER3_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER4_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER5_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER6_ID)
+        assert register_result.is_successful is True, register_result.text
+
+    with patch("random.shuffle") as mock_shuffle:
+        mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
+        tournament: Tournament = fetch_tournament_by_id(tournament_id)
+        await start_tournament(tournament)
+    bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+    assert len(bet_games_to_assert) == 3
+    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_tree = build_tournament_tree(tournament_games)
+    u1 = tournament_tree.next_game1.next_game1.user1_id
+    u2 = tournament_tree.next_game1.next_game1.user2_id
+    u3 = tournament_tree.next_game1.next_game2.user1_id
+    u4 = tournament_tree.next_game1.next_game2.user2_id
+    u5 = tournament_tree.next_game2.next_game1.user1_id
+    u6 = tournament_tree.next_game2.next_game1.user2_id
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
+        with patch("deps.tournaments.tournament_visualizer.fetch_user_info") as mock_fetch_user_info:
+            mock_tournament_functions_datetime.now.return_value = date_start
+            mock_fetch_user_info.return_value = {
+                1: mock_user1,
+                2: mock_user2,
+                3: mock_user3,
+                4: mock_user4,
+                5: mock_user5,
+                6: mock_user6,
+            }
+            plot_tournament_bracket(
+                tournament,
+                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                True,
+                "./tests/generated_contents/bracket_1.png",
+            )
+            place_bet_for_game(tournament_id, bet_games_to_assert[0].id, mock_user4.id, 50, u2)
+            place_bet_for_game(tournament_id, bet_games_to_assert[0].id, mock_user5.id, 200, u2)
+            place_bet_for_game(tournament_id, bet_games_to_assert[0].id, mock_user6.id, 500, u1)
+            report_result = await report_lost_tournament(tournament_id, u1, "7-5")
+            assert report_result.is_successful is True, report_result.text
+            bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+            assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 2
+            bet_user_games_to_assert: List[BetLedgerEntry] = data_access_get_bet_ledger_entry_for_tournament(
+                tournament_id
+            )
+            assert bet_user_games_to_assert[0].amount == 100
+            assert bet_user_games_to_assert[1].amount == pytest.approx(363.636, abs=1e-3)
+            assert bet_user_games_to_assert[2].amount == 0
+            wallet:BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user4.id)
+            assert wallet.amount == 1050
+            wallet:BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user5.id)
+            assert wallet.amount == pytest.approx(1163.636, abs=1e-3)
+            wallet:BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user6.id)
+            assert wallet.amount == 500
             plot_tournament_bracket(
                 tournament,
                 build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),

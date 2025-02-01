@@ -107,6 +107,8 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
 
     # Loop the bet_user_games and calculate the gain and lost
     with database_manager.data_access_transaction():
+        # Find the bet_user_games that are ready for distribution
+        bet_user_games_ready_for_distribution = []
         for bet_user_game in bet_user_games:
             bet_game = bet_games_dict.get(bet_user_game.bet_game_id, None)
             if bet_game is None:
@@ -123,15 +125,18 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
             if tournament_game.user_winner_id is None:
                 continue
 
-            winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games)
+            bet_user_games_ready_for_distribution.append(bet_user_game)
+            # Calculate the gain and lost for the bet_user_games that are ready for distribution ONLY
+            winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, [bet_user_game])
+            # At the moment, winning_distribution is always a list wiht 1 item
             for winning_distribution in winning_distributions:
                 if winning_distribution.amount > 0:
                     wallet = get_bet_user_wallet_for_tournament(tournament_id, winning_distribution.user_id)
                     wallet.amount += winning_distribution.amount
                     data_access_update_bet_user_tournament(wallet.id, wallet.amount)
                 data_access_insert_bet_ledger_entry(winning_distribution)
-            for bet_user_game in bet_user_games:
-                data_access_update_bet_user_game_distribution_completed(bet_user_game.id)
+        for bet_user_game in bet_user_games_ready_for_distribution:
+            data_access_update_bet_user_game_distribution_completed(bet_user_game.id)
         for bet_game in bet_games:
             data_access_update_bet_game_distribution_completed(bet_game.id)
     # Auto-Commit after the with if no exception
