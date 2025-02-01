@@ -3,7 +3,7 @@
 from typing import List
 import discord
 from discord.ui import Select, View
-from deps.bet.bet_functions import generate_msg_bet_leaderboard
+from deps.bet.bet_functions import generate_msg_bet_game, generate_msg_bet_leaderboard
 from deps.data_access import data_access_get_member
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.tournaments.tournament_functions import (
@@ -176,6 +176,19 @@ class TournamentMatchScoreReport(View):
                     await interaction.followup.send(
                         f"Top Better for the tournament **{tournament.name}** are:\n{msg_better_list}",
                         ephemeral=False,
+                    )
+            # Display a message with the result of the bets
+            if result.is_successful:
+                try:
+                    msg_result_bets = await generate_msg_bet_game(result.context)
+                    if msg_result_bets != "":
+                        await interaction.followup.send(
+                            f"Bets results for the match {player_win_display_name} vs {player_lose.mention}:\n{msg_result_bets}",
+                            ephemeral=False,
+                        )
+                except Exception as e:
+                    print_error_log(
+                        f"TournamentMatchScoreReport: process_tournament_result: Error while generating bet game: {e}"
                     )
         else:
             print_error_log(f"Error while reporting lost: {result.text}")

@@ -26,11 +26,14 @@ class TournamentSize(Enum):
 
 
 class TournamentNode:
-    """A node in the bracket tree"""
+    """
+    A node in the bracket tree
+    Stored in the database differently (not linked list) but represent mostly a tournament_game row
+    """
 
     def __init__(
         self,
-        id: int,
+        id: int,  # tournament_game_id
         tournament_id: int,
         user1_id: Optional[int] = None,
         user2_id: Optional[int] = None,
