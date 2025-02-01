@@ -116,7 +116,7 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
     channel: discord.TextChannel = await data_access_get_channel(channel_id)
     tournaments: List[Tournament] = fetch_tournament_start_today(guild_id)
     if len(tournaments) > 0:
-        msg = f"Tournaments starting today:\nUse the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report your lost (winner has nothing to do).\nUse the command /{COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT} to see who you are facing."
+        msg = f"Tournaments starting today:\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do).\nUse the command `/{COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT}` to see who you are facing."
         msg += f"\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
         for tournament in tournaments:
             try:
