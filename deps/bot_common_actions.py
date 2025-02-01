@@ -3,7 +3,7 @@
 import io
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 from gtts import gTTS
 import discord
 from deps.analytic_visualizer import display_user_top_operators
@@ -128,8 +128,13 @@ async def check_voice_channel(bot: MyBot):
     """
     Run when the bot start and every X minutes to update the cache of the users in the voice channel and update the schedule
     """
+
     for guild in bot.guilds:
         guild_id = guild.id
+        emoji_guild: Dict[str, str] = bot.guild_emoji.get(guild_id, {})
+        if len(emoji_guild) == 0:
+            print_warning_log(f"check_voice_channel: No emoji found for guild {guild.name}. Skipping.")
+            continue
         text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if text_channel_id is None:
             print_warning_log(f"check_voice_channel: Text channel not set for guild {guild.name}. Skipping.")
@@ -181,11 +186,12 @@ async def check_voice_channel(bot: MyBot):
                     continue
                 # Add the user to the message votes
                 found_new_user = True
+
                 message_votes.setdefault(current_hour_str, []).append(
                     SimpleUser(
                         user.id,
                         user.display_name,
-                        get_user_rank_emoji(bot.guild_emoji.get(guild_id, []), user),
+                        get_user_rank_emoji(emoji_guild, user),
                     )
                 )
 

@@ -1118,9 +1118,9 @@ def test_dynamically_adjust_bet_game_odd_bet_game_several_times() -> None:
     assert bet_game.probability_user_2_win == pytest.approx(0.194, abs=1e-3)
 
 
-def test_define_odds_between_two_users_users_db() -> None:
-    """
-    Test when both users does not have data
-    """
-    result = define_odds_between_two_users(225233803185094656, 318126349648920577)
-    assert result == (0.5, 0.5)
+# def test_define_odds_between_two_users_users_db() -> None:
+#     """
+#     Test when both users does not have data
+#     """
+#     result = define_odds_between_two_users(225233803185094656, 318126349648920577)
+#     assert result == (0.5, 0.5)

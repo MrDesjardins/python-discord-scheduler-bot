@@ -88,12 +88,12 @@ async def set_member_role_from_rank(guild: discord.Guild, member: discord.Member
 
 def get_url_user_profile_main(ubisoft_user_name: str) -> str:
     """Get the URL for the user profile."""
-    return URL_TRN_PROFILE_MAIN.format(account_name=ubisoft_user_name)
+    return URL_TRN_PROFILE_MAIN.format(account_name=ubisoft_user_name.strip())
 
 
 def get_url_user_profile_overview(ubisoft_user_name: str) -> str:
     """Get the URL for the user profile."""
-    return URL_TRN_PROFILE_OVERVIEW.format(account_name=ubisoft_user_name)
+    return URL_TRN_PROFILE_OVERVIEW.format(account_name=ubisoft_user_name.strip())
 
 
 def get_url_user_ranked_matches(ubisoft_user_name: str) -> str:
@@ -101,9 +101,9 @@ def get_url_user_ranked_matches(ubisoft_user_name: str) -> str:
     Get the URL for the user match."
     This is used to set the cookie in the browser for future API calls
     """
-    return URL_TRN_RANKED_PAGE.format(account_name=ubisoft_user_name)
+    return URL_TRN_RANKED_PAGE.format(account_name=ubisoft_user_name.strip())
 
 
 def get_url_api_ranked_matches(ubisoft_user_name: str) -> str:
     """Get the URL for the API to get the stats."""
-    return URL_TRN_API_RANKED_MATCHES.format(account_name=ubisoft_user_name)
+    return URL_TRN_API_RANKED_MATCHES.format(account_name=ubisoft_user_name.strip())

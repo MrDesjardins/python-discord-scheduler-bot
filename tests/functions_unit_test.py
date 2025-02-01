@@ -194,6 +194,12 @@ def test_get_url_user_ranked_matches_api():
     assert url == "https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/user1?gamemode=pvp_ranked"
 
 
+def test_get_url_user_ranked_matches_api_with_name_with_dot():
+    """Test the URL for the user rank API"""
+    url = get_url_api_ranked_matches("GuyHero.")
+    assert url == "https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/GuyHero.?gamemode=pvp_ranked"
+
+
 def test_choices_items():
     """Assert the number of choices for time"""
     choices = get_time_choices()
