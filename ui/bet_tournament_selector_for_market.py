@@ -43,12 +43,15 @@ class BetTournamentSelectorForMarket(View):
         # else:
         for tournament in self.list_tournaments:
             button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
-            button.callback = self.create_button_callback(tournament.id)
+            button.callback = lambda interaction, tid=tournament.id: self.create_button_callback(tid)(interaction)
             self.add_item(button)
 
     def create_button_callback(self, tournament_id: int):
         async def callback(interaction: discord.Interaction):
             """Handles button press for selecting a tournament."""
+            # Defer the response immediately to prevent timeout errors
+            await interaction.response.defer()
+
             self.tournament_id = tournament_id
             if self.bet_game_id is None:
                 self.wallet = get_bet_user_wallet_for_tournament(self.tournament_id, interaction.user.id)
@@ -75,7 +78,7 @@ class BetTournamentSelectorForMarket(View):
                     text_display = f"{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"
                     options.append(discord.SelectOption(label=text_display, value=str(bet_game_for_game.id)))
                 if len(options) == 0:
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         "No games available to bet in this tournament. Please try again later.", ephemeral=True
                     )
                     return
@@ -95,12 +98,11 @@ class BetTournamentSelectorForMarket(View):
                 self.bet_game_ui.callback = self.handle_bet_game_ui
                 self.add_item(self.bet_game_ui)
                 # Update the interaction message with the new view
-                await interaction.response.edit_message(
+                await interaction.followup.edit_message(
+                    message_id=interaction.message.id,
                     content=f"Select one of the bets available in the market for this tournament. You have ${self.wallet.amount:.2f}",
                     view=self,
                 )
-            else:
-                await interaction.response.defer()
 
         return callback
 
