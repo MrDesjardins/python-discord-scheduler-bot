@@ -19,20 +19,16 @@ class ScheduleButtons(discord.ui.View):
         self.schedule_times = SUPPORTED_TIMES_ARR
 
         for time in self.schedule_times:
-            self.add_item(self.create_button(time))
+            button = discord.ui.Button(label=time, style=discord.ButtonStyle.primary, custom_id=time)
+            button.callback = self.button_callback  # Bind button to callback function
+            self.add_item(button)
 
-    def create_button(self, label):
-        """Creates a button with the given label and binds it to an interaction."""
-        return discord.ui.Button(label=label, style=discord.ButtonStyle.primary, custom_id=label)
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """Handles all button interactions."""
+    async def button_callback(self, interaction: discord.Interaction):
+        """Handles button clicks"""
         try:
-            await interaction.response.defer(ephemeral=True)
+            await interaction.response.defer(ephemeral=True)  # Prevents "This interaction failed"
             custom_id = interaction.data["custom_id"]
             await adjust_reaction(self.guild_emoji, interaction, custom_id)
-            # await interaction.response.send_message(f"You clicked {custom_id.upper()}!", ephemeral=True)
         except Exception as e:
             print_error_log(f"ScheduleButtons>An error occurred: {e}")
-            traceback.print_exc()  # This prints the full error traceback
-        return True
+            traceback.print_exc()  # Logs full traceback
