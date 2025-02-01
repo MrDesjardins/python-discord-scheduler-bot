@@ -8,7 +8,6 @@ from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_automatic_lfg_message,
-    send_daily_stats_to_a_guild,
     send_notification_voice_channel,
     send_session_stats_to_queue,
 )

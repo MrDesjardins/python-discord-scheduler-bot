@@ -422,7 +422,7 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
             )
             if aggregation is None:
                 print_log(
-                    f"send_channel_list_stats: User {user_info.display_name} has no stats to show in the last {last_hour} hours"
+                    f"send_channel_list_stats: User {user_info.display_name} has no stats to show in the last {last_hour} hours. Overall stats found {len(users_stats)}"
                 )
                 continue  # Skip to the next user
 

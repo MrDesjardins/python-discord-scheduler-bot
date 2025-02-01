@@ -21,22 +21,25 @@ def test_data():
         data_5 = json.loads(file.read())
     with open("./tests/tests_assets/player6_rank_history.json", "r", encoding="utf8") as file:
         data_6 = json.loads(file.read())
-    return data_1, data_3, data_4, data_5, data_6
+    with open("./tests/tests_assets/player7_rank_history.json", "r", encoding="utf8") as file:
+        data_7 = json.loads(file.read())
+    return data_1, data_3, data_4, data_5, data_6, data_7
 
 
 def test_data_exist_for_tests(test_data):
     """Test to ensure the testing files are loaded correctly."""
-    data_1, data_3, data_4, data_5, data_6 = test_data
+    data_1, data_3, data_4, data_5, data_6, data_7 = test_data
     assert data_1 is not None
     assert data_3 is not None
     assert data_4 is not None
     assert data_5 is not None
     assert data_6 is not None
+    assert data_7 is not None
 
 
 def test_get_r6tracker_user_recent_matches(test_data):
     """Test if we can parse the data from the JSON file."""
-    data_1, _, _, _, _ = test_data
+    data_1, _, _, _, _, _ = test_data
     lst = parse_json_from_full_matches(data_1, mock_user1)
     assert len(lst) >= 1
 
@@ -72,7 +75,7 @@ def test_get_r6tracker_user_recent_matches(test_data):
 
 def test_individual_gaming_session_stats(test_data):
     """Test if we can get an aggregate of a session."""
-    data_1, _, _, _, _ = test_data
+    data_1, _, _, _, _, _ = test_data
     lst = parse_json_from_full_matches(data_1, mock_user1)
     result = get_user_gaming_session_stats("noSleep_rb6", datetime.fromisoformat("2024-11-07T00:00:00.000+00:00"), lst)
     assert result.match_count == 8
@@ -93,7 +96,7 @@ def test_individual_gaming_session_stats(test_data):
 
 def test_get_r6tracker_user_recent_matches2(test_data):
     """Test if we can parse the data from the JSON file."""
-    _, data_3, _, _, _ = test_data
+    _, data_3, _, _, _, _ = test_data
     lst = parse_json_from_full_matches(data_3, mock_user2)
     assert len(lst) >= 1
     assert lst[0].map_name == "Villa"
@@ -127,7 +130,7 @@ def test_get_r6tracker_user_recent_matches_aggregation2(test_data):
 
 def test_get_r6tracker_user_recent_matches_with_rollback(test_data):
     """Test if we can parse the data from the JSON file."""
-    _, _, _, _, data_6 = test_data
+    _, _, _, _, data_6, _ = test_data
     lst = parse_json_from_full_matches(data_6, mock_user1)
     datetime_last = datetime.fromisoformat("2024-12-26T00:00:00.000+00:00")
     agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
@@ -149,7 +152,7 @@ def test_get_r6tracker_user_recent_matches_with_rollback(test_data):
 
 def test_get_r6tracker_user_recent_matches_aggregation3(test_data):
     """Test if we can parse the data from the JSON file."""
-    _, _, _, data_5, _ = test_data
+    _, _, _, data_5, _, _ = test_data
     lst = parse_json_from_full_matches(data_5, mock_user1)
     datetime_last = datetime.fromisoformat("2024-11-11T00:00:00.000+00:00")
     agg = get_user_gaming_session_stats("noSleep_rb6", datetime_last, lst)
@@ -164,14 +167,29 @@ def test_get_r6tracker_user_recent_matches_aggregation3(test_data):
 
 def test_get_r6tracker_user_recent_matches_rollback(test_data):
     """Test that we skip the rollback"""
-    _, _, _, _, data_6 = test_data
+    _, _, _, _, data_6, _ = test_data
     lst = parse_json_from_full_matches(data_6, mock_user1)
     assert len(lst) == 21, "Should not skip the rollback"
 
+def test_get_r6tracker_user_recent_matches_not_none(test_data):
+    """Test that we skip the rollback"""
+    _, _, _, _, _, data_7 = test_data
+    lst = parse_json_from_full_matches(data_7, mock_user1)
+    assert len(lst) == 20, "Should have 20"
+
+
+def test_get_r6tracker_user_recent_matches_aggregation4(test_data):
+    """Test if we can parse the data from the JSON file."""
+    _, _, _, _, _, data_7 = test_data
+    lst = parse_json_from_full_matches(data_7, mock_user1)
+    datetime_last = datetime.fromisoformat("2025-01-31T00:00:00.000+00:00")
+    agg = get_user_gaming_session_stats("GuyHero.", datetime_last, lst)
+    assert agg is not None
+    assert agg.match_count == 5
 
 def test_parse_json_from_full_matches_dataset_1(test_data):
     """Test if we can parse the data from the JSON file."""
-    data_1, _, _, _, _ = test_data
+    data_1, _, _, _, _, _ = test_data
     lst = parse_json_from_full_matches(data_1, mock_user1)
     assert len(lst) >= 1
 
@@ -284,7 +302,7 @@ def test_parse_json_from_full_matches_dataset_1(test_data):
 
 def test_parse_json_from_full_matches_dataset_6_rollback(test_data):
     """Test if we can parse the data from the JSON file."""
-    _, _, _, _, data_6 = test_data
+    _, _, _, _, data_6, _ = test_data
     lst = parse_json_from_full_matches(data_6, mock_user1)
     assert len(lst) >= 1
 
