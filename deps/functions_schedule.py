@@ -66,29 +66,29 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
         await user.send("You can't vote on a message that is older than 24 hours.")
         return
     print_log("adjust_reaction: Start (lock) Adjusting reaction")
-    async with lock:  # Acquire the lock
-        # Cache all users for this message's reactions to avoid redundant API calls
-        channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
-        if channel_message_votes is None:
-            channel_message_votes = get_empty_votes()
-        # Add or Remove Action
-        people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
-        users_clicked = [user.id == u.user_id for u in people_clicked_time]
-        remove = len(users_clicked) > 0
-        if remove:
-            # Remove the user from the message votes
-            channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.id]
-        else:
-            # Add the user to the message votes
-            channel_message_votes.setdefault(time_clicked, []).append(
-                SimpleUser(
-                    user.id,
-                    user.display_name,
-                    get_user_rank_emoji(guild_emoji[guild_id], member),
-                )
+    #async with lock:  # Acquire the lock
+    # Cache all users for this message's reactions to avoid redundant API calls
+    channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
+    if channel_message_votes is None:
+        channel_message_votes = get_empty_votes()
+    # Add or Remove Action
+    people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
+    users_clicked = [user.id == u.user_id for u in people_clicked_time]
+    remove = len(users_clicked) > 0
+    if remove:
+        # Remove the user from the message votes
+        channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.id]
+    else:
+        # Add the user to the message votes
+        channel_message_votes.setdefault(time_clicked, []).append(
+            SimpleUser(
+                user.id,
+                user.display_name,
+                get_user_rank_emoji(guild_emoji[guild_id], member),
             )
-        # Always update the cache
-        data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
+        )
+    # Always update the cache
+    data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
     print_log("adjust_reaction: End Adjusting reaction")
 
     await update_vote_message(text_message_reaction, channel_message_votes)
