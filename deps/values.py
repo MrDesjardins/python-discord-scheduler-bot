@@ -38,7 +38,24 @@ EMOJI_TO_TIME = {
     "2️⃣": "2am",
 }
 
-SUPPORTED_TIMES_STR = set(EMOJI_TO_TIME.values())
+SUPPORTED_TIMES_ARR = [
+    "1pm",
+    "2pm",
+    "3pm",
+    "4pm",
+    "5pm",
+    "6pm",
+    "7pm",
+    "8pm",
+    "9pm",
+    "10pm",
+    "11pm",
+    "12am",
+    "1am",
+    "2am",
+    "3am",
+]
+SUPPORTED_TIMES_STR = set(SUPPORTED_TIMES_ARR)
 MSG_UNIQUE_STRING = "What time will you play"
 
 # -----------------------

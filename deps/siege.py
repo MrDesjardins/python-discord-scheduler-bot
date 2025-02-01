@@ -55,6 +55,10 @@ def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> st
     Check the user's roles to determine their rank
     The function assumes a specific 8 roles with 8 emojis which might not be the case for your server
     """
+    if guild_emoji is None:
+        # Should never happen
+        guild_emoji = {}
+
     if user is None:
         return get_guild_rank_emoji(guild_emoji, "Copper")
 
@@ -62,7 +66,6 @@ def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> st
         if role.name in siege_ranks:
             print(f"Role: {role.name} found")
             return get_guild_rank_emoji(guild_emoji, role.name)
-    print("No rank found")
 
     return get_guild_rank_emoji(guild_emoji, "Copper")
 
@@ -72,12 +75,14 @@ def get_guild_rank_emoji(guild_emoji: dict[str, str], emoji_name: str) -> str:
     Extract the full emoji code for Discord to use from the emoji name and the guild emoji dictionary
     which contain the unique ID for the emoji
     """
+    if guild_emoji is None:
+        # Should never happen
+        guild_emoji = {}
 
     if emoji_name in siege_ranks:
         if emoji_name in guild_emoji:
             emoji_id = guild_emoji[emoji_name]
             return f"<:{emoji_name}:{emoji_id}>"
-    print("No rank found")
 
     return f"<:Copper:{guild_emoji['Copper']}>" if "Copper" in guild_emoji else "N/A"
 
@@ -173,7 +178,7 @@ def get_list_users_with_rank(bot: MyBot, members: List[discord.Member], guild_id
     """
     list_users = ""
     for member in members:
-        rank = get_user_rank_emoji(bot.guild_emoji.get(guild_id), member)
+        rank = get_user_rank_emoji(bot.guild_emoji.get(guild_id, {}), member)
         list_users += f"{rank} {member.mention}, "
     list_users = list_users[:-2]
     return list_users

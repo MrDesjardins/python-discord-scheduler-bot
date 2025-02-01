@@ -19,6 +19,7 @@ from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueu
 
 from deps.functions_r6_tracker import get_r6tracker_max_rank
 from deps.log import print_log
+from deps.functions_date import get_now_eastern
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsersV2"
@@ -58,8 +59,12 @@ async def data_access_get_message(
     """Get the message by the given guild, channel and message id"""
 
     async def fetch():
-        channel: discord.TextChannel = await data_access_get_channel(channel_id)
-        return await channel.fetch_message(message_id)
+        try:
+            channel: discord.TextChannel = await data_access_get_channel(channel_id)
+            return await channel.fetch_message(message_id)
+        except discord.errors.HTTPException:
+            # Can only occurs if we move the database from prod to dev (message id are not the same)
+            return None
 
     return await get_cache(True, f"{KEY_MESSAGE}:{guild_id}:{channel_id}:{message_id}", fetch)
 
@@ -100,7 +105,7 @@ async def data_access_get_channel(channel_id: int) -> Union[discord.TextChannel,
 
 async def data_access_get_reaction_message(
     guild_id: int, channel_id: int, message_id: int
-) -> dict[str, list[SimpleUser]]:
+) -> Union[dict[str, list[SimpleUser]], None]:
     """Get the users reactions for a specific mesage"""
     key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
     return await get_cache(False, key)
@@ -112,22 +117,6 @@ def data_access_set_reaction_message(
     """Set the reaction for a specific message"""
     key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
     set_cache(False, key, message_votes, ALWAYS_TTL)
-
-
-async def data_access_get_daily_message(guild_id: int, channel_id: int) -> Union[discord.Message, None]:
-    """Get the daily message by the given guild and channel id"""
-    now = datetime.now()
-    current_date = now.strftime("%Y%m%d")
-    key = f"{KEY_DAILY_MSG}:{guild_id}:{channel_id}:{current_date}"
-    return await get_cache(False, key)
-
-
-def data_access_set_daily_message(guild_id: int, channel_id: int) -> None:
-    """Set the daily message by the given guild and channel id"""
-    now = datetime.now()
-    current_date = now.strftime("%Y%m%d")
-    key = f"{KEY_DAILY_MSG}:{guild_id}:{channel_id}:{current_date}"
-    set_cache(False, key, True, THREE_DAY_TTL)
 
 
 async def data_access_get_users_auto_schedule(
@@ -391,7 +380,7 @@ async def data_access_update_voice_user_list(
 
     # Save the user which is None or a full activity detail
     user_map[user_id] = to_save
-    data_access_set_voice_user_list(guild_id, channel_id, user_map)    
+    data_access_set_voice_user_list(guild_id, channel_id, user_map)
 
 
 async def data_access_get_last_bot_message_in_main_text_channel(
@@ -410,3 +399,17 @@ def data_access_set_last_bot_message_in_main_text_channel(
     set_cache(
         False, f"{KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL}:{guild_id}:{voice_channel_id}", date_time, ONE_HOUR_TTL
     )
+
+
+async def data_access_get_daily_message_id(guild_id: int) -> Union[discord.Message, None]:
+    """Get the daily message by the given guild and channel id"""
+    current_date = get_now_eastern().strftime("%Y-%m-%d")
+    key = f"{KEY_DAILY_MSG}:{guild_id}:{current_date}"
+    return await get_cache(False, key)
+
+
+def data_access_set_daily_message_id(guild_id: int, message_id: int) -> Optional[int]:
+    """Set the daily message by the given guild and channel id"""
+    current_date = get_now_eastern().strftime("%Y-%m-%d")
+    key = f"{KEY_DAILY_MSG}:{guild_id}:{current_date}"
+    set_cache(False, key, message_id, THREE_DAY_TTL)

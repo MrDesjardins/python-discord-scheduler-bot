@@ -3,7 +3,7 @@
 import io
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import Dict, List, Optional, Union
+from typing import List, Optional
 from gtts import gTTS
 import discord
 from deps.analytic_visualizer import display_user_top_operators
@@ -26,7 +26,7 @@ from deps.data_access import (
     data_access_add_list_member_stats,
     data_access_get_bot_voice_first_user,
     data_access_get_channel,
-    data_access_get_daily_message,
+    data_access_get_daily_message_id,
     data_access_get_gaming_session_last_activity,
     data_access_get_gaming_session_text_channel_id,
     data_access_get_guild_schedule_text_channel_id,
@@ -36,23 +36,21 @@ from deps.data_access import (
     data_access_get_list_member_stats,
     data_access_get_main_text_channel_id,
     data_access_get_member,
+    data_access_get_message,
     data_access_get_r6tracker_max_rank,
     data_access_get_reaction_message,
-    data_access_get_users_auto_schedule,
     data_access_get_voice_user_list,
-    data_access_set_daily_message,
+    data_access_set_daily_message_id,
     data_access_set_gaming_session_last_activity,
     data_access_set_last_bot_message_in_main_text_channel,
     data_access_set_reaction_message,
     data_acess_remove_list_member_stats,
 )
-from deps.date_utils import is_today
 from deps.mybot import MyBot
 from deps.models import (
     ActivityTransition,
     DayOfWeek,
     SimpleUser,
-    SimpleUserHour,
     UserMatchInfoSessionAggregate,
     UserQueueForStats,
     UserWithUserMatchInfo,
@@ -62,116 +60,68 @@ from deps.functions_model import get_empty_votes
 from deps.functions_date import get_current_hour_eastern
 from deps.functions import (
     get_last_schedule_message,
-    get_reactions,
     get_url_user_profile_main,
     get_url_user_profile_overview,
     set_member_role_from_rank,
 )
 from deps.values import (
-    COMMAND_SCHEDULE_ADD,
-    DATE_FORMAT,
-    MSG_UNIQUE_STRING,
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
 from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions_r6_tracker import get_user_gaming_session_stats
+from deps.functions_schedule import get_daily_embed_message, auto_assign_user_to_daily_question, update_vote_message
+from ui.schedule_buttons import ScheduleButtons
 
 
 async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force: bool = False):
     """
     Send the daily schedule question to a specific guild
+    If there is an existing message, we update. This is importantto have always the View connected to the callbacks
+    So, if the bot disconnects, the view will be reconnected to the callback
     """
     guild_id = guild.id
-    reactions = get_reactions()
-    channel_id = await data_access_get_guild_schedule_text_channel_id(guild.id)
+
+    channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
         return
 
-    message_sent = await data_access_get_daily_message(guild_id, channel_id)
-    if message_sent is None or force is True:
-        channel: discord.TextChannel = await data_access_get_channel(channel_id)
-        # We might not have in the cache but maybe the message was sent, let's check
-        last_message = await get_last_schedule_message(bot, channel)
+    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+
+    last_message_id = await data_access_get_daily_message_id(guild_id)
+    last_message = None
+
+    # ⚠️TEMPORARY CODE START
+    if last_message_id is None:
+        last_message = await get_last_schedule_message(
+            bot, channel, 23
+        )  # 23 just to make sure the script will create a new entry every 24 hours. Giving some buffer to avoid editing the message by the script
         if last_message is not None:
-            if is_today(last_message.created_at):
-                print_warning_log(
-                    f"\t⚠️ Daily message already in Discord for guild {guild.name}. Adding in cache and skipping."
-                )
-                data_access_set_daily_message(guild_id, channel_id)
-                return
-        # We never sent the message, so we send it, add the reactions and save it in the cache
-        embed_msg = get_daily_embed_message(get_empty_votes())
-        message: discord.Message = await channel.send(content="", embed=embed_msg)
-        for reaction in reactions:
-            await message.add_reaction(reaction)
-        await auto_assign_user_to_daily_question(guild.id, channel_id, message)
-        data_access_set_daily_message(guild_id, channel_id)
-        print_log(f"\t✅ Daily message sent in guild {guild.name}")
+            last_message_id = last_message.id
+            data_access_set_daily_message_id(guild_id, last_message_id)
+    # ⚠️TEMPORARY CODE END
+    if last_message_id is not None:
+        last_message = await data_access_get_message(guild_id, channel_id, last_message_id)
+
+    if last_message is None:
+        votes = None
     else:
-        print_warning_log(f"\t⚠️ Daily message already sent in guild {guild.name}. Skipping.")
+        votes = await data_access_get_reaction_message(guild_id, channel_id, last_message.id)
 
-
-async def update_vote_message(message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]]):
-    """Update the votes per hour on the bot message"""
-    embed_msg = get_daily_embed_message(vote_for_message)
-    print_log("update_vote_message: Updated Message")
-    await message.edit(content="", embed=embed_msg)
-
-
-def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> discord.Embed:
-    """Create the daily message"""
-    current_date = date.today().strftime(DATE_FORMAT)
-    vote_message = f"{MSG_UNIQUE_STRING} today **{current_date}**?"
-    vote_message += "\n\n**Schedule**\n"
-    for key_time, users in vote_for_message.items():
-        if users:
-            vote_message += f"{key_time}: {','.join([f'{user.rank_emoji}{user.display_name}' for user in users])}\n"
-        else:
-            vote_message += f"{key_time}: -\n"
-
-    embed = discord.Embed(
-        title="Schedule",
-        description=vote_message,
-        color=0x00FF00,
-        timestamp=datetime.now(),
-    )
-    embed.set_footer(
-        text=f"⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
-    )
-    return embed
-
-
-async def auto_assign_user_to_daily_question(guild_id: int, channel_id: int, message: discord.Message) -> None:
-    """Take the existing schedules for all user and apply it to the message"""
-    day_of_week_number = datetime.now().weekday()  # 0 is Monday, 6 is Sunday
-    message_id = message.id
-    print_log(
-        f"Auto assign user to daily question for guild {guild_id}, message_id {message_id}, day_of_week_number {day_of_week_number}"
-    )
-
-    # Get the list of user and their hour for the specific day of the week
-    list_users: Union[List[SimpleUserHour] | None] = await data_access_get_users_auto_schedule(
-        guild_id, day_of_week_number
-    )
-
-    message_votes = get_empty_votes()  # Start with nothing for the day
-
-    # Loop for the user+hours
-    if list_users is not None:
-        print_log(f"Found {len(list_users)} schedules for the day {day_of_week_number}")
-        for user_hour in list_users:
-            # Assign for each hour the user
-            message_votes[user_hour.hour].append(user_hour.simple_user)
-
-        data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
-        print_log(f"Updated message {message_id} with the user schedules for the day {day_of_week_number}")
-        print_log(message_votes)
-        await update_vote_message(message, message_votes)
-
+    # Votes can be none because last message was not there or the message was not voted yet
+    if votes is None:
+        votes = get_empty_votes()
+    embed_msg = get_daily_embed_message(votes)  # The message to show (new or edited)
+    view = ScheduleButtons(bot.guild_emoji)  # Always re-create the buttons for the callbacks
+    if last_message is None or force:
+        message: discord.Message = await channel.send(content="", embed=embed_msg, view=view)
+        await auto_assign_user_to_daily_question(guild_id, channel_id, message)
+        data_access_set_daily_message_id(guild_id, message.id)
+        print_log(f"\t✅ Daily new schedule message sent in guild {guild.name}")
     else:
-        print_log(f"No schedule found for the day {day_of_week_number}")
+        message: discord.Message = await last_message.edit(embed=embed_msg, view=view)
+        print_log(f"\t✅ Daily update schedule message sent in guild {guild.name}")
 
 
 async def check_voice_channel(bot: MyBot):
@@ -195,11 +145,11 @@ async def check_voice_channel(bot: MyBot):
                 f"check_voice_channel: Text channel configured but not found in the guild {guild.name}. Skipping."
             )
             continue
-        last_message = await get_last_schedule_message(bot, text_channel)
-        if last_message is None:
+        last_message_id = await data_access_get_daily_message_id(guild_id)
+        if last_message_id is None:
             print_warning_log(f"check_voice_channel: No message found in the channel {text_channel.name}. Skipping.")
             continue
-        message_id = last_message.id
+        message_id = last_message_id
         message_votes = await data_access_get_reaction_message(guild_id, text_channel_id, message_id)
         if not message_votes:
             message_votes = get_empty_votes()
@@ -231,11 +181,11 @@ async def check_voice_channel(bot: MyBot):
                     continue
                 # Add the user to the message votes
                 found_new_user = True
-                message_votes[current_hour_str].append(
+                message_votes.setdefault(current_hour_str, []).append(
                     SimpleUser(
                         user.id,
                         user.display_name,
-                        get_user_rank_emoji(bot.guild_emoji[guild_id], user),
+                        get_user_rank_emoji(bot.guild_emoji.get(guild_id, []), user),
                     )
                 )
 
@@ -243,12 +193,12 @@ async def check_voice_channel(bot: MyBot):
             print_log(f"check_voice_channel: Updating voice channel cache for {guild.name} and updating the message")
             # Always update the cache
             data_access_set_reaction_message(guild_id, text_channel_id, message_id, message_votes)
+            last_message: discord.Message = await data_access_get_message(guild_id, text_channel_id, message_id)
             await update_vote_message(last_message, message_votes)
             print_log(f"check_voice_channel: Updated voice channel cache for {guild.name}")
 
 
 async def send_notification_voice_channel(
-    bot: MyBot,
     guild_id: int,
     member: discord.Member,
     voice_channel: discord.VoiceChannel,
@@ -266,14 +216,14 @@ async def send_notification_voice_channel(
     # )
     channel_schedule: Optional[discord.TextChannel] = await data_access_get_channel(schedule_text_channel_id)
     channel_name = channel_schedule.name if channel_schedule is not None else "schedule"
-    list_simple_users = await get_users_scheduled_today_current_hour(bot, guild_id, get_current_hour_eastern())
+    list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern())
     list_simple_users = list(filter(lambda x: x.user_id != member.id, list_simple_users))
     if len(list_simple_users) > 0:
         other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
         text_message = f"Hello {member.display_name}! {other_members} are scheduled to play at this time. Check the bot {channel_name} channel."
     else:
         # Check next hour
-        list_simple_users = await get_users_scheduled_today_current_hour(bot, guild_id, get_current_hour_eastern(1))
+        list_simple_users = await get_users_scheduled_today_current_hour(guild_id, get_current_hour_eastern(1))
         list_simple_users = list(filter(lambda x: x.user_id != member.id, list_simple_users))
         if len(list_simple_users) > 0:
             other_members = ", ".join([f"{user.display_name}" for user in list_simple_users])
@@ -306,21 +256,19 @@ async def send_notification_voice_channel(
     os.remove("welcome.mp3")
 
 
-async def get_users_scheduled_today_current_hour(bot: MyBot, guild_id: int, current_hour_str: str) -> List[SimpleUser]:
+async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str: str) -> List[SimpleUser]:
     """
     Get the list of users scheduled for the current day and hour
     current_hour_str: The current hour in the format "3am"
     """
     channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
-    channel = await data_access_get_channel(channel_id)
+    last_message_id = await data_access_get_daily_message_id(guild_id)
 
-    last_message = await get_last_schedule_message(bot, channel)
-
-    if last_message is None:
+    if last_message_id is None:
         return []
 
     # Cache all users for this message's reactions to avoid redundant API calls
-    message_votes = await data_access_get_reaction_message(guild_id, channel_id, last_message.id)
+    message_votes = await data_access_get_reaction_message(guild_id, channel_id, last_message_id)
     if not message_votes:
         message_votes = get_empty_votes()
     if current_hour_str not in message_votes:
@@ -673,13 +621,13 @@ def build_msg_stats(stats_name: str, info_time_str: str, stats_tuple: list[tuple
     return msg
 
 
-async def send_daily_stats_to_a_guild(bot: MyBot, guild: discord.Guild):
+async def send_daily_stats_to_a_guild(guild: discord.Guild):
     """
     Send the daily schedule stats to a specific guild
     """
     guild_id = guild.id
     DAY = 7
-    channel_id = await data_access_get_main_text_channel_id(guild.id)
+    channel_id = await data_access_get_main_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(f"\t⚠️ Channel id (main text) not found for guild {guild.name}. Skipping.")
         return

@@ -727,7 +727,7 @@ def display_user_top_operators(
         matrix[row, col] = item.count
 
     # Plot the heatmap
-    fig, ax = plt.subplots(figsize=(12, 8))
+    fig, ax = plt.subplots(figsize=(16, 10))
     cax = ax.imshow(matrix, cmap="Blues", aspect="auto")
 
     # Set axis labels
@@ -735,6 +735,12 @@ def display_user_top_operators(
     ax.set_yticks(np.arange(len(operators)))
     ax.set_xticklabels(users, rotation=45, ha="right")
     ax.set_yticklabels(operators)
+
+    # Add operator names on the right side
+    ax2 = ax.twinx()
+    ax2.set_yticks(np.arange(len(operators)))
+    ax2.set_yticklabels(operators)
+    ax2.set_ylim(ax.get_ylim())  # Align y-axis
 
     # Display values on heatmap
     for i in range(len(operators)):
@@ -746,16 +752,21 @@ def display_user_top_operators(
                     int(matrix[i, j]),
                     ha="center",
                     va="center",
-                    fontsize=12,
+                    fontsize=8,
                     color="black" if matrix[i, j] < matrix.max() / 2 else "white",
                 )
+    # Add vertical and horizontal grid lines
+    ax.set_xticks(np.arange(len(users)) - 0.5, minor=True)
+    ax.set_yticks(np.arange(len(operators)) - 0.5, minor=True)
+    ax.grid(which="minor", color="gray", linestyle="-", linewidth=0.5)
+    ax.tick_params(which="minor", size=0)  # Hide minor ticks
 
     # Colorbar
     cbar = fig.colorbar(cax)
     cbar.ax.tick_params(labelsize=12)
 
-    ax.set_xlabel("Users", fontsize=14)
-    ax.set_ylabel("Operators", fontsize=14)
+    ax.set_xlabel("Users", fontsize=12)
+    ax.set_ylabel("Operators", fontsize=12)
     fig.suptitle("Top User-Operator Count Heatmap", fontsize=16)
-    ax.set_title(f"Since {from_date.strftime('%Y-%m-%d')} to Now", fontsize=14)
+    ax.set_title(f"Since {from_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}", fontsize=14)
     return _plot_return(plt, show)

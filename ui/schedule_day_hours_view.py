@@ -71,7 +71,7 @@ class ScheduleDayHours(View):
             simple_user = SimpleUser(
                 interaction.user.id,
                 interaction.user.display_name,
-                get_user_rank_emoji(self.guild_emoji.get(interaction.guild_id), interaction.user),
+                get_user_rank_emoji(self.guild_emoji.get(interaction.guild_id, {}), interaction.user),
             )
 
             for day in self.first_response:

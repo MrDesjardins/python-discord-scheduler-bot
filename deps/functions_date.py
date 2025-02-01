@@ -51,3 +51,14 @@ def convert_to_datetime(date_str):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)  # Make the datetime UTC-aware
     return dt
+
+
+def get_now_eastern() -> datetime:
+    """
+    Returns the current hour in Eastern Time. In the format 3am or 3pm.
+    """
+    eastern = pytz.timezone("US/Eastern")
+    # Get the current time in Eastern timezone once
+    current_time_eastern = datetime.now(eastern)
+
+    return current_time_eastern

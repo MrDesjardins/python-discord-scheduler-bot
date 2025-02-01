@@ -38,3 +38,4 @@ from
   )
 ORDER BY
   avg_kill desc
+

@@ -59,7 +59,9 @@ class UserFeatures(commands.Cog):
         eastern = ""
 
         for user_info in user_infos:
-            rank = get_user_rank_emoji(self.bot.guild_emoji.get(interaction.guild.id), userid_member.get(user_info.id))
+            rank = get_user_rank_emoji(
+                self.bot.guild_emoji.get(interaction.guild.id, {}), userid_member.get(user_info.id)
+            )
             member = userid_member.get(user_info.id)
 
             user_name = member.mention if member is not None else user_info.display_name

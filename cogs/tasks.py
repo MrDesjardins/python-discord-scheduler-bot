@@ -83,7 +83,7 @@ class MyTasksCog(commands.Cog):
         """
         print_log(f"Sending daily stats message, current time {datetime.now()}")
         for guild in self.bot.guilds:
-            await send_daily_stats_to_a_guild(self.bot, guild)
+            await send_daily_stats_to_a_guild(guild)
 
     ### ============================ BEFORE LOOP ============================ ###
 
@@ -103,8 +103,8 @@ class MyTasksCog(commands.Cog):
     async def before_daily_saving_active_user_match_stats_task(self):
         """Wait for the download matches task for the bot ready"""
         print_log("MyTasksCog>daily_saving_active_user_match_stats_task: Waiting for bot to be ready...")
-        await self.bot.wait_until_ready()   
-    
+        await self.bot.wait_until_ready()
+
     @send_daily_stats_to_all_guild_task.before_loop
     async def before_send_daily_stats_to_all_guild_task(self):
         """Wait for the download matches task for the bot ready"""

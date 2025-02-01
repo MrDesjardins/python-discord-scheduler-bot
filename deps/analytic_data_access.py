@@ -883,7 +883,7 @@ def data_access_fetch_users_operators(from_data: datetime) -> list[UserOperatorC
             query,
             {
                 "from_data": from_data.isoformat(),
-                "top": 10,
+                "top": 50,
             },
         )
     ).fetchall()

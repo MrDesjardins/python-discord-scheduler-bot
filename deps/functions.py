@@ -1,5 +1,6 @@
 """ Utility functions used by the bot. """
 
+from datetime import datetime, timedelta, timezone
 import subprocess
 from typing import Union, Optional, List
 import discord
@@ -14,6 +15,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.siege import siege_ranks
+
 
 def get_reactions() -> List[str]:
     """
@@ -35,7 +37,7 @@ def get_time_choices() -> List[app_commands.Choice]:
 
 
 async def get_last_schedule_message(
-    bot: MyBot, channel: Union[discord.TextChannel, discord.VoiceChannel, None]
+    bot: MyBot, channel: Union[discord.TextChannel, discord.VoiceChannel, None], hours_threshold: int = 24
 ) -> Optional[discord.Message]:
     """
     Returns the last schedule message id for the given channel.
@@ -43,10 +45,13 @@ async def get_last_schedule_message(
     if channel is None:
         return None
 
+    current_datetime = datetime.now(timezone.utc)
+    time_threshold = current_datetime - timedelta(hours=hours_threshold)
     async for message in channel.history(limit=20):
         if (
             message.author.bot
             and message.author == bot.user
+            and message.created_at >= time_threshold
             and (message.content.startswith(MSG_UNIQUE_STRING) or len(message.embeds) > 0)
         ):
             last_message = message
@@ -102,6 +107,3 @@ def get_url_user_ranked_matches(ubisoft_user_name: str) -> str:
 def get_url_api_ranked_matches(ubisoft_user_name: str) -> str:
     """Get the URL for the API to get the stats."""
     return URL_TRN_API_RANKED_MATCHES.format(account_name=ubisoft_user_name)
-
-
-
