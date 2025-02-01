@@ -13,7 +13,7 @@ class ScheduleButtons(discord.ui.View):
     """Buttons for the schedule"""
 
     def __init__(self, guild_emoji: dict[str, Dict[str, str]], callback):
-        super().__init__()
+        super().__init__(timeout=None)
         self.guild_emoji = guild_emoji
         self.schedule_times = SUPPORTED_TIMES_ARR
         self.callback = callback
