@@ -64,7 +64,7 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
     if text_message_reaction.created_at < datetime.now(timezone.utc) - timedelta(days=1):
         await user.send("You can't vote on a message that is older than 24 hours.")
         return
-
+    print_log("adjust_reaction: Start (lock) Adjusting reaction")
     async with lock:  # Acquire the lock
         # Cache all users for this message's reactions to avoid redundant API calls
         channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)

@@ -26,7 +26,7 @@ class ScheduleButtons(discord.ui.View):
     async def button_callback(self, interaction: discord.Interaction):
         """Handles button clicks"""
         try:
-            await interaction.response.defer(ephemeral=True)  # Prevents "This interaction failed"
+            await interaction.response.defer()
             custom_id = interaction.data["custom_id"]
             await adjust_reaction(self.guild_emoji, interaction, custom_id)
         except Exception as e:
