@@ -2,10 +2,12 @@
 Buttons to vote for schedule times
 """
 
+import traceback
 from typing import Dict
 import discord
 from deps.functions_schedule import adjust_reaction
 from deps.values import SUPPORTED_TIMES_ARR
+from deps.log import print_error_log
 
 
 class ScheduleButtons(discord.ui.View):
@@ -25,8 +27,12 @@ class ScheduleButtons(discord.ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Handles all button interactions."""
-        await interaction.response.defer()
-        custom_id = interaction.data["custom_id"]
-        await adjust_reaction(self.guild_emoji, interaction, custom_id)
-        # await interaction.response.send_message(f"You clicked {custom_id.upper()}!", ephemeral=True)
+        try:
+            await interaction.response.defer(ephemeral=True)
+            custom_id = interaction.data["custom_id"]
+            await adjust_reaction(self.guild_emoji, interaction, custom_id)
+            # await interaction.response.send_message(f"You clicked {custom_id.upper()}!", ephemeral=True)
+        except Exception as e:
+            print_error_log(f"ScheduleButtons>An error occurred: {e}")
+            traceback.print_exc()  # This prints the full error traceback
         return True
