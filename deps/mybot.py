@@ -1,11 +1,9 @@
 """ Custom bot class for Discord bot """
 
-import asyncio
+import os
 import logging
 import discord
 from discord.ext import commands
-import os
-
 from deps.log import print_log, print_error_log
 
 
@@ -24,7 +22,6 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
         self.allowed_mentions = discord.AllowedMentions(everyone=True, roles=True, users=True)
         self.guild_emoji = {}  # Dict[str, Dict[str, str]]
-        self.ready_event = asyncio.Event()  # Ensures we know when on_ready has completed
 
     async def setup_hook(self):
         await self.load_cogs()
