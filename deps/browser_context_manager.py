@@ -97,6 +97,7 @@ class BrowserContextManager:
         ubisoft_user_name = user_queued.user_info.ubisoft_username_active
         api_url = get_url_api_ranked_matches(ubisoft_user_name)
         self.driver.get(api_url)
+        print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
         # Wait until the page contains the expected JSON data
         WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
 
