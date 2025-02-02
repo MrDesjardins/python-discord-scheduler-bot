@@ -13,6 +13,7 @@ from deps.bet.bet_data_access import (
     data_access_get_all_wallet_for_tournament,
     data_access_get_bet_game_ready_to_close,
     data_access_get_bet_ledger_entry_for_tournament,
+    data_access_get_bet_user_game_for_tournament,
     data_access_get_bet_user_game_ready_for_distribution,
     data_access_get_bet_user_wallet_for_tournament,
     data_access_update_bet_game_probability,
@@ -26,7 +27,7 @@ from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
-from deps.log import print_error_log
+from deps.log import print_error_log, print_log
 from deps.tournaments.tournament_models import TournamentNode
 
 DEFAULT_MONEY = 1000
@@ -395,22 +396,29 @@ async def generate_msg_bet_game(tournament_game: TournamentNode) -> str:
         print_error_log(f"generate_msg_bet_game: BetGame not found for tournament_game {tournament_game.id}. Skipping.")
         return ""
     bet_game = bet_game_for_tournament_game[0]
-
-    all_bet_user_game: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(
+    print_log(
+        f"generate_msg_bet_game: bet_game.id {bet_game.id} and tournament_game.id = {tournament_game.id} found for tournament_game {tournament_game.id}"
+    )
+    all_bet_user_game: List[BetUserGame] = data_access_get_bet_user_game_for_tournament(
         tournament_game.tournament_id
     )
-    all_bet_user_game_dit = {bet.id: bet for bet in all_bet_user_game}
+    print_log(f"generate_msg_bet_game: all_bet_user_game count = {len(all_bet_user_game)}")
+    all_bet_user_game_dict = {bet.id: bet for bet in all_bet_user_game}
 
     all_ledger_entry: List[BetLedgerEntry] = data_access_get_bet_ledger_entry_for_tournament(
         tournament_game.tournament_id
     )
     ledger_for_bet_game = [entry for entry in all_ledger_entry if entry.bet_game_id == bet_game.id]
+
+    print_log(
+        f"generate_msg_bet_game: all_ledger_entry count = {len(all_ledger_entry)} but for the bet_game.id = {bet_game.id} there is only ledger_for_bet_game {len(ledger_for_bet_game)}"
+    )
     msg = ""
     for ledger_entry in ledger_for_bet_game:
         member1 = await fetch_user_info_by_user_id(ledger_entry.user_id)
         user1_display = member1.display_name if member1 else ledger_entry.user_id
         if ledger_entry.amount == 0:
-            bet_user_game = all_bet_user_game_dit.get(ledger_entry.bet_user_game_id, None)
+            bet_user_game = all_bet_user_game_dict.get(ledger_entry.bet_user_game_id, None)
             if bet_user_game is None:
                 print_error_log(
                     f"generate_msg_bet_game: BetUserGame not found for ledger_entry {ledger_entry.id}. Skipping."

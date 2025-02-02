@@ -5,7 +5,7 @@ Integration test for the bet functions
 from unittest.mock import patch
 from datetime import datetime, timezone
 import pytest
-from deps.bet.bet_data_access import delete_all_bet_tables, data_access_fetch_bet_games_by_tournament_id
+from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_id, delete_all_bet_tables
 from deps.bet.bet_functions import (
     system_generate_game_odd,
 )

@@ -247,6 +247,29 @@ def data_access_create_bet_user_game(
     database_manager.get_conn().commit()
 
 
+def data_access_get_bet_user_game_for_tournament(tournament_id: int) -> List[BetUserGame]:
+    """
+    Get all the bet games user for a tournament_id
+    """
+    query = f"""
+        SELECT 
+        {SELECT_BET_USER_GAME}
+        FROM bet_user_game
+        INNER JOIN bet_game 
+          ON bet_user_game.bet_game_id = bet_game.id
+        INNER JOIN tournament_game
+          ON bet_game.tournament_game_id = tournament_game.id
+        WHERE
+          bet_user_game.tournament_id = :tournament_id
+        """
+    database_manager.get_cursor().execute(
+        query,
+        {"tournament_id": tournament_id},
+    )
+    rows = database_manager.get_cursor().fetchall()
+    return [BetUserGame.from_db_row(row) for row in rows]
+
+
 def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> List[BetUserGame]:
     """
     Get all the bet games user that are ready for distribution

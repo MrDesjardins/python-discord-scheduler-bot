@@ -1341,13 +1341,13 @@ def test_dynamically_adjust_bet_game_odd_bet_game_several_times() -> None:
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
-@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_get_bet_ledger_entry_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 async def test_generate_msg_bet_game_no_bet(
     mock_fetch_user_info_by_user_id,
     mock_data_access_get_bet_ledger_entry_for_tournament,
-    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_mock_data_access_get_bet_user_game_for_tournament,
     mock_data_access_fetch_bet_games_by_tournament_id,
 ) -> None:
     """Test when there is not bet on a game, no message should show up"""
@@ -1366,7 +1366,7 @@ async def test_generate_msg_bet_game_no_bet(
     bet_game4 = BetGame(bet_game_id + 3, tournament_id, tournament_game_id + 3, 0.5, 0.5, True)
 
     mock_data_access_fetch_bet_games_by_tournament_id.return_value = [bet_game1, bet_game2, bet_game3, bet_game4]
-    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = []  # No bet
+    mock_mock_data_access_get_bet_user_game_for_tournament.return_value = []  # No bet
     mock_data_access_get_bet_ledger_entry_for_tournament.return_value = []  # No entry because no bet
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
         user_id, f"User {user_id}", None, None, None, "pst"
@@ -1378,7 +1378,7 @@ async def test_generate_msg_bet_game_no_bet(
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
-@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_get_bet_ledger_entry_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 @patch.object(bet_functions, bet_functions.print_error_log.__name__)
@@ -1386,7 +1386,7 @@ async def test_generate_msg_bet_game_no_betgame(
     mock_print_error_log,
     mock_fetch_user_info_by_user_id,
     mock_data_access_get_bet_ledger_entry_for_tournament,
-    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_mock_data_access_get_bet_user_game_for_tournament,
     mock_data_access_fetch_bet_games_by_tournament_id,
 ) -> None:
     """Test when there is not bet on a game, no message should show up"""
@@ -1405,7 +1405,7 @@ async def test_generate_msg_bet_game_no_betgame(
     bet_game4 = BetGame(bet_game_id + 3, tournament_id, tournament_game_id + 3, 0.5, 0.5, True)
 
     mock_data_access_fetch_bet_games_by_tournament_id.return_value = [bet_game1, bet_game2, bet_game3, bet_game4]
-    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = []  # No bet
+    mock_mock_data_access_get_bet_user_game_for_tournament.return_value = []  # No bet
     mock_data_access_get_bet_ledger_entry_for_tournament.return_value = []  # No entry because no bet
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
         user_id, f"User {user_id}", None, None, None, "pst"
@@ -1417,13 +1417,13 @@ async def test_generate_msg_bet_game_no_betgame(
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
-@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_get_bet_ledger_entry_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 async def test_generate_msg_bet_game_many_bets_same_match(
     mock_fetch_user_info_by_user_id,
     mock_data_access_get_bet_ledger_entry_for_tournament,
-    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_mock_data_access_get_bet_user_game_for_tournament,
     mock_data_access_fetch_bet_games_by_tournament_id,
 ) -> None:
     """Test when there is not bet on a game, no message should show up"""
@@ -1447,7 +1447,7 @@ async def test_generate_msg_bet_game_many_bets_same_match(
     ledger_entry2 = BetLedgerEntry(1, tournament_id, 1, bet_game1.id, bet_user_game1.id, user2_id, 220)
 
     mock_data_access_fetch_bet_games_by_tournament_id.return_value = [bet_game1, bet_game2, bet_game3, bet_game4]
-    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [bet_user_game1, bet_user_game2]
+    mock_mock_data_access_get_bet_user_game_for_tournament.return_value = [bet_user_game1, bet_user_game2]
     mock_data_access_get_bet_ledger_entry_for_tournament.return_value = [
         ledger_entry1,
         ledger_entry2,
@@ -1462,13 +1462,13 @@ async def test_generate_msg_bet_game_many_bets_same_match(
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
-@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_get_bet_ledger_entry_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 async def test_generate_msg_bet_game_many_bets_win_loss_match(
     mock_fetch_user_info_by_user_id,
     mock_data_access_get_bet_ledger_entry_for_tournament,
-    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_mock_data_access_get_bet_user_game_for_tournament,
     mock_data_access_fetch_bet_games_by_tournament_id,
 ) -> None:
     """Test when there is not bet on a game, no message should show up"""
@@ -1492,7 +1492,7 @@ async def test_generate_msg_bet_game_many_bets_win_loss_match(
     ledger_entry2 = BetLedgerEntry(1, tournament_id, 1, bet_game1.id, bet_user_game1.id, user2_id, 0)
 
     mock_data_access_fetch_bet_games_by_tournament_id.return_value = [bet_game1, bet_game2, bet_game3, bet_game4]
-    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [bet_user_game1, bet_user_game2]
+    mock_mock_data_access_get_bet_user_game_for_tournament.return_value = [bet_user_game1, bet_user_game2]
     mock_data_access_get_bet_ledger_entry_for_tournament.return_value = [
         ledger_entry1,
         ledger_entry2,
@@ -1507,13 +1507,58 @@ async def test_generate_msg_bet_game_many_bets_win_loss_match(
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
-@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_ledger_entry_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
+async def test_generate_msg_bet_game_many_bets_win_loss_match_not_distributed(
+    mock_fetch_user_info_by_user_id,
+    mock_data_access_get_bet_ledger_entry_for_tournament,
+    mock_mock_data_access_get_bet_user_game_for_tournament,
+    mock_data_access_fetch_bet_games_by_tournament_id,
+) -> None:
+    """Test when there is not bet on a game, no message should show up"""
+    # Arrange
+    tournament_id = 1
+    tournament_game_id = 100
+    bet_game_id = 200
+    user1_id = 500
+    user2_id = 501
+    tournament_node = TournamentNode(tournament_game_id, tournament_id, 8886, 8887, 8886, "5-0", "villa", fake_date)
+    bet_game1 = BetGame(bet_game_id, tournament_id, tournament_game_id, 0.5, 0.5, True)
+    bet_game2 = BetGame(bet_game_id + 1, tournament_id, tournament_game_id + 1, 0.5, 0.5, True)
+    bet_game3 = BetGame(bet_game_id + 2, tournament_id, tournament_game_id + 2, 0.5, 0.5, True)
+    bet_game4 = BetGame(bet_game_id + 3, tournament_id, tournament_game_id + 3, 0.5, 0.5, True)
+
+    # Two bets from two differents user on each user (win and loss) for the same match (bet_game1.id)
+    bet_user_game1 = BetUserGame(1, tournament_id, bet_game1.id, user1_id, 100, 8886, fake_date, 0.5, False)
+    bet_user_game2 = BetUserGame(1, tournament_id, bet_game1.id, user2_id, 110, 8887, fake_date, 0.5, False)  # Loss
+
+    ledger_entry1 = BetLedgerEntry(1, tournament_id, 1, bet_game1.id, bet_user_game1.id, user1_id, 200)
+    ledger_entry2 = BetLedgerEntry(1, tournament_id, 1, bet_game1.id, bet_user_game1.id, user2_id, 0)
+
+    mock_data_access_fetch_bet_games_by_tournament_id.return_value = [bet_game1, bet_game2, bet_game3, bet_game4]
+    mock_mock_data_access_get_bet_user_game_for_tournament.return_value = [bet_user_game1, bet_user_game2]
+    mock_data_access_get_bet_ledger_entry_for_tournament.return_value = [
+        ledger_entry1,
+        ledger_entry2,
+    ]
+    mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
+        user_id, f"User {user_id}", None, None, None, "pst"
+    )
+    # Act
+    msg = await generate_msg_bet_game(tournament_node)
+    # Asert
+    assert msg == "📈 User 500 won $200.00\n📉 User 501 loss $110.00"
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_get_bet_ledger_entry_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 async def test_generate_msg_bet_game_many_bets_inn_other_matches(
     mock_fetch_user_info_by_user_id,
     mock_data_access_get_bet_ledger_entry_for_tournament,
-    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_mock_data_access_get_bet_user_game_for_tournament,
     mock_data_access_fetch_bet_games_by_tournament_id,
 ) -> None:
     """Test when there is not bet on a game, no message should show up"""
@@ -1549,7 +1594,7 @@ async def test_generate_msg_bet_game_many_bets_inn_other_matches(
     )  # Not from the game
 
     mock_data_access_fetch_bet_games_by_tournament_id.return_value = [bet_game1, bet_game2, bet_game3, bet_game4]
-    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+    mock_mock_data_access_get_bet_user_game_for_tournament.return_value = [
         bet_user_game1,
         bet_user_game2,
         bet_user_game3,
@@ -1571,7 +1616,7 @@ async def test_generate_msg_bet_game_many_bets_inn_other_matches(
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
-@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_get_bet_ledger_entry_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 @patch.object(bet_functions, bet_functions.print_error_log.__name__)
@@ -1579,7 +1624,7 @@ async def test_generate_msg_bet_game_many_bets_in_mismatch_ledget_user_bet(
     mock_print_error_log,
     mock_fetch_user_info_by_user_id,
     mock_data_access_get_bet_ledger_entry_for_tournament,
-    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_mock_data_access_get_bet_user_game_for_tournament,
     mock_data_access_fetch_bet_games_by_tournament_id,
 ) -> None:
     """Test when there is not bet on a game, no message should show up"""
@@ -1611,7 +1656,7 @@ async def test_generate_msg_bet_game_many_bets_in_mismatch_ledget_user_bet(
     )  # Only this one will call the error log (because 0$)
 
     mock_data_access_fetch_bet_games_by_tournament_id.return_value = [bet_game1, bet_game2, bet_game3, bet_game4]
-    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+    mock_mock_data_access_get_bet_user_game_for_tournament.return_value = [
         bet_user_game1,
         bet_user_game2,
         bet_user_game3,
