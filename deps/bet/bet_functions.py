@@ -386,7 +386,7 @@ def define_odds_between_two_users(user1_id: int, user2_id: int) -> tuple[float, 
 
 
 async def generate_msg_bet_game(tournament_game: TournamentNode) -> str:
-    """Generate a mesage that show who won and lost their bet"""
+    """Generate a message that show who won and lost their bet"""
     all_bet_game: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_game.tournament_id)
     bet_game_for_tournament_game: List[BetGame] = [
         bet for bet in all_bet_game if bet.tournament_game_id == tournament_game.id
@@ -415,6 +415,7 @@ async def generate_msg_bet_game(tournament_game: TournamentNode) -> str:
                 print_error_log(
                     f"generate_msg_bet_game: BetUserGame not found for ledger_entry {ledger_entry.id}. Skipping."
                 )
+                continue
             msg += f"📉 {user1_display} loss ${bet_user_game.amount:.2f}\n"
         else:
             msg += f"📈 {user1_display} won ${ledger_entry.amount:.2f}\n"

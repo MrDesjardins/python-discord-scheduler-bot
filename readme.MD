@@ -454,15 +454,10 @@ pytest -v -s ./tests/*_unit_test.py
 pytest -v -s ./tests/*_integration_test.py
 ```
 
-# Coverage Tests
+# Coverage Tests on Unit Tests
 
 ```sh
-coverage run --omit="./tests/*" -m pytest -v -s ./tests
-# or 
-coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py
-coverage report -m
-coverage lcov
-coverage html
+coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py && coverage html
 ```
 
 # Space Issue
