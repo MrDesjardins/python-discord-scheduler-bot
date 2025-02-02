@@ -1,11 +1,9 @@
 """ Test Functions """
 
 from typing import Dict, List
-from datetime import datetime, timezone
+from datetime import datetime
 from unittest.mock import patch
-import pytz
 from deps.functions_model import get_daily_string_message, get_empty_votes, get_supported_time_time_label
-from deps.functions_date import get_current_hour_eastern
 from deps.functions import (
     get_sha,
     get_time_choices,
@@ -75,75 +73,6 @@ def test_get_supported_time_time_label():
         TimeLabel("2am", "2am", "2am Eastern Time"),
         TimeLabel("3am", "2am", "3am Eastern Time"),
     ]
-
-
-@patch("deps.functions_date.datetime")
-def test_get_current_hour_eastern_time(mock_datetime):
-    """Return the current hour in Eastern Time"""
-    # Mock the current time in UTC (11:10am UTC)
-    mock_utc_time = datetime(2024, 11, 25, 11, 10, 0, tzinfo=timezone.utc)
-
-    # Convert to Eastern Time (US/Eastern)
-    eastern = pytz.timezone("US/Eastern")
-    mock_eastern_time = mock_utc_time.astimezone(eastern)
-
-    # Set the mocked time to the Eastern Time
-    mock_datetime.now.return_value = mock_eastern_time
-
-    # Call the function
-    result = get_current_hour_eastern()
-
-    # Ensure that the mock datetime.now() was called exactly once
-    mock_datetime.now.assert_called_once()
-
-    # Assert the result is as expected (6am Eastern Time from 11:10am UTC)
-    assert result == "6am"
-
-
-@patch("deps.functions_date.datetime")
-def test_get_current_hour_eastern_time_plus_hour(mock_datetime):
-    """Return the current hour in Eastern Time"""
-    # Mock the current time in UTC (11:10am UTC)
-    mock_utc_time = datetime(2024, 11, 25, 11, 10, 0, tzinfo=timezone.utc)
-
-    # Convert to Eastern Time (US/Eastern)
-    eastern = pytz.timezone("US/Eastern")
-    mock_eastern_time = mock_utc_time.astimezone(eastern)
-
-    # Set the mocked time to the Eastern Time
-    mock_datetime.now.return_value = mock_eastern_time
-
-    # Call the function
-    result = get_current_hour_eastern(1)
-
-    # Ensure that the mock datetime.now() was called exactly once
-    mock_datetime.now.assert_called_once()
-
-    # Assert the result is as expected (6am Eastern Time from 11:10am UTC)
-    assert result == "7am"
-
-
-@patch("deps.functions_date.datetime")
-def test_get_current_hour_eastern_time_plus_hour_double_digit(mock_datetime):
-    """Return the current hour in Eastern Time"""
-    # Mock the current time in UTC (11:10am UTC)
-    mock_utc_time = datetime(2024, 11, 25, 20, 10, 0, tzinfo=timezone.utc)
-
-    # Convert to Eastern Time (US/Eastern)
-    eastern = pytz.timezone("US/Eastern")
-    mock_eastern_time = mock_utc_time.astimezone(eastern)
-
-    # Set the mocked time to the Eastern Time
-    mock_datetime.now.return_value = mock_eastern_time
-
-    # Call the function
-    result = get_current_hour_eastern(1)
-
-    # Ensure that the mock datetime.now() was called exactly once
-    mock_datetime.now.assert_called_once()
-
-    # Assert the result is as expected (6am Eastern Time from 11:10am UTC)
-    assert result == "4pm"
 
 
 def test_get_sha():

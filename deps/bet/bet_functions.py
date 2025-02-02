@@ -155,11 +155,11 @@ def calculate_gain_lost_for_open_bet_game(
     The algo uses the Overround.
     Vigorish would be adjusted_odd = fair_odd * (1 - houst_cut)
     """
-    bet_on_games_not_distributed = [bet for bet in bet_on_games if not bet.bet_distributed]
-
     winner_id = tournament_game.user_winner_id
     if winner_id is None:
         return []
+
+    bet_on_games_not_distributed = [bet for bet in bet_on_games if not bet.bet_distributed]
 
     winning_distributions: List[BetLedgerEntry] = []
     for bet in bet_on_games_not_distributed:

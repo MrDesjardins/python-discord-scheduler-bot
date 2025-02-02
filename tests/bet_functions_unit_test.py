@@ -942,6 +942,149 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_losing_bet(
     mock_data_access_update_bet_game_distribution_completed.assert_called_once_with(33)
 
 
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_game_ready_to_close.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.calculate_gain_lost_for_open_bet_game.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_insert_bet_ledger_entry.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_game_distribution_completed.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_game_distribution_completed.__name__)
+def test_distribute_gain_on_recent_ended_game_without_winner_id(
+    mock_data_access_update_bet_game_distribution_completed,
+    mock_data_access_update_bet_user_game_distribution_completed,
+    mock_data_access_insert_bet_ledger_entry,
+    mock_data_access_update_bet_user_tournament,
+    mock_get_bet_user_wallet_for_tournament,
+    mock_calculate_gain_lost_for_open_bet_game,
+    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_data_access_get_bet_game_ready_to_close,
+    mock_fetch_tournament_games_by_tournament_id,
+) -> None:
+    """
+    Unit test for a bet that failed, it should not give the money but still register in the ledger
+    and close the game bet + user bet
+    """
+    # Arrange
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    mock_fetch_tournament_games_by_tournament_id.return_value = [
+        TournamentGame(1, tournament.id, 10, 11, None, "1-4", None, None, None, None)  # no winner id
+    ]
+    mock_data_access_get_bet_game_ready_to_close.return_value = [BetGame(33, tournament.id, 1, 0.5, 0.5, False)]
+    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+        BetUserGame(7, 1, 33, 13, 99.98, 11, fake_date, 0.5, False)
+    ]
+
+    # Act
+    distribute_gain_on_recent_ended_game(1)
+    # Assert
+    mock_calculate_gain_lost_for_open_bet_game.assert_not_called()
+    mock_get_bet_user_wallet_for_tournament.assert_not_called()
+    mock_data_access_update_bet_user_tournament.assert_not_called()
+    mock_data_access_insert_bet_ledger_entry.assert_not_called()
+    mock_data_access_update_bet_user_game_distribution_completed.assert_not_called()  # Cannot be called because the array remains empty
+    mock_data_access_update_bet_game_distribution_completed.assert_called_once()  # Always called because we loop outside the for loop
+
+
+@patch.object(bet_functions, bet_functions.print_error_log.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_game_ready_to_close.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.calculate_gain_lost_for_open_bet_game.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_insert_bet_ledger_entry.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_game_distribution_completed.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_game_distribution_completed.__name__)
+def test_distribute_gain_on_recent_ended_game_with_mismatch_bet_game(
+    mock_data_access_update_bet_game_distribution_completed,
+    mock_data_access_update_bet_user_game_distribution_completed,
+    mock_data_access_insert_bet_ledger_entry,
+    mock_data_access_update_bet_user_tournament,
+    mock_get_bet_user_wallet_for_tournament,
+    mock_calculate_gain_lost_for_open_bet_game,
+    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_data_access_get_bet_game_ready_to_close,
+    mock_fetch_tournament_games_by_tournament_id,
+    mock_print_error_log,
+) -> None:
+    """
+    Unit test for a bet that failed, it should not give the money but still register in the ledger
+    and close the game bet + user bet
+    """
+    # Arrange
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    mock_fetch_tournament_games_by_tournament_id.return_value = [
+        TournamentGame(1, tournament.id, 10, 11, None, "1-4", None, None, None, None)  # no winner id
+    ]
+    mock_data_access_get_bet_game_ready_to_close.return_value = [BetGame(33, tournament.id, 1, 0.5, 0.5, False)]
+    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+        BetUserGame(7, 1, 33333333, 13, 99.98, 11, fake_date, 0.5, False)  # 33333333 does not match 33
+    ]
+
+    # Act
+    distribute_gain_on_recent_ended_game(1)
+    # Assert
+    mock_print_error_log.assert_called_once()
+    mock_calculate_gain_lost_for_open_bet_game.assert_not_called()
+    mock_get_bet_user_wallet_for_tournament.assert_not_called()
+    mock_data_access_update_bet_user_tournament.assert_not_called()
+    mock_data_access_insert_bet_ledger_entry.assert_not_called()
+    mock_data_access_update_bet_user_game_distribution_completed.assert_not_called()  # Cannot be called because the array remains empty
+    mock_data_access_update_bet_game_distribution_completed.assert_called_once()  # Always called because we loop outside the for loop
+
+
+@patch.object(bet_functions, bet_functions.print_error_log.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_game_ready_to_close.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.calculate_gain_lost_for_open_bet_game.__name__)
+@patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_insert_bet_ledger_entry.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_user_game_distribution_completed.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_bet_game_distribution_completed.__name__)
+def test_distribute_gain_on_recent_ended_game_with_mismatch_tournament_game(
+    mock_data_access_update_bet_game_distribution_completed,
+    mock_data_access_update_bet_user_game_distribution_completed,
+    mock_data_access_insert_bet_ledger_entry,
+    mock_data_access_update_bet_user_tournament,
+    mock_get_bet_user_wallet_for_tournament,
+    mock_calculate_gain_lost_for_open_bet_game,
+    mock_data_access_get_bet_user_game_ready_for_distribution,
+    mock_data_access_get_bet_game_ready_to_close,
+    mock_fetch_tournament_games_by_tournament_id,
+    mock_print_error_log,
+) -> None:
+    """
+    Unit test for a bet that failed, it should not give the money but still register in the ledger
+    and close the game bet + user bet
+    """
+    # Arrange
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    mock_fetch_tournament_games_by_tournament_id.return_value = [
+        TournamentGame(1, tournament.id, 10, 11, None, "1-4", None, None, None, None)  # no winner id
+    ]
+    mock_data_access_get_bet_game_ready_to_close.return_value = [
+        BetGame(33, tournament.id, 1111111, 0.5, 0.5, False)
+    ]  # 1111111 does not match 1
+    mock_data_access_get_bet_user_game_ready_for_distribution.return_value = [
+        BetUserGame(7, 1, 33, 13, 99.98, 11, fake_date, 0.5, False)
+    ]
+
+    # Act
+    distribute_gain_on_recent_ended_game(1)
+    # Assert
+    mock_print_error_log.assert_called_once()
+    mock_calculate_gain_lost_for_open_bet_game.assert_not_called()
+    mock_get_bet_user_wallet_for_tournament.assert_not_called()
+    mock_data_access_update_bet_user_tournament.assert_not_called()
+    mock_data_access_insert_bet_ledger_entry.assert_not_called()
+    mock_data_access_update_bet_user_game_distribution_completed.assert_not_called()  # Cannot be called because the array remains empty
+    mock_data_access_update_bet_game_distribution_completed.assert_called_once()  # Always called because we loop outside the for loop
+
+
 @patch.object(bet_functions, bet_functions.data_access_fetch_user_full_match_info.__name__)
 def test_define_odds_between_two_users_users_no_data(mock_data_access_full_match) -> None:
     """
@@ -1373,3 +1516,84 @@ async def test_generate_msg_bet_game_many_bets_inn_other_matches(
     msg = await generate_msg_bet_game(tournament_node)
     # Asert
     assert msg == "📈 User 500 won $200.00\n📉 User 501 loss $110.00"
+
+
+def test_calculate_gain_lost_for_open_bet_game_no_winner_id() -> None:
+    """
+    Calculate the gain with no winner
+    """
+    # Arrange
+    tournament_id = 2
+    tournament_game = TournamentGame(
+        1, tournament_id, 3, 4, None, "1-4", None, None, None, None
+    )  # First None is the winner id
+    bet_user_games = [
+        BetUserGame(10, tournament_id, 3, 4, 100, 5, fake_date, 0.5, False),
+        BetUserGame(20, tournament_id, 3, 4, 100, 5, fake_date, 0.5, False),
+    ]
+    # Act
+    result = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games, 0)
+    # Assert
+    assert len(result) == 0
+
+
+def test_calculate_gain_lost_for_open_bet_game_filter_out_distributed_bet() -> None:
+    """
+    Calculate the gain with no winner
+    """
+    # Arrange
+    tournament_id = 2
+    tournament_game = TournamentGame(
+        1, tournament_id, 3, 4, 3, "1-4", None, None, None, None
+    )  # First None is the winner id
+    bet_user_games = [
+        BetUserGame(10, tournament_id, 3, 4, 100, 5, fake_date, 0.5, False),
+        BetUserGame(20, tournament_id, 3, 4, 100, 5, fake_date, 0.5, True),  # Already distributed
+        BetUserGame(30, tournament_id, 3, 4, 100, 5, fake_date, 0.5, False),
+    ]
+    # Act
+    result = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games, 0)
+    # Assert
+    assert len(result) == 2
+
+
+def test_calculate_gain_lost_for_open_bet_game_with_loss_at_zero_win_at_bet_amount() -> None:
+    """
+    Calculate the gain with no winner
+    """
+    # Arrange
+    tournament_id = 2
+    tournament_game = TournamentGame(
+        1, tournament_id, 40, 50, 40, "1-4", None, None, None, None
+    )  # First None is the winner id
+    bet_user_games = [
+        BetUserGame(10, tournament_id, 3, 60, 100, 40, fake_date, 0.5, False),  # Winner
+        BetUserGame(20, tournament_id, 3, 70, 100, 50, fake_date, 0.5, False),
+    ]
+    # Act
+    result = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games, 0)
+    # Assert
+    assert len(result) == 2
+    assert result[0].amount == 200  # 100 initial bet and the odd at 0.5 double
+    assert result[1].amount == 0  # Nothing because loss
+
+
+def test_calculate_gain_lost_for_open_bet_game_with_loss_at_zero_win_at_bet_amount_with_cut_house() -> None:
+    """
+    Calculate the gain with no winner
+    """
+    # Arrange
+    tournament_id = 2
+    tournament_game = TournamentGame(
+        1, tournament_id, 40, 50, 40, "1-4", None, None, None, None
+    )  # First None is the winner id
+    bet_user_games = [
+        BetUserGame(10, tournament_id, 3, 60, 100, 40, fake_date, 0.5, False),  # Winner
+        BetUserGame(20, tournament_id, 3, 70, 100, 50, fake_date, 0.5, False),
+    ]
+    # Act
+    result = calculate_gain_lost_for_open_bet_game(tournament_game, bet_user_games, 0.1)
+    # Assert
+    assert len(result) == 2
+    assert result[0].amount == pytest.approx(181.818, abs=0.3)  # 100 initial bet and the odd at 0.5 double
+    assert result[1].amount == 0  # Nothing because loss

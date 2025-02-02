@@ -457,7 +457,9 @@ pytest -v -s ./tests/*_integration_test.py
 # Coverage Tests
 
 ```sh
-coverage run -m pytest -v -s ./tests
+coverage run --omit="./tests/*" -m pytest -v -s ./tests
+# or 
+coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py
 coverage report -m
 coverage lcov
 coverage html

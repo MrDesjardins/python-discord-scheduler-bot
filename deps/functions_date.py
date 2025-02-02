@@ -8,13 +8,24 @@ from typing import Optional
 import pytz
 
 
-def get_current_hour_eastern(add_hour: Optional[int] = None) -> str:
+def get_now_eastern() -> datetime:
     """
     Returns the current hour in Eastern Time. In the format 3am or 3pm.
     """
     eastern = pytz.timezone("US/Eastern")
     # Get the current time in Eastern timezone once
     current_time_eastern = datetime.now(eastern)
+
+    return current_time_eastern
+
+
+def get_current_hour_eastern(add_hour: Optional[int] = None) -> str:
+    """
+    Returns the current hour in Eastern Time. In the format 3am or 3pm.
+    """
+
+    # Get the current time in Eastern timezone once
+    current_time_eastern = get_now_eastern()
 
     if add_hour:
         # Adjust the hour by the add_hour parameter
@@ -42,7 +53,7 @@ def ensure_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def convert_to_datetime(date_str):
+def convert_to_datetime(date_str: Optional[str]) -> datetime:
     """Convert a date string to a timezone-aware datetime object (UTC)"""
     if not date_str:  # Handle None or empty string
         return None
@@ -51,14 +62,3 @@ def convert_to_datetime(date_str):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)  # Make the datetime UTC-aware
     return dt
-
-
-def get_now_eastern() -> datetime:
-    """
-    Returns the current hour in Eastern Time. In the format 3am or 3pm.
-    """
-    eastern = pytz.timezone("US/Eastern")
-    # Get the current time in Eastern timezone once
-    current_time_eastern = datetime.now(eastern)
-
-    return current_time_eastern
