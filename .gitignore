@@ -163,6 +163,8 @@ cython_debug/
 
 cache.txt
 *.db
+*.db-shm
+*.db-wal
 .coverage
 .env
 .venv

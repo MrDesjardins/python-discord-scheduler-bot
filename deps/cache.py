@@ -17,6 +17,8 @@ from deps.cache_data_access import (
 from deps.log import print_log
 
 ALWAYS_TTL = 60 * 60 * 24 * 365 * 10
+ONE_YEAR_TTL = 60 * 60 * 24 * 365
+ONE_MONTH_TTL = 60 * 60 * 24 * 30
 THREE_DAY_TTL = 60 * 60 * 24 * 3
 ONE_DAY_TTL = 60 * 60 * 24
 ONE_HOUR_TTL = 60 * 60 * 1

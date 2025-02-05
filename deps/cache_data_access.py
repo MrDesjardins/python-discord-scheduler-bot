@@ -3,7 +3,7 @@ Module to gather access to the cached data
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional, Union
 import base64
 import dill as pickle
 from deps.system_database import database_manager
@@ -19,18 +19,19 @@ def delete_all_tables() -> None:
     database_manager.get_conn().commit()
 
 
-def set_value(key: str, value: str, ttl_seconds: Optional[int]) -> None:
+def set_value(key: str, value: Any, ttl_seconds: Optional[int]) -> None:
     """
     Set a value in the cache
     """
-    expiration = (
+    expiration: Union[str, None] = (
         None if ttl_seconds is None else (datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)).isoformat()
     )
     pickled_value = pickle.dumps(value)  # Serialize the value
     encoded_value = base64.b64encode(pickled_value).decode("utf-8")  # Base64 encode it
-
+    conn = database_manager.get_conn()
+    cursor = conn.cursor()
     try:
-        database_manager.get_cursor().execute(
+        cursor.execute(
             """
       INSERT OR REPLACE INTO cache(key, value, expiration)
       VALUES (:key, :value, :expiration)
@@ -41,9 +42,9 @@ def set_value(key: str, value: str, ttl_seconds: Optional[int]) -> None:
                 "expiration": expiration,
             },
         )
-        database_manager.get_conn().commit()
+        conn.commit()
     except Exception as e:
-        database_manager.get_conn().rollback()  # Ensure rollback on error
+        conn.rollback()  # Ensure rollback on error
         print_error_log(f"Error setting cache value: {e}")
 
 

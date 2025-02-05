@@ -1,6 +1,6 @@
 """ Utility functions used by the bot. """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 import subprocess
 from typing import Union, Optional, List
 import discord
@@ -15,6 +15,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.siege import siege_ranks
+from deps.functions_date import get_now_eastern
 
 def get_time_choices() -> List[app_commands.Choice]:
     """
@@ -37,7 +38,7 @@ async def get_last_schedule_message(
     if channel is None:
         return None
 
-    current_datetime = datetime.now(timezone.utc)
+    current_datetime = get_now_eastern()
     time_threshold = current_datetime - timedelta(hours=hours_threshold)
     async for message in channel.history(limit=20):
         if (

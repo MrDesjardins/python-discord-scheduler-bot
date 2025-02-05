@@ -6,7 +6,6 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 from gtts import gTTS
 import discord
-from deps.date_utils import is_today
 from deps.analytic_visualizer import display_user_top_operators
 from deps.analytic_functions import compute_users_voice_channel_time_sec, computer_users_voice_in_out
 from deps.browser import download_full_matches_async
@@ -59,7 +58,7 @@ from deps.models import (
 )
 from deps.log import print_error_log, print_log, print_warning_log
 from deps.functions_model import get_empty_votes
-from deps.functions_date import get_current_hour_eastern
+from deps.functions_date import get_current_hour_eastern, is_today
 from deps.functions import (
     get_last_schedule_message,
     get_url_user_profile_main,

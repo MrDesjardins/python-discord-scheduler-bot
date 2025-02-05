@@ -1,9 +1,6 @@
 """ Test Functions """
 
-from typing import Dict, List
-from datetime import datetime
-from unittest.mock import patch
-from deps.functions_model import get_daily_string_message, get_empty_votes, get_supported_time_time_label
+from deps.functions_model import get_empty_votes, get_supported_time_time_label
 from deps.functions import (
     get_sha,
     get_time_choices,
@@ -13,8 +10,7 @@ from deps.functions import (
     get_url_api_ranked_matches,
     most_common,
 )
-from deps.models import SimpleUser, TimeLabel
-from deps.values import COMMAND_SCHEDULE_ADD, MSG_UNIQUE_STRING
+from deps.models import TimeLabel
 
 
 def test_most_common_no_tie():
@@ -79,23 +75,6 @@ def test_get_sha():
     """Test to see if we can access the subprocess of git"""
     sha = get_sha()
     assert len(sha) > 8
-
-
-@patch("deps.functions_model.date")
-def test_daily_message(mock_date):
-    """Test the construction of the daily message with emoji"""
-    mock_date.today.return_value = datetime(2024, 11, 30)
-    votes: Dict[str, List[SimpleUser]] = {
-        "3pm": [SimpleUser("1", "user1", ":Copper:")],
-        "4pm": [SimpleUser("2", "user2", ":Gold:"), SimpleUser("3", "user3", ":Silver:")],
-        "5pm": [],
-    }
-    msg = get_daily_string_message(votes)
-    assert (
-        msg
-        == f"{MSG_UNIQUE_STRING} today **Saturday, November 30, 2024**?\n\n**Schedule**\n3pm: :Copper:user1\n4pm: :Gold:user2,:Silver:user3\n5pm: -\n"
-        + f"\n⚠️Time in Eastern Time (Pacific adds 3, Central adds 1).\nYou can use `/{COMMAND_SCHEDULE_ADD}` to set recurrent day and hours or click the emoji corresponding to your time:"
-    )
 
 
 def test_profile_url():

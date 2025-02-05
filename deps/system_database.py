@@ -39,6 +39,7 @@ class DatabaseManager:
         """
         self.name = name
         self.conn = sqlite3.connect(name)
+        self.conn.execute("PRAGMA journal_mode=WAL;")  # Performance gain on write
         self.cursor = self.conn.cursor()
         self.init_database()
 
@@ -57,6 +58,11 @@ class DatabaseManager:
             value BLOB NOT NULL,
             expiration DATETIME DEFAULT NULL
         )
+        """
+        )
+        self.get_cursor().execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_expiration ON cache(expiration)
         """
         )
 

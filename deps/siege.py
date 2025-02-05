@@ -64,7 +64,6 @@ def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> st
 
     for role in user.roles:
         if role.name in siege_ranks:
-            print(f"Role: {role.name} found")
             return get_guild_rank_emoji(guild_emoji, role.name)
 
     return get_guild_rank_emoji(guild_emoji, "Copper")

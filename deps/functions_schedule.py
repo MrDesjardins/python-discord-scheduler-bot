@@ -1,7 +1,7 @@
 """This module contains the functions for the schedule command."""
 
 import asyncio
-from datetime import datetime, timedelta, timezone, date
+from datetime import datetime, time, timedelta, timezone
 from typing import Dict, List, Union
 import discord
 from deps.data_access import (
@@ -20,6 +20,8 @@ from deps.models import SimpleUser, SimpleUserHour
 from deps.siege import get_user_rank_emoji
 from deps.functions_model import get_empty_votes
 from deps.values import DATE_FORMAT, COMMAND_SCHEDULE_ADD, MSG_UNIQUE_STRING, SUPPORTED_TIMES_ARR
+from deps.functions_date import get_now_eastern
+from deps.performance import PerformanceContext
 from ui.schedule_buttons import ScheduleButtons
 
 lock = asyncio.Lock()
@@ -49,14 +51,15 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
     if member is None:
         print_error_log(f"adjust_reaction: Member not found for user {user_id}. Skipping.")
         return
+    user_display_name = member.display_name
 
     # We do not act on message that are not in the Guild's text channel
     if text_channel_configured_for_bot is None or text_channel_configured_for_bot != channel_id:
         # The reaction was on another channel, we allow it
         return
 
-    if not channel or not text_message_reaction or not user or not guild or not member:
-        print_log("adjust_reaction: End-Before Adjusting reaction")
+    if channel is None or text_message_reaction is None or guild is None:
+        print_log("adjust_reaction: End-Before Adjusting reaction because of channel, message or guild not found")
         return
 
     if user.bot:
@@ -64,34 +67,37 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
 
     # Check if the message is older than 24 hours
     if text_message_reaction.created_at < datetime.now(timezone.utc) - timedelta(days=1):
-        await user.send("You can't vote on a message that is older than 24 hours.")
+        await user.send(f"You can't vote on a message that is older than 24 hours. User: {user_display_name}")
         return
-    print_log("adjust_reaction: Start (lock) Adjusting reaction")
-    # async with lock:  # Acquire the lock
-    # Cache all users for this message's reactions to avoid redundant API calls
-    channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
-    if channel_message_votes is None:
-        channel_message_votes = get_empty_votes()
-    # Add or Remove Action
-    people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
-    users_clicked = [user.id == u.user_id for u in people_clicked_time]
-    remove = len(users_clicked) > 0
-    if remove:
-        # Remove the user from the message votes
-        channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.id]
-    else:
-        # Add the user to the message votes
-        channel_message_votes.setdefault(time_clicked, []).append(
-            SimpleUser(
-                user.id,
-                user.display_name,
-                get_user_rank_emoji(guild_emoji[guild_id], member),
-            )
-        )
-    # Always update the cache
-    data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
-    print_log("adjust_reaction: End Adjusting reaction")
 
+    print_log(f"adjust_reaction: Start (lock) Adjusting reaction for {user_display_name}")
+    with PerformanceContext("adjust_reaction", None) as perf:
+        # async with lock:  # Acquire the lock
+        # Cache all users for this message's reactions to avoid redundant API calls
+        channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
+        perf.add_marker("Get Reaction Message Completed")
+        if channel_message_votes is None:
+            channel_message_votes = get_empty_votes()
+        # Add or Remove Action
+        people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
+        users_clicked = [user.id == u.user_id for u in people_clicked_time]
+        remove = len(users_clicked) > 0
+        if remove:
+            # Remove the user from the message votes
+            channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.id]
+        else:
+            # Add the user to the message votes
+            channel_message_votes.setdefault(time_clicked, []).append(
+                SimpleUser(
+                    user.id,
+                    user.display_name,
+                    get_user_rank_emoji(guild_emoji[guild_id], member),
+                )
+            )
+        perf.add_marker("Saving Reaction Message")
+        # Always update the cache
+        data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
+        perf.add_marker("Saving Reaction Message End")
     await update_vote_message(text_message_reaction, channel_message_votes, guild_emoji)
 
 
@@ -108,7 +114,7 @@ async def update_vote_message(
 
 def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> discord.Embed:
     """Create the daily message"""
-    current_date = date.today().strftime(DATE_FORMAT)
+    current_date = get_now_eastern().strftime(DATE_FORMAT)
     vote_message = f"{MSG_UNIQUE_STRING} today **{current_date}**?"
     vote_message += "\n\n**Schedule**\n"
     for key_time in SUPPORTED_TIMES_ARR:
@@ -130,7 +136,7 @@ async def auto_assign_user_to_daily_question(
     guild_id: int, channel_id: int, message: discord.Message, guild_emoji: dict[str, Dict[str, str]]
 ) -> Dict[str, List[SimpleUser]]:
     """Take the existing schedules for all user and apply it to the message"""
-    day_of_week_number = datetime.now().weekday()  # 0 is Monday, 6 is Sunday
+    day_of_week_number = get_now_eastern().weekday()  # 0 is Monday, 6 is Sunday
     message_id = message.id
     print_log(
         f"Auto assign user to daily question for guild {guild_id}, message_id {message_id}, day_of_week_number {day_of_week_number}"

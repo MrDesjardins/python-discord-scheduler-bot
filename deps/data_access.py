@@ -9,6 +9,7 @@ from deps.cache import (
     ALWAYS_TTL,
     ONE_DAY_TTL,
     ONE_HOUR_TTL,
+    ONE_MONTH_TTL,
     THREE_DAY_TTL,
     get_cache,
     remove_cache,
@@ -114,9 +115,12 @@ async def data_access_get_reaction_message(
 def data_access_set_reaction_message(
     guild_id: int, channel_id: int, message_id: int, message_votes: dict[str, list[SimpleUser]]
 ) -> None:
-    """Set the reaction for a specific message"""
+    """
+    Set the reaction for a specific message
+    We store already the user_activity, the manual ones are not needed above 1 month since we are not allowing people after 24h (give more leeway)
+    """
     key = f"{KEY_REACTION_USERS}:{guild_id}:{channel_id}:{message_id}"
-    set_cache(False, key, message_votes, ALWAYS_TTL)
+    set_cache(False, key, message_votes, ONE_MONTH_TTL)
 
 
 async def data_access_get_users_auto_schedule(
