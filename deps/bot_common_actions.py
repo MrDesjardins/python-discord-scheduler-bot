@@ -509,13 +509,11 @@ def add_star_if_above_value(value: int, threshold: int = 0) -> str:
     return f"{value}{'⭐' if value > threshold else ''}"
 
 
-async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_channel: discord.VoiceChannel) -> None:
+async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id: int) -> None:
     """
     Send a message to the main text channel about looking for group to play
     """
-    guild_id = guild.id
-    guild_name = guild.name
-    voice_channel_id = voice_channel.id
+
     dict_users: dict[int, Optional[ActivityTransition]] = await data_access_get_voice_user_list(
         guild_id, voice_channel_id
     )
@@ -527,13 +525,13 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
     text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
     if text_channel_main_siege_id is None:
         print_warning_log(
-            f"send_automatic_lfg_message: Main Siege text channel id not set for guild {guild_name}. Skipping."
+            f"send_automatic_lfg_message: Main Siege text channel id not set for guild id {guild_id}. Skipping."
         )
         return
     channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
     if not channel:
         print_warning_log(
-            f"send_automatic_lfg_message: Main Siege text channel not found for guild {guild_name}. Skipping."
+            f"send_automatic_lfg_message: Main Siege text channel not found for guild id {guild_id}. Skipping."
         )
         return
 
@@ -542,7 +540,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
     if user_count == 0 or user_count >= 5:
         # No user or too many users, nothing to do
         print_log(
-            f"send_automatic_lfg_message: User count {user_count} in {guild_name} for voice channel {voice_channel_id}. Skipping."
+            f"send_automatic_lfg_message: User count {user_count} in guild id {guild_id} for voice channel {voice_channel_id}. Skipping."
         )
 
     current_time = datetime.now(timezone.utc)
@@ -560,7 +558,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild: discord.guild, voice_cha
     vc_channel: discord.TextChannel = await data_access_get_channel(voice_channel_id)
     if vc_channel is None:
         print_warning_log(
-            f"send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild {guild_name}. Skipping."
+            f"send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild id {guild_id} . Skipping."
         )
         return
     user_count_vc = len(vc_channel.members)

@@ -171,7 +171,7 @@ async def periodic_cache_cleanup():
     """Periodically clean up the cache"""
     while True:
         clear_expired_cache()  # Make sure this function is defined elsewhere
-        await asyncio.sleep(10)  # Adjust the sleep time as needed
+        await asyncio.sleep(60)  # Adjust the sleep time as needed
 
 
 memoryCache = TTLCache(default_ttl_in_seconds=DEFAULT_TTL)
