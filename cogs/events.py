@@ -31,7 +31,7 @@ class MyEventsCog(commands.Cog):
 
     def __init__(self, bot: MyBot):
         self.bot = bot
-        self.last_task = None
+        self.last_task = {}
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -270,9 +270,11 @@ class MyEventsCog(commands.Cog):
         Handle the request for a automatic message but if there is already a request, cancel it and wait again.
         The goal is to debounce and only act on the last operation
         """
-        if self.last_task:
-            self.last_task.cancel()  # Cancel any pending execution
-        self.last_task = asyncio.create_task(
+        key = f"{guild_id}-{channel_id}"
+        if key in self.last_task:
+            task = self.last_task.get(key)
+            task.cancel()  # Cancel any pending execution
+        self.last_task[key] = asyncio.create_task(
             self.send_automatic_lfg_message_debounced_cancellable_task(guild_id, channel_id)
         )
 
@@ -281,7 +283,10 @@ class MyEventsCog(commands.Cog):
         A task that can be cancelled and will wait for X seconds before sending the automatic message
         """
         await asyncio.sleep(3)  # Wait
-        await send_automatic_lfg_message(self.bot, guild_id, channel_id)
+        await send_automatic_lfg_message(
+            self.bot, guild_id, channel_id
+        )  # Send the actual command to see if we can send a message (depending of everyone state)
+        self.last_task.pop(f"{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
 
 
 async def setup(bot):
