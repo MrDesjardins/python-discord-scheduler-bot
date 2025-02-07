@@ -99,7 +99,7 @@ async def get_adjust_reaction_votes(
                 channel_message_votes = get_empty_votes()
             # Add or Remove Action
             people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
-            users_clicked_already = any([u for u in people_clicked_time if u.user_id == user.user_id])
+            users_clicked_already = any(u.user_id == user.user_id for u in people_clicked_time)
             perf.add_marker(f"Saving Reaction Message: Before count {len(people_clicked_time)}")
             if users_clicked_already:
                 # Remove the user from the message votes
