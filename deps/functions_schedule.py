@@ -94,6 +94,7 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
                     get_user_rank_emoji(guild_emoji[guild_id], member),
                 )
             )
+            channel_message_votes[time_clicked] = people_clicked_time
         perf.add_marker("Saving Reaction Message")
         # Always update the cache
         data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
