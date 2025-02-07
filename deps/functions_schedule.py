@@ -70,36 +70,49 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
         await user.send(f"You can't vote on a message that is older than 24 hours. User: {user_display_name}")
         return
 
-    print_log(f"adjust_reaction: Start (lock) Adjusting reaction for {user_display_name}")
-    with PerformanceContext("adjust_reaction", None) as perf:
-        # async with lock:  # Acquire the lock
-        # Cache all users for this message's reactions to avoid redundant API calls
-        channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
-        perf.add_marker("Get Reaction Message Completed")
-        if channel_message_votes is None:
-            channel_message_votes = get_empty_votes()
-        # Add or Remove Action
-        people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
-        users_clicked_already = any([u for u in people_clicked_time if u.user_id == user.id])
-        perf.add_marker(f"Saving Reaction Message: Before count {len(people_clicked_time)}")
-        if users_clicked_already:
-            # Remove the user from the message votes
-            channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.id]
-        else:
-            # Add the user to the message votes
-            people_clicked_time.append(
-                SimpleUser(
-                    user.id,
-                    user.display_name,
-                    get_user_rank_emoji(guild_emoji[guild_id], member),
-                )
-            )
-            channel_message_votes[time_clicked] = people_clicked_time
-        perf.add_marker(f"Saving Reaction Message: After count {len(people_clicked_time)}")
-        # Always update the cache
-        data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
-        perf.add_marker("Saving Reaction Message End")
+    channel_message_votes = await get_adjust_reaction_votes(
+        guild_id,
+        channel_id,
+        message_id,
+        SimpleUser(
+            user.id,
+            user.display_name,
+            get_user_rank_emoji(guild_emoji[guild_id], member),
+        ),
+        time_clicked,
+    )
     await update_vote_message(text_message_reaction, channel_message_votes, guild_emoji)
+
+
+async def get_adjust_reaction_votes(
+    guild_id: int, channel_id: id, message_id: int, user: SimpleUser, time_clicked: str
+) -> Dict[str, List[SimpleUser]]:
+    """
+    Adjust the reaction for the user on the message at the time the user clicked
+    """
+    print_log(f"adjust_reaction: Start (lock) Adjusting reaction for {user.display_name}")
+    with PerformanceContext("adjust_reaction", None) as perf:
+        async with lock:  # Acquire the lock to ensure get + set under one transaction
+            channel_message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)
+            perf.add_marker("Get Reaction Message Completed")
+            if channel_message_votes is None:
+                channel_message_votes = get_empty_votes()
+            # Add or Remove Action
+            people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
+            users_clicked_already = any([u for u in people_clicked_time if u.user_id == user.user_id])
+            perf.add_marker(f"Saving Reaction Message: Before count {len(people_clicked_time)}")
+            if users_clicked_already:
+                # Remove the user from the message votes
+                channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.user_id]
+            else:
+                # Add the user to the message votes
+                people_clicked_time.append(user)
+                channel_message_votes[time_clicked] = people_clicked_time
+            perf.add_marker(f"Saving Reaction Message: After count {len(people_clicked_time)}")
+            # Always update the cache
+            data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
+            perf.add_marker("Saving Reaction Message End")
+    return channel_message_votes
 
 
 async def update_vote_message(
