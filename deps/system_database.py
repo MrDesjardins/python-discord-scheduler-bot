@@ -305,7 +305,7 @@ class DatabaseManager:
 
         def __enter__(self):
             """Begin a transaction"""
-            self.db_manager.conn.execute("BEGIN")
+            self.db_manager.conn.execute("BEGIN TRANSACTION")
             return self.db_manager.get_cursor()  # Reuse the database manager's cursor
 
         def __exit__(self, exc_type, exc_val, exc_tb):
