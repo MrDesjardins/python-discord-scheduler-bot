@@ -87,7 +87,7 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
             channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.id]
         else:
             # Add the user to the message votes
-            channel_message_votes.setdefault(time_clicked, []).append(
+            people_clicked_time.append(
                 SimpleUser(
                     user.id,
                     user.display_name,
