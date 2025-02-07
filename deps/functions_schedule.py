@@ -80,9 +80,9 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
             channel_message_votes = get_empty_votes()
         # Add or Remove Action
         people_clicked_time: list[SimpleUser] = channel_message_votes.get(time_clicked, [])
-        users_clicked = [user.id == u.user_id for u in people_clicked_time]
-        remove = len(users_clicked) > 0
-        if remove:
+        users_clicked_already = any([u for u in people_clicked_time if u.user_id == user.id])
+        perf.add_marker(f"Saving Reaction Message: Before count {len(people_clicked_time)}")
+        if users_clicked_already:
             # Remove the user from the message votes
             channel_message_votes[time_clicked] = [u for u in people_clicked_time if u.user_id != user.id]
         else:
@@ -95,7 +95,7 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
                 )
             )
             channel_message_votes[time_clicked] = people_clicked_time
-        perf.add_marker("Saving Reaction Message")
+        perf.add_marker(f"Saving Reaction Message: After count {len(people_clicked_time)}")
         # Always update the cache
         data_access_set_reaction_message(guild_id, channel_id, message_id, channel_message_votes)
         perf.add_marker("Saving Reaction Message End")
