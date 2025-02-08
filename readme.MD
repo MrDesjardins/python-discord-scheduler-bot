@@ -6,6 +6,9 @@
 4. The bot as administrative features with many statistics and analytic giving hindsight on the user's activity to pro-actively reaching folks.
 5. The bot allows users to know everyone's timezone in a specific voice channel to help identifying the best host.
 6. The bot has a tournament system allowing moderator to create a single elimination tournament with lost reporting and bracket visualization.
+7. The bot allows user to place fake bets on each match of a tournament.
+8. The bot has a daily stats shows the the user.
+9. The bot uses the Discord activity API to determine when a user in a stack is back in the menu, ready to play and send a LFG (looking for group) message if the user is not in a full stack automatically.
 
 # What does the Bot look like?
 
@@ -26,6 +29,28 @@ Everytime someone leave a voice channels that is configured as part of the gamin
 The bot allows the moderator to create a single elimination tournament. The tournament is created by the moderator and the user can report the lost. The bot will generate a bracket and the user can see the progress of the tournament.
 
 ![Tournament](readme_assets/TournamentReportingLost.gif)
+
+# Bets
+
+For every tournament, user can bet on matches. The user can see the leaderboard of the bets and the active bets. The system determines the odds depending of some statistics and adjust dynamically the bet as people vote.
+
+![Bet Active](readme_assets/bet_active_bets.png)
+
+Every time a match is completed, the money is distributed to the winners.
+
+![Bet Wins Distributed](readme_assets/bet_distributed.png)
+
+
+# Daily Stats
+
+The bot show stats about the last 7 days every day like the number of T/K, numbers of kills divided by matches, the most used operators by users, etc.
+
+![Example of a daily stats](readme_assets/daily_stats_example1.png)
+
+# Auto-LFG
+The auto-lfg feature is a feature that allows the bot to send a message to the guild when a user is back in the menu (from a arcade, AI, etc or when a stack complete a rank match). 
+
+![Example of an LFG sent by the bot](readme_assets/auto_lfg.png)
 
 ## Admin Console
 
@@ -195,6 +220,24 @@ Set the text channel to send the bracket and messages about the tournament
 #### modseestournamentchannel
 
 Allows to see what is the text channel configured for the guild to send the tournament information.
+
+### Betting Commands
+
+#### betleaderboard
+
+User can see who won the most for a specific tournament in term of bets.
+
+#### betactivetournament
+
+User can see the active (not closed) bet for a specific tournament that every user placed.
+
+#### bet
+
+User can place a bet on a specific user for a specific tournament.
+
+#### betwallet
+
+User can see how much money they have in their wallet.
 
 ### Bot Behaviors
 
