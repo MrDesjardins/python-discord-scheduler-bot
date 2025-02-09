@@ -425,174 +425,179 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     # Todo: Batch insert
     last_match = {}
     try:
-        for match in filtered_data:
-            last_match = match
-            database_manager.get_cursor().execute(
-                """
-            INSERT INTO user_full_match_info (
-                match_uuid,
-                user_id,
-                match_timestamp,
-                match_duration_ms,
-                data_center,
-                session_type,
-                map_name,
-                is_surrender,
-                is_forfeit,
-                is_rollback,
-                r6_tracker_user_uuid,
-                ubisoft_username,
-                operators,
-                round_played_count,
-                round_won_count,
-                round_lost_count,
-                round_disconnected_count,
-                kill_count,
-                death_count,
-                assist_count,
-                head_shot_count,
-                tk_count,
-                ace_count,
-                first_kill_count,
-                first_death_count,
-                clutches_win_count,
-                clutches_loss_count,
-                clutches_win_count_1v1,
-                clutches_win_count_1v2,
-                clutches_win_count_1v3,
-                clutches_win_count_1v4,
-                clutches_win_count_1v5,
-                clutches_lost_count_1v1,
-                clutches_lost_count_1v2,
-                clutches_lost_count_1v3,
-                clutches_lost_count_1v4,
-                clutches_lost_count_1v5,
-                kill_1_count,
-                kill_2_count,
-                kill_3_count,
-                kill_4_count,
-                kill_5_count,
-                rank_points,
-                rank_name,
-                points_gained,
-                rank_previous,
-                kd_ratio,
-                head_shot_percentage,
-                kills_per_round,
-                deaths_per_round,
-                assists_per_round,
-                has_win)
-            VALUES (
-                :match_uuid,
-                :user_id,
-                :match_timestamp,
-                :match_duration_ms,
-                :data_center,
-                :session_type,
-                :map_name,
-                :is_surrender,
-                :is_forfeit,
-                :is_rollback,
-                :r6_tracker_user_uuid,
-                :ubisoft_username,
-                :operators,
-                :round_played_count,
-                :round_won_count,
-                :round_lost_count,
-                :round_disconnected_count,
-                :kill_count,
-                :death_count,
-                :assist_count,
-                :head_shot_count,
-                :tk_count,
-                :ace_count,
-                :first_kill_count,
-                :first_death_count,
-                :clutches_win_count,
-                :clutches_loss_count,
-                :clutches_win_count_1v1,
-                :clutches_win_count_1v2,
-                :clutches_win_count_1v3,
-                :clutches_win_count_1v4,
-                :clutches_win_count_1v5,
-                :clutches_lost_count_1v1,
-                :clutches_lost_count_1v2,
-                :clutches_lost_count_1v3,
-                :clutches_lost_count_1v4,
-                :clutches_lost_count_1v5,
-                :kill_1_count,
-                :kill_2_count,
-                :kill_3_count,
-                :kill_4_count,
-                :kill_5_count,
-                :rank_points,
-                :rank_name,
-                :points_gained,
-                :rank_previous,
-                :kd_ratio,
-                :head_shot_percentage,
-                :kills_per_round,
-                :deaths_per_round,
-                :assists_per_round,
-                :has_win
-            )
-            """,
-                {
-                    "match_uuid": match.match_uuid,
-                    "user_id": user_info.id,
-                    "match_timestamp": match.match_timestamp,
-                    "match_duration_ms": match.match_duration_ms,
-                    "data_center": match.data_center,
-                    "session_type": match.session_type,
-                    "map_name": match.map_name,
-                    "is_surrender": match.is_surrender,
-                    "is_forfeit": match.is_forfeit,
-                    "is_rollback": match.is_rollback,
-                    "r6_tracker_user_uuid": match.r6_tracker_user_uuid,
-                    "ubisoft_username": match.ubisoft_username,
-                    "operators": match.operators,
-                    "round_played_count": match.round_played_count,
-                    "round_won_count": match.round_won_count,
-                    "round_lost_count": match.round_lost_count,
-                    "round_disconnected_count": match.round_disconnected_count,
-                    "kill_count": match.kill_count,
-                    "death_count": match.death_count,
-                    "assist_count": match.assist_count,
-                    "head_shot_count": match.head_shot_count,
-                    "tk_count": match.tk_count,
-                    "ace_count": match.ace_count,
-                    "first_kill_count": match.first_kill_count,
-                    "first_death_count": match.first_death_count,
-                    "clutches_win_count": match.clutches_win_count,
-                    "clutches_loss_count": match.clutches_loss_count,
-                    "clutches_win_count_1v1": match.clutches_win_count_1v1,
-                    "clutches_win_count_1v2": match.clutches_win_count_1v2,
-                    "clutches_win_count_1v3": match.clutches_win_count_1v3,
-                    "clutches_win_count_1v4": match.clutches_win_count_1v4,
-                    "clutches_win_count_1v5": match.clutches_win_count_1v5,
-                    "clutches_lost_count_1v1": match.clutches_lost_count_1v1,
-                    "clutches_lost_count_1v2": match.clutches_lost_count_1v2,
-                    "clutches_lost_count_1v3": match.clutches_lost_count_1v3,
-                    "clutches_lost_count_1v4": match.clutches_lost_count_1v4,
-                    "clutches_lost_count_1v5": match.clutches_lost_count_1v5,
-                    "kill_1_count": match.kill_1_count,
-                    "kill_2_count": match.kill_2_count,
-                    "kill_3_count": match.kill_3_count,
-                    "kill_4_count": match.kill_4_count,
-                    "kill_5_count": match.kill_5_count,
-                    "rank_points": match.rank_points,
-                    "rank_name": match.rank_name,
-                    "points_gained": match.points_gained,
-                    "rank_previous": match.rank_previous,
-                    "kd_ratio": match.kd_ratio,
-                    "head_shot_percentage": match.head_shot_percentage,
-                    "kills_per_round": match.kills_per_round,
-                    "deaths_per_round": match.deaths_per_round,
-                    "assists_per_round": match.assists_per_round,
-                    "has_win": match.has_win,
-                },
-            )
-        database_manager.get_conn().commit()
+        with database_manager.data_access_transaction():
+            cursor = database_manager.get_cursor()
+            for match in filtered_data:
+                last_match = match
+                cursor.execute(
+                    """
+                INSERT INTO user_full_match_info (
+                    match_uuid,
+                    user_id,
+                    match_timestamp,
+                    match_duration_ms,
+                    data_center,
+                    session_type,
+                    map_name,
+                    is_surrender,
+                    is_forfeit,
+                    is_rollback,
+                    r6_tracker_user_uuid,
+                    ubisoft_username,
+                    operators,
+                    round_played_count,
+                    round_won_count,
+                    round_lost_count,
+                    round_disconnected_count,
+                    kill_count,
+                    death_count,
+                    assist_count,
+                    head_shot_count,
+                    tk_count,
+                    ace_count,
+                    first_kill_count,
+                    first_death_count,
+                    clutches_win_count,
+                    clutches_loss_count,
+                    clutches_win_count_1v1,
+                    clutches_win_count_1v2,
+                    clutches_win_count_1v3,
+                    clutches_win_count_1v4,
+                    clutches_win_count_1v5,
+                    clutches_lost_count_1v1,
+                    clutches_lost_count_1v2,
+                    clutches_lost_count_1v3,
+                    clutches_lost_count_1v4,
+                    clutches_lost_count_1v5,
+                    kill_1_count,
+                    kill_2_count,
+                    kill_3_count,
+                    kill_4_count,
+                    kill_5_count,
+                    rank_points,
+                    rank_name,
+                    points_gained,
+                    rank_previous,
+                    kd_ratio,
+                    head_shot_percentage,
+                    kills_per_round,
+                    deaths_per_round,
+                    assists_per_round,
+                    has_win)
+                VALUES (
+                    :match_uuid,
+                    :user_id,
+                    :match_timestamp,
+                    :match_duration_ms,
+                    :data_center,
+                    :session_type,
+                    :map_name,
+                    :is_surrender,
+                    :is_forfeit,
+                    :is_rollback,
+                    :r6_tracker_user_uuid,
+                    :ubisoft_username,
+                    :operators,
+                    :round_played_count,
+                    :round_won_count,
+                    :round_lost_count,
+                    :round_disconnected_count,
+                    :kill_count,
+                    :death_count,
+                    :assist_count,
+                    :head_shot_count,
+                    :tk_count,
+                    :ace_count,
+                    :first_kill_count,
+                    :first_death_count,
+                    :clutches_win_count,
+                    :clutches_loss_count,
+                    :clutches_win_count_1v1,
+                    :clutches_win_count_1v2,
+                    :clutches_win_count_1v3,
+                    :clutches_win_count_1v4,
+                    :clutches_win_count_1v5,
+                    :clutches_lost_count_1v1,
+                    :clutches_lost_count_1v2,
+                    :clutches_lost_count_1v3,
+                    :clutches_lost_count_1v4,
+                    :clutches_lost_count_1v5,
+                    :kill_1_count,
+                    :kill_2_count,
+                    :kill_3_count,
+                    :kill_4_count,
+                    :kill_5_count,
+                    :rank_points,
+                    :rank_name,
+                    :points_gained,
+                    :rank_previous,
+                    :kd_ratio,
+                    :head_shot_percentage,
+                    :kills_per_round,
+                    :deaths_per_round,
+                    :assists_per_round,
+                    :has_win
+                )
+                """,
+                    {
+                        "match_uuid": match.match_uuid,
+                        "user_id": user_info.id,
+                        "match_timestamp": match.match_timestamp,
+                        "match_duration_ms": match.match_duration_ms,
+                        "data_center": match.data_center,
+                        "session_type": match.session_type,
+                        "map_name": match.map_name,
+                        "is_surrender": match.is_surrender,
+                        "is_forfeit": match.is_forfeit,
+                        "is_rollback": match.is_rollback,
+                        "r6_tracker_user_uuid": match.r6_tracker_user_uuid,
+                        "ubisoft_username": match.ubisoft_username,
+                        "operators": match.operators,
+                        "round_played_count": match.round_played_count,
+                        "round_won_count": match.round_won_count,
+                        "round_lost_count": match.round_lost_count,
+                        "round_disconnected_count": match.round_disconnected_count,
+                        "kill_count": match.kill_count,
+                        "death_count": match.death_count,
+                        "assist_count": match.assist_count,
+                        "head_shot_count": match.head_shot_count,
+                        "tk_count": match.tk_count,
+                        "ace_count": match.ace_count,
+                        "first_kill_count": match.first_kill_count,
+                        "first_death_count": match.first_death_count,
+                        "clutches_win_count": match.clutches_win_count,
+                        "clutches_loss_count": match.clutches_loss_count,
+                        "clutches_win_count_1v1": match.clutches_win_count_1v1,
+                        "clutches_win_count_1v2": match.clutches_win_count_1v2,
+                        "clutches_win_count_1v3": match.clutches_win_count_1v3,
+                        "clutches_win_count_1v4": match.clutches_win_count_1v4,
+                        "clutches_win_count_1v5": match.clutches_win_count_1v5,
+                        "clutches_lost_count_1v1": match.clutches_lost_count_1v1,
+                        "clutches_lost_count_1v2": match.clutches_lost_count_1v2,
+                        "clutches_lost_count_1v3": match.clutches_lost_count_1v3,
+                        "clutches_lost_count_1v4": match.clutches_lost_count_1v4,
+                        "clutches_lost_count_1v5": match.clutches_lost_count_1v5,
+                        "kill_1_count": match.kill_1_count,
+                        "kill_2_count": match.kill_2_count,
+                        "kill_3_count": match.kill_3_count,
+                        "kill_4_count": match.kill_4_count,
+                        "kill_5_count": match.kill_5_count,
+                        "rank_points": match.rank_points,
+                        "rank_name": match.rank_name,
+                        "points_gained": match.points_gained,
+                        "rank_previous": match.rank_previous,
+                        "kd_ratio": match.kd_ratio,
+                        "head_shot_percentage": match.head_shot_percentage,
+                        "kills_per_round": match.kills_per_round,
+                        "deaths_per_round": match.deaths_per_round,
+                        "assists_per_round": match.assists_per_round,
+                        "has_win": match.has_win,
+                    },
+                )
+                print_log(
+                    f"insert_if_nonexistant_full_match_info: Inserted match {cursor.rowcount} for {user_info.display_name}"
+                )
+        # End transaction
     except Exception as e:
         stringify_match = json.dumps(asdict(last_match), indent=4)
         print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}\n{stringify_match}")
@@ -912,7 +917,8 @@ def data_access_fetch_kd_by_user(from_data: datetime) -> list[tuple[int, str, in
         LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
         WHERE
         is_rollback = false
-        and match_timestamp > datetime ('2025-01-01') GROUP BY user_id
+        and match_timestamp > :from_data 
+        GROUP BY user_id
     )
     ORDER BY kd DESC;
         """
@@ -926,3 +932,252 @@ def data_access_fetch_kd_by_user(from_data: datetime) -> list[tuple[int, str, in
     ).fetchall()
     # Convert the result to a dictionary of user_id -> tk_count
     return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_best_duo(from_data: datetime) -> list[tuple[str, str, int, int, int]]:
+    """
+    Get the user 1 name, user 2 name, the number of game played, the number of wins and the win %
+    """
+    query = """
+        WITH
+        MatchPairs AS (
+            SELECT
+            m1.match_uuid,
+            m2.match_uuid,
+            m1.user_id AS user1,
+            m2.user_id AS user2,
+            m1.has_win AS has_win
+            FROM
+            user_full_match_info m1
+            JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
+            AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
+            WHERE
+            m1.match_timestamp >= :from_data
+        )
+        SELECT
+        UI_1.display_name AS user1_name,
+        UI_2.display_name AS user2_name,
+        COUNT(*) AS games_played,
+        SUM(has_win) AS has_win_sum,
+        SUM(has_win) * 1.0 / COUNT(*) AS win_rate_percentage
+        FROM
+        MatchPairs
+        LEFT JOIN user_info AS UI_1 ON UI_1.id = user1
+        LEFT JOIN user_info AS UI_2 ON UI_2.id = user2
+        WHERE
+        user1 IS NOT NULL
+        AND user2 IS NOT NULL
+        GROUP BY
+        user1,
+        user2
+        HAVING
+        games_played >= 10
+        ORDER BY
+        win_rate_percentage DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+
+    return [(row[0], row[1], row[2], row[3], row[4]) for row in result]
+
+
+def data_access_fetch_best_trio(from_data: datetime) -> list[tuple[str, str, str, int, int, int]]:
+    """
+    Get the user 1 name, user 2 name, user 3 name the number of game played, the number of wins and the win %
+    """
+    query = """
+        WITH
+        MatchPairs AS (
+            SELECT
+            m1.match_uuid,
+            m2.match_uuid,
+            m3.match_uuid,
+            m1.user_id AS user1,
+            m2.user_id AS user2,
+            m3.user_id AS user3,
+            m1.has_win AS has_win
+            FROM
+            user_full_match_info m1
+            JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
+            JOIN user_full_match_info m3 ON m2.match_uuid = m3.match_uuid
+            AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
+            AND m2.user_id < m3.user_id -- Avoid duplicate pairs and self-joins
+            WHERE
+            m1.match_timestamp >= :from_data
+        )
+        SELECT
+        UI_1.display_name AS user1_name,
+        UI_2.display_name AS user2_name,
+        UI_3.display_name AS user3_name,
+        COUNT(*) AS games_played,
+        SUM(has_win) AS has_win_sum,
+        SUM(has_win) * 1.0 / COUNT(*) AS win_rate_percentage
+        FROM
+        MatchPairs
+        LEFT JOIN user_info AS UI_1 ON UI_1.id = user1
+        LEFT JOIN user_info AS UI_2 ON UI_2.id = user2
+        LEFT JOIN user_info AS UI_3 ON UI_3.id = user3
+        WHERE
+        user1 IS NOT NULL
+        AND user2 IS NOT NULL
+        AND user3 IS NOT NULL
+        GROUP BY
+        user1,
+        user2,
+        user3
+        HAVING
+        games_played >= 10
+        ORDER BY
+        win_rate_percentage DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+
+    return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in result]
+
+
+def data_access_fetch_first_death(from_data: datetime) -> list[tuple[str, int, int, int]]:
+    """
+    Get the user name, the number of first death, the number of first rounds and the number of first death
+    """
+    query = """
+    SELECT
+        user_info.display_name,
+        SUM(first_death_count) AS first_death_count_sum,
+        SUM(round_played_count) AS round_played_count_sum,
+        SUM(first_death_count) * 1.0 / SUM(round_played_count) AS first_death_rate
+    FROM user_full_match_info
+    LEFT JOIN user_info ON user_info.id = user_id
+    WHERE
+        match_timestamp >= :from_data
+    GROUP BY user_id
+    ORDER BY first_death_rate DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+
+    return [(row[0], row[1], row[2], row[3]) for row in result]
+
+
+def data_access_fetch_success_fragging(from_data: datetime) -> list[tuple[str, int]]:
+    """
+    Get the user name, the number of first death, the number of first rounds and the number of first death
+    """
+    query = """
+        SELECT
+            user_info.display_name,
+            SUM(first_death_count) AS first_death_count_sum,
+            SUM(first_kill_count) AS first_kill_count_sum,
+            SUM(round_played_count) AS round_played_count_sum,
+            SUM(first_death_count) * 1.0 / SUM(round_played_count) AS first_death_rate,
+            SUM(first_kill_count) * 1.0 / SUM(round_played_count) AS first_kill_rate,
+            (
+                SUM(first_kill_count) * 1.0 / SUM(round_played_count)
+            ) - (
+                SUM(first_death_count) * 1.0 / SUM(round_played_count)
+            ) AS delta,
+            SUM(first_kill_count) * 1.0 / (SUM(first_kill_count) + SUM(first_death_count)) AS first_kill_ratio
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info ON user_info.id = user_id
+        WHERE
+            match_timestamp >= :from_data
+        GROUP BY
+            user_id
+        ORDER BY
+            first_kill_ratio DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+
+    return [(row[0], row[7]) for row in result]
+
+
+def data_access_fetch_clutch_win_rate(from_data: datetime) -> list[tuple[str, int, int, int]]:
+    """
+    Get the user name, the number of clutch win, the number of clutch played and the clutch win rate
+    """
+    query = """
+        SELECT
+            user_info.display_name,
+            SUM(clutches_win_count) AS win,
+            SUM(clutches_loss_count) AS loss,
+            SUM(clutches_win_count) * 1.0 / (SUM(clutches_win_count) + SUM(clutches_loss_count)) AS ratio
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info ON user_info.id = user_id
+        WHERE
+            match_timestamp >= :from_data
+        GROUP BY
+            user_id
+        ORDER BY
+            ratio DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+
+    return [(row[0], row[1], row[2], row[3]) for row in result]
+
+
+def data_access_fetch_ace_4k_3k(from_data: datetime) -> list[tuple[str, int, int, int, int]]:
+    """
+    Get the user name, 5k, 4k, 3k count
+    """
+    query = """
+        SELECT
+            user_info.display_name,
+            SUM(kill_5_count) AS ace,
+            SUM(kill_4_count) AS kill4,
+            SUM(kill_3_count) AS kill3,
+            SUM(kill_5_count) + SUM(kill_4_count) + SUM(kill_3_count) as total
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info ON user_info.id = user_id
+        WHERE
+            match_timestamp >= :from_data
+        GROUP BY
+            user_id
+        ORDER BY
+            total DESC
+        LIMIT 20 OFFSET 0;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+
+    return [(row[0], row[1], row[2], row[3], row[4]) for row in result]

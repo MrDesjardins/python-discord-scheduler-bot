@@ -8,6 +8,7 @@ from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_automatic_lfg_message,
+    send_daily_stats_to_a_guild,
     send_notification_voice_channel,
     send_session_stats_to_queue,
 )
@@ -80,6 +81,7 @@ class MyEventsCog(commands.Cog):
             else:
                 print_warning_log(f"\tChannel ID {channel_id} not found in guild {guild.name}")
             tasks.append(send_daily_question_to_a_guild(bot, guild))
+            # tasks.append(send_daily_stats_to_a_guild(guild))
 
         # Cleanup task that runs every few seconds
         tasks.append(start_periodic_cache_cleanup())
@@ -282,7 +284,7 @@ class MyEventsCog(commands.Cog):
         """
         A task that can be cancelled and will wait for X seconds before sending the automatic message
         """
-        await asyncio.sleep(3)  # Wait
+        await asyncio.sleep(5)  # Wait
         await send_automatic_lfg_message(
             self.bot, guild_id, channel_id
         )  # Send the actual command to see if we can send a message (depending of everyone state)
