@@ -10,12 +10,14 @@ from deps.bot_common_actions import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
+from deps.system_database import run_wal_checkpoint
 
 local_tz = pytz.timezone("America/Los_Angeles")
 utc_tz = pytz.timezone("UTC")
 time_send_daily_message = time(hour=7, minute=0, second=0, tzinfo=local_tz)
 time_fetch_matches = time(hour=23, minute=30, second=0, tzinfo=local_tz)
 time_send_daily_stats = time(hour=10, minute=35, second=0, tzinfo=local_tz)
+time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=local_tz)
 
 
 class MyTasksCog(commands.Cog):
@@ -35,6 +37,7 @@ class MyTasksCog(commands.Cog):
         self.send_daily_question_to_all_guild_task.start()  # Start the task when the cog is loaded
         self.daily_saving_active_user_match_stats_task.start()  # Start the task when the cog is loaded
         self.send_daily_stats_to_all_guild_task.start()  # Start the task when the cog is loaded
+        self.run_db_checkpoint_task.start()  # Start the task when the cog is loaded
         print_log("MyTasksCog>start_task: Bot is ready, all tasks started")
 
     @tasks.loop(minutes=16)
@@ -88,6 +91,17 @@ class MyTasksCog(commands.Cog):
         for guild in self.bot.guilds:
             await send_daily_stats_to_a_guild(guild)
 
+    @tasks.loop(time=time_run_db_checkpoint)
+    async def run_db_checkpoint_task(self):
+        """
+        Every day, ensure the database is checkpointed
+        """
+        print_log(f"Running SQL Lite Checkpoint, current time {datetime.now()}")
+        try:
+            await run_wal_checkpoint()
+        except Exception as e:
+            print_error_log(f"run_db_checkpoint_task task: {e}")
+
     ### ============================ BEFORE LOOP ============================ ###
 
     @check_voice_channel_task.before_loop
@@ -114,6 +128,12 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>send_daily_stats_to_all_guild_task: Waiting for bot to be ready...")
         await self.bot.wait_until_ready()
 
+    @send_daily_stats_to_all_guild_task.before_loop
+    async def before_run_db_checkpoint_task(self):
+        """Wait for the checkpoint task for the bot ready"""
+        print_log("MyTasksCog>run_db_checkpoint_task: Waiting for bot to be ready...")
+        await self.bot.wait_until_ready()
+
     ### ============================ UNLOAD COG ============================ ###
     async def cog_unload(self):
         self.check_voice_channel_task.cancel()
@@ -121,6 +141,7 @@ class MyTasksCog(commands.Cog):
         self.send_daily_question_to_all_guild_task.cancel()
         self.daily_saving_active_user_match_stats_task.cancel()
         self.send_daily_stats_to_all_guild_task.cancel()
+        self.run_db_checkpoint_task.cancel()
 
 
 async def setup(bot):

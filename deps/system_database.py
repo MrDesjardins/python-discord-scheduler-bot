@@ -319,3 +319,10 @@ class DatabaseManager:
 
 
 database_manager = DatabaseManager(DATABASE_NAME)
+
+
+def run_wal_checkpoint():
+    """
+    Consolidate all the files into a single SqlLite file
+    """
+    database_manager.get_conn().execute("PRAGMA wal_checkpoint(FULL);")
