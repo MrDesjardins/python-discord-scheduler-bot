@@ -31,3 +31,9 @@ class TestR6Tracker:
         #     await get_r6tracker_max_rank("DoesNotExist123000Name")
         rank = await get_r6tracker_max_rank("DoesNotExist123000Name")
         assert rank == "Copper"
+
+    @pytest.mark.asyncio
+    async def test_highest_rank_champion(self):
+        """Test the highest rank of a user that exist"""
+        rank = await get_r6tracker_max_rank("Funkyshmug")
+        assert rank == "Champion"

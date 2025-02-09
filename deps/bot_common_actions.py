@@ -305,7 +305,7 @@ async def adjust_role_from_ubisoft_max_account(
     guild: discord.guild, member: discord.member, ubisoft_connect_name: str, ubisoft_active_account: str = None
 ) -> str:
     """Adjust the server's role of a user based on their max rank in R6 Tracker"""
-    max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name)
+    max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name, True)
 
     print_log(
         f"adjust_role_from_ubisoft_max_account: R6 Tracker Downloaded Info for user {member.display_name} and found for user name {ubisoft_connect_name} the max role: {max_rank}"

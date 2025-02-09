@@ -198,11 +198,14 @@ def data_access_set_bot_voice_first_user(guild_id: int, enabled: bool) -> None:
     set_cache(False, f"{KEY_GUILD_BOT_VOICE_FIRST_USER}:{guild_id}", enabled, ALWAYS_TTL)
 
 
-async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
+async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch: bool = False) -> str:
     """Get from R6 Tracker website the max rank for the user"""
 
     async def fetch():
         return await get_r6tracker_max_rank(ubisoft_user_name)
+
+    if force_fetch:
+        await remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
 
     return await get_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}", fetch, ttl_in_seconds=ONE_HOUR_TTL)
 
