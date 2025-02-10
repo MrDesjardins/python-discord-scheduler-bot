@@ -636,14 +636,14 @@ def build_msg_stats(stats_name: str, info_time_str: str, stats_tuple: list[tuple
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
     rank = 0
     previous_value = -1
-    msg += f"{columnize('#', 3)}" f"{columnize('Name', COL_WIDTH)}" f"{columnize('Count', COL_WIDTH)}\n"
+    msg += f"{columnize('#', 3)}"f"{columnize('Name', COL_WIDTH)}"f"{columnize('Count', COL_WIDTH)}\n"
     for stat in stats_tuple:
         if rank >= TOP:
             break
         if previous_value != stat[2]:
             rank += 1
             previous_value = stat[2]
-        msg += f"{columnize(rank,3)}{columnize(stat[0], COL_WIDTH)}{columnize(stat[1], COL_WIDTH)}{columnize(f'{stat[2]:.3f}', COL_WIDTH)}\n"
+        msg += f"{columnize(rank,3)}{columnize(stat[1], COL_WIDTH)}{columnize(f'{stat[2]:.3f}', COL_WIDTH)}\n"
     msg += "```"
     return msg
 
