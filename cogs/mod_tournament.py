@@ -134,7 +134,7 @@ class ModTournament(commands.Cog):
                 f"No active tournament available for {member.display_name}.", ephemeral=True
             )
             return
-        view = TournamentMatchScoreReport(list_tournaments)
+        view = TournamentMatchScoreReport(list_tournaments, user_id)
         await interaction.response.send_message(
             "Choose the tournament to report a match lost",
             view=view,

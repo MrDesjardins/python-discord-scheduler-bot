@@ -1,6 +1,6 @@
 """ User interface for the bot"""
 
-from typing import List
+from typing import List, Optional
 import discord
 from discord.ui import Select, View
 from deps.bet.bet_functions import generate_msg_bet_game, generate_msg_bet_leaderboard
@@ -22,12 +22,13 @@ class TournamentMatchScoreReport(View):
     A view that allows the user to select the tournament to report a lost match.
     """
 
-    def __init__(self, list_tournaments: List[Tournament]):
+    def __init__(self, list_tournaments: List[Tournament], user_id: Optional[int] = None):
         super().__init__()
         self.tournament_id = None
         self.round_lost = None
         self.round_won = None
         self.list_tournaments = list_tournaments
+        self.user_id_lost_match = user_id  # The user that lost the match, only provided when the user is not the one that lost the match (moderator report)
 
         # Dynamically add buttons for each tournament
         if (len(self.list_tournaments)) == 1:
@@ -93,7 +94,8 @@ class TournamentMatchScoreReport(View):
         """Processes the tournament match result."""
 
         score_string = f"{self.round_won}-{self.round_lost}"
-        result = await report_lost_tournament(self.tournament_id, interaction.user.id, score_string)
+        user_id = self.user_id_lost_match if self.user_id_lost_match is not None else interaction.user.id
+        result = await report_lost_tournament(self.tournament_id, user_id, score_string)
         tournament = next((t for t in self.list_tournaments if t.id == self.tournament_id), None)
 
         if not tournament:
