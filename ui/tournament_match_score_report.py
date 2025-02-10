@@ -107,7 +107,11 @@ class TournamentMatchScoreReport(View):
 
         if result.is_successful:
             completed_node: TournamentNode = result.context
-            player_lose = interaction.user
+            # Played can be set by a moderator
+            if self.user_id_lost_match is not None:
+                player_lose = await data_access_get_member(interaction.guild_id, self.user_id_lost_match)
+            else:
+                player_lose: discord.Member = interaction.user
             try:
                 player_win = await data_access_get_member(
                     guild_id=interaction.guild_id, user_id=completed_node.user_winner_id
