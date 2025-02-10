@@ -140,7 +140,7 @@ COMMAND_TOURNAMENT_REGISTER_TOURNAMENT = "registertournament"
 COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT = "reportlosttournament"
 COMMAND_TOURNAMENT_MOD_SEND_SCORE_TOURNAMENT = "modreportlosttournament"
 COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT = "seebrackettournament"
-
+COMMAND_TOURNAMENT_END_TOURNAMENT = "modshowendtournamentresult"
 # Betting
 COMMAND_BET_LEADERBOARD = "betleaderboard"
 COMMAND_BET_ACTIVE_TOURNAMENT = "betactivetournament"

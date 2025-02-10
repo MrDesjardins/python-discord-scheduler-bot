@@ -148,7 +148,7 @@ class TournamentMatchScoreReport(View):
                     m3_1 = await data_access_get_member(interaction.guild_id, final_score.third_place_user_id_1)
                     third_place1 = m3_1.mention if m3_1 else "Unknown"
                     m3_2 = await data_access_get_member(interaction.guild_id, final_score.third_place_user_id_2)
-                    third_place2 = m3_2.mention if m3_2 else "Unknown"
+                    third_place2 = m3_2.mention if m3_2 else "None"
                 except Exception as e:
                     # Might go in here in development since there is no member in the guild
                     print_error_log(
@@ -159,8 +159,9 @@ class TournamentMatchScoreReport(View):
                     third_place1 = "Unknown"
                     third_place2 = "Unknown"
                 await interaction.followup.send(file=file, ephemeral=False)
+                third_place_full = f"{third_place1} and {third_place2}" if third_place2 != "None" else third_place1
                 await interaction.followup.send(
-                    f"The tournament **{tournament.name}** has finished!\n Winners are:\n🥇 {first_place}\n🥈 {second_place}\n🥉 {third_place1} & {third_place2}",
+                    f"The tournament **{tournament.name}** has finished!\n Winners are:\n🥇 {first_place}\n🥈 {second_place}\n🥉 {third_place_full} ",
                     ephemeral=False,
                 )
                 # Tournament update to done
@@ -172,7 +173,7 @@ class TournamentMatchScoreReport(View):
                     )
                 # Generate leaderboard at the end of the tournament
                 try:
-                    msg_better_list = generate_msg_bet_leaderboard(tournament)
+                    msg_better_list = await generate_msg_bet_leaderboard(tournament)
                 except Exception as e:
                     print_error_log(
                         f"TournamentMatchScoreReport: process_tournament_result: Error while generating bet leaderboard: {e}"
@@ -180,22 +181,21 @@ class TournamentMatchScoreReport(View):
                     msg_better_list = ""
                 if msg_better_list != "":
                     await interaction.followup.send(
-                        f"Top Better for the tournament **{tournament.name}** are:\n{msg_better_list}",
+                        f"Top Better Wallet Value the tournament **{tournament.name}** are:\n{msg_better_list}",
                         ephemeral=False,
                     )
             # Display a message with the result of the bets
-            if result.is_successful:
-                try:
-                    msg_result_bets = await generate_msg_bet_game(result.context)
-                    if msg_result_bets != "":
-                        await interaction.followup.send(
-                            f"Bets results for the match {player_win_display_name} vs {player_lose.mention}:\n{msg_result_bets}",
-                            ephemeral=False,
-                        )
-                except Exception as e:
-                    print_error_log(
-                        f"TournamentMatchScoreReport: process_tournament_result: Error while generating bet game: {e}"
+            try:
+                msg_result_bets = await generate_msg_bet_game(result.context)
+                if msg_result_bets != "":
+                    await interaction.followup.send(
+                        f"Bets results for the match {player_win_display_name} vs {player_lose.mention}:\n{msg_result_bets}",
+                        ephemeral=False,
                     )
+            except Exception as e:
+                print_error_log(
+                    f"TournamentMatchScoreReport: process_tournament_result: Error while generating bet game: {e}"
+                )
         else:
             print_error_log(f"Error while reporting lost: {result.text}")
             await interaction.followup.send(
