@@ -1,10 +1,20 @@
 -- Create a fake tournament data for testing purposes
 -- Delete Everything
-DELETE FROM user_tournament WHERE tournament_id = 65564;
+DELETE FROM user_tournament
+WHERE
+  tournament_id = 65564;
 
-DELETE FROM tournament_game WHERE tournament_id = 65564;
+DELETE FROM tournament_game
+WHERE
+  tournament_id = 65564;
 
-DELETE FROM tournament WHERE id = 65564;
+DELETE FROM tournament
+WHERE
+  id = 65564;
+
+DELETE FROM bet_user_tournament
+WHERE
+  tournament_id = 65564;
 
 -- Create a fake tournament
 INSERT INTO
@@ -27,7 +37,7 @@ VALUES
     'Fake Tournament #3',
     '2025-01-01 00:00:00',
     '2025-01-10 00:00:00',
-    '2025-01-31 00:00:00',
+    '2026-01-31 00:00:00',
     3,
     8,
     'oregon,villa,clubhouse,kafe,consulate',
@@ -49,11 +59,7 @@ VALUES
   (65564, 342114709425881089, '2024-12-01 00:00:00'),
   (65564, 97116159958081536, '2024-12-01 00:00:00'),
   (65564, 151068544484769793, '2024-12-01 00:00:00'),
-  (
-    65564,
-    1012789763679465482,
-    '2024-12-01 00:00:00'
-  );
+  (65564, 1012789763679465482, '2024-12-01 00:00:00');
 
 -- Create fake tournament matches
 INSERT INTO
@@ -234,3 +240,12 @@ VALUES
     NULL,
     NULL
   );
+
+-- Add bets
+INSERT INTO
+  bet_user_tournament (tournament_id, user_id, amount)
+VALUES
+  (65564, 588915156608876557, 1000),
+  (65564, 357551747146842124, 1230),
+  (65564, 232631945325051906, 200),
+  (65564, 1012789763679465482, 0);

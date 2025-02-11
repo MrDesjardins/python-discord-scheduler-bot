@@ -4,7 +4,10 @@ from datetime import datetime, timezone
 from collections import deque
 import random
 from typing import Dict, List, Optional
-from deps.bet.bet_functions import distribute_gain_on_recent_ended_game, system_generate_game_odd
+from deps.bet.bet_functions import (
+    distribute_gain_on_recent_ended_game,
+    system_generate_game_odd,
+)
 from deps.data_access_data_class import UserInfo
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.tournaments.tournament_models import TournamentNode, TournamentResult

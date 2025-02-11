@@ -1,7 +1,7 @@
 """This module contains the functions for the schedule command."""
 
 import asyncio
-from datetime import datetime, time, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Union
 import discord
 from deps.data_access import (
