@@ -17,6 +17,7 @@ from deps.mybot import MyBot
 from deps.siege import siege_ranks
 from deps.functions_date import get_now_eastern
 
+
 def get_time_choices() -> List[app_commands.Choice]:
     """
     Returns a list of OptionChoice objects that represent the supported times.
@@ -100,3 +101,15 @@ def get_url_user_ranked_matches(ubisoft_user_name: str) -> str:
 def get_url_api_ranked_matches(ubisoft_user_name: str) -> str:
     """Get the URL for the API to get the stats."""
     return URL_TRN_API_RANKED_MATCHES.format(account_name=ubisoft_user_name.strip())
+
+
+def get_rotated_number_from_current_day(max_number: int) -> int:
+    """
+    Get a number from the current date that will rotate every max_number of day
+    Use case: 1 stats per day and we show back the stats every x days where x is the
+    total number of different stats
+    """
+    today = get_now_eastern().date()
+    day_of_year = today.timetuple().tm_yday  # 1 for Jan 1, 365 for Dec 31
+    function_number = (day_of_year - 1) % max_number
+    return function_number

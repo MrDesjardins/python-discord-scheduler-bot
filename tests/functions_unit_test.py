@@ -1,7 +1,10 @@
 """ Test Functions """
 
+from datetime import datetime, timezone
+from unittest.mock import patch
 from deps.functions_model import get_empty_votes, get_supported_time_time_label
 from deps.functions import (
+    get_rotated_number_from_current_day,
     get_sha,
     get_time_choices,
     get_url_user_profile_main,
@@ -11,6 +14,7 @@ from deps.functions import (
     most_common,
 )
 from deps.models import TimeLabel
+import deps.functions
 
 
 def test_most_common_no_tie():
@@ -115,3 +119,45 @@ def test_choices_items():
     assert choices[0].name == "1pm"
     assert choices[14].value == "3am"
     assert choices[14].name == "3am"
+
+
+@patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
+def test_get_rotated_number_from_current_day_1(mock_get_now_eastern):
+    """Test how the number rotates based on the current day"""
+    mock_get_now_eastern.return_value = datetime(2024, 1, 1, 10, 0, 0, 6318, timezone.utc)
+    result = get_rotated_number_from_current_day(1)
+    assert result == 0
+    result = get_rotated_number_from_current_day(5)
+    assert result == 0
+    result = get_rotated_number_from_current_day(12)
+    assert result == 0
+
+
+@patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
+def test_get_rotated_number_from_current_day_2(mock_get_now_eastern):
+    """Test how the number rotates based on the current day"""
+    mock_get_now_eastern.return_value = datetime(2024, 1, 10, 10, 0, 0, 6318, timezone.utc)
+    result = get_rotated_number_from_current_day(1)
+    assert result == 0
+    result = get_rotated_number_from_current_day(5)
+    assert result == 4
+    result = get_rotated_number_from_current_day(6)
+    assert result == 3
+    result = get_rotated_number_from_current_day(12)
+    assert result == 9
+
+@patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
+def test_get_rotated_number_from_current_day_3(mock_get_now_eastern):
+    """Test how the number rotates based on the current day"""
+    mock_get_now_eastern.return_value = datetime(2024, 1, 1, 10, 0, 0, 6318, timezone.utc)
+    result = get_rotated_number_from_current_day(3)
+    assert result == 0
+    mock_get_now_eastern.return_value = datetime(2024, 1, 2, 10, 0, 0, 6318, timezone.utc)
+    result = get_rotated_number_from_current_day(3)
+    assert result == 1
+    mock_get_now_eastern.return_value = datetime(2024, 1, 3, 10, 0, 0, 6318, timezone.utc)
+    result = get_rotated_number_from_current_day(3)
+    assert result == 2
+    mock_get_now_eastern.return_value = datetime(2024, 1, 4, 10, 0, 0, 6318, timezone.utc)
+    result = get_rotated_number_from_current_day(3)
+    assert result == 0

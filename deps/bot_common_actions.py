@@ -3,10 +3,10 @@
 import io
 import os
 from datetime import date, datetime, timedelta, timezone
-import random
 from typing import Dict, List, Optional
 from gtts import gTTS
 import discord
+from deps.functions_date import get_now_eastern
 from deps.analytic_visualizer import display_user_top_operators
 from deps.analytic_functions import compute_users_voice_channel_time_sec, computer_users_voice_in_out
 from deps.browser import download_full_matches_async
@@ -70,6 +70,7 @@ from deps.functions import (
     get_url_user_profile_main,
     get_url_user_profile_overview,
     set_member_role_from_rank,
+    get_rotated_number_from_current_day,
 )
 from deps.values import (
     STATS_HOURS_WINDOW_IN_PAST,
@@ -629,21 +630,25 @@ async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWi
             data_access_set_r6_tracker_id(user_info.id, r6_id)
 
 
-def build_msg_stats(stats_name: str, info_time_str: str, stats_tuple: list[tuple[int, str, int]]) -> str:
+def build_msg_stats_key_value_decimal(
+    stats_name: str, info_time_str: str, stats_tuple: list[tuple[int, str, int]], decimal_precision: bool = True
+) -> str:
     """Build a message that can be resused between the stats msg"""
     TOP = 20
-    COL_WIDTH = 12
+    COL_WIDTH = 24
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
     rank = 0
     previous_value = -1
-    msg += f"{columnize('#', 3)}"f"{columnize('Name', COL_WIDTH)}"f"{columnize('Count', COL_WIDTH)}\n"
+    msg += f"{columnize('#', 3)}" f"{columnize('Name', COL_WIDTH)}" f"{columnize('Count', COL_WIDTH)}\n"
     for stat in stats_tuple:
         if rank >= TOP:
             break
         if previous_value != stat[2]:
             rank += 1
             previous_value = stat[2]
-        msg += f"{columnize(rank,3)}{columnize(stat[1], COL_WIDTH)}{columnize(f'{stat[2]:.3f}', COL_WIDTH)}\n"
+
+        value = f"{stat[2]:.3f}" if decimal_precision else stat[2]
+        msg += f"{columnize(rank,3)}{columnize(stat[1], COL_WIDTH)}{columnize(value, COL_WIDTH)}\n"
     msg += "```"
     return msg
 
@@ -827,25 +832,23 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
             f"\t⚠️ send_daily_stats_to_a_guild: Channel id (main text) not found for guild {guild.name}. Skipping."
         )
         return
-    today = date.today()
+    today = get_now_eastern().date()
     last_7_days = today - timedelta(days=DAY_7)
     last_14_days = today - timedelta(days=DAY_14)
     last_30_days = today - timedelta(days=DAY_30)
     last_60_days = today - timedelta(days=DAY_60)
     first_day_current_year = datetime(today.year, 1, 1, tzinfo=timezone.utc)
-    # weekday = today.weekday()  # 0 is Monday, 6 is Sunday
 
-    random_number = random.randint(0, 12)  # inclusive
-    # random_number = 12
-    if random_number == 0:
+    function_number = get_rotated_number_from_current_day(13)
+    if function_number == 0:
         msg = stats_rank_match_count(DAY_14, last_14_days)
-    elif random_number == 1:
+    elif function_number == 1:
         msg = stats_kd(DAY_14, last_14_days)
-    elif random_number == 2:
+    elif function_number == 2:
         msg = stats_rollback(DAY_14, last_14_days)
-    elif random_number == 3:
+    elif function_number == 3:
         msg = stats_average_kill_match(DAY_14, last_14_days)
-    elif random_number == 4:
+    elif function_number == 4:
         channel: discord.TextChannel = await data_access_get_channel(channel_id)
         if channel is None:
             print_error_log(f"\t⚠️ send_daily_stats_to_a_guild: Channel not found for guild {guild.name}. Skipping.")
@@ -853,21 +856,21 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
         msg, file = await stats_ops_by_members(last_14_days)
         await channel.send(file=file, content=msg)
         return
-    elif random_number == 5:
+    elif function_number == 5:
         msg = stats_user_time_voice_channel(DAY_7)
-    elif random_number == 6:
+    elif function_number == 6:
         msg = stats_tk_count(first_day_current_year)
-    elif random_number == 7:
+    elif function_number == 7:
         msg = stats_user_best_duo(DAY_30, last_30_days)
-    elif random_number == 8:
+    elif function_number == 8:
         msg = stats_user_best_trio(DAY_30, last_30_days)
-    elif random_number == 9:
+    elif function_number == 9:
         msg = stats_first_death(DAY_30, last_30_days)
-    elif random_number == 10:
+    elif function_number == 10:
         msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
-    elif random_number == 11:
+    elif function_number == 11:
         msg = stats_ratio_clutch(DAY_60, last_60_days)
-    elif random_number == 12:
+    elif function_number == 12:
         msg = stats_ace_count(DAY_60, last_60_days)
     else:
         print_log("send_daily_stats_to_a_guild: No stats to show for random number {random_number}")
@@ -883,7 +886,7 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
 def stats_rank_match_count(day: int, last_7_days: date) -> str:
     """Create a message that show the total amount of rank match played"""
     stats = data_access_fetch_match_played_count_by_user(last_7_days)
-    msg = build_msg_stats("rank matches", f"in the last {day} days", stats)
+    msg = build_msg_stats_key_value_decimal("rank matches", f"in the last {day} days", stats)
     return msg
 
 
@@ -894,7 +897,7 @@ def stats_kd(day: int, last_7_days: date) -> str:
         print_log("No kd stats to show")
         return
     stats = [(tk[0], tk[1], round(tk[2], 2)) for tk in stats]
-    msg = build_msg_stats("K/D", f"in the last {day} days", stats)
+    msg = build_msg_stats_key_value_decimal("K/D", f"in the last {day} days", stats)
     return msg
 
 
@@ -904,7 +907,7 @@ def stats_rollback(day: int, last_7_days: date) -> str:
     if len(stats) == 0:
         print_log("No rollback stats to show")
         return
-    msg = build_msg_stats("rollbacks", f"in the last {day} days", stats)
+    msg = build_msg_stats_key_value_decimal("rollbacks", f"in the last {day} days", stats, False)
     return msg
 
 
@@ -912,7 +915,7 @@ def stats_average_kill_match(day: int, last_7_days: date) -> str:
     """The average kill per match in the last 7 days"""
     stats = data_access_fetch_avg_kill_match(last_7_days)
     stats = [(tk[0], tk[1], round(tk[2], 2)) for tk in stats]
-    msg = build_msg_stats("average kills/match ", f"in the last {day} days", stats)
+    msg = build_msg_stats_key_value_decimal("average kills/match ", f"in the last {day} days", stats)
     return msg
 
 
@@ -933,7 +936,7 @@ def stats_user_time_voice_channel(
 
     # Get the display name of the user to create a list of tuple with id, username and time
     stats = [(user_id, data_user_id_name[user_id].display_name, round(time, 2)) for user_id, time in sorted_users]
-    msg = build_msg_stats("hours in voice channels", f"in the last {day} days", stats)
+    msg = build_msg_stats_key_value_decimal("hours in voice channels", f"in the last {day} days", stats)
     return msg
 
 
@@ -944,7 +947,7 @@ def stats_tk_count(last_date: datetime) -> str:
     if len(stats) == 0:
         print_log("No tk stats to show")
         return
-    msg = build_msg_stats("TK", f"since the beginning of {last_date.year}", stats)
+    msg = build_msg_stats_key_value_decimal("TK", f"since the beginning of {last_date.year}", stats)
     return msg
 
 
@@ -968,14 +971,14 @@ def stats_user_best_duo(day: int, last_30_days: date) -> str:
 
 
 def stats_user_best_trio(day: int, last_30_days: date) -> str:
-    """The best duo in the last x days"""
+    """The best trip in the last x days"""
     stats_duo = data_access_fetch_best_trio(last_30_days)
-    msg = build_msg_stats_trio("best winning duo", f"in the last {day} days", stats_duo)
+    msg = build_msg_stats_trio("best winning trio", f"in the last {day} days", stats_duo)
     return msg
 
 
 def stats_first_death(day: int, last_x_day: date) -> str:
-    """The best duo in the last x days"""
+    """The first death in the last x days"""
     stats = data_access_fetch_first_death(last_x_day)
     msg = build_msg_stats_first_death("first death per round", f"in the last {day} days", stats)
     return msg
