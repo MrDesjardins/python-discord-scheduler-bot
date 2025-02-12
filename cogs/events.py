@@ -66,22 +66,9 @@ class MyEventsCog(commands.Cog):
                 bot.guild_emoji[guild.id][emoji.name] = emoji.id
                 print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
 
-            channel_id = await data_access_get_guild_schedule_text_channel_id(guild.id)
-            if channel_id is None:
-                print_log(
-                    f"\tThe administrator of the guild {guild.name} did not configure the channel to send the daily message."
-                )
-                continue
-
-            channel: discord.TextChannel = await data_access_get_channel(channel_id)
-
-            if channel:
-                permissions = self.check_bot_permissions(channel)
-                print_log(f"\tBot permissions in channel {channel.name}: {permissions}")
-            else:
-                print_warning_log(f"\tChannel ID {channel_id} not found in guild {guild.name}")
+            #tasks.append(send_daily_stats_to_a_guild(guild))
             tasks.append(send_daily_question_to_a_guild(bot, guild))
-            # tasks.append(send_daily_stats_to_a_guild(guild))
+            
 
         # Cleanup task that runs every few seconds
         tasks.append(start_periodic_cache_cleanup())
