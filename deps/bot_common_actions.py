@@ -845,17 +845,11 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
     elif function_number == 1:
         msg = stats_kd(DAY_14, last_14_days)
     elif function_number == 2:
-        msg = stats_rollback(DAY_14, last_14_days)
+        msg = stats_user_best_trio(DAY_30, last_30_days)
     elif function_number == 3:
-        msg = stats_average_kill_match(DAY_14, last_14_days)
+        msg = stats_rollback(DAY_14, last_14_days)
     elif function_number == 4:
-        channel: discord.TextChannel = await data_access_get_channel(channel_id)
-        if channel is None:
-            print_error_log(f"\t⚠️ send_daily_stats_to_a_guild: Channel not found for guild {guild.name}. Skipping.")
-            return
-        msg, file = await stats_ops_by_members(last_14_days)
-        await channel.send(file=file, content=msg)
-        return
+        msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
     elif function_number == 5:
         msg = stats_user_time_voice_channel(DAY_7)
     elif function_number == 6:
@@ -863,11 +857,17 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
     elif function_number == 7:
         msg = stats_user_best_duo(DAY_30, last_30_days)
     elif function_number == 8:
-        msg = stats_user_best_trio(DAY_30, last_30_days)
+        msg = stats_average_kill_match(DAY_14, last_14_days)
     elif function_number == 9:
         msg = stats_first_death(DAY_30, last_30_days)
     elif function_number == 10:
-        msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
+        channel: discord.TextChannel = await data_access_get_channel(channel_id)
+        if channel is None:
+            print_error_log(f"\t⚠️ send_daily_stats_to_a_guild: Channel not found for guild {guild.name}. Skipping.")
+            return
+        msg, file = await stats_ops_by_members(last_14_days)
+        await channel.send(file=file, content=msg)
+        return
     elif function_number == 11:
         msg = stats_ratio_clutch(DAY_60, last_60_days)
     elif function_number == 12:
