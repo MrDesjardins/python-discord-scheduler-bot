@@ -849,7 +849,7 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
     elif function_number == 3:
         msg = stats_rollback(DAY_14, last_14_days)
     elif function_number == 4:
-        msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
+        msg = stats_ratio_clutch(DAY_60, last_60_days)
     elif function_number == 5:
         msg = stats_user_time_voice_channel(DAY_7)
     elif function_number == 6:
@@ -869,7 +869,8 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
         await channel.send(file=file, content=msg)
         return
     elif function_number == 11:
-        msg = stats_ratio_clutch(DAY_60, last_60_days)
+        msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
+        
     elif function_number == 12:
         msg = stats_ace_count(DAY_60, last_60_days)
     else:
