@@ -12,8 +12,10 @@ WITH
       AND ua2.event = 'disconnect'
     WHERE
       ua1.event = 'connect'
-      and ua1.timestamp >= '2025-01-20'
-      and ua2.timestamp >= '2025-01-20'
+      and ua1.timestamp >= '2025-01-22'
+      and ua2.timestamp >= '2025-01-22'
+      -- and ua1.user_id = 357551747146842124
+      -- and ua2.user_id = 357551747146842124
     GROUP BY
       ua1.id
   ),
@@ -35,24 +37,25 @@ WITH
     FROM
       user_full_match_info
     WHERE
-      user_full_match_info.match_timestamp >= '2025-01-20'
+      user_full_match_info.match_timestamp >= '2025-01-22'
+      --  and user_full_match_info.user_id = 357551747146842124
     GROUP BY
       user_id
   )
 SELECT
   user_info.display_name,
-  COALESCE(mis.matches_during_activity, 0) AS matches_during_activity,
-  tm.total_matches,
+  COALESCE(mis.matches_during_activity, 0) AS rank_matches_played_in_circus_maximus,
+  tm.total_matches AS total_rank_matches,
   CASE
     WHEN tm.total_matches = 0 THEN 0
     ELSE ROUND(
       (COALESCE(mis.matches_during_activity, 0) * 100.0) / tm.total_matches,
       2
     )
-  END AS percentage_during_activity
+  END AS percentage_in_circus_maximus
 FROM
   total_matches tm
   LEFT JOIN matches_in_session mis ON tm.user_id = mis.user_id
   LEFT JOIN user_info ON tm.user_id = user_info.id
 ORDER BY
-  percentage_during_activity DESC;
+  percentage_in_circus_maximus DESC;
