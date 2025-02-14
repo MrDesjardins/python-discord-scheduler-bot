@@ -1048,7 +1048,7 @@ def data_access_fetch_best_trio(from_data: datetime) -> list[tuple[str, str, str
     return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in result]
 
 
-def data_access_fetch_first_death(from_data: datetime) -> list[tuple[str, int, int, int]]:
+def data_access_fetch_first_death(from_data: datetime) -> list[tuple[str, int, int, float]]:
     """
     Get the user name, the number of first death, the number of first rounds and the number of first death
     """

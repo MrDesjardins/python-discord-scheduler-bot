@@ -61,10 +61,9 @@ WITH
       user_id
   )
 SELECT
-  user_info.id, 
   user_info.display_name,
   total_matches AS total_rank_matches,
-  COALESCE(mis.matches_during_activity, 0) AS matches_during_activity,
+  COALESCE(mis.matches_during_activity, 0) AS matches_count_in_circus,
   -- COALESCE(mis.wins_during_activity, 0) AS wins_during_activity,
   CASE
     WHEN COALESCE(mis.matches_during_activity, 0) = 0 THEN 0

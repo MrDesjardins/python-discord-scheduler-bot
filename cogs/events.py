@@ -66,7 +66,7 @@ class MyEventsCog(commands.Cog):
                 bot.guild_emoji[guild.id][emoji.name] = emoji.id
                 print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
 
-            #tasks.append(send_daily_stats_to_a_guild(guild))
+            tasks.append(send_daily_stats_to_a_guild(guild))
             tasks.append(send_daily_question_to_a_guild(bot, guild))
             
 

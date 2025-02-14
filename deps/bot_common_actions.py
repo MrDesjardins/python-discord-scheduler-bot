@@ -715,13 +715,12 @@ def build_msg_stats_trio(
 
 
 def build_msg_stats_first_death(
-    stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, str, int, int, float]]
+    stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
     TOP = 20
     COL_WIDTH = 12
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
-    stats_tuple = stats_tuple
     rank = 0
     win_rate = -1
     msg += (
@@ -747,7 +746,6 @@ def build_msg_stats_name_percentage(stats_name: str, info_time_str: str, stats_t
     TOP = 20
     COL_WIDTH = 16
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
-    stats_tuple = stats_tuple
     rank = 0
     last_rate = -1
     msg += f"{columnize('#', 3)}" f"{columnize('Name', COL_WIDTH)}" f"{columnize('Rate', COL_WIDTH)}\n"
@@ -769,7 +767,6 @@ def build_msg_count_ratio_stats(
     TOP = 20
     COL_WIDTH = 16
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
-    stats_tuple = stats_tuple
     rank = 0
     last_rate = -1
     msg += (
@@ -795,7 +792,6 @@ def build_msg_4_counts(stats_name: str, info_time_str: str, stats_tuple: list[tu
     TOP = 20
     COL_WIDTH = 16
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
-    stats_tuple = stats_tuple
     rank = 0
     last_rate = -1
     msg += (
@@ -851,15 +847,15 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
     elif function_number == 4:
         msg = stats_ratio_clutch(DAY_60, last_60_days)
     elif function_number == 5:
-        msg = stats_user_time_voice_channel(DAY_7)
+        msg = stats_first_death(DAY_30, last_30_days)
     elif function_number == 6:
-        msg = stats_tk_count(first_day_current_year)
+        msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
     elif function_number == 7:
-        msg = stats_user_best_duo(DAY_30, last_30_days)
+        msg = stats_tk_count(first_day_current_year)
     elif function_number == 8:
         msg = stats_average_kill_match(DAY_14, last_14_days)
     elif function_number == 9:
-        msg = stats_first_death(DAY_30, last_30_days)
+        msg = stats_user_time_voice_channel(DAY_7)
     elif function_number == 10:
         channel: discord.TextChannel = await data_access_get_channel(channel_id)
         if channel is None:
@@ -869,14 +865,12 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
         await channel.send(file=file, content=msg)
         return
     elif function_number == 11:
-        msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
-        
+        msg = stats_user_best_duo(DAY_30, last_30_days)
     elif function_number == 12:
         msg = stats_ace_count(DAY_60, last_60_days)
     else:
         print_log("send_daily_stats_to_a_guild: No stats to show for random number {random_number}")
         return
-
     channel: discord.TextChannel = await data_access_get_channel(channel_id)
     if channel is None:
         print_error_log(f"\t⚠️ send_daily_stats_to_a_guild: Channel not found for guild {guild.name}. Skipping.")
