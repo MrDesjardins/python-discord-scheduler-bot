@@ -94,4 +94,5 @@ FROM
   LEFT JOIN matches_outside_session mos ON tm.user_id = mos.user_id
   LEFT JOIN user_info ON tm.user_id = user_info.id
 ORDER BY
-  rate_play_in_circus DESC;
+  rate_play_in_circus DESC
+LIMIT 60 OFFSET 0;

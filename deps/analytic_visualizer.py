@@ -26,6 +26,7 @@ from deps.analytic_functions import (
 )
 from deps.analytic_data_access import (
     data_access_fetch_users_operators,
+    data_access_fetch_win_rate_server,
     fetch_all_user_activities,
     fetch_user_activities,
     fetch_user_info,
@@ -769,4 +770,102 @@ def display_user_top_operators(
     ax.set_ylabel("Operators", fontsize=12)
     fig.suptitle("Top User-Operator Count Heatmap", fontsize=16)
     ax.set_title(f"Since {from_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}", fontsize=14)
+    return _plot_return(plt, show)
+
+
+def display_user_rank_match_played_server(
+    from_date: datetime,
+    to_date: datetime,
+    show: bool = True,
+) -> bytes:
+    """
+    Show how much of rank matches played by each user in the server
+    """
+    data = data_access_fetch_win_rate_server(from_date, to_date)
+    # Extract names and values
+    (
+        names,
+        total_rank_matches,
+        matches_count_in_circus,
+        win_rate_circus,
+        win_rate_not_circus,
+        rate_play_in_circus,
+    ) = zip(*data)
+
+    # Define colors based on value thresholds
+    colors = []
+    for v in rate_play_in_circus:
+        if float(v) >= 0.85:
+            colors.append("green")
+        elif float(v) >= 0.4:
+            colors.append("orange")
+        else:
+            colors.append("red")
+
+    # Create horizontal bar chart
+    fig, ax = plt.subplots(figsize=(12, 8))
+    y_pos = np.arange(len(names))
+
+    # Plot bars with individual colors
+    bars = ax.barh(y_pos, rate_play_in_circus, color=colors)
+
+    # Set labels and title
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(names, fontsize=10)
+    ax.set_xlabel("Rate", fontsize=12)
+    ax.set_title("User Percentage Playing Rank in Circus Maximus", fontsize=14)
+    return _plot_return(plt, show)
+
+def display_user_rank_match_win_rate_played_server(
+    from_date: datetime,
+    to_date: datetime,
+    show: bool = True,
+) -> bytes:
+    """
+    Show how much of rank matches played by each user in the server
+    """
+    data = data_access_fetch_win_rate_server(from_date, to_date)
+    data = sorted(data, key=lambda x: x[3], reverse=True)
+    # Extract names and values
+    (
+        names,
+        total_rank_matches,
+        matches_count_in_circus,
+        win_rate_circus,
+        win_rate_not_circus,
+        rate_play_in_circus,
+    ) = zip(*data)
+
+    # Convert values to float if needed
+    win_rate_circus = [float(v) for v in win_rate_circus]
+    win_rate_not_circus = [float(v) for v in win_rate_not_circus]
+
+    names = [
+        f"{name} *" if win_rate_circus[i] > win_rate_not_circus[i] else name
+        for i, name in enumerate(names)
+    ]
+
+    # Define bar width and y positions
+    y_pos = np.arange(len(names))
+    bar_width = 0.4  # Controls spacing between bars
+
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=(16, 12))
+
+    # Plot bars
+    bars1 = ax.barh(y_pos - bar_width / 2, win_rate_circus, height=bar_width, color="green", label="Win Rate in Circus")
+    bars2 = ax.barh(y_pos + bar_width / 2, win_rate_not_circus, height=bar_width, color="red", label="Win Rate Not in Circus")
+
+    # Add vertical reference line at 50%
+    ax.axvline(50, color="blue", linestyle="--", linewidth=1, label="50% Reference")
+
+    # Set labels and title
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(names, fontsize=10)
+    ax.set_xlabel("Win Rate", fontsize=12)
+    ax.set_title("User Win Rate in and outside Circus Maximus", fontsize=14)
+
+    # Add legend
+    ax.legend()
+
     return _plot_return(plt, show)

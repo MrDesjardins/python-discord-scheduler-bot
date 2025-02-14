@@ -499,7 +499,7 @@ def get_gaming_session_user_embed_message(
     embed.add_field(name="TK", value=aggregation.total_tk_count, inline=True)
     embed.add_field(name="3k round", value=add_star_if_above_value(aggregation.total_round_with_3k), inline=True)
     embed.add_field(name="4k round", value=add_star_if_above_value(aggregation.total_round_with_4k), inline=True)
-    embed.add_field(name="Ace round", value=aggregation.total_round_with_aces, inline=True)
+    embed.add_field(name="Ace (5k) round", value=add_star_if_above_value(aggregation.total_round_with_aces), inline=True)
     embed.add_field(
         name="Clutch Wins", value=add_star_if_above_value(aggregation.total_clutches_win_count), inline=True
     )

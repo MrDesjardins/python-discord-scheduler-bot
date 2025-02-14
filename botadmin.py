@@ -21,6 +21,8 @@ from deps.analytic_visualizer import (
     display_inactive_user,
     display_user_day_week,
     display_user_line_graph_time,
+    display_user_rank_match_played_server,
+    display_user_rank_match_win_rate_played_server,
     display_user_timeline_voice_by_months,
     display_user_timeline_voice_time_by_week,
     display_user_voice_per_month,
@@ -146,6 +148,8 @@ def show_visualization_menu(time_choice: Optional[int] = None):
         "[8] Time Line Users Activity Line Chart",
         "[9] Monthly Voice Time",
         "[a] Time Line for Specific User",
+        "[b] Rate Playing Match in Server",
+        "[c] Win Rate Playing in Server vs Not Server",
         "[q] Back",
     ]
     if time_choice is None:
@@ -158,11 +162,18 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     if time_choice is None:
         local_menu()
         return
+
     (from_day, to_day) = get_from_to_days(time_choice)
+    from_date = datetime.now() - timedelta(days=from_day)
+    to_date = datetime.now() - timedelta(days=to_day)
     terminal_menu = TerminalMenu(
         options, title=f"Visualizations of {from_day} days ago to {to_day} days ago", show_shortcut_hints=True
     )
     menu_entry_index = terminal_menu.show()
+
+    if isinstance(menu_entry_index, str):
+        # letter a is 10, b is 11, etc
+        menu_entry_index = ord(menu_entry_index) - 87
 
     if menu_entry_index == 0:
         display_graph_cluster_people(from_day=from_day, to_day=to_day)
@@ -185,6 +196,10 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     elif menu_entry_index == 9:
         display_user_line_graph_time_ask_user(from_day=from_day, to_day=to_day, time_choice=time_choice)
     elif menu_entry_index == 10:
+        display_user_rank_match_played_server(from_date=from_date, to_date=to_date)
+    elif menu_entry_index == 11:
+        display_user_rank_match_win_rate_played_server(from_date=from_date, to_date=to_date)
+    elif menu_entry_index == 12:
         local_menu()
         return
 
