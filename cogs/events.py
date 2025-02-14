@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from datetime import datetime, timezone
 import asyncio
 from discord.ext import commands
@@ -25,6 +27,10 @@ from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.models import ActivityTransition
 from deps.siege import get_siege_activity
+
+load_dotenv()
+
+ENV = os.getenv("ENV")
 
 
 class MyEventsCog(commands.Cog):
@@ -65,10 +71,10 @@ class MyEventsCog(commands.Cog):
             for emoji in guild.emojis:
                 bot.guild_emoji[guild.id][emoji.name] = emoji.id
                 print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
-
-            tasks.append(send_daily_stats_to_a_guild(guild))
+            # In development, we show always the daily stats
+            if ENV == "dev":
+                tasks.append(send_daily_stats_to_a_guild(guild))
             tasks.append(send_daily_question_to_a_guild(bot, guild))
-            
 
         # Cleanup task that runs every few seconds
         tasks.append(start_periodic_cache_cleanup())
