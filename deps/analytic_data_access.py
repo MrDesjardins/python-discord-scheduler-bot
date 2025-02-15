@@ -1012,27 +1012,27 @@ def data_access_fetch_best_trio(from_data: datetime) -> list[tuple[str, str, str
             m1.match_timestamp >= :from_data
         )
         SELECT
-        UI_1.display_name AS user1_name,
-        UI_2.display_name AS user2_name,
-        UI_3.display_name AS user3_name,
-        COUNT(*) AS games_played,
-        SUM(has_win) AS has_win_sum,
-        SUM(has_win) * 1.0 / COUNT(*) AS win_rate_percentage
+            UI_1.display_name AS user1_name,
+            UI_2.display_name AS user2_name,
+            UI_3.display_name AS user3_name,
+            COUNT(*) AS games_played,
+            SUM(has_win) AS has_win_sum,
+            SUM(has_win) * 1.0 / COUNT(*) AS win_rate_percentage
         FROM
-        MatchPairs
+            MatchPairs
         LEFT JOIN user_info AS UI_1 ON UI_1.id = user1
         LEFT JOIN user_info AS UI_2 ON UI_2.id = user2
         LEFT JOIN user_info AS UI_3 ON UI_3.id = user3
         WHERE
-        user1 IS NOT NULL
-        AND user2 IS NOT NULL
-        AND user3 IS NOT NULL
+            user1 IS NOT NULL
+            AND user2 IS NOT NULL
+            AND user3 IS NOT NULL
         GROUP BY
-        user1,
-        user2,
-        user3
+            user1,
+            user2,
+            user3
         HAVING
-        games_played >= 10
+            games_played >= 10
         ORDER BY
         win_rate_percentage DESC;
         """
@@ -1063,7 +1063,43 @@ def data_access_fetch_first_death(from_data: datetime) -> list[tuple[str, int, i
     WHERE
         match_timestamp >= :from_data
     GROUP BY user_id
+    HAVING 
+        round_played_count_sum > 20
     ORDER BY first_death_rate DESC;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+
+    return [(row[0], row[1], row[2], row[3]) for row in result]
+
+
+def data_access_fetch_first_kill(from_data: datetime) -> list[tuple[str, int, int, float]]:
+    """
+    Get the user name, the number of first death, the number of first rounds and the number of first death
+    """
+    query = """
+        SELECT
+            user_info.display_name,
+            SUM(first_kill_count) AS first_kill_count_sum,
+            SUM(round_played_count) AS round_played_count_sum,
+            SUM(first_kill_count) * 1.0 / SUM(round_played_count) AS first_kill_rate
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info ON user_info.id = user_id
+        WHERE
+            match_timestamp >= :from_data
+        GROUP BY
+            user_id
+        HAVING 
+            round_played_count_sum > 20
+        ORDER BY
+        first_kill_rate DESC;
         """
     result = (
         database_manager.get_cursor().execute(
@@ -1102,6 +1138,8 @@ def data_access_fetch_success_fragging(from_data: datetime) -> list[tuple[str, i
             match_timestamp >= :from_data
         GROUP BY
             user_id
+        HAVING 
+            round_played_count_sum > 20
         ORDER BY
             first_kill_ratio DESC;
         """
@@ -1183,7 +1221,9 @@ def data_access_fetch_ace_4k_3k(from_data: datetime) -> list[tuple[str, int, int
     return [(row[0], row[1], row[2], row[3], row[4]) for row in result]
 
 
-def data_access_fetch_win_rate_server(from_data: datetime, to_data: datetime) -> list[tuple[str, int, int, float, float, float]]:
+def data_access_fetch_win_rate_server(
+    from_data: datetime, to_data: datetime
+) -> list[tuple[str, int, int, float, float, float]]:
     """
     Get the rate of playing in circus, the win rate in circus, the win rate outside circus, the win rate in circus
     """

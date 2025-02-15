@@ -6,11 +6,11 @@ from deps.bot_common_actions import (
     persist_siege_matches_cross_guilds,
     post_queued_user_stats,
     send_daily_question_to_a_guild,
-    send_daily_stats_to_a_guild,
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
 from deps.system_database import run_wal_checkpoint
+from deps.functions_stats import send_daily_stats_to_a_guild
 
 local_tz = pytz.timezone("America/Los_Angeles")
 utc_tz = pytz.timezone("UTC")

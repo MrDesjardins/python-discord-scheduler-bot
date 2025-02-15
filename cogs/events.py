@@ -10,7 +10,6 @@ from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
     send_daily_question_to_a_guild,
     send_automatic_lfg_message,
-    send_daily_stats_to_a_guild,
     send_notification_voice_channel,
     send_session_stats_to_queue,
 )
@@ -27,6 +26,7 @@ from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.models import ActivityTransition
 from deps.siege import get_siege_activity
+from deps.functions_stats import send_daily_stats_to_a_guild
 
 load_dotenv()
 

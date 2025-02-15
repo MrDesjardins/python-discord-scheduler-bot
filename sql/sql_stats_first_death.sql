@@ -7,7 +7,7 @@ FROM
   user_full_match_info
   LEFT JOIN user_info ON user_info.id = user_id
 WHERE
-  match_timestamp >= '2025-02-01'
+  match_timestamp >= '2025-01-14'
 GROUP BY
   user_id
 ORDER BY
@@ -23,9 +23,11 @@ FROM
   user_full_match_info
   LEFT JOIN user_info ON user_info.id = user_id
 WHERE
-  match_timestamp >= '2025-02-01'
+  match_timestamp >= '2025-01-14'
 GROUP BY
   user_id
+HAVING 
+  round_played_count_sum > 10
 ORDER BY
   first_kill_rate DESC;
 
