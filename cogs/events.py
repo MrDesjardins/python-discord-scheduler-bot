@@ -26,7 +26,6 @@ from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.models import ActivityTransition
 from deps.siege import get_siege_activity
-from deps.functions_stats import send_daily_stats_to_a_guild
 
 load_dotenv()
 
@@ -71,9 +70,6 @@ class MyEventsCog(commands.Cog):
             for emoji in guild.emojis:
                 bot.guild_emoji[guild.id][emoji.name] = emoji.id
                 print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
-            # In development, we show always the daily stats
-            if ENV == "dev":
-                tasks.append(send_daily_stats_to_a_guild(guild))
             tasks.append(send_daily_question_to_a_guild(bot, guild))
 
         # Cleanup task that runs every few seconds

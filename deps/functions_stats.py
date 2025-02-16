@@ -3,6 +3,7 @@ Functions that compute statistics on the data and return the results to a messag
 """
 
 import io
+from typing import Optional, Union
 import discord
 from datetime import date, datetime, timedelta, timezone
 from deps.functions_date import get_now_eastern
@@ -13,6 +14,7 @@ from deps.analytic_data_access import (
     data_access_fetch_avg_kill_match,
     data_access_fetch_best_duo,
     data_access_fetch_best_trio,
+    data_access_fetch_best_worse_map,
     data_access_fetch_clutch_win_rate,
     data_access_fetch_first_death,
     data_access_fetch_first_kill,
@@ -34,7 +36,7 @@ from deps.functions import (
 from deps.log import print_error_log, print_log
 
 
-async def send_daily_stats_to_a_guild(guild: discord.Guild):
+async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Optional[int] = None):
     """
     Send the daily schedule stats to a specific guild
     """
@@ -49,14 +51,20 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
             f"\t⚠️ send_daily_stats_to_a_guild: Channel id (main text) not found for guild {guild.name}. Skipping."
         )
         return
+    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    if channel is None:
+        print_error_log(f"\t⚠️ send_daily_stats_to_a_guild: Channel not found for guild {guild.name}. Skipping.")
+        return
     today = get_now_eastern().date()
     last_7_days = today - timedelta(days=DAY_7)
     last_14_days = today - timedelta(days=DAY_14)
     last_30_days = today - timedelta(days=DAY_30)
     last_60_days = today - timedelta(days=DAY_60)
     first_day_current_year = datetime(today.year, 1, 1, tzinfo=timezone.utc)
-
-    function_number = get_rotated_number_from_current_day(14)
+    if stats_number is not None:
+        function_number = stats_number
+    else:
+        function_number = get_rotated_number_from_current_day(14)
     if function_number == 0:
         msg = stats_rank_match_count(DAY_14, last_14_days)
     elif function_number == 1:
@@ -65,7 +73,7 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
         msg = stats_first_death(DAY_30, last_30_days)
     elif function_number == 3:
         msg = stats_first_kill(DAY_30, last_30_days)
-    elif function_number == 2:
+    elif function_number == 4:
         msg = stats_ratio_first_kill_death(DAY_30, last_30_days)
     elif function_number == 5:
         msg = stats_user_best_trio(DAY_30, last_30_days)
@@ -91,13 +99,23 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild):
         msg = stats_user_best_duo(DAY_30, last_30_days)
     elif function_number == 13:
         msg = stats_ace_count(DAY_60, last_60_days)
+    elif function_number == 14:
+        index = 0
+        safe_guard = 0
+        MAX_SAFE_GUARD = 4  # Max msg to send
+        while index is not None and safe_guard < MAX_SAFE_GUARD:
+            (msg, index) = stats_best_worse_map(DAY_60, last_60_days, index)
+            await channel.send(content=msg)
+            safe_guard += 1
+        if safe_guard >= MAX_SAFE_GUARD:
+            print_error_log(
+                f"send_daily_stats_to_a_guild: Error in stats_best_worse_map with safe_guard at {safe_guard}"
+            )
+        return
     else:
-        print_log("send_daily_stats_to_a_guild: No stats to show for random number {random_number}")
+        print_log(f"send_daily_stats_to_a_guild: No stats to show for random number {function_number}")
         return
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
-    if channel is None:
-        print_error_log(f"\t⚠️ send_daily_stats_to_a_guild: Channel not found for guild {guild.name}. Skipping.")
-        return
+
     await channel.send(content=msg)
 
 
@@ -236,6 +254,20 @@ def stats_ace_count(day: int, last_x_day: date) -> str:
     return msg
 
 
+def stats_best_worse_map(day: int, last_x_day: date, index: int = 0) -> tuple[str, Union[int, None]]:
+    """
+    Stats to know the best and worse map of each user who has at least one match different map
+    """
+    stats = data_access_fetch_best_worse_map(last_x_day)
+    return build_msg_2_stats_count(
+        "best and worse map",
+        f"in the last {day} days",
+        ["User", "Most won map", "Wins", "Most lost map", "Losses"],
+        stats,
+        index,
+    )
+
+
 def build_msg_stats_key_value_decimal(
     stats_name: str, info_time_str: str, stats_tuple: list[tuple[int, str, int]], decimal_precision: bool = True
 ) -> str:
@@ -245,7 +277,7 @@ def build_msg_stats_key_value_decimal(
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
     rank = 0
     previous_value = -1
-    msg += f"{columnize('#', 3)}"f"{columnize('Name', COL_WIDTH)}"f"{columnize('Count', COL_WIDTH)}\n"
+    msg += f"{columnize('#', 3)}" f"{columnize('Name', COL_WIDTH)}" f"{columnize('Count', COL_WIDTH)}\n"
     for stat in stats_tuple:
         if rank >= TOP:
             break
@@ -353,7 +385,7 @@ def build_msg_stats_name_percentage(stats_name: str, info_time_str: str, stats_t
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
     rank = 0
     last_rate = -1
-    msg += f"{columnize('#', 3)}"f"{columnize('Name', COL_WIDTH)}"f"{columnize('Rate', COL_WIDTH)}\n"
+    msg += f"{columnize('#', 3)}" f"{columnize('Name', COL_WIDTH)}" f"{columnize('Rate', COL_WIDTH)}\n"
     for stat in stats_tuple:
         if rank >= TOP:
             break
@@ -416,3 +448,44 @@ def build_msg_4_counts(stats_name: str, info_time_str: str, stats_tuple: list[tu
         msg += f"{columnize(rank,3)}{columnize(stat[0], COL_WIDTH)}{columnize(stat[1], COL_WIDTH)}{columnize(stat[2], COL_WIDTH)}{columnize(f'{stat[3]}', COL_WIDTH)}{columnize(f'{stat[4]}', COL_WIDTH)}\n"
     msg += "```"
     return msg
+
+
+def build_msg_2_stats_count(
+    stats_name: str,
+    info_time_str: str,
+    cols_name: list[str],
+    stats_tuple: list[tuple[str, str, int, str, int]],
+    start_index: int = 0,
+) -> tuple[str, Union[int, None]]:
+    """Build a message that has the user name, stats name, stats count, stats name, stats count"""
+    TOP = 20
+    COL_NAME = 16
+    COL_WIDTH_TEXT = 40
+    COL_WIDTH_COUNT = 6
+    length = 0
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {TOP} {stats_name} {info_time_str}\n```"
+    msg += (
+        f"{columnize(cols_name[0], COL_NAME)}"
+        f"{columnize(cols_name[1], COL_WIDTH_TEXT)}"
+        f"{columnize(cols_name[2], COL_WIDTH_COUNT)}"
+        f"{columnize(cols_name[3], COL_WIDTH_TEXT)}"
+        f"{columnize(cols_name[4], COL_WIDTH_COUNT)}\n"
+    )
+    length += len(msg)
+    for i in range(start_index, len(stats_tuple)):
+        stat = stats_tuple[i]
+        new_line = (
+            f"{columnize(stat[0], COL_NAME)}"
+            f"{columnize(stat[1], COL_WIDTH_TEXT)}"
+            f"{columnize(stat[2], COL_WIDTH_COUNT)}"
+            f"{columnize(f'{stat[3]}', COL_WIDTH_TEXT)}"
+            f"{columnize(f'{stat[4]}', COL_WIDTH_COUNT)}\n"
+        )
+        length = len(msg) + len(new_line)
+        if length > 1900:  # Discord as a 4000 char limit
+            msg += "```"
+            return (msg, i)
+        msg += new_line
+
+    msg += "```"
+    return (msg, None)

@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.values import (
+    COMMAND_DAILY_STATS,
     COMMAND_FORCE_SEND,
     COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY,
     COMMAND_TEST_JOIN,
@@ -22,6 +23,7 @@ from deps.data_access import (
 from deps.mybot import MyBot
 from deps.log import print_warning_log
 from deps.siege import get_siege_activity
+from deps.functions_stats import send_daily_stats_to_a_guild
 
 
 class ModBasic(commands.Cog):
@@ -110,6 +112,16 @@ class ModBasic(commands.Cog):
         else:
             msg_str = "\n".join(msg)
             await interaction.followup.send(msg_str, ephemeral=True)
+
+    @app_commands.command(name=COMMAND_DAILY_STATS)
+    @commands.has_permissions(administrator=True)
+    async def send_stats_to_server(self, interaction: discord.Interaction, stats_id: int):
+        """
+        Send a specific stats to the server
+        """
+        await interaction.response.defer(ephemeral=True)
+        await send_daily_stats_to_a_guild(interaction.guild, stats_id)
+        await interaction.followup.send("Task completed!", ephemeral=True)
 
 
 async def setup(bot):
