@@ -83,6 +83,7 @@ async def data_access_get_member(guild_id: int, user_id: int) -> Union[discord.M
     """Get the member by the given guild and user id"""
     if user_id is None:
         return None
+
     async def fetch():
         guild: Optional[discord.Guild] = await data_access_get_guild(guild_id)
         if guild is None:
@@ -206,7 +207,7 @@ async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch
         return await get_r6tracker_max_rank(ubisoft_user_name)
 
     if force_fetch:
-        await remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
+        remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
 
     return await get_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}", fetch, ttl_in_seconds=ONE_HOUR_TTL)
 
