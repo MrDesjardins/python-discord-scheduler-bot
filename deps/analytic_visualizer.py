@@ -393,19 +393,21 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
     user_ids, time_day = zip(*sorted_users)
     user_names = [data_user_id_name[user_id].display_name for user_id in user_ids]  # Convert user
 
-    # Create the bar plot
+    # Create the horizontal bar plot
     plt.figure(figsize=(10, 6))
-    plt.bar(user_names, time_day, color="skyblue")
+    plt.barh(user_names, time_day, color="skyblue")  # Swap axes here: barh for horizontal bars
 
     # Add labels and title
-    plt.xlabel("Users")
-    plt.ylabel("Days Inactive")
+    plt.ylabel("Users")  # Change x and y labels accordingly
+    plt.xlabel("Days Inactive")
     plt.title(f"Top {top} Users Inactive Users (in Days)")
-    plt.xticks(rotation=90)  # Rotate user names for better readability
-    # Ensure Y-axis shows only integers
-    plt.yticks(np.arange(0, max(time_day) + 1, step=1))
-    # Add a horizontal line at 7 days to indicate a threshold
-    plt.axhline(y=7, color="red", linestyle="--", linewidth=2, label="7-Day Threshold")
+
+    # Ensure X-axis shows only integers
+    plt.xticks(np.arange(0, max(time_day) + 1, step=1))
+
+    # Add a vertical line at 7 days to indicate a threshold
+    plt.axvline(x=7, color="red", linestyle="--", linewidth=2, label="7-Day Threshold")  # Swap axhline to axvline
+
     plt.tight_layout()  # Adjust layout to fit labels better
     return _plot_return(plt, show)
 

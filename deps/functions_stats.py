@@ -87,9 +87,10 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     elif function_number == 10:
         msg = stats_user_time_voice_channel(day_7)
     elif function_number == 11:
-        msg, file = await stats_ops_by_members(last_14_days)
-        await channel.send(file=file, content=msg)
-        return
+        msg, file = await stats_ops_by_members(day_14, last_14_days)
+        if file is not None:
+            await channel.send(file=file, content=msg)
+            return
     elif function_number == 12:
         msg = stats_user_best_duo(day_30, last_30_days)
     elif function_number == 13:
@@ -182,12 +183,12 @@ def stats_tk_count(last_date: datetime) -> str:
     return msg
 
 
-async def stats_ops_by_members(last_7_days: date) -> tuple[str, Union[discord.File, None]]:
+async def stats_ops_by_members(day: int, from_date: date) -> tuple[str, Union[discord.File, None]]:
     """
     Return a msg and an image of a matrix of the user and operatoors
     """
-    img_bytes = display_user_top_operators(last_7_days, False)
-    msg = "📊 **Stats of the day: top Operators**\nHere is the top 10 operators in the last 7 days"
+    img_bytes = display_user_top_operators(from_date, False)
+    msg = f"📊 **Stats of the day: top Operators**\nHere is the top 10 operators in the last {day} days"
     if img_bytes is None:
         return (msg, None)
     bytesio = io.BytesIO(img_bytes)
