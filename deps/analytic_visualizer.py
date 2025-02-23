@@ -112,7 +112,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     # Add edges with normalized weights between users
     for user_1_id, value in users_uni_direction.items():
         for user_2_id, weight in value.items():
-            normalized_weight = (weight / max_weight) * 100  # Normalize to max 100
+            normalized_weight = (weight / max_weight) * 14  # Normalize to max 14 (width line)
             user_a = users_name[user_1_id][:8]  # Truncate to 8 characters for better visualization
             user_b = users_name[user_2_id][:8]  # Truncate to 8 characters for better visualization
             graph_network.add_edge(user_a, user_b, weight=normalized_weight)
@@ -159,11 +159,11 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     )
 
     # Draw edge labels (normalized weights)
-    nx.draw_networkx_edge_labels(
-        graph_network,
-        pos,
-        edge_labels={k: f"{v:.2f}" for k, v in normalized_weights.items()},
-    )
+    # nx.draw_networkx_edge_labels(
+    #     graph_network,
+    #     pos,
+    #     edge_labels={k: f"{v:.2f}" for k, v in normalized_weights.items()},
+    # )
 
     # Show plot
     plt.title("User Relationship Graph with Clusters (Edge Tickness = More Time Together)")
