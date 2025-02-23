@@ -284,6 +284,7 @@ def test_insert_if_nonexistant_no_match(test_data):
 
     insert_if_nonexistant_full_match_info(user_info, [])
 
+
 def test_insert_if_nonexistant_with_duplicate(test_data):
     """
     Test if there isn't any match to insert

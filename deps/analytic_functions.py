@@ -4,7 +4,7 @@ Module to gather user activity data and calculate the time spent together
 
 from datetime import datetime, timezone
 from collections import defaultdict
-from typing import Dict, Tuple, List
+from typing import Any, Dict, Tuple, List, Union
 import pandas as pd
 from dateutil import parser
 from deps.analytic_models import UserInfoWithCount
@@ -24,10 +24,12 @@ def calculate_overlap(start1: datetime, end1: datetime, start2: datetime, end2: 
     return max(0, overlap)  # If overlap is negative, it means no overlap
 
 
-def calculate_user_connections(activity_data: list[UserActivity]) -> Dict[int, Dict[int, Tuple[int, int]]]:
+def calculate_user_connections(
+    activity_data: list[UserActivity],
+) -> Dict[int, Dict[int, List[List[Union[datetime, None]]]]]:
     """The return is { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }"""
     # Dictionary to store connection times of users in rooms
-    user_connections: Dict[int, Dict[int, Tuple[int, int]]] = (
+    user_connections: Dict[int, Dict[int, List[List[Union[datetime, None]]]]] = (
         {}
     )  # { channel_id: { user_id: [(connect_time, disconnect_time), ...] } }
 
@@ -48,20 +50,24 @@ def calculate_user_connections(activity_data: list[UserActivity]) -> Dict[int, D
             )  # Connect time with None for disconnect
         elif activity.event == EVENT_DISCONNECT and user_connections[activity.channel_id][activity.user_id]:
             # Update the latest disconnect time for the most recent connect entry
-            user_connections[activity.channel_id][activity.user_id][-1][1] = timestamp
+            if user_connections[activity.channel_id][activity.user_id][-1][1] is None:
+                # The check of None ensure we don't update the disconnect time if it's already set (e.g., if the user disconnects multiple times, data corruption)
+                user_connections[activity.channel_id][activity.user_id][-1][1] = timestamp
     return user_connections
 
 
-def compute_users_weights(activity_data: list[UserActivity]) -> Dict[Tuple[int, int, int], int]:
+def compute_users_weights(activity_data: list[UserActivity]) -> Dict[Tuple[int, int, int], float]:
     """
     Compute the weights of users in the same channel in seconds
     The return is (channel_id, user_a, user_b) -> total time in seconds
     """
     # Dictionary to store connection times of users in rooms
-    user_connections = calculate_user_connections(activity_data)
+    user_connections: Dict[int, Dict[int, List[List[Union[datetime, None]]]]] = calculate_user_connections(
+        activity_data
+    )
 
     # Now calculate overlapping time between users in the same room
-    user_weights: Dict[Tuple[int, int, int], int] = {}  # { (user_a, user_b, channel_id): total_weight }
+    user_weights: Dict[Tuple[int, int, int], float] = {}  # { (user_a, user_b, channel_id): total_weight }
 
     for channel_id, users in user_connections.items():
         user_ids = list(users.keys())
@@ -70,13 +76,13 @@ def compute_users_weights(activity_data: list[UserActivity]) -> Dict[Tuple[int, 
                 user_a = user_ids[i]
                 user_b = user_ids[j]
 
-                total_overlap_time = 0  # Accumulate total overlap time for this pair
+                total_overlap_time = 0.0  # Accumulate total overlap time for this pair
 
                 # Compare all connect/disconnect periods for user_a and user_b
                 for connect_a, disconnect_a in users[user_a]:
                     for connect_b, disconnect_b in users[user_b]:
                         # Ensure both users have valid connect and disconnect times
-                        if disconnect_a and disconnect_b:
+                        if connect_a and connect_b and disconnect_a and disconnect_b:
                             overlap_time = calculate_overlap(connect_a, disconnect_a, connect_b, disconnect_b)
                             total_overlap_time += overlap_time
 
@@ -90,11 +96,13 @@ def compute_users_weights(activity_data: list[UserActivity]) -> Dict[Tuple[int, 
     return user_weights
 
 
-def computer_users_voice_in_out(activity_data: list[UserActivity]) -> Dict[int, List[Tuple[datetime, datetime]]]:
+def computer_users_voice_in_out(
+    activity_data: list[UserActivity],
+) -> Dict[int, List[Tuple[datetime, Union[datetime, None]]]]:
     """
     Give an array of in-out for each user
     """
-    users_in_out: Dict[int, List[Tuple[datetime, datetime]]] = {}  # { user_id: (enter, left)[] }
+    users_in_out: Dict[int, List[Tuple[datetime, Union[datetime, None]]]] = {}  # { user_id: (enter, left)[] }
 
     # Iterate over the activity data and populate user_connections
     for activity in activity_data:
@@ -112,14 +120,16 @@ def computer_users_voice_in_out(activity_data: list[UserActivity]) -> Dict[int, 
     return users_in_out
 
 
-def compute_users_voice_channel_time_sec(users_in_out: Dict[int, List[Tuple[datetime, datetime]]]) -> Dict[int, int]:
+def compute_users_voice_channel_time_sec(
+    users_in_out: Dict[int, List[Tuple[datetime, Union[datetime, None]]]]
+) -> Dict[int, float]:
     """
     Compute the total time in second in all voice channels
     The return is user_id -> total time in seconds
     """
 
     # Now calculate overlapping time between users in the same room
-    total_times: Dict[int, int] = {}  # { user_id: time_sec }
+    total_times: Dict[int, float] = {}  # { user_id: time_sec }
 
     # Iterate over the activity data and populate user_connections
     for user in users_in_out:
@@ -132,13 +142,13 @@ def compute_users_voice_channel_time_sec(users_in_out: Dict[int, List[Tuple[date
 
 
 def users_last_played_over_day(
-    user_in_outs: Dict[int, List[Tuple[datetime, datetime]]],
+    user_in_outs: Dict[int, List[Tuple[datetime, Union[datetime, None]]]],
     days_threshold: int = 1,
 ) -> Dict[int, int]:
     """
     Compute the number of days since each user last played, and only return users who have not played for over `days_threshold` days.
     """
-    inactive_users = {}
+    inactive_users: Dict[int, int] = {}
 
     # Get the current time
     now = datetime.now(timezone.utc)
@@ -217,7 +227,7 @@ def users_by_weekday(
     return result
 
 
-def user_times_by_month(user_activities: list[UserActivity]) -> defaultdict[str, defaultdict[int, int]]:
+def user_times_by_month(user_activities: list[UserActivity]) -> dict[str, dict[int, float]]:
     """Calculate the total time played per user per month"""
     user_sessions = defaultdict(list)
 
@@ -226,7 +236,7 @@ def user_times_by_month(user_activities: list[UserActivity]) -> defaultdict[str,
         user_sessions[activity.user_id].append(activity)
 
     # Dictionary to hold total time played per user per month [month_year][user_id] = time_played
-    time_played_per_month = defaultdict(lambda: defaultdict(float))
+    time_played_per_month: dict[str, dict[int, float]] = defaultdict(lambda: defaultdict(float))
 
     for user_id, activities in user_sessions.items():
         # Sort activities by timestamp for each user

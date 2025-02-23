@@ -102,6 +102,7 @@ def test_bet_ledger_game_from_db():
     assert game.user_id == 6
     assert game.amount == 7
 
+
 def test_bet_user_tournament_from_db():
     """
     Test loading using the bet user tournament from the database using a static method
@@ -118,5 +119,3 @@ def test_bet_user_tournament_from_db():
     assert game.tournament_id == 2
     assert game.user_id == 3
     assert game.amount == 4
-
-

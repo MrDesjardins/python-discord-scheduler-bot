@@ -23,10 +23,18 @@ FROM
   user_full_match_info
   LEFT JOIN user_info ON user_info.id = user_id
 WHERE
-  match_timestamp >= '2025-01-14'
+  match_timestamp >= '2025-02-10'
+  AND user_full_match_info.user_id IN (
+    SELECT DISTINCT
+      user_id
+    from
+      user_activity
+    where
+      timestamp >= datetime ('2025-02-10')
+  )
 GROUP BY
   user_id
-HAVING 
+HAVING
   round_played_count_sum > 10
 ORDER BY
   first_kill_rate DESC;
@@ -49,7 +57,15 @@ FROM
   user_full_match_info
   LEFT JOIN user_info ON user_info.id = user_id
 WHERE
-  match_timestamp >= '2025-01-08'
+  match_timestamp >= '2025-02-10'
+  AND user_full_match_info.user_id IN (
+    SELECT DISTINCT
+      user_id
+    from
+      user_activity
+    where
+      timestamp >= datetime ('2025-02-10')
+  )
 GROUP BY
   user_id
 ORDER BY

@@ -15,7 +15,7 @@ from deps.values import (
     COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT,
 )
 from deps.mybot import MyBot
-from deps.log import print_warning_log
+from deps.log import print_warning_log, print_error_log
 from deps.tournaments.tournament_data_class import Tournament
 from ui.tournament_match_score_report import TournamentMatchScoreReport
 from ui.tournament_registration import TournamentRegistration
@@ -34,20 +34,27 @@ class UserTournamentFeatures(commands.Cog):
         Register to a tournament
         """
         user_id = interaction.user.id
-        guild_id = interaction.guild.id
+        if interaction.guild is None:
+            print_error_log(
+                f"register_tournament: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_tournament_by_guild_user_can_register(guild_id, user_id)
         if len(list_tournaments) == 0:
             list_tournaments_users = fetch_tournament_not_completed_for_user(guild_id, user_id)
             if len(list_tournaments_users) == 0:
                 print_warning_log(
-                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
                 )
                 await interaction.response.send_message("No new tournament available for you.", ephemeral=True)
                 return
             else:
                 tournament_names = ", ".join([t.name for t in list_tournaments_users])
                 print_warning_log(
-                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id}). You are these tournaments: {tournament_names}"
+                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id}). You are these tournaments: {tournament_names}"
                 )
                 await interaction.response.send_message(
                     f"No new tournament available for you. You are these tournaments: {tournament_names}",
@@ -69,11 +76,18 @@ class UserTournamentFeatures(commands.Cog):
         The loser needs to send this command after the match
         """
         user_id = interaction.user.id
-        guild_id = interaction.guild.id
+        if interaction.guild is None:
+            print_error_log(
+                f"send_score_tournament: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_tournament_active_to_interact_for_user(guild_id, user_id)
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"send_score_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"send_score_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
             )
             await interaction.response.send_message("No active tournament available for you.", ephemeral=True)
             return
@@ -91,11 +105,18 @@ class UserTournamentFeatures(commands.Cog):
         """
         See the complete bracket for the tournament
         """
-        guild_id = interaction.guild.id
+        if interaction.guild is None:
+            print_error_log(
+                f"see_braket_tournament: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"see_braket_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"see_braket_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
             )
             await interaction.response.send_message("No active tournament.", ephemeral=True)
             return

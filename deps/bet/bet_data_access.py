@@ -3,7 +3,7 @@ Logic that interact with the database
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.system_database import database_manager
@@ -77,7 +77,7 @@ def data_access_get_all_wallet_for_tournament(tournament_id: int) -> List[BetUse
     return [BetUserTournament.from_db_row(row) for row in rows]
 
 
-def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> BetUserTournament:
+def data_access_get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> Union[BetUserTournament, None]:
     """
     Get the wallet of a user for a specific tournament
     """

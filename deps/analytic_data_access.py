@@ -3,7 +3,7 @@ Module to gather user activity data and calculate the time spent together
 """
 
 from dataclasses import asdict
-import datetime
+from datetime import datetime, date, timedelta
 import json
 from typing import Dict, List, Optional, Union
 from deps.analytic_models import UserOperatorCount
@@ -177,7 +177,7 @@ def fetch_user_info_by_user_id_list(user_id_list: list[int]) -> List[Optional[Us
     # Fetch all results and store them in a dictionary by user id
     result = {user.id: user for user in (UserInfo(*row) for row in database_manager.get_cursor().fetchall())}
 
-    result_with_none = []
+    result_with_none: list[Union[None, UserInfo]] = []
     for user_id in user_id_list:
         user_info = result.get(user_id)
         if user_info is None:
@@ -187,18 +187,104 @@ def fetch_user_info_by_user_id_list(user_id_list: list[int]) -> List[Optional[Us
     return result_with_none
 
 
+def fetch_all_user_activities2(from_date: date) -> list[tuple[str, str, int]]:
+    """
+    Fetch all connect and disconnect events from the user_activity table
+    """
+    query = """  
+            WITH
+            user_sessions AS (
+                SELECT
+                ua1.user_id,
+                ua1.channel_id,
+                ua1.guild_id,
+                ua1.timestamp AS connect_time,
+                ua2.timestamp AS disconnect_time
+                FROM
+                user_activity ua1
+                JOIN user_activity ua2 ON ua1.user_id = ua2.user_id
+                AND ua1.channel_id = ua2.channel_id
+                AND ua1.guild_id = ua2.guild_id
+                AND ua1.event = 'connect'
+                AND ua2.event = 'disconnect'
+                AND ua2.timestamp > ua1.timestamp
+                AND ua1.timestamp > :date_from
+                AND ua2.timestamp > :date_from
+                WHERE
+                NOT EXISTS (
+                    SELECT
+                    1
+                    FROM
+                    user_activity ua3
+                    WHERE
+                    ua3.user_id = ua1.user_id
+                    AND ua3.channel_id = ua1.channel_id
+                    AND ua3.guild_id = ua1.guild_id
+                    AND ua3.event = 'connect'
+                    AND ua3.timestamp > ua1.timestamp
+                    AND ua3.timestamp < ua2.timestamp
+                    AND ua1.timestamp > :date_from
+                    AND ua2.timestamp > :date_from
+                    AND ua3.timestamp > :date_from
+                )
+            )
+            SELECT
+            user1_info.display_name AS user1_display_name,
+            user2_info.display_name AS user2_display_name,
+            SUM(
+                CAST(
+                (
+                    strftime ('%s', MIN(a.disconnect_time, b.disconnect_time)) - strftime ('%s', MAX(a.connect_time, b.connect_time))
+                ) AS INTEGER
+                )
+            ) AS total_overlap_seconds
+            FROM
+            user_sessions a
+            JOIN user_sessions b ON a.guild_id = b.guild_id
+            AND a.user_id < b.user_id -- Avoid duplicate comparisons
+            AND a.connect_time < b.disconnect_time
+            AND b.connect_time < a.disconnect_time
+            LEFT JOIN user_info AS user1_info on user1_info.id = a.user_id
+            LEFT JOIN user_info AS user2_info on user2_info.id = b.user_id
+            GROUP BY
+            a.user_id,
+            b.user_id
+            ORDER BY total_overlap_seconds DESC;
+        """
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            query,
+            {
+                "date_from": from_date.isoformat(),
+            },
+        )
+        .fetchall()
+    )
+
+    return [(row[0], row[1], row[2]) for row in result]
+
+
 def fetch_all_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:
     """
     Fetch all connect and disconnect events from the user_activity table
     """
-    database_manager.get_cursor().execute(
-        f"""
+    from_date = datetime.now() - timedelta(days=from_day)
+    to_date = datetime.now() - timedelta(days=to_day)
+    # from_date = datetime(2025, 2, 5, 0, 0, 0)
+    # to_date = datetime(2025, 2, 20, 23, 59, 59)
+    query = f"""
         SELECT {USER_ACTIVITY_SELECT_FIELD}
         FROM user_activity
-        WHERE timestamp >= datetime('now', ? ) AND timestamp <= datetime('now', ?)
-        ORDER BY timestamp
-        """,
-        (f"-{from_day} days", f"-{to_day} days"),
+        WHERE timestamp >= :from_date AND timestamp <= :to_date
+        ORDER BY timestamp ASC
+        """
+    database_manager.get_cursor().execute(
+        query,
+        {
+            "from_date": from_date.isoformat(),
+            "to_date": to_date.isoformat(),
+        },
     )
     # Convert the result to a list of UserActivity objects
     return [UserActivity(*row) for row in database_manager.get_cursor().fetchall()]
@@ -214,7 +300,7 @@ def fetch_user_activities(user_id: int, from_day: int = 3600, to_day: int = 0) -
         FROM user_activity
         WHERE timestamp >= datetime('now', ? ) AND timestamp <= datetime('now', ?)
         AND user_id = ?
-        ORDER BY timestamp
+        ORDER BY timestamp ASC
         """,
         (f"-{from_day} days", f"-{to_day} days", user_id),
     )
@@ -235,7 +321,7 @@ def fetch_user_infos_with_activity(from_utc: datetime, to_utc: datetime) -> list
         SELECT {USER_ACTIVITY_SELECT_FIELD}
         FROM user_activity
         WHERE timestamp >= ? AND timestamp <= ?
-        ORDER BY timestamp
+        ORDER BY timestamp ASC
         """,
         (from_utc.isoformat(), to_utc.isoformat()),
     )
@@ -377,7 +463,9 @@ def get_active_user_info(from_time: datetime, to_time: datetime) -> list[UserInf
     user_infos = fetch_user_info_by_user_id_list(user_ids)
 
     # Remove user without active or max account
-    return [user_info for user_info in user_infos if user_info.ubisoft_username_active is not None]
+    return [
+        user_info for user_info in user_infos if user_info is not None and user_info.ubisoft_username_active is not None
+    ]
 
 
 def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: list[UserFullMatchStats]) -> None:
@@ -423,7 +511,7 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     )
     # Try to insert the match that are not yet in the database
     # Todo: Batch insert
-    last_match = {}
+    last_match: Union[UserFullMatchStats, None] = None
     try:
         with database_manager.data_access_transaction():
             cursor = database_manager.get_cursor()
@@ -599,6 +687,8 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
                 )
         # End transaction
     except Exception as e:
+        if last_match is None:
+            print_error_log("insert_if_nonexistant_full_match_info: Error inserting match: No match to insert")
         stringify_match = json.dumps(asdict(last_match), indent=4)
         print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}\n{stringify_match}")
         raise e
@@ -643,6 +733,14 @@ def data_access_fetch_tk_count_by_user(from_data: datetime) -> list[tuple[int, s
         WHERE
             user_full_match_info.tk_count > 0
             AND user_full_match_info.match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
         GROUP BY user_id
         ORDER BY count_tk DESC;
         """
@@ -658,7 +756,7 @@ def data_access_fetch_tk_count_by_user(from_data: datetime) -> list[tuple[int, s
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def data_access_fetch_rollback_count_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+def data_access_fetch_rollback_count_by_user(from_data: date) -> list[tuple[int, str, int]]:
     """
     Fetch the rollback count for each user
     """
@@ -674,6 +772,14 @@ def data_access_fetch_rollback_count_by_user(from_data: datetime) -> list[tuple[
         WHERE
             user_full_match_info.is_rollback = true
             AND user_full_match_info.match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
         GROUP BY user_id
         ORDER BY count_rollbacks DESC;
         """
@@ -689,7 +795,7 @@ def data_access_fetch_rollback_count_by_user(from_data: datetime) -> list[tuple[
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def data_access_fetch_avg_kill_match(from_data: datetime) -> list[tuple[int, str, int]]:
+def data_access_fetch_avg_kill_match(from_data: date) -> list[tuple[int, str, int]]:
     """
     Fetch the average kill for each user
     """
@@ -711,7 +817,15 @@ def data_access_fetch_avg_kill_match(from_data: datetime) -> list[tuple[int, str
         LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
         WHERE
             is_rollback = false
-            and match_timestamp >= :from_data
+            AND match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
         GROUP BY user_id
     )
     ORDER BY
@@ -729,7 +843,7 @@ def data_access_fetch_avg_kill_match(from_data: datetime) -> list[tuple[int, str
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def data_access_fetch_match_played_count_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+def data_access_fetch_match_played_count_by_user(from_data: date) -> list[tuple[int, str, int]]:
     """
     Fetch the match count for each user
     """
@@ -745,6 +859,14 @@ def data_access_fetch_match_played_count_by_user(from_data: datetime) -> list[tu
         WHERE
             user_full_match_info.is_rollback = false
             AND user_full_match_info.match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
         GROUP BY user_id
         ORDER BY count_match DESC;
         """
@@ -760,7 +882,7 @@ def data_access_fetch_match_played_count_by_user(from_data: datetime) -> list[tu
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def data_access_fetch_most_voice_time_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+def data_access_fetch_most_voice_time_by_user(from_data: date) -> list[tuple[int, str, int]]:
     """
     Fetch the match count for each user
     """
@@ -776,6 +898,14 @@ def data_access_fetch_most_voice_time_by_user(from_data: datetime) -> list[tuple
         WHERE
             user_full_match_info.is_rollback = false
             AND user_full_match_info.match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
         GROUP BY user_id
         ORDER BY count_match DESC;
         """
@@ -791,7 +921,7 @@ def data_access_fetch_most_voice_time_by_user(from_data: datetime) -> list[tuple
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def data_access_fetch_users_operators(from_data: datetime) -> list[UserOperatorCount]:
+def data_access_fetch_users_operators(from_data: date) -> list[UserOperatorCount]:
     """
     Get a list of user with operator and the count
     """
@@ -817,7 +947,15 @@ def data_access_fetch_users_operators(from_data: datetime) -> list[UserOperatorC
             user_full_match_info
             LEFT JOIN user_info ON user_info.id = user_full_match_info.user_id
             WHERE
-            match_timestamp >= :from_data
+                match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
             UNION ALL
             -- Recursive case: Split the next operator from the remaining string
             SELECT
@@ -896,7 +1034,7 @@ def data_access_fetch_users_operators(from_data: datetime) -> list[UserOperatorC
     return [UserOperatorCount(user=row[0], operator_name=row[1], count=row[2]) for row in result]
 
 
-def data_access_fetch_kd_by_user(from_data: datetime) -> list[tuple[int, str, int]]:
+def data_access_fetch_kd_by_user(from_data: date) -> list[tuple[int, str, int]]:
     """
     Get all the kills and count for each user
     """
@@ -908,16 +1046,24 @@ def data_access_fetch_kd_by_user(from_data: datetime) -> list[tuple[int, str, in
     FROM
     (
         SELECT
-        user_full_match_info.user_id,
-        user_info.display_name,
-        sum(user_full_match_info.kill_count) as sum_kill,
-        sum(user_full_match_info.death_count) as sum_death
+            user_full_match_info.user_id,
+            user_info.display_name,
+            sum(user_full_match_info.kill_count) as sum_kill,
+            sum(user_full_match_info.death_count) as sum_death
         FROM
-        user_full_match_info
-        LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
+            user_full_match_info
+            LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
         WHERE
-        is_rollback = false
-        and match_timestamp > :from_data 
+            is_rollback = false
+            AND match_timestamp > :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
         GROUP BY user_id
     )
     ORDER BY kd DESC;
@@ -934,7 +1080,7 @@ def data_access_fetch_kd_by_user(from_data: datetime) -> list[tuple[int, str, in
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def data_access_fetch_best_duo(from_data: datetime) -> list[tuple[str, str, int, int, int]]:
+def data_access_fetch_best_duo(from_data: date) -> list[tuple[str, str, int, int, float]]:
     """
     Get the user 1 name, user 2 name, the number of game played, the number of wins and the win %
     """
@@ -948,32 +1094,48 @@ def data_access_fetch_best_duo(from_data: datetime) -> list[tuple[str, str, int,
             m2.user_id AS user2,
             m1.has_win AS has_win
             FROM
-            user_full_match_info m1
-            JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
+                user_full_match_info m1
+                JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
             AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
             WHERE
-            m1.match_timestamp >= :from_data
+                m1.match_timestamp >= :from_data
+            AND m1.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
+            AND m2.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
         )
         SELECT
-        UI_1.display_name AS user1_name,
-        UI_2.display_name AS user2_name,
-        COUNT(*) AS games_played,
-        SUM(has_win) AS has_win_sum,
-        SUM(has_win) * 1.0 / COUNT(*) AS win_rate_percentage
+            UI_1.display_name AS user1_name,
+            UI_2.display_name AS user2_name,
+            COUNT(*) AS games_played,
+            SUM(has_win) AS has_win_sum,
+            SUM(has_win) * 1.0 / COUNT(*) AS win_rate_percentage
         FROM
-        MatchPairs
-        LEFT JOIN user_info AS UI_1 ON UI_1.id = user1
-        LEFT JOIN user_info AS UI_2 ON UI_2.id = user2
+            MatchPairs
+            LEFT JOIN user_info AS UI_1 ON UI_1.id = user1
+            LEFT JOIN user_info AS UI_2 ON UI_2.id = user2
         WHERE
-        user1 IS NOT NULL
-        AND user2 IS NOT NULL
+            user1 IS NOT NULL
+            AND user2 IS NOT NULL
         GROUP BY
-        user1,
-        user2
+            user1,
+            user2
         HAVING
-        games_played >= 10
+            games_played >= 10
         ORDER BY
-        win_rate_percentage DESC;
+            win_rate_percentage DESC;
         """
     result = (
         database_manager.get_cursor().execute(
@@ -987,7 +1149,7 @@ def data_access_fetch_best_duo(from_data: datetime) -> list[tuple[str, str, int,
     return [(row[0], row[1], row[2], row[3], row[4]) for row in result]
 
 
-def data_access_fetch_best_trio(from_data: datetime) -> list[tuple[str, str, str, int, int, int]]:
+def data_access_fetch_best_trio(from_data: date) -> list[tuple[str, str, str, int, int, float]]:
     """
     Get the user 1 name, user 2 name, user 3 name the number of game played, the number of wins and the win %
     """
@@ -1003,13 +1165,37 @@ def data_access_fetch_best_trio(from_data: datetime) -> list[tuple[str, str, str
             m3.user_id AS user3,
             m1.has_win AS has_win
             FROM
-            user_full_match_info m1
+                user_full_match_info m1
             JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
             JOIN user_full_match_info m3 ON m2.match_uuid = m3.match_uuid
             AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
             AND m2.user_id < m3.user_id -- Avoid duplicate pairs and self-joins
             WHERE
-            m1.match_timestamp >= :from_data
+                m1.match_timestamp >= :from_data
+            AND m1.user_id IN (
+                SELECT DISTINCT
+                user_id
+                from
+                user_activity
+                where
+                timestamp >= :from_data
+            )
+            AND m2.user_id IN (
+                SELECT DISTINCT
+                user_id
+                from
+                user_activity
+                where
+                timestamp >= :from_data
+            )
+            AND m3.user_id IN (
+                SELECT DISTINCT
+                user_id
+                from
+                user_activity
+                where
+                timestamp >= :from_data
+            )
         )
         SELECT
             UI_1.display_name AS user1_name,
@@ -1048,7 +1234,7 @@ def data_access_fetch_best_trio(from_data: datetime) -> list[tuple[str, str, str
     return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in result]
 
 
-def data_access_fetch_first_death(from_data: datetime) -> list[tuple[str, int, int, float]]:
+def data_access_fetch_first_death(from_data: date) -> list[tuple[str, int, int, float]]:
     """
     Get the user name, the number of first death, the number of first rounds and the number of first death
     """
@@ -1062,6 +1248,14 @@ def data_access_fetch_first_death(from_data: datetime) -> list[tuple[str, int, i
     LEFT JOIN user_info ON user_info.id = user_id
     WHERE
         match_timestamp >= :from_data
+    AND user_full_match_info.user_id IN (
+        SELECT DISTINCT
+        user_id
+        from
+        user_activity
+        where
+        timestamp >= :from_data
+    )
     GROUP BY user_id
     HAVING 
         round_played_count_sum > 20
@@ -1079,7 +1273,7 @@ def data_access_fetch_first_death(from_data: datetime) -> list[tuple[str, int, i
     return [(row[0], row[1], row[2], row[3]) for row in result]
 
 
-def data_access_fetch_first_kill(from_data: datetime) -> list[tuple[str, int, int, float]]:
+def data_access_fetch_first_kill(from_data: date) -> list[tuple[str, int, int, float]]:
     """
     Get the user name, the number of first death, the number of first rounds and the number of first death
     """
@@ -1094,6 +1288,14 @@ def data_access_fetch_first_kill(from_data: datetime) -> list[tuple[str, int, in
         LEFT JOIN user_info ON user_info.id = user_id
         WHERE
             match_timestamp >= :from_data
+        AND user_full_match_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
         GROUP BY
             user_id
         HAVING 
@@ -1113,7 +1315,7 @@ def data_access_fetch_first_kill(from_data: datetime) -> list[tuple[str, int, in
     return [(row[0], row[1], row[2], row[3]) for row in result]
 
 
-def data_access_fetch_success_fragging(from_data: datetime) -> list[tuple[str, int]]:
+def data_access_fetch_success_fragging(from_data: date) -> list[tuple[str, float]]:
     """
     Get the user name, the number of first death, the number of first rounds and the number of first death
     """
@@ -1136,6 +1338,14 @@ def data_access_fetch_success_fragging(from_data: datetime) -> list[tuple[str, i
         LEFT JOIN user_info ON user_info.id = user_id
         WHERE
             match_timestamp >= :from_data
+        AND user_full_match_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
         GROUP BY
             user_id
         HAVING 
@@ -1155,7 +1365,7 @@ def data_access_fetch_success_fragging(from_data: datetime) -> list[tuple[str, i
     return [(row[0], row[7]) for row in result]
 
 
-def data_access_fetch_clutch_win_rate(from_data: datetime) -> list[tuple[str, int, int, int]]:
+def data_access_fetch_clutch_win_rate(from_data: date) -> list[tuple[str, int, int, float]]:
     """
     Get the user name, the number of clutch win, the number of clutch played and the clutch win rate
     """
@@ -1170,6 +1380,14 @@ def data_access_fetch_clutch_win_rate(from_data: datetime) -> list[tuple[str, in
         LEFT JOIN user_info ON user_info.id = user_id
         WHERE
             match_timestamp >= :from_data
+        AND user_full_match_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
         GROUP BY
             user_id
         ORDER BY
@@ -1187,7 +1405,7 @@ def data_access_fetch_clutch_win_rate(from_data: datetime) -> list[tuple[str, in
     return [(row[0], row[1], row[2], row[3]) for row in result]
 
 
-def data_access_fetch_ace_4k_3k(from_data: datetime) -> list[tuple[str, int, int, int, int]]:
+def data_access_fetch_ace_4k_3k(from_data: date) -> list[tuple[str, int, int, int, int]]:
     """
     Get the user name, 5k, 4k, 3k count
     """
@@ -1203,11 +1421,18 @@ def data_access_fetch_ace_4k_3k(from_data: datetime) -> list[tuple[str, int, int
         LEFT JOIN user_info ON user_info.id = user_id
         WHERE
             match_timestamp >= :from_data
+        AND user_full_match_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
         GROUP BY
             user_id
         ORDER BY
-            total DESC
-        LIMIT 20 OFFSET 0;
+            total DESC;
         """
     result = (
         database_manager.get_cursor().execute(
@@ -1222,7 +1447,7 @@ def data_access_fetch_ace_4k_3k(from_data: datetime) -> list[tuple[str, int, int
 
 
 def data_access_fetch_win_rate_server(
-    from_data: datetime, to_data: datetime
+    from_data: date, to_data: date
 ) -> list[tuple[str, int, int, float, float, float]]:
     """
     Get the rate of playing in circus, the win rate in circus, the win rate outside circus, the win rate in circus
@@ -1344,7 +1569,7 @@ def data_access_fetch_win_rate_server(
     return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in result]
 
 
-def data_access_fetch_best_worse_map(from_data: datetime) -> list[tuple[str, str, int, str, int]]:
+def data_access_fetch_best_worse_map(from_data: date) -> list[tuple[str, str, int, str, int]]:
     """
     Get the best and worse map for each user
     """
@@ -1367,10 +1592,18 @@ def data_access_fetch_best_worse_map(from_data: datetime) -> list[tuple[str, str
                 END
             ) AS losses
             FROM
-            user_full_match_info
+                user_full_match_info
             INNER JOIN user_info ON user_info.id = user_id
             WHERE
-            match_timestamp >= :from_data
+                match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                SELECT DISTINCT
+                user_id
+                from
+                user_activity
+                where
+                timestamp >= :from_data
+            )
             GROUP BY
             user_info.display_name,
             user_full_match_info.map_name

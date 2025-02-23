@@ -1,5 +1,6 @@
 """ View for the user to configure their profile """
 
+from typing import Union
 import discord
 from deps.data_access import data_access_get_gaming_session_text_channel_id
 from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
@@ -19,12 +20,12 @@ class SetupUserProfileView(discord.ui.View):
         self.bot = bot
         self.guild = guild
         self.member = member
-        self.max_rank_account = None
-        self.active_account = None
-        self.user_timezone = None
+        self.max_rank_account: Union[str, None] = None
+        self.active_account: Union[str, None] = None
+        self.user_timezone: Union[str, None] = None
 
         # Add timezone select
-        self.timezone_select = discord.ui.Select(
+        self.timezone_select: discord.ui.Select = discord.ui.Select(
             placeholder="Select your timezone", options=timezones_options, custom_id="timezone_select"
         )
         self.add_item(self.timezone_select)
@@ -44,11 +45,11 @@ class SetupUserProfileView(discord.ui.View):
 class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
     """Modal that allows text box for the user name"""
 
-    def __init__(self, view: discord.ui.view):
+    def __init__(self, view: SetupUserProfileView) -> None:
         super().__init__()
         self.view = view  # Pass view to access the view's variables
 
-        self.max_rank_account_input = discord.ui.TextInput(
+        self.max_rank_account_input: discord.ui.TextInput = discord.ui.TextInput(
             label="Highest Ubisoft account name",
             placeholder="Name here",
             custom_id="max_name",
@@ -57,7 +58,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
         )
         self.add_item(self.max_rank_account_input)
 
-        self.active_account_input = discord.ui.TextInput(
+        self.active_account_input: discord.ui.TextInput = discord.ui.TextInput(
             label="Active Ubisoft account name (empty if same)",
             placeholder="",
             custom_id="active_name",

@@ -93,7 +93,7 @@ class UserSchedule(commands.Cog):
             return
 
         channel: discord.TextChannel = await data_access_get_channel(channel_id)
-        #last_message_id = await data_access_get_daily_message_id(guild_id)
+        # last_message_id = await data_access_get_daily_message_id(guild_id)
         last_message = await get_last_schedule_message(self.bot, channel)
         last_message_id = last_message.id if last_message is not None else None
         if last_message_id is None:

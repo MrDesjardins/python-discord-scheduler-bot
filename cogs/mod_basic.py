@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from cogs.events import MyEventsCog
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.values import (
     COMMAND_DAILY_STATS,
@@ -21,7 +22,7 @@ from deps.data_access import (
     data_access_set_bot_voice_first_user,
 )
 from deps.mybot import MyBot
-from deps.log import print_warning_log
+from deps.log import print_error_log, print_warning_log
 from deps.siege import get_siege_activity
 from deps.functions_stats import send_daily_stats_to_a_guild
 
@@ -46,10 +47,15 @@ class ModBasic(commands.Cog):
         """
         An administrator can reset the cache for the guild
         """
-        # perms = interaction.channel.permissions_for(interaction.user)
-        # print_log(f"User {interaction.author.id} has permissions {perms}")
-        if interaction.user.id == interaction.guild.owner_id:
-            guild_id = interaction.guild.id
+        if interaction.guild is None:
+            print_error_log(
+                f"reset_cache: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
+        guild_id = guild.id
+        if interaction.user.id == guild.owner_id:
             data_access_reset_guild_cache(guild_id)
             await interaction.response.send_message("Cached flushed", ephemeral=True)
         else:
@@ -59,15 +65,29 @@ class ModBasic(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def enable_voice_bot(self, interaction: discord.Interaction, enable: bool):
         """Activate or deactivate the bot voice message"""
-        data_access_set_bot_voice_first_user(interaction.guild.id, enable)
+        if interaction.guild is None:
+            print_error_log(
+                f"enable_voice_bot: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
+        data_access_set_bot_voice_first_user(guild.id, enable)
         await interaction.response.send_message(f"The bot status to voice is {enable}", ephemeral=True)
 
     @app_commands.command(name=COMMAND_FORCE_SEND)
     @commands.has_permissions(administrator=True)
     async def force_send_daily(self, interaction: discord.Interaction):
         """Apply the schedule for user who scheduled using the /addschedule command"""
+        if interaction.guild is None:
+            print_error_log(
+                f"force_send_daily: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
         await interaction.response.defer(ephemeral=True)
-        await send_daily_question_to_a_guild(self.bot, interaction.guild, True)
+        await send_daily_question_to_a_guild(self.bot, guild)
         await interaction.followup.send("Force sending", ephemeral=True)
 
     @app_commands.command(name=COMMAND_TEST_JOIN)
@@ -76,16 +96,34 @@ class ModBasic(commands.Cog):
         """
         Simulate a member joining the server for local testing.
         """
-        if interaction.user.id == interaction.guild.owner_id:
+        if interaction.guild is None:
+            print_error_log(
+                f"test_join: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
+        if interaction.user.id == guild.owner_id:
             fake_member = interaction.user  # Use the command invoker as the fake member
-            await self.bot.cogs.get("MyEventsCog").on_member_join(fake_member)
+            cog = self.bot.cogs.get("MyEventsCog")
+            if cog is None or not isinstance(cog, MyEventsCog) or not isinstance(fake_member, discord.Member):
+                print_error_log("test_join: MyEventsCog not found. Skipping.")
+                await interaction.response.send_message("MyEventsCog not found. Skipping.", ephemeral=True)
+                return
+            await cog.on_member_join(fake_member)
 
     @app_commands.command(name=COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY)
     @commands.has_permissions(administrator=True)
     async def check_activity(self, interaction: discord.Interaction):
         """Apply the schedule for user who scheduled using the /addschedule command"""
-        await interaction.response.defer(ephemeral=True)
+        if interaction.guild is None:
+            print_error_log(
+                f"check_activity: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
         guild = interaction.guild
+        await interaction.response.defer(ephemeral=True)
         voice_channel_ids = await data_access_get_guild_voice_channel_ids(interaction.guild.id)
         if voice_channel_ids is None:
             print_warning_log(f"check_activity:`Voice channel not set for guild {guild.name}. Skipping.")
@@ -119,8 +157,15 @@ class ModBasic(commands.Cog):
         """
         Send a specific stats to the server
         """
+        if interaction.guild is None:
+            print_error_log(
+                f"send_stats_to_server: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
         await interaction.response.defer(ephemeral=True)
-        await send_daily_stats_to_a_guild(interaction.guild, stats_id)
+        await send_daily_stats_to_a_guild(guild, stats_id)
         await interaction.followup.send("Task completed!", ephemeral=True)
 
 

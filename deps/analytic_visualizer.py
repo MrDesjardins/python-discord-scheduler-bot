@@ -4,9 +4,9 @@ Code to show the relationsip between the users
 
 import io
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, date
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union, Any
 import plotly.graph_objs as go
 import seaborn as sns
 import numpy as np
@@ -37,6 +37,10 @@ from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manag
 
 @dataclass
 class UsersRelationship:
+    """
+    User 1 and 2 with names and weight (int)
+    """
+
     user1_id: int
     user2_id: int
     user1_display_name: str
@@ -44,8 +48,11 @@ class UsersRelationship:
     weight: int
 
 
-def get_unidirection_users(data: List[UsersRelationship]) -> Tuple[Dict[str, Dict[str, int]], int]:
-    users_uni_direction: Dict[str, Dict[str, int]] = {}
+def get_unidirection_users(data: List[UsersRelationship]) -> Tuple[Dict[int, Dict[int, int]], int]:
+    """
+    Get the weight regardless of the direction of a relationship
+    """
+    users_uni_direction: Dict[int, Dict[int, int]] = {}
     max_weight = 0
     for user in data:
         if user.user1_id in users_uni_direction:
@@ -69,65 +76,23 @@ def _get_data(from_day, to_day) -> list[UsersRelationship]:
     # Fetch the data from the user_weights table
     database_manager.get_cursor().execute(
         """
-    SELECT ui1.id as user1_id, ui2.id as user2_id, ui1.display_name as user1_display_name, ui2.display_name as user2_display_name, weight 
+    SELECT 
+        ui1.id as user1_id, 
+        ui2.id as user2_id, 
+        ui1.display_name as user1_display_name, 
+        ui2.display_name as user2_display_name, 
+        weight 
     FROM user_weights 
-    left join user_info as ui1 on user_weights.user_a = ui1.id 
-    left join user_info as ui2 on user_weights.user_b = ui2.id
+    left join 
+        user_info as ui1 on user_weights.user_a = ui1.id 
+    left join 
+        user_info as ui2 on user_weights.user_b = ui2.id
     """
     )
     return [UsersRelationship(*row) for row in database_manager.get_cursor().fetchall()]
 
 
-# def display_graph_network_relationship(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
-#     """
-#     Display the relationship between users in a graph
-#     """
-#     data = _get_data(from_day, to_day)
-
-#     # Create a graph using NetworkX
-#     graph_network = nx.Graph()
-
-#     # Create a structure that store users unidirectional to add the weight from both sides (user1, user2) and (user2, user1)
-#     (users_uni_direction, max_weight) = get_unidirection_users(data)
-
-#     # Get the names of the users
-#     users_name: Dict[int, str] = {}
-#     for user in data:
-#         users_name[user.user1_id] = user.user1_display_name
-#         users_name[user.user2_id] = user.user2_display_name
-
-#     # Add edges with weights between users
-#     for user_1_id, value in users_uni_direction.items():
-#         for user_2_id, weight in value.items():
-#             normalized_weight = (weight / max_weight) * 100  # Normalize to max 100
-#             graph_network.add_edge(users_name[user_1_id], users_name[user_2_id], weight=normalized_weight)
-
-#     # Draw the graph
-#     plt.figure(figsize=(10, 10))
-
-#     # Position the nodes using the spring layout for a better spread
-#     pos = nx.spring_layout(graph_network)
-
-#     # Draw nodes
-#     nx.draw_networkx_nodes(graph_network, pos, node_size=700, node_color="skyblue")
-
-#     # Draw edges, adjusting width based on the weight
-#     weights = nx.get_edge_attributes(graph_network, "weight")
-#     nx.draw_networkx_edges(graph_network, pos, width=[w / 10 for w in weights.values()])
-
-#     # Draw labels for users (nodes)
-#     nx.draw_networkx_labels(graph_network, pos, font_size=12, font_family="sans-serif")
-
-#     # Draw edge labels (weights)
-#     nx.draw_networkx_edge_labels(graph_network, pos, edge_labels={k: f"{v:.2f}" for k, v in weights.items()})
-
-#     # Show plot
-#     plt.title("User Relationship Graph (Edge Tickness = More Time Together)")
-#     plt.axis("off")  # Turn off the axis
-#     return _plot_return(plt, show)
-
-
-def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
     """
     Determine the clusters of users and display them in a graph
     """
@@ -179,7 +144,8 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
 
     # Draw edges, adjusting width based on the normalized weight
     normalized_weights = nx.get_edge_attributes(graph_network, "weight")
-    nx.draw_networkx_edges(graph_network, pos, width=[w / 10 for w in normalized_weights.values()])
+    all_width: List[float] = [weight for weight in normalized_weights.values()]
+    nx.draw_networkx_edges(graph_network, pos, width=all_width)
 
     # Draw labels for users (nodes), adjusted to be above the nodes
     label_pos = {node: (x, y + 0.15) for node, (x, y) in pos.items()}  # Adjust y-coordinate
@@ -206,7 +172,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     return _plot_return(plt, show)
 
 
-def _plot_return(plot: plt, show: bool = True) -> bytes:
+def _plot_return(plot: Any, show: bool = True) -> Union[bytes, None]:
     """
     Return an image or the bytes of the iamge
     """
@@ -224,7 +190,9 @@ def _plot_return(plot: plt, show: bool = True) -> bytes:
     return image_bytes
 
 
-def display_graph_cluster_people_3d_animated(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_graph_cluster_people_3d_animated(
+    show: bool = True, from_day: int = 3600, to_day: int = 0
+) -> Union[bytes, None]:
     """
     Determine the clusters of users and display them in a 3D animated graph
     """
@@ -325,7 +293,10 @@ def display_graph_cluster_people_3d_animated(show: bool = True, from_day: int = 
     return _plot_return(fig, show)
 
 
-def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
+    """
+    Display the time between two people
+    """
     top = 50
     data = _get_data(from_day, to_day)
 
@@ -370,7 +341,10 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
     return _plot_return(plt, show)
 
 
-def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
+    """
+    Display the total time a user has spent in a voice channel
+    """
     top = 30
     data_user_activity = fetch_all_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_info()
@@ -386,11 +360,11 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
 
     # Unpack the sorted list into two lists: one for user names and one for times
     users, times_in_hours = zip(*sorted_users)
-    users = [data_user_id_name[user_id].display_name for user_id in users]  # Convert user
+    users_display_name: List[str] = [data_user_id_name[user_id].display_name for user_id in users]  # Convert user
 
     # Create the bar plot
     plt.figure(figsize=(12, 6))
-    plt.bar(users, times_in_hours, color="skyblue")
+    plt.bar(users_display_name, times_in_hours, color="skyblue")
 
     # Add labels and title
     plt.xlabel("Users")
@@ -401,7 +375,10 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
     return _plot_return(plt, show)
 
 
-def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
+    """
+    Show inactive user in time
+    """
     top = 50
     data_user_activity = fetch_all_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_info()
@@ -433,7 +410,10 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
     return _plot_return(plt, show)
 
 
-def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
+    """
+    Display the user activity by weekday
+    """
     data_user_activity: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
     users_by_weekday_dict: Dict[int, list[UserInfoWithCount]] = users_by_weekday(data_user_activity, data_user_id_name)
@@ -472,7 +452,7 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
     return _plot_return(plt, show)
 
 
-def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
     """
     Graph that display the amount of time played per month using stacked bar. Each bar is a month. The stacked information if every user.
     """
@@ -513,14 +493,16 @@ def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day
     return _plot_return(plt, show)
 
 
-def display_user_timeline_voice_time_by_day(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_user_timeline_voice_time_by_day(
+    show: bool = True, from_day: int = 3600, to_day: int = 0
+) -> Union[bytes, None]:
     """Display the user timeline voice time"""
     user_activities: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
     # Dictionary to store total time played per user
-    user_play_times = defaultdict(int)
+    user_play_times: Dict[int, float] = defaultdict(int)
     # Dictionary to store daily time played for each user
-    user_daily_play_times = defaultdict(lambda: defaultdict(int))
+    user_daily_play_times: dict[int, dict[date, float]] = defaultdict(lambda: defaultdict(float))
     # Temporary dictionary to hold start times
     start_times = {}
 
@@ -534,8 +516,8 @@ def display_user_timeline_voice_time_by_day(show: bool = True, from_day: int = 3
             start_key = (activity.user_id, activity.channel_id)
             if start_key in start_times:
                 start_time = start_times.pop(start_key)
-                play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
-                play_date = start_time.date()
+                play_duration: float = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
+                play_date: date = start_time.date()
                 user_play_times[activity.user_id] += play_duration
                 user_daily_play_times[activity.user_id][play_date] += play_duration
 
@@ -569,16 +551,18 @@ def iso_to_gregorian(year: int, week: int) -> datetime:
     return datetime.strptime(f"{year}-W{week}-1", "%Y-W%W-%w")
 
 
-def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_user_timeline_voice_time_by_week(
+    show: bool = True, from_day: int = 3600, to_day: int = 0
+) -> Union[bytes, None]:
     """Display the user timeline voice time"""
     user_activities: List[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
 
     # Dictionary to store total time played per user
-    user_play_times = defaultdict(int)
+    user_play_times: Dict[int, float] = defaultdict(int)
 
     # Dictionary to store weekly time played for each user
-    user_weekly_play_times = defaultdict(lambda: defaultdict(int))
+    user_weekly_play_times: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
 
     # Temporary dictionary to hold start times
     start_times = {}
@@ -595,7 +579,7 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
             start_key = (activity.user_id, activity.channel_id)
             if start_key in start_times:
                 start_time = start_times.pop(start_key)
-                play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
+                play_duration: float = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
 
                 week_start = f"{timestamp.isocalendar().year}-{timestamp.isocalendar().week}"
                 user_weekly_play_times[activity.user_id][week_start] += play_duration
@@ -632,7 +616,9 @@ def display_user_timeline_voice_time_by_week(show: bool = True, from_day: int = 
     return _plot_return(plt, show)
 
 
-def display_user_timeline_voice_by_months(show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_user_timeline_voice_by_months(
+    show: bool = True, from_day: int = 3600, to_day: int = 0
+) -> Union[bytes, None]:
     """Display the user timeline voice time"""
     user_activities: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     monthly_sessions = times_by_months(user_activities)
@@ -646,17 +632,19 @@ def display_user_timeline_voice_by_months(show: bool = True, from_day: int = 360
     return _plot_return(plt, show)
 
 
-def display_user_line_graph_time(user_id: int, show: bool = True, from_day: int = 3600, to_day: int = 0) -> None:
+def display_user_line_graph_time(
+    user_id: int, show: bool = True, from_day: int = 3600, to_day: int = 0
+) -> Union[bytes, None]:
     """Display the user timeline voice time"""
     user_activities: List[UserActivity] = fetch_user_activities(user_id, from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
     user_info = data_user_id_name[user_id]
 
     # Dictionary to store total time played per user
-    user_play_times: int = 0
+    user_play_times: float = 0.0
 
     # Dictionary to store weekly time played for each user
-    user_weekly_play_times = defaultdict(int)
+    user_weekly_play_times: Dict[str, float] = defaultdict(int)
 
     # Temporary dictionary to hold start times
     start_times = {}
@@ -680,7 +668,7 @@ def display_user_line_graph_time(user_id: int, show: bool = True, from_day: int 
                 user_play_times += play_duration  # Track total time per user
 
     all_weeks = sorted(set(user_weekly_play_times.keys()))
-    all_dates = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
+    all_dates: list[datetime] = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
 
     # Prepare plot with three subplots
     plt.figure(figsize=(12, 6))
@@ -703,9 +691,9 @@ def display_user_line_graph_time(user_id: int, show: bool = True, from_day: int 
 
 
 def display_user_top_operators(
-    from_date: datetime,
+    from_date: date,
     show: bool = True,
-) -> bytes:
+) -> Union[bytes, None]:
     """
     Generate a matrix heatmap of the top operators used by each user
     """
@@ -750,7 +738,7 @@ def display_user_top_operators(
                 ax.text(
                     j,
                     i,
-                    int(matrix[i, j]),
+                    str(matrix[i, j]),
                     ha="center",
                     va="center",
                     fontsize=8,
@@ -777,7 +765,7 @@ def display_user_rank_match_played_server(
     from_date: datetime,
     to_date: datetime,
     show: bool = True,
-) -> bytes:
+) -> Union[bytes, None]:
     """
     Show how much of rank matches played by each user in the server
     """
@@ -807,7 +795,7 @@ def display_user_rank_match_played_server(
     y_pos = np.arange(len(names))
 
     # Plot bars with individual colors
-    bars = ax.barh(y_pos, rate_play_in_circus, color=colors)
+    ax.barh(y_pos, rate_play_in_circus, color=colors)
 
     # Set labels and title
     ax.set_yticks(y_pos)
@@ -816,11 +804,12 @@ def display_user_rank_match_played_server(
     ax.set_title("User Percentage Playing Rank in Circus Maximus", fontsize=14)
     return _plot_return(plt, show)
 
+
 def display_user_rank_match_win_rate_played_server(
-    from_date: datetime,
-    to_date: datetime,
+    from_date: date,
+    to_date: date,
     show: bool = True,
-) -> bytes:
+) -> Union[bytes, None]:
     """
     Show how much of rank matches played by each user in the server
     """
@@ -837,31 +826,32 @@ def display_user_rank_match_win_rate_played_server(
     ) = zip(*data)
 
     # Convert values to float if needed
-    win_rate_circus = [float(v) for v in win_rate_circus]
-    win_rate_not_circus = [float(v) for v in win_rate_not_circus]
+    win_rate_circus_float: List[float] = [float(v) for v in win_rate_circus]
+    win_rate_not_circus_float: List[float] = [float(v) for v in win_rate_not_circus]
 
-    names = [
-        f"{name} *" if win_rate_circus[i] > win_rate_not_circus[i] else name
-        for i, name in enumerate(names)
+    names_with_star: List[str] = [
+        f"{name} *" if win_rate_circus_float[i] > win_rate_not_circus_float[i] else name for i, name in enumerate(names)
     ]
 
     # Define bar width and y positions
-    y_pos = np.arange(len(names))
+    y_pos = np.arange(len(names_with_star))
     bar_width = 0.4  # Controls spacing between bars
 
     # Create figure and axis
     fig, ax = plt.subplots(figsize=(16, 12))
 
     # Plot bars
-    bars1 = ax.barh(y_pos - bar_width / 2, win_rate_circus, height=bar_width, color="green", label="Win Rate in Circus")
-    bars2 = ax.barh(y_pos + bar_width / 2, win_rate_not_circus, height=bar_width, color="red", label="Win Rate Not in Circus")
+    ax.barh(y_pos - bar_width / 2, win_rate_circus_float, height=bar_width, color="green", label="Win Rate in Circus")
+    ax.barh(
+        y_pos + bar_width / 2, win_rate_not_circus_float, height=bar_width, color="red", label="Win Rate Not in Circus"
+    )
 
     # Add vertical reference line at 50%
     ax.axvline(50, color="blue", linestyle="--", linewidth=1, label="50% Reference")
 
     # Set labels and title
     ax.set_yticks(y_pos)
-    ax.set_yticklabels(names, fontsize=10)
+    ax.set_yticklabels(names_with_star, fontsize=10)
     ax.set_xlabel("Win Rate", fontsize=12)
     ax.set_title("User Win Rate in and outside Circus Maximus", fontsize=14)
 

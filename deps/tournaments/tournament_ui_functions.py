@@ -1,6 +1,5 @@
 """ Functions used to interact with the user in the Discord UI. """
 
-
 from typing import List, Optional
 import discord
 from deps.data_access import data_access_get_member
@@ -21,6 +20,9 @@ async def post_end_tournament_messages(interaction: discord.Interaction, tournam
     """
     Post to Discord the end of the tournament with the winners and the leaderboard of the bets
     """
+    if interaction.guild_id is None:
+        return
+    guild_id = interaction.guild_id
     tournament: Optional[Tournament] = fetch_tournament_by_id(tournament_id)
     if tournament is None:
         print_warning_log(f"send_end_tournament_by_mod: cannot find tournament {tournament_id}.")
@@ -32,20 +34,32 @@ async def post_end_tournament_messages(interaction: discord.Interaction, tournam
         print_error_log(
             f"TournamentMatchScoreReport: process_tournament_result: Failed to build tournament tree for tournament {tournament_id}. Skipping."
         )
+        return
     final_score = get_tournament_final_result_positions(tournament_tree)
     file = generate_bracket_file(tournament_id)
+    if file is None:
+        # Should never go here
+        print_error_log(
+            f"TournamentMatchScoreReport: process_tournament_result: Failed to generate bracket file for tournament {tournament_id}."
+        )
+        await interaction.followup.send(
+            f"The tournament **{tournament.name}** has finished! No winners were found. No bracket available.",
+            ephemeral=False,
+        )
+        return
     if final_score is None:
+        # Should always go here
         await interaction.followup.send(file=file, ephemeral=False)
     else:
         # Tournament is over. We show the winners
         try:
-            m1 = await data_access_get_member(interaction.guild_id, final_score.first_place_user_id)
+            m1 = await data_access_get_member(guild_id, final_score.first_place_user_id)
             first_place = m1.mention if m1 else "Unknown"
-            m2 = await data_access_get_member(interaction.guild_id, final_score.second_place_user_id)
+            m2 = await data_access_get_member(guild_id, final_score.second_place_user_id)
             second_place = m2.mention if m2 else "Unknown"
-            m3_1 = await data_access_get_member(interaction.guild_id, final_score.third_place_user_id_1)
+            m3_1 = await data_access_get_member(guild_id, final_score.third_place_user_id_1)
             third_place1 = m3_1.mention if m3_1 else "Unknown"
-            m3_2 = await data_access_get_member(interaction.guild_id, final_score.third_place_user_id_2)
+            m3_2 = await data_access_get_member(guild_id, final_score.third_place_user_id_2)
             third_place2 = m3_2.mention if m3_2 else "None"
         except Exception as e:
             # Might go in here in development since there is no member in the guild

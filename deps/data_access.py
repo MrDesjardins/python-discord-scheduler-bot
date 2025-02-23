@@ -54,14 +54,15 @@ async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
     return await get_cache(True, f"{KEY_GUILD}:{guild_id}", fetch)
 
 
-async def data_access_get_message(
-    guild_id: discord.Guild, channel_id: int, message_id: int
-) -> Union[discord.Message, None]:
+async def data_access_get_message(guild_id: int, channel_id: int, message_id: int) -> Union[discord.Message, None]:
     """Get the message by the given guild, channel and message id"""
 
     async def fetch():
         try:
-            channel: discord.TextChannel = await data_access_get_channel(channel_id)
+            channel = await data_access_get_channel(channel_id)
+            if channel is None:
+                print_log(f"data_access_get_message: Channel {channel_id} not found for guild {guild_id}")
+                return None
             return await channel.fetch_message(message_id)
         except discord.errors.HTTPException:
             # Can only occurs if we move the database from prod to dev (message id are not the same)
@@ -70,7 +71,7 @@ async def data_access_get_message(
     return await get_cache(True, f"{KEY_MESSAGE}:{guild_id}:{channel_id}:{message_id}", fetch)
 
 
-async def data_access_get_user(guild_id: discord.Guild, user_id: int) -> Union[discord.User, None]:
+async def data_access_get_user(guild_id: int, user_id: int) -> Union[discord.User, None]:
     """Get the user by the given guild and user id"""
 
     async def fetch():
@@ -126,13 +127,13 @@ def data_access_set_reaction_message(
 
 
 async def data_access_get_users_auto_schedule(
-    guild_id: int, day_of_week_number: str
+    guild_id: int, day_of_week_number: int
 ) -> Union[List[SimpleUserHour], None]:
     """Get users schedule for a specific day of the week"""
     return await get_cache(False, f"{KEY_GUILD_USERS_AUTO_SCHEDULE}:{guild_id}:{day_of_week_number}")
 
 
-def data_access_set_users_auto_schedule(guild_id: int, day_of_week_number: str, users: List[SimpleUserHour]) -> None:
+def data_access_set_users_auto_schedule(guild_id: int, day_of_week_number: int, users: List[SimpleUserHour]) -> None:
     """Configure the users schedule for a specific day of the week"""
     set_cache(
         False,
@@ -337,7 +338,7 @@ def data_access_set_main_text_channel_id(guild_id: int, channel_id: int) -> None
     set_cache(False, f"{KEY_GUILD_MAIN_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
 
 
-def data_access_set_voice_user_list(guild_id: int, channel_id: int, user_map: dict[int, str]) -> None:
+def data_access_set_voice_user_list(guild_id: int, channel_id: int, user_map: dict[int, ActivityTransition]) -> None:
     """Set the channel that the bot will send text related to Siege"""
     set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
 
@@ -350,7 +351,7 @@ async def data_access_get_voice_user_list(guild_id: int, channel_id: int) -> dic
     return result
 
 
-async def data_access_remove_voice_user_list(guild_id: int, channel_id: int, user_id: Optional[int]) -> None:
+async def data_access_remove_voice_user_list(guild_id: int, channel_id: int, user_id: int) -> None:
     """Remove a user from the voice channel list"""
     user_map = await data_access_get_voice_user_list(guild_id, channel_id)
     user_map.pop(user_id, None)
@@ -359,7 +360,7 @@ async def data_access_remove_voice_user_list(guild_id: int, channel_id: int, use
 
 
 async def data_access_update_voice_user_list(
-    guild_id: int, channel_id: int, user_id: Optional[int], activity_detail: Optional[Union[ActivityTransition, str]]
+    guild_id: int, channel_id: int, user_id: int, activity_detail: Optional[Union[ActivityTransition, str]]
 ) -> None:
     """
     Set for a voice channel the user status
@@ -373,13 +374,13 @@ async def data_access_update_voice_user_list(
     if isinstance(activity_detail, str):
         # If a string is provided, it means we only have a activity detail (without the before)
         # It happens in the case of changing status (offline to online)
-        current_after = user_map.get(user_id, None)
-        if current_after is None:
+        current_activity = user_map.get(user_id, None)
+        if current_activity is None:
             # If the user wasn't there and we have only the after, we set the None the before
             to_save = ActivityTransition(None, activity_detail)
         else:
             # If we had the user before and now providing only a current detail, we set the current after as before and then the string as after
-            to_save = ActivityTransition(current_after, activity_detail)
+            to_save = ActivityTransition(current_activity.after, activity_detail)
     else:
         # We have a full activity detail. Might be None, or might have both before and after
         if activity_detail is None:
@@ -410,15 +411,16 @@ def data_access_set_last_bot_message_in_main_text_channel(
     )
 
 
-async def data_access_get_daily_message_id(guild_id: int) -> Union[discord.Message, None]:
+async def data_access_get_daily_message_id(guild_id: int) -> Union[int, None]:
     """Get the daily message by the given guild and channel id"""
     current_date = get_now_eastern().strftime("%Y-%m-%d")
     key = f"{KEY_DAILY_MSG}:{guild_id}:{current_date}"
     return await get_cache(False, key)
 
 
-def data_access_set_daily_message_id(guild_id: int, message_id: int) -> Optional[int]:
+def data_access_set_daily_message_id(guild_id: int, message_id: int) -> None:
     """Set the daily message by the given guild and channel id"""
     current_date = get_now_eastern().strftime("%Y-%m-%d")
     key = f"{KEY_DAILY_MSG}:{guild_id}:{current_date}"
     set_cache(False, key, message_id, THREE_DAY_TTL)
+ 

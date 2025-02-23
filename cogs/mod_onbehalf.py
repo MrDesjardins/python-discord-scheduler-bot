@@ -81,8 +81,14 @@ class ModeratorOnUserBehalf(commands.Cog):
         """
 
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
-        channel: discord.TextChannel = data_access_get_guild_schedule_text_channel_id(guild_id)
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            await interaction.followup.send("Cannot set the user schedule.", ephemeral=True)
+            return
+        channel = data_access_get_guild_schedule_text_channel_id(guild_id)
+        if channel is None:
+            await interaction.followup.send("No channel found for the schedule.", ephemeral=True)
+            return
         channel_id = channel.id
         last_message = await get_last_schedule_message(self.bot, channel)
         last_message_id = last_message.id if last_message is not None else None
@@ -91,7 +97,7 @@ class ModeratorOnUserBehalf(commands.Cog):
             await interaction.followup.send("No messages found in this channel.", ephemeral=True)
             return
         message_id = last_message_id
-        message: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
+        message = await data_access_get_message(guild_id, channel_id, message_id)
         if message is None:
             await interaction.followup.send(
                 f"No messages found in this channel for id {last_message_id}.", ephemeral=True
@@ -116,16 +122,16 @@ class ModeratorOnUserBehalf(commands.Cog):
 
     @app_commands.command(name=COMMAND_STATS_MATCHES)
     @commands.has_permissions(administrator=True)
-    async def mod_stats(self, interaction: discord.Interaction, member: discord.Member):
+    async def mod_stats(self, interaction: discord.Interaction, member: discord.Member) -> None:
         """Show the statistics for the moderator"""
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
-        member = await data_access_get_member(guild_id, member.id)
-        res = await send_session_stats_directly(member, guild_id)
-        if res is None:
-            await interaction.followup.send("No stats available", ephemeral=True)
-        else:
+        guild_id = interaction.guild_id
+        if guild_id is None:
             await interaction.delete_original_response()
+            return
+        # member = await data_access_get_member(guild_id, member.id)
+        await send_session_stats_directly(member, guild_id)
+        await interaction.followup.send("Stats queued available", ephemeral=True)
 
     @app_commands.command(name=COMMAND_STATS_ACTIVE_USER)
     @commands.has_permissions(administrator=True)

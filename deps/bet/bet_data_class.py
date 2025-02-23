@@ -1,7 +1,7 @@
 """ Model for the betting system"""
 
 import dataclasses
-import datetime
+from datetime import datetime
 
 from deps.functions_date import convert_to_datetime
 

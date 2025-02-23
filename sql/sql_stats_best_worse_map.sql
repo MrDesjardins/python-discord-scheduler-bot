@@ -59,7 +59,15 @@ WITH
       user_full_match_info
       INNER JOIN user_info ON user_info.id = user_id
     WHERE
-      match_timestamp >= '2025-01-14'
+      match_timestamp >= '2025-02-10'
+      AND user_full_match_info.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-10'
+      )
     GROUP BY
       user_info.display_name,
       user_full_match_info.map_name

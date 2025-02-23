@@ -9,7 +9,7 @@ FROM
   LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
 where
   is_rollback = false
-  and datetime (match_timestamp) > datetime ('2025-01-21')
+  and datetime (match_timestamp) > datetime ('2025-02-01')
 GROUP BY
   user_id
 ORDER BY
@@ -32,10 +32,18 @@ from
       LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
     where
       is_rollback = false
-      and datetime (match_timestamp) > datetime ('2025-01-21')
+      and datetime (match_timestamp) > datetime ('2025-02-01')
+      AND user_full_match_info.user_id IN (
+        SELECT DISTINCT
+          (user_id)
+        from
+          user_activity
+        where
+          timestamp > datetime ('2025-02-10')
+      )
     GROUP BY
       user_id
   )
 ORDER BY
   avg_kill desc
-
+LIMIT 20;

@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 from dateutil import parser
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
@@ -34,10 +34,12 @@ async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
         # Find the first <img> within this element
         img_tag = element.find("img")
 
-        if img_tag:
+        if isinstance(img_tag, Tag):
             alt_name_image = img_tag.get("alt")
-            rank = alt_name_image.split(" ")[0].lower().capitalize()
-
+            if isinstance(alt_name_image, str):
+                rank = alt_name_image.split(" ")[0].lower().capitalize()
+            else:
+                rank = ""
     if rank in siege_ranks:
         return rank
     else:

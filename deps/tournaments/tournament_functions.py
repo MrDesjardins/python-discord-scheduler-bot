@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from collections import deque
 import random
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from deps.bet.bet_functions import (
     distribute_gain_on_recent_ended_game,
     system_generate_game_odd,
@@ -78,6 +78,8 @@ async def start_tournament(tournament: Tournament) -> None:
     Start a specific tournament
     Create the bracket
     """
+    if tournament.id is None:
+        return
     # Get list of people ID who registered
     people: List[UserInfo] = get_people_registered_for_tournament(tournament.id)
 
@@ -137,9 +139,11 @@ def auto_assign_winner(tournament_games: List[TournamentGame]) -> List[Tournamen
     Assign the user1_id or user2_id of the parent node to the user_winner_id of the child node
     """
     # Find all nodes with user1_id set to None or user2_id set to None
-    dict_nodes = {node.id: node for node in tournament_games}
+    dict_nodes: dict[int, TournamentGame] = {node.id: node for node in tournament_games}
     node_to_save: dict[int, TournamentGame] = {}
     tree = build_tournament_tree(tournament_games)
+    if tree is None:
+        return []
 
     def traverse(node: TournamentNode):
 
@@ -250,37 +254,39 @@ def build_tournament_tree(tournament: List[TournamentGame]) -> Optional[Tourname
 
     # Step 1: Create a node for each game
     for game in tournament:
-        nodes[game.id] = TournamentNode(
-            id=game.id,
-            tournament_id=game.tournament_id,
-            user1_id=game.user1_id,
-            user2_id=game.user2_id,
-            user_winner_id=game.user_winner_id,
-            timestamp=game.timestamp,
-            map=game.map,
-            score=game.score,
-        )
+        if game.id is not None:
+            nodes[game.id] = TournamentNode(
+                id=game.id,
+                tournament_id=game.tournament_id,
+                user1_id=game.user1_id,
+                user2_id=game.user2_id,
+                user_winner_id=game.user_winner_id,
+                timestamp=game.timestamp,
+                map=game.map,
+                score=game.score,
+            )
 
     # Step 2: Connect the tree
     root = None
     for game in tournament:
-        node = nodes[game.id]
+        if game.id is not None:
+            node = nodes[game.id]
 
-        # Link child nodes if next_game1_id or next_game2_id are present
-        if game.next_game1_id:
-            node.next_game1 = nodes.get(game.next_game1_id)
-        if game.next_game2_id:
-            node.next_game2 = nodes.get(game.next_game2_id)
+            # Link child nodes if next_game1_id or next_game2_id are present
+            if game.next_game1_id:
+                node.next_game1 = nodes.get(game.next_game1_id)
+            if game.next_game2_id:
+                node.next_game2 = nodes.get(game.next_game2_id)
 
-        # If a node has no children (not referenced by any other next_game1_id or next_game2_id), it is the root
-        if not any(game.id in (t.next_game1_id, t.next_game2_id) for t in tournament):
-            root = node
+            # If a node has no children (not referenced by any other next_game1_id or next_game2_id), it is the root
+            if not any(game.id in (t.next_game1_id, t.next_game2_id) for t in tournament):
+                root = node
 
     return root
 
 
 def assign_people_to_games(
-    tournament: TournamentNode, tournament_games: List[TournamentGame], people: List[UserInfo]
+    tournament: Tournament, tournament_games: List[TournamentGame], people: List[UserInfo]
 ) -> List[TournamentGame]:
     """
     Assign people to tournament games. Assign to the last level of the tree but if the tree is not full, assign to the
@@ -322,7 +328,7 @@ def assign_people_to_games(
         i_leaf += 1
 
     # Mark the node as a winner if there is only one person
-    assign_to_parent: List[TournamentNode] = []
+    assign_to_parent: List[TournamentGame] = []
     for node in leaf_nodes:
         if node.user1_id and not node.user2_id:
             # If only one user is assigned, mark the node as N/A
@@ -364,6 +370,9 @@ async def report_lost_tournament(tournament_id: int, user_id: int, score: str) -
     # Get the tournament
     tournament = fetch_tournament_by_id(tournament_id)
 
+    if tournament is None:
+        return Reason(False, "The tournament does not exist.")
+
     # Get the list of users registered for the tournament
     participants: List[UserInfo] = get_people_registered_for_tournament(tournament_id)
     if not any(user.id == user_id for user in participants):
@@ -374,6 +383,9 @@ async def report_lost_tournament(tournament_id: int, user_id: int, score: str) -
 
     # Get the tournament tree
     tournament_tree = build_tournament_tree(tournament_games)
+
+    if tournament_tree is None:
+        return Reason(False, "The tournament tree is empty.")
 
     # Find the node where the user is present
     node = find_first_node_of_user_not_done(tournament_tree, user_id)
@@ -480,10 +492,10 @@ def get_node_by_levels(root: TournamentNode) -> List[List[TournamentNode]]:
     Each level are part of the visual, level 0 (is the leaves) is the most left side of the
     bracket
     """
-    levels = []
+    levels: List[List[TournamentNode]] = []
     max_depth = 0
 
-    def traverse(node: TournamentNode, depth: int):
+    def traverse(node: Union[TournamentNode, None], depth: int):
         nonlocal max_depth
 
         if node is None:

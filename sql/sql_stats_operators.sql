@@ -19,7 +19,15 @@ WITH RECURSIVE
       user_full_match_info
       LEFT JOIN user_info ON user_info.id = user_full_match_info.user_id
     WHERE
-      datetime (match_timestamp) > datetime ('2025-01-20')
+      datetime (match_timestamp) > '2025-02-10'
+      AND user_full_match_info.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-10'
+      )
     UNION ALL
     -- Recursive case: Split the next operator from the remaining string
     SELECT

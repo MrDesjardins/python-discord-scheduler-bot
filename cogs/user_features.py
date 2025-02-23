@@ -40,13 +40,20 @@ class UserFeatures(commands.Cog):
     ):
         """Get the timezone of all users in a voice channel"""
         await interaction.response.defer()
+        guild = interaction.guild
+        if guild is None:
+            print_error_log(
+                f"get_users_time_zone_from_voice_channel: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.followup.send("Guild not found for this user.", ephemeral=True)
+            return
         users_id = [members.id for members in voice_channel.members]
         userid_member = {members.id: members for members in voice_channel.members}
         if len(users_id) == 0:
             await interaction.followup.send("No users in the voice channel.")
             return
 
-        user_infos: Optional[UserInfo] = fetch_user_info_by_user_id_list(users_id)
+        user_infos = fetch_user_info_by_user_id_list(users_id)
 
         embed = discord.Embed(
             title=f"{voice_channel.name} Channel Timezone",
@@ -59,10 +66,15 @@ class UserFeatures(commands.Cog):
         eastern = ""
 
         for user_info in user_infos:
-            rank = get_user_rank_emoji(
-                self.bot.guild_emoji.get(interaction.guild.id, {}), userid_member.get(user_info.id)
-            )
+            if user_info is None:
+                continue
             member = userid_member.get(user_info.id)
+            if member is None:
+                print_error_log(
+                    f"get_users_time_zone_from_voice_channel: Cannot find a member from user id {user_info.id}."
+                )
+                continue
+            rank = get_user_rank_emoji(self.bot.guild_emoji.get(guild.id, {}), member)
 
             user_name = member.mention if member is not None else user_info.display_name
             if user_info is not None:
@@ -81,7 +93,7 @@ class UserFeatures(commands.Cog):
         if len(user_infos) == 0:
             await interaction.followup.send("Cannot find users timezone.")
             return
-        most_common_tz = most_common([user_info.time_zone for user_info in user_infos])
+        most_common_tz = most_common([user_info.time_zone for user_info in user_infos if user_info is not None])
 
         embed.set_footer(text=f"Most common timezone: {most_common_tz}")
         await interaction.followup.send(content="", embed=embed)

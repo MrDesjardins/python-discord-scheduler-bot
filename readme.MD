@@ -462,6 +462,7 @@ To lint the code, you can use the following command:
 ```sh
 pylint **/*.py
 black **/*.py
+mypy deps
 ```
 
 # Deployment

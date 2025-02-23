@@ -659,11 +659,11 @@ async def test_full_tournament_many_winning_bet_and_one_lost():
             assert bet_user_games_to_assert[0].amount == 100
             assert bet_user_games_to_assert[1].amount == pytest.approx(363.636, abs=1e-3)
             assert bet_user_games_to_assert[2].amount == 0
-            wallet:BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user4.id)
+            wallet: BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user4.id)
             assert wallet.amount == 1050
-            wallet:BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user5.id)
+            wallet: BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user5.id)
             assert wallet.amount == pytest.approx(1163.636, abs=1e-3)
-            wallet:BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user6.id)
+            wallet: BetUserTournament = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user6.id)
             assert wallet.amount == 500
             plot_tournament_bracket(
                 tournament,

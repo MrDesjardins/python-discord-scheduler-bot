@@ -34,7 +34,10 @@ def generate_bracket_file(tournament_id: int, file_name: str = "tournament_brack
     """
     Generate the image to share in a Discord message
     """
-    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        print_error_log(f"generate_braket_file: Tournament {tournament_id} not found. Skipping.")
+        return None
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree: Optional[TournamentNode] = build_tournament_tree(tournament_games)
     if tournament_tree is None:
@@ -55,20 +58,28 @@ def generate_bracket_file(tournament_id: int, file_name: str = "tournament_brack
     return file
 
 
-async def send_tournament_bracket_to_a_guild(guild: discord.guild) -> None:
+async def send_tournament_bracket_to_a_guild(guild: discord.Guild) -> None:
     """
     Send the tournament bracket to a guild
     """
     guild_id = guild.id
-    channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
+    channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
             f"\t⚠️ send_daily_tournament_bracket_message: Tournament Channel id (configuration) not found for guild {guild.name}. Skipping."
         )
         return
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    channel = await data_access_get_channel(channel_id)
+    if channel is None:
+        print_error_log(
+            f"\t⚠️ send_daily_tournament_bracket_message: Tournament Channel not found for guild {guild.name}. Skipping."
+        )
+        return
     tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
     for tournament in tournaments:
+        if tournament.id is None:
+            print_error_log("send_daily_tournament_bracket_message: Tournament id is None. Skipping.")
+            continue
         file = generate_bracket_file(tournament.id)
         if file is None:
             print_error_log(
@@ -78,18 +89,23 @@ async def send_tournament_bracket_to_a_guild(guild: discord.guild) -> None:
         await channel.send(file=file, content=f"Bracket for {tournament.name}")
 
 
-async def send_tournament_registration_to_a_guild(guild: discord.guild) -> None:
+async def send_tournament_registration_to_a_guild(guild: discord.Guild) -> None:
     """
     Sending a message once a day to remind the registration for the tournament
     """
     guild_id = guild.id
-    channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
+    channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
             f"\t⚠️ send_daily_tournament_registration_message: Tournament Channel id (configuration) not found for guild {guild.name}. Skipping."
         )
         return
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    channel = await data_access_get_channel(channel_id)
+    if channel is None:
+        print_error_log(
+            f"\t⚠️ send_daily_tournament_registration_message: Tournament Channel not found for guild {guild.name}. Skipping."
+        )
+        return
     tournaments: List[Tournament] = fetch_tournament_open_registration(guild_id)
     if len(tournaments) > 0:
         msg = "There are still open registrations for the following tournaments:\n"
@@ -102,18 +118,23 @@ async def send_tournament_registration_to_a_guild(guild: discord.guild) -> None:
         print_log(f"send_daily_tournament_registration_message: No open registration for guild {guild_id}")
 
 
-async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
+async def send_tournament_starting_to_a_guild(guild: discord.Guild) -> None:
     """
     Send a message once at the date of a tournament is starting
     """
     guild_id = guild.id
-    channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
+    channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
             f"\t⚠️ send_tournament_starting_to_a_guild: Tournament Channel id (configuration) not found for guild {guild.name}. Skipping."
         )
         return
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    channel = await data_access_get_channel(channel_id)
+    if channel is None:
+        print_error_log(
+            f"\t⚠️ send_tournament_starting_to_a_guild: Tournament Channel not found for guild {guild.name}. Skipping."
+        )
+        return
     tournaments: List[Tournament] = fetch_tournament_start_today(guild_id)
     if len(tournaments) > 0:
         msg = f"Tournaments starting today:\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do).\nUse the command `/{COMMAND_TOURNAMENT_SEE_BRACKET_TOURNAMENT}` to see who you are facing."
@@ -128,29 +149,45 @@ async def send_tournament_starting_to_a_guild(guild: discord.guild) -> None:
 
         await channel.send(content=msg)
         for tournament in tournaments:
+            if tournament.id is None:
+                print_error_log("send_tournament_starting_to_a_guild: Tournament id is None. Skipping.")
+                continue
             file = generate_bracket_file(tournament.id)
+            if file is None:
+                print_error_log(
+                    f"\t⚠️ send_tournament_starting_to_a_guild: Failed to generate tournament bracket image for tournament {tournament.id}. Skipping."
+                )
+                continue
             await channel.send(content=f"Bracket for {tournament.name}", file=file)
     else:
         print_log(f"send_tournament_starting_to_a_guild: No open registration for guild {guild_id}")
 
 
-async def send_tournament_match_reminder(guild: discord.guild) -> None:
+async def send_tournament_match_reminder(guild: discord.Guild) -> None:
     """
     Get all the active tournaments, then get all the matches that are not completed and send a reminder
     """
     guild_id = guild.id
-    channel_id: int = await data_access_get_guild_tournament_text_channel_id(guild_id)
+    channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
             f"\t⚠️ send_tournament_match_reminder: Tournament Channel id (configuration) not found for guild {guild.name}. Skipping."
         )
         return
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
+    channel = await data_access_get_channel(channel_id)
+    if channel is None:
+        print_error_log(
+            f"\t⚠️ send_tournament_match_reminder: Tournament Channel not found for guild {guild.name}. Skipping."
+        )
+        return
     tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
     msg = "Tournament reminder: The following people need to organize their match to unblock the tournament."
     need_reminder = False
     if len(tournaments) > 0:
         for tournament in tournaments:
+            if tournament.id is None:
+                print_error_log("send_tournament_match_reminder: Tournament id is None. Skipping.")
+                continue
             tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
             for game in tournament_games:
                 if game.user1_id is not None and game.user2_id is not None and game.user_winner_id is None:

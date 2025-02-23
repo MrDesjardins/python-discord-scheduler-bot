@@ -3,8 +3,7 @@ Function related to date manipulation
 """
 
 from datetime import datetime, timezone
-from typing import Optional
-
+from typing import Optional, Union
 import pytz
 
 
@@ -53,7 +52,7 @@ def ensure_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def convert_to_datetime(date_str: Optional[str]) -> datetime:
+def convert_to_datetime(date_str: Optional[str]) -> Union[datetime, None]:
     """Convert a date string to a timezone-aware datetime object (UTC)"""
     if not date_str:  # Handle None or empty string
         return None
@@ -62,6 +61,7 @@ def convert_to_datetime(date_str: Optional[str]) -> datetime:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)  # Make the datetime UTC-aware
     return dt
+
 
 def is_today(date_time: datetime) -> bool:
     """Check if the given datetime is on the same day as today in Eastern Time"""

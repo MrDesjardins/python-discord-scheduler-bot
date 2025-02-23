@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Union
 import discord
+import json
 from deps.data_access import (
     data_access_get_channel,
     data_access_get_guild,
@@ -27,20 +28,33 @@ from ui.schedule_buttons import ScheduleButtons
 lock = asyncio.Lock()
 
 
-async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: discord.Interaction, time_clicked: str):
+async def adjust_reaction(
+    guild_emoji: dict[int, Dict[str, str]], interaction: discord.Interaction, time_clicked: str
+) -> None:
     """Adjust the reaction with add or remove"""
 
     channel_id = interaction.channel_id
+    if channel_id is None:
+        print_error_log("adjust_reaction: No channel_id found in the interaction. Skipping.")
+        return
     guild_id = interaction.guild_id
+    if guild_id is None:
+        print_error_log("adjust_reaction: No guild_id found in the interaction. Skipping.")
+        return
+    if interaction.message is None:
+        print_error_log("adjust_reaction: No message found in the interaction. Skipping.")
+        return
     message_id = interaction.message.id
     user_id = interaction.user.id
 
-    guild: discord.Guild = await data_access_get_guild(guild_id)
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
-    text_message_reaction: discord.Message = await data_access_get_message(guild_id, channel_id, message_id)
-    user: discord.User = await data_access_get_user(guild_id, user_id)
-    member: discord.Member = await data_access_get_member(guild_id, user_id)
-    text_channel_configured_for_bot: discord.TextChannel = await data_access_get_guild_schedule_text_channel_id(
+    guild: Union[discord.Guild, None] = await data_access_get_guild(guild_id)
+    channel: Union[discord.TextChannel, None] = await data_access_get_channel(channel_id)
+    text_message_reaction: Union[discord.Message, None] = await data_access_get_message(
+        guild_id, channel_id, message_id
+    )
+    user: Union[discord.User, None] = await data_access_get_user(guild_id, user_id)
+    member: Union[discord.Member, None] = await data_access_get_member(guild_id, user_id)
+    text_channel_configured_for_bot_id: Union[int, None] = await data_access_get_guild_schedule_text_channel_id(
         guild_id
     )
 
@@ -54,7 +68,7 @@ async def adjust_reaction(guild_emoji: dict[str, Dict[str, str]], interaction: d
     user_display_name = member.display_name
 
     # We do not act on message that are not in the Guild's text channel
-    if text_channel_configured_for_bot is None or text_channel_configured_for_bot != channel_id:
+    if text_channel_configured_for_bot_id is None or text_channel_configured_for_bot_id != channel_id:
         # The reaction was on another channel, we allow it
         return
 
@@ -116,7 +130,7 @@ async def get_adjust_reaction_votes(
 
 
 async def update_vote_message(
-    message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]], guild_emoji: dict[str, Dict[str, str]]
+    message: discord.Message, vote_for_message: Dict[str, List[SimpleUser]], guild_emoji: dict[int, Dict[str, str]]
 ):
     """Update the votes per hour on the bot message"""
     embed_msg = get_daily_embed_message(vote_for_message)
@@ -147,7 +161,7 @@ def get_daily_embed_message(vote_for_message: Dict[str, List[SimpleUser]]) -> di
 
 
 async def auto_assign_user_to_daily_question(
-    guild_id: int, channel_id: int, message: discord.Message, guild_emoji: dict[str, Dict[str, str]]
+    guild_id: int, channel_id: int, message: discord.Message, guild_emoji: dict[int, Dict[str, str]]
 ) -> Dict[str, List[SimpleUser]]:
     """Take the existing schedules for all user and apply it to the message"""
     day_of_week_number = get_now_eastern().weekday()  # 0 is Monday, 6 is Sunday
@@ -172,7 +186,7 @@ async def auto_assign_user_to_daily_question(
 
         data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
         print_log(f"Updated message {message_id} with the user schedules for the day {day_of_week_number}")
-        print_log(message_votes)
+        print_log(json.dumps(message_votes))
         await update_vote_message(message, message_votes, guild_emoji)
 
     else:

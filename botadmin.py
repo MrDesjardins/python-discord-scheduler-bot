@@ -3,12 +3,10 @@
 from datetime import datetime, timedelta
 import subprocess
 import glob
-import io
 import os
 import sys
 import threading
 from typing import Optional
-import unittest
 import black
 from simple_term_menu import TerminalMenu
 from pylint import lint
@@ -133,6 +131,7 @@ def get_from_to_days(menu_entry_index2: int) -> tuple[int, int]:
         from_day = (datetime.now() - datetime(2024, 9, 21)).days
         to_day = 0
         return (from_day, to_day)
+    return (0, 0)
 
 
 def show_visualization_menu(time_choice: Optional[int] = None):

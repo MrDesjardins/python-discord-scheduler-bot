@@ -1,7 +1,8 @@
 """ Common Actions that the bots Cogs or Bots can invoke """
+
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional, Union
 from gtts import gTTS
 import discord
 from deps.browser import download_full_matches_async
@@ -51,7 +52,7 @@ from deps.functions import (
     get_last_schedule_message,
     get_url_user_profile_main,
     get_url_user_profile_overview,
-    set_member_role_from_rank
+    set_member_role_from_rank,
 )
 from deps.values import (
     STATS_HOURS_WINDOW_IN_PAST,
@@ -68,7 +69,7 @@ from deps.functions_schedule import (
 from ui.schedule_buttons import ScheduleButtons
 
 
-async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force: bool = False):
+async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild):
     """
     Send the daily schedule question to a specific guild
     If there is an existing message, we update. This is importantto have always the View connected to the callbacks
@@ -81,8 +82,10 @@ async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild, force
         print_error_log(f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
         return
 
-    channel: discord.TextChannel = await data_access_get_channel(channel_id)
-
+    channel = await data_access_get_channel(channel_id)
+    if channel is None:
+        print_error_log(f"send_daily_question_to_a_guild: Channel not found for guild {guild.name}. Skipping.")
+        return
     # last_message_id = await data_access_get_daily_message_id(guild_id)
     # last_message = None
 
@@ -155,8 +158,7 @@ async def check_voice_channel(bot: MyBot):
         if last_message_id is None:
             print_warning_log(f"check_voice_channel: No message found in the channel {text_channel.name}. Skipping.")
             continue
-        message_id = last_message_id
-        message_votes = await data_access_get_reaction_message(guild_id, text_channel_id, message_id)
+        message_votes = await data_access_get_reaction_message(guild_id, text_channel_id, last_message_id)
         if not message_votes:
             message_votes = get_empty_votes()
         found_new_user = False
@@ -182,7 +184,7 @@ async def check_voice_channel(bot: MyBot):
                 if any(user.id == u.user_id for u in message_votes[current_hour_str]):
                     # User already voted for the current hour
                     print_log(
-                        f"check_voice_channel: User {user.id} already voted for {current_hour_str} in message {message_id}"
+                        f"check_voice_channel: User {user.id} already voted for {current_hour_str} in message {last_message_id}"
                     )
                     continue
                 # Add the user to the message votes
@@ -199,16 +201,21 @@ async def check_voice_channel(bot: MyBot):
         if found_new_user:
             print_log(f"check_voice_channel: Updating voice channel cache for {guild.name} and updating the message")
             # Always update the cache
-            data_access_set_reaction_message(guild_id, text_channel_id, message_id, message_votes)
-            last_message: discord.Message = await data_access_get_message(guild_id, text_channel_id, message_id)
-            await update_vote_message(last_message, message_votes, bot.guild_emoji)
-            print_log(f"check_voice_channel: Updated voice channel cache for {guild.name}")
+            data_access_set_reaction_message(guild_id, text_channel_id, last_message_id, message_votes)
+            last_discord_msg = await data_access_get_message(guild_id, text_channel_id, last_message_id)
+            if last_discord_msg is None:
+                print_log(
+                    f"check_voice_channel: Discord message not found for {guild.name} and msg id {last_message_id}. Skipping."
+                )
+            else:
+                await update_vote_message(last_discord_msg, message_votes, bot.guild_emoji)
+                print_log(f"check_voice_channel: Updated voice channel cache for {guild.name}")
 
 
 async def send_notification_voice_channel(
     guild_id: int,
     member: discord.Member,
-    voice_channel: discord.VoiceChannel,
+    voice_channel: Union[discord.VoiceChannel, discord.StageChannel],
     schedule_text_channel_id: int,
 ) -> None:
     """
@@ -269,14 +276,22 @@ async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str
     current_hour_str: The current hour in the format "3am"
     """
     channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
+    if channel_id is None:
+        print_warning_log(
+            f"get_users_scheduled_today_current_hour: Text channel not set for guild {guild_id}. Skipping."
+        )
+        return []
     last_message_id = await data_access_get_daily_message_id(guild_id)
 
     if last_message_id is None:
+        print_warning_log(
+            f"get_users_scheduled_today_current_hour: No message id found for guild {guild_id}. Skipping."
+        )
         return []
 
     # Cache all users for this message's reactions to avoid redundant API calls
     message_votes = await data_access_get_reaction_message(guild_id, channel_id, last_message_id)
-    if not message_votes:
+    if message_votes is None:
         message_votes = get_empty_votes()
     if current_hour_str not in message_votes:
         return []
@@ -284,7 +299,10 @@ async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str
 
 
 async def adjust_role_from_ubisoft_max_account(
-    guild: discord.guild, member: discord.member, ubisoft_connect_name: str, ubisoft_active_account: str = None
+    guild: discord.Guild,
+    member: discord.Member,
+    ubisoft_connect_name: str,
+    ubisoft_active_account: Union[str, None] = None,
 ) -> str:
     """Adjust the server's role of a user based on their max rank in R6 Tracker"""
     max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name, True)
@@ -296,8 +314,7 @@ async def adjust_role_from_ubisoft_max_account(
         await set_member_role_from_rank(guild, member, max_rank)
     except Exception as e:
         print_error_log(f"adjust_role_from_ubisoft_max_account: Error setting the role: {e}")
-
-        return
+        return ""
 
     text_channel_id = await data_access_get_guild_username_text_channel_id(guild.id)
     if text_channel_id is None:
@@ -311,10 +328,11 @@ async def adjust_role_from_ubisoft_max_account(
 
     if mod_role is None:
         print_warning_log(f"adjust_role_from_ubisoft_max_account: Mod role not found in guild {guild.name}. Skipping.")
-
+        return ""
     channel = await data_access_get_channel(text_channel_id)
-    if ubisoft_active_account is None:
+    if ubisoft_active_account is None or channel is None:
         active_msg = ""
+        return ""
     else:
         active_msg = f"\nCurrently playing on the [{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."
 
@@ -324,7 +342,7 @@ async def adjust_role_from_ubisoft_max_account(
     return max_rank
 
 
-async def send_session_stats_directly(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
+async def send_session_stats_directly(member: discord.Member, guild_id: int) -> None:
     """
     Get the statistic of a user and post it
     """
@@ -332,7 +350,7 @@ async def send_session_stats_directly(member: discord.Member, guild_id: int) -> 
     await post_queued_user_stats(False)
 
 
-async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> Optional[UserMatchInfoSessionAggregate]:
+async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> None:
     """
     Get the statistic of a user and add the request into a queue
     """
@@ -340,7 +358,7 @@ async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> 
     if member.bot:
         return  # Ignore bot
 
-    channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
+    channel_id = await data_access_get_gaming_session_text_channel_id(guild_id)
     if channel_id is None:
         print_warning_log(f"send_session_stats_to_queue: Text channel not set for guild {guild_id}. Skipping.")
         return
@@ -354,13 +372,13 @@ async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> 
     # Only shows the stats once per hour per user maximum
     if last_activity is not None and last_activity > current_time - timedelta(hours=1):
         print_log(f"User {member_name} already has stats in the last hour")
-        return None
+        return
 
     # Get the user ubisoft name
-    user_info: UserInfo = await fetch_user_info_by_user_id(member_id)
+    user_info = await fetch_user_info_by_user_id(member_id)
     if user_info is None or user_info.ubisoft_username_active is None:
         print_log(f"User {member_name} has no active Ubisoft account set")
-        return None
+        return
 
     # Queue the request to get the user stats with the time which allows to delay the transmission of about 5 minutes to avoid missing the last match
     user = UserQueueForStats(user_info, guild_id, current_time)
@@ -416,6 +434,9 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
         user_info = user_stats.user_request_stats.user_info
         member_id = user_info.id
         guild_id = user_stats.user_request_stats.guild_id
+        if user_info.ubisoft_username_active is None:
+            print_log(f"send_channel_list_stats: User {user_info.display_name} has no active Ubisoft account set")
+            continue
         try:
             await data_acess_remove_list_member_stats(user_stats.user_request_stats)
             aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
@@ -427,8 +448,14 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
                 )
                 continue  # Skip to the next user
 
-            channel_id: int = await data_access_get_gaming_session_text_channel_id(guild_id)
-            channel: discord.TextChannel = await data_access_get_channel(channel_id)
+            channel_id = await data_access_get_gaming_session_text_channel_id(guild_id)
+            if channel_id is None:
+                print_warning_log(f"send_channel_list_stats: Text channel not set for guild {guild_id}. Skipping.")
+                continue
+            channel = await data_access_get_channel(channel_id)
+            if channel is None:
+                print_warning_log(f"send_channel_list_stats: Text channel not found for guild {guild_id}. Skipping.")
+                continue
             member = await data_access_get_member(guild_id, member_id)
             if member is None:
                 print_error_log(f"send_channel_list_stats: Member {member_id} not found in guild {guild_id}")
@@ -464,7 +491,8 @@ def get_gaming_session_user_embed_message(
         f"Match #{i+1} - {'won 🏆' if match.has_win else 'lose ☠'} - {match.map_name}: {match.kill_count}/{match.death_count}/{match.assist_count}"
         for i, match in enumerate(reversed(aggregation.matches_recent))
     )
-    embed.set_thumbnail(url=member.avatar.url)
+    if member.avatar is not None:
+        embed.set_thumbnail(url=member.avatar.url)
 
     embed.add_field(name="Starting Pts", value=aggregation.started_rank_points, inline=True)
     diff = (
@@ -504,21 +532,19 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
     Send a message to the main text channel about looking for group to play
     """
 
-    dict_users: dict[int, Optional[ActivityTransition]] = await data_access_get_voice_user_list(
-        guild_id, voice_channel_id
-    )
+    dict_users: Mapping[int, ActivityTransition] = await data_access_get_voice_user_list(guild_id, voice_channel_id)
     if dict_users is None:
         # No user, nothing to do
         return
 
     # Get the text channel to send the message
-    text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
+    text_channel_main_siege_id = await data_access_get_main_text_channel_id(guild_id)
     if text_channel_main_siege_id is None:
         print_warning_log(
             f"send_automatic_lfg_message: Main Siege text channel id not set for guild id {guild_id}. Skipping."
         )
         return
-    channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
+    channel = await data_access_get_channel(text_channel_main_siege_id)
     if not channel:
         print_warning_log(
             f"send_automatic_lfg_message: Main Siege text channel not found for guild id {guild_id}. Skipping."
@@ -545,7 +571,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
             return
 
     # Get current voice channel information
-    vc_channel: discord.TextChannel = await data_access_get_channel(voice_channel_id)
+    vc_channel = await data_access_get_channel(voice_channel_id)
     if vc_channel is None:
         print_warning_log(
             f"send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild id {guild_id} . Skipping."
@@ -611,4 +637,3 @@ async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWi
             # Update user with the R6 tracker if if it wasn't available before
             r6_id = match_stats[0].r6_tracker_user_uuid
             data_access_set_r6_tracker_id(user_info.id, r6_id)
-

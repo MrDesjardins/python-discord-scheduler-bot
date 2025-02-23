@@ -10,7 +10,7 @@ from deps.tournaments.tournament_data_access import (
 )
 from deps.values import COMMAND_BET, COMMAND_BET_ACTIVE_TOURNAMENT, COMMAND_BET_LEADERBOARD, COMMAND_BET_WALLET
 from deps.mybot import MyBot
-from deps.log import print_warning_log
+from deps.log import print_warning_log, print_error_log
 from deps.tournaments.tournament_data_class import Tournament
 from ui.bet_tournament_selector_for_active_tournament import BetTournamentSelectorForActiveMarket
 from ui.bet_tournament_selector_for_leaderboard import BetTournamentSelectorForLeaderboard
@@ -29,22 +29,40 @@ class UserBetFeatures(commands.Cog):
         See the amount of money in the wallet for the tournament
         """
         user_id = interaction.user.id
-        guild_id = interaction.guild.id
-
+        guild = interaction.guild
+        if guild is None:
+            print_error_log(
+                f"bet_see_wallet_amount: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Wallet not found for this guild.", ephemeral=True)
+            return
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"bet_see_wallet_amount: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"bet_see_wallet_amount: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
             )
             await interaction.response.send_message("No active tournament available for you.", ephemeral=True)
         elif len(list_tournaments) == 1:
             tournament_id = list_tournaments[0].id
+            if tournament_id is None:
+                print_error_log(
+                    f"bet_see_wallet_amount: No tournament_id available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
+                )
+                await interaction.response.send_message("Tournament not found for this guild.", ephemeral=True)
+                return
             wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_id)
             await interaction.response.send_message(f"You have ${wallet.amount:.2f}", ephemeral=True)
         else:
             # Combined message with all tournaments
             msg = "You have many wallets (one per tournament). Here are the amounts:\n"
             for tournament in list_tournaments:
+                if tournament.id is None:
+                    print_error_log(
+                        f"bet_see_wallet_amount: No tournament_id available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
+                    )
+                    await interaction.response.send_message("Tournament not found for this guild.", ephemeral=True)
+                    return
                 wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament.id, user_id)
                 msg += f"➡️ {tournament.name}: ${wallet.amount:.2f}\n"
             await interaction.response.send_message(msg, ephemeral=True)
@@ -79,11 +97,18 @@ class UserBetFeatures(commands.Cog):
         3) Allow the user to click on the game to bet
         4) The user select an amount to bet
         """
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log(
+                f"place_bet: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Wallet not found for this guild.", ephemeral=True)
+            return
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"place_bet: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"place_bet: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
             )
             await interaction.response.send_message("No active tournament available to bet.", ephemeral=True)
             return
@@ -100,11 +125,18 @@ class UserBetFeatures(commands.Cog):
         """
         See the active bet for a tournament
         """
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log(
+                f"bet_active_tournament: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Wallet not found for this guild.", ephemeral=True)
+            return
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"bet_active_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"bet_active_tournament: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
             )
             await interaction.response.send_message(
                 "No active tournament available to visualize active bets.", ephemeral=True
@@ -123,11 +155,18 @@ class UserBetFeatures(commands.Cog):
         """
         See the leaderboard for a tournament
         """
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log(
+                f"bet_leaderboard_command: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Wallet not found for this guild.", ephemeral=True)
+            return
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"bet_leaderboard_command: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"bet_leaderboard_command: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
             )
             await interaction.response.send_message(
                 "No active tournament available to visualize a bet leaderboard.", ephemeral=True

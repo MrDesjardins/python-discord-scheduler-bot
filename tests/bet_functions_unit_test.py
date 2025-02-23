@@ -174,8 +174,9 @@ def test_get_wallet_for_tournament_no_wallet_create_one(mock_get_user_wallet_for
     Test the user scenario that a user does not have a wallet
     """
     # Arrange
-    mock_get_user_wallet_for_tournament.return_value = None
-    mock_create_bet.return_value = BetUserTournament(67, 44, 12, 100)
+    tournament = BetUserTournament(67, 44, 12, 100)
+    mock_get_user_wallet_for_tournament.side_effect = [None, tournament]
+    mock_create_bet.return_value = tournament
     # Act
     get_bet_user_wallet_for_tournament(44, 12)
     # Assert
@@ -184,6 +185,21 @@ def test_get_wallet_for_tournament_no_wallet_create_one(mock_get_user_wallet_for
     assert (
         mock_get_user_wallet_for_tournament.call_count == 2
     )  # One time for the None and one time for the created wallet
+
+
+@patch.object(bet_functions, bet_functions.data_access_create_bet_user_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_wallet_for_tournament.__name__)
+def test_get_wallet_for_tournament_no_wallet_create_one_fail(mock_get_user_wallet_for_tournament, mock_create_bet):
+    """
+    Test the user scenario that a user does not have a wallet
+    """
+    # Arrange
+    tournament = BetUserTournament(67, 44, 12, 100)
+    mock_get_user_wallet_for_tournament.side_effect = [None, None]
+    mock_create_bet.return_value = tournament
+    # Act & Assert
+    with pytest.raises(ValueError, match="Error creating wallet"):
+        get_bet_user_wallet_for_tournament(44, 12)
 
 
 @patch.object(bet_functions, bet_functions.data_access_create_bet_user_wallet_for_tournament.__name__)

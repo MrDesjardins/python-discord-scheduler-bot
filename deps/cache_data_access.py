@@ -68,7 +68,7 @@ def clear_expired_cache() -> None:
         print_error_log(f"Error expiring cache value: {e}")
 
 
-def get_value(key: str) -> str:
+def get_value(key: str) -> Union[str, None]:
     """
     Get a value from the cache
     """

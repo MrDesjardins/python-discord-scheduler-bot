@@ -37,7 +37,7 @@ class CacheItem:
 class TTLCache:
     """A simple in-memory cache with time-to-live (TTL) support"""
 
-    def __init__(self, default_ttl_in_seconds=60):
+    def __init__(self, default_ttl_in_seconds=60) -> None:
         self.cache: dict[str, Any] = {}
         self.default_ttl = default_ttl_in_seconds
 
@@ -51,7 +51,7 @@ class TTLCache:
             return True
         return False
 
-    def set(self, key: str, value: Any, ttl_in_seconds: Optional[str] = None):
+    def set(self, key: str, value: Any, ttl_in_seconds: Optional[int] = None) -> None:
         """Set the value in the cache with an optional TTL"""
         if ttl_in_seconds is None:
             ttl_in_seconds = self.default_ttl
@@ -61,7 +61,10 @@ class TTLCache:
         """Get the value from the cache if it exists and is not expired"""
         if self._is_expired(key):
             return None
-        return self.cache.get(key).value
+        existing_value: Union[CacheItem, None] = self.cache.get(key)
+        if existing_value is None:
+            return None
+        return existing_value.value
 
     def delete(self, key: str) -> None:
         """Delete the value from the cache"""

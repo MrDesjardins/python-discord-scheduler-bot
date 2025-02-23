@@ -35,7 +35,7 @@ HAVING
 ORDER BY
   win_rate_percentage DESC;
 
---------------------- BY USER ID ---------------------
+--------------------- BY USER DUO ---------------------
 WITH
   MatchPairs AS (
     SELECT
@@ -49,7 +49,23 @@ WITH
       JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
       AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
     WHERE
-      m1.match_timestamp >= '2025-01-01'
+      m1.match_timestamp >= '2025-02-05'
+      AND m1.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-05'
+      )
+      AND m2.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-05'
+      )
   )
 SELECT
   UI_1.display_name AS user1_name,
@@ -64,10 +80,6 @@ FROM
 WHERE
   user1 IS NOT NULL
   AND user2 IS NOT NULL
-  AND (
-    user1 = 357551747146842124
-    or user2 = 357551747146842124
-  )
 GROUP BY
   user1,
   user2
@@ -76,7 +88,7 @@ HAVING
 ORDER BY
   win_rate_percentage DESC;
 
---- DUO ---
+--- DUO DEBUG---
 SELECT
   m1.match_uuid,
   m2.match_uuid,
@@ -147,7 +159,31 @@ WITH
       AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
       AND m2.user_id < m3.user_id -- Avoid duplicate pairs and self-joins
     WHERE
-      m1.match_timestamp >= '2025-01-15'
+      m1.match_timestamp >= '2025-02-05'
+      AND m1.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-05'
+      )
+      AND m2.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-05'
+      )
+      AND m3.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-05'
+      )
   )
 SELECT
   UI_1.display_name AS user1_name,

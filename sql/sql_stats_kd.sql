@@ -14,6 +14,17 @@ FROM
       LEFT JOIN user_info on user_info.id = user_full_match_info.user_id
     WHERE
       is_rollback = false
-      and match_timestamp > datetime ('2025-01-01') GROUP BY user_id
+      AND match_timestamp >= '2025-02-10'
+      AND user_full_match_info.user_id IN (
+        SELECT DISTINCT
+          user_id
+        from
+          user_activity
+        where
+          timestamp >= '2025-02-10'
+      )
+    GROUP BY
+      user_id
   )
-ORDER BY kd DESC;
+ORDER BY
+  kd DESC;

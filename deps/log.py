@@ -10,7 +10,9 @@ logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 
 # Create a file handler to write logs to a file
-file_handler = RotatingFileHandler("app.log", mode="a", maxBytes=5 * 1024 * 1024, backupCount=2, encoding=None, delay=0)
+file_handler = RotatingFileHandler(
+    "app.log", mode="a", maxBytes=5 * 1024 * 1024, backupCount=2, encoding=None, delay=False
+)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(formatter)
 

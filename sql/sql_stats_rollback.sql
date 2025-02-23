@@ -11,7 +11,6 @@ from
 where
   is_rollback = true;
 
-
 select
   user_full_match_info.user_id,
   user_info.display_name,
@@ -21,8 +20,15 @@ from
   left join user_info on user_info.id = user_full_match_info.user_id
 where
   is_rollback = true
-and
-  datetime(match_timestamp) > datetime('2025-01-21')
+  and match_timestamp >= '2025-02-10'
+  AND user_full_match_info.user_id IN (
+    SELECT DISTINCT
+      user_id
+    from
+      user_activity
+    where
+      timestamp >= '2025-02-10'
+  )
 group by
   user_id
 order by

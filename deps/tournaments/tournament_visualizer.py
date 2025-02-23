@@ -16,16 +16,16 @@ font2 = ImageFont.truetype(font_path, 20)
 font3 = ImageFont.truetype(font_path, 22)
 
 
-def get_name(user_id: str, users_map: dict) -> str:
+def get_name(user_id: int, users_map: dict) -> str:
     """
     Get the name of a user
     """
     if user_id in users_map:
         return users_map[user_id].display_name[:16]
-    return user_id
+    return str(user_id)
 
 
-def _image_return(im: Image, show: bool = True, file_name: str = "bracket.png"):
+def _image_return(im: Image.Image, show: bool = True, file_name: str = "bracket.png"):
     """
     Return an image or the bytes of the iamge
     """
@@ -52,16 +52,16 @@ def plot_tournament_bracket(
         root (TournamentNode): The root node of the tournament tree.
         show (bool): Whether to display the plot or return the figure and axis.
     """
-    IMAGE_HEADER_SPACE = 60
-    IMAGE_MARGIN = 25
-    NODE_WIDTH = 270
-    NODE_HEIGHT = 60
-    NODE_MARGIN_VERTICAL = 25
-    NODE_MARGIN_HORIZONTAL = 35
-    NODE_PADDING = 10
+    image_header_space = 60
+    image_margin = 25
+    node_width = 270
+    node_height = 60
+    node_margin_vertical = 25
+    node_margin_horizontal = 35
+    node_padding = 10
 
     users_map = fetch_user_info()
-    positions = {}
+    positions: dict[int, tuple[int, int]] = {}
     labels = {}
     node_lookup = {}
 
@@ -70,21 +70,21 @@ def plot_tournament_bracket(
     maximum_node_vertically = len(levels[0])
 
     # Dynamically scale figure size based on tree dimensions
-    fig_width = 2 * IMAGE_MARGIN + (number_of_depth * NODE_WIDTH) + (number_of_depth * NODE_MARGIN_HORIZONTAL)
-    fig_height = IMAGE_HEADER_SPACE + 2 * IMAGE_MARGIN + maximum_node_vertically * (NODE_HEIGHT + NODE_MARGIN_VERTICAL)
+    fig_width = 2 * image_margin + (number_of_depth * node_width) + (number_of_depth * node_margin_horizontal)
+    fig_height = image_header_space + 2 * image_margin + maximum_node_vertically * (node_height + node_margin_vertical)
     im = Image.new("RGB", (fig_width, fig_height), "white")
     draw = ImageDraw.Draw(im)
 
     for i, n in enumerate(levels):
         for j, node in enumerate(n):
-            x_pos = IMAGE_MARGIN + NODE_MARGIN_VERTICAL + i * (NODE_WIDTH + NODE_MARGIN_HORIZONTAL)
-            # y_pos = IMAGE_HEADER_SPACE + j * (NODE_HEIGHT + NODE_MARGIN) + (diff) * (NODE_HEIGHT + NODE_MARGIN) // 2
+            x_pos = image_margin + node_margin_vertical + i * (node_width + node_margin_horizontal)
+            # y_pos = image_header_space + j * (node_height + NODE_MARGIN) + (diff) * (node_height + NODE_MARGIN) // 2
             y_pos = (
-                IMAGE_HEADER_SPACE
-                + j * (NODE_HEIGHT + NODE_MARGIN_VERTICAL)
-                + (2**i - 1) * (j * NODE_HEIGHT + NODE_MARGIN_VERTICAL)
+                image_header_space
+                + j * (node_height + node_margin_vertical)
+                + (2**i - 1) * (j * node_height + node_margin_vertical)
             )
-            if node.next_game2 is not None:
+            if node.next_game1 is not None and node.next_game2 is not None:
                 top1 = positions[node.next_game1.id][1]
                 top2 = positions[node.next_game2.id][1]
                 y_pos = (top1 + top2) // 2
@@ -115,11 +115,11 @@ def plot_tournament_bracket(
             label_map = f"{node.map} - {node.score if node.score is not None else '0-0'}"
 
             # Add node to the graph
-            draw.rectangle((x_pos, y_pos, x_pos + NODE_WIDTH, y_pos + NODE_HEIGHT), fill=bgcolor, outline="black")
+            draw.rectangle((x_pos, y_pos, x_pos + node_width, y_pos + node_height), fill=bgcolor, outline="black")
 
             # Draw the current node with label
             draw.text(
-                (x_pos + NODE_PADDING, y_pos + NODE_PADDING),
+                (x_pos + node_padding, y_pos + node_padding),
                 label_names,
                 fill="black",
                 anchor="la",
@@ -127,7 +127,7 @@ def plot_tournament_bracket(
                 font=font1,
             )
             draw.text(
-                (x_pos + NODE_PADDING, y_pos + NODE_PADDING + 20),
+                (x_pos + node_padding, y_pos + node_padding + 20),
                 label_map,
                 fill="black",
                 anchor="la",
@@ -139,20 +139,20 @@ def plot_tournament_bracket(
             if node.next_game1:
                 child_pos = positions[node.next_game1.id]
                 draw.line(
-                    (x_pos, y_pos + NODE_HEIGHT // 2, child_pos[0] + NODE_WIDTH, child_pos[1] + NODE_HEIGHT // 2),
+                    (x_pos, y_pos + node_height // 2, child_pos[0] + node_width, child_pos[1] + node_height // 2),
                     fill="black",
                 )
 
             if node.next_game2:
                 child_pos = positions[node.next_game2.id]
                 draw.line(
-                    (x_pos, y_pos + NODE_HEIGHT // 2, child_pos[0] + NODE_WIDTH, child_pos[1] + NODE_HEIGHT // 2),
+                    (x_pos, y_pos + node_height // 2, child_pos[0] + node_width, child_pos[1] + node_height // 2),
                     fill="black",
                 )
 
     # Add tournament title with adjusted padding
     draw.text(
-        (fig_width // 2, IMAGE_MARGIN),
+        (fig_width // 2, image_margin),
         f"Tournament: {tournament.name}",
         fill="black",
         anchor="mm",
@@ -162,14 +162,14 @@ def plot_tournament_bracket(
     # Add footer with start and end dates
     # Anchor mm means the text is centered
     draw.text(
-        (fig_width // 2, fig_height - IMAGE_MARGIN),
+        (fig_width // 2, fig_height - image_margin),
         f"Start Date: {tournament.start_date.strftime('%Y-%m-%d')}, End Date: {tournament.end_date.strftime('%Y-%m-%d')}",
         fill="gray",
         anchor="mm",
         font=font2,
     )
     draw.text(
-        (fig_width // 2, fig_height - IMAGE_MARGIN + 15),
+        (fig_width // 2, fig_height - image_margin + 15),
         f"Use the command /{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT} to report a lost match",
         fill="gray",
         anchor="mm",

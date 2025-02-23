@@ -1,6 +1,6 @@
 """ User interface for the bot"""
 
-from typing import Dict
+from typing import Dict, Union
 import discord
 from discord.ui import Select, View
 from deps.data_access import data_access_set_users_auto_schedule
@@ -15,11 +15,11 @@ class ScheduleDayHours(View):
     A view that combines two selects for the user to answer two questions
     """
 
-    def __init__(self, guild_emoji: Dict[str, Dict[str, str]]):
+    def __init__(self, guild_emoji: Dict[int, Dict[str, str]]) -> None:
         super().__init__()
         self.guild_emoji = guild_emoji
         # First question select menu
-        self.first_select = Select(
+        self.first_select: Select = Select(
             placeholder="Days of the weeks:",
             options=[
                 discord.SelectOption(value="0", label=DAYS_OF_WEEK[0]),
@@ -36,7 +36,7 @@ class ScheduleDayHours(View):
         )
         self.add_item(self.first_select)
 
-        self.second_select = Select(
+        self.second_select: Select = Select(
             placeholder="Time of the Day:",
             options=list(
                 map(
@@ -50,41 +50,46 @@ class ScheduleDayHours(View):
         )
         self.add_item(self.second_select)
         # Track if both selects have been answered
-        self.first_response = None
-        self.second_response = None
+        self.first_response: Union[list[str], None] = None
+        self.second_response: Union[list[str], None] = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """Callback function to check if the interaction is valid"""
         # Capture the response for the fruit question
-        if interaction.data["custom_id"] == "in_days":
-            self.first_response = self.first_select.values
-            await interaction.response.send_message("Days Saved", ephemeral=True)
+        if interaction.guild_id is None:
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return False
+        member = interaction.user
+        if isinstance(member, discord.Member):
+            if interaction.data["custom_id"] == "in_days":
+                self.first_response = self.first_select.values
+                await interaction.response.send_message("Days Saved", ephemeral=True)
 
-        # Capture the response for the color question
-        elif interaction.data["custom_id"] == "in_hours":
-            self.second_response = self.second_select.values
-            await interaction.response.send_message("Hours Saved", ephemeral=True)
+            # Capture the response for the color question
+            elif interaction.data["custom_id"] == "in_hours":
+                self.second_response = self.second_select.values
+                await interaction.response.send_message("Hours Saved", ephemeral=True)
 
-        # If both responses are present, finalize the interaction
-        if self.first_response and self.second_response:
-            # Save user responses
-            simple_user = SimpleUser(
-                interaction.user.id,
-                interaction.user.display_name,
-                get_user_rank_emoji(self.guild_emoji.get(interaction.guild_id, {}), interaction.user),
-            )
+            # If both responses are present, finalize the interaction
+            if self.first_response and self.second_response:
+                # Save user responses
+                simple_user = SimpleUser(
+                    member.id,
+                    member.display_name,
+                    get_user_rank_emoji(self.guild_emoji.get(interaction.guild_id, {}), member),
+                )
 
-            for day in self.first_response:
-                list_users = []
-                for hour in self.second_response:
-                    list_users.append(SimpleUserHour(simple_user, hour))
-                data_access_set_users_auto_schedule(interaction.guild_id, day, list_users)
+                for day in self.first_response:
+                    list_users = []
+                    for hour in self.second_response:
+                        list_users.append(SimpleUserHour(simple_user, hour))
+                    data_access_set_users_auto_schedule(interaction.guild_id, int(day), list_users)
 
-            # Send final confirmation message with the saved data
-            await interaction.followup.send(
-                f"Your schedule has been saved. You can see your schedule with /{COMMAND_SCHEDULE_SEE} or remove it with /{COMMAND_SCHEDULE_REMOVE}",
-                ephemeral=True,
-            )
-            return True
+                # Send final confirmation message with the saved data
+                await interaction.followup.send(
+                    f"Your schedule has been saved. You can see your schedule with /{COMMAND_SCHEDULE_SEE} or remove it with /{COMMAND_SCHEDULE_REMOVE}",
+                    ephemeral=True,
+                )
+                return True
 
         return False

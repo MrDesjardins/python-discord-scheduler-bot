@@ -146,6 +146,7 @@ def test_get_rotated_number_from_current_day_2(mock_get_now_eastern):
     result = get_rotated_number_from_current_day(12)
     assert result == 9
 
+
 @patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
 def test_get_rotated_number_from_current_day_3(mock_get_now_eastern):
     """Test how the number rotates based on the current day"""

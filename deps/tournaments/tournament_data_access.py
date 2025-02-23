@@ -8,6 +8,7 @@ from typing import List, Optional
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_models import TournamentNode
 
 KEY_TOURNAMENT_GUILD = "tournament_guild"
 KEY_TOURNAMENT_GAMES = "tournament_games"
@@ -393,7 +394,7 @@ def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
     return [UserInfo(*row) for row in database_manager.get_cursor().fetchall()]
 
 
-def save_tournament(tournament: Tournament) -> Tournament:
+def save_tournament(tournament: Tournament) -> None:
     """
     Save the tournament games.
     """
@@ -411,7 +412,7 @@ def save_tournament(tournament: Tournament) -> Tournament:
     database_manager.get_conn().commit()
 
 
-def save_tournament_games(games: List[TournamentGame]) -> None:
+def save_tournament_games(games: List[TournamentNode]) -> None:
     """
     Save the tournament games.
     """

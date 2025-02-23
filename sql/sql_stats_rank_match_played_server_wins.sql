@@ -11,8 +11,8 @@ WITH
       AND ua2.event = 'disconnect'
     WHERE
       ua1.event = 'connect'
-      and ua1.timestamp >= '2025-01-22'
-      and ua2.timestamp >= '2025-01-22'
+      and ua1.timestamp >= '2025-02-14'
+      and ua2.timestamp >= '2025-02-14'
     GROUP BY
       ua1.id
   ),
@@ -30,7 +30,7 @@ WITH
       user_full_match_info ufm
       JOIN user_sessions us ON ufm.user_id = us.user_id
       AND ufm.match_timestamp BETWEEN us.session_start AND us.session_end
-      and ufm.match_timestamp >= '2025-01-22'
+      and ufm.match_timestamp >= '2025-02-14'
     GROUP BY
       ufm.user_id
   ),
@@ -46,7 +46,7 @@ WITH
           WHERE ufm.user_id = us.user_id
           AND ufm.match_timestamp BETWEEN us.session_start AND us.session_end
       )
-      and ufm.match_timestamp >= '2025-01-22'
+      and ufm.match_timestamp >= '2025-02-14'
       GROUP BY ufm.user_id
   ),
   total_matches AS (
@@ -56,7 +56,7 @@ WITH
     FROM
       user_full_match_info 
     WHERE
-      user_full_match_info.match_timestamp >= '2025-01-22'
+      user_full_match_info.match_timestamp >= '2025-02-14'
     GROUP BY
       user_id
   )

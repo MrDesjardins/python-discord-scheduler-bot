@@ -96,6 +96,22 @@ class DatabaseManager:
 
         self.get_cursor().execute(
             """
+            CREATE INDEX IF NOT EXISTS idx_user_activity_event ON user_activity(user_id, channel_id, guild_id, event, timestamp);
+            """
+        )
+        self.get_cursor().execute(
+            """
+             CREATE INDEX IF NOT EXISTS idx_user_activity_timestamp ON user_activity(timestamp);
+            """
+        )
+        self.get_cursor().execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_info_id ON user_info(id);
+            """
+        )
+
+        self.get_cursor().execute(
+            """
         CREATE TABLE IF NOT EXISTS user_weights (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_a TEXT NOT NULL,

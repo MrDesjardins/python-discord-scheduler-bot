@@ -33,11 +33,15 @@ ENV = os.getenv("ENV")
 
 
 class MyEventsCog(commands.Cog):
+    """
+    Main events cog for the bot
+    """
+
     lock = asyncio.Lock()
 
     def __init__(self, bot: MyBot):
         self.bot = bot
-        self.last_task = {}
+        self.last_task: dict[str, asyncio.Task] = {}
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -199,18 +203,21 @@ class MyEventsCog(commands.Cog):
         if member.bot:
             return  # Ignore bot
         guild_id = member.guild.id
-        text_channel_new_user_id: int = await data_access_get_new_user_text_channel_id(guild_id)
+        if guild_id is None:
+            print_warning_log("on_member_join: Guild ID not found. Skipping.")
+            return
+        text_channel_new_user_id = await data_access_get_new_user_text_channel_id(guild_id)
         if text_channel_new_user_id is None:
             print_warning_log(f"on_member_join: New user text channel not set for guild {member.guild.name}. Skipping.")
             return
-        channel: discord.TextChannel = await data_access_get_channel(text_channel_new_user_id)
+        channel = await data_access_get_channel(text_channel_new_user_id)
         if channel is None:
             print_warning_log(
                 f"on_member_join: New user text channel not found for guild {member.guild.name}. Skipping."
             )
             return
 
-        text_channel_id: int = await data_access_get_guild_schedule_text_channel_id(guild_id)
+        text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if text_channel_id is None:
             print_warning_log(f"on_member_join: Schedule text channel not set for guild {member.guild.name}. Skipping.")
             return
@@ -227,11 +234,11 @@ class MyEventsCog(commands.Cog):
             return  # Ignore bot
         guild_id = before.guild.id
         guild_name = before.guild.name
-        text_channel_main_siege_id: int = await data_access_get_main_text_channel_id(guild_id)
+        text_channel_main_siege_id = await data_access_get_main_text_channel_id(guild_id)
         if text_channel_main_siege_id is None:
             print_warning_log(f"on_member_update: Main Siege text channel id not set for guild {guild_name}. Skipping.")
             return
-        channel: discord.TextChannel = await data_access_get_channel(text_channel_main_siege_id)
+        channel = await data_access_get_channel(text_channel_main_siege_id)
         if not channel:
             print_warning_log(f"on_member_update: New user text channel not found for guild {guild_name}. Skipping.")
             return
@@ -264,7 +271,8 @@ class MyEventsCog(commands.Cog):
         key = f"{guild_id}-{channel_id}"
         if key in self.last_task:
             task = self.last_task.get(key)
-            task.cancel()  # Cancel any pending execution
+            if task is not None:
+                task.cancel()  # Cancel any pending execution
         self.last_task[key] = asyncio.create_task(
             self.send_automatic_lfg_message_debounced_cancellable_task(guild_id, channel_id)
         )

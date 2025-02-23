@@ -41,8 +41,8 @@ def get_total_pool_for_game(
     """
     Get the total amount bet on a specific game and also the amount bet on each user (which sum to the total)
     """
-    total_amount_bet_on_user_1 = 0
-    total_amount_bet_on_user_2 = 0
+    total_amount_bet_on_user_1 = 0.0
+    total_amount_bet_on_user_2 = 0.0
     for bet in bet_on_games:
         if bet.user_id_bet_placed == tournament_game.user1_id:
             total_amount_bet_on_user_1 += bet.amount
@@ -102,7 +102,7 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
         2) Close the BetGame (separated in case no user bet on a game)
         3) Distribute gain in wallet (bet_user_tournament if winner)
     """
-    tournament_games: TournamentGame = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_games_dict = {tournament_game.id: tournament_game for tournament_game in tournament_games}
     bet_games: List[BetGame] = data_access_get_bet_game_ready_to_close(tournament_id)
     bet_games_dict = {game.id: game for game in bet_games}
@@ -156,6 +156,8 @@ def calculate_gain_lost_for_open_bet_game(
     The algo uses the Overround.
     Vigorish would be adjusted_odd = fair_odd * (1 - houst_cut)
     """
+    if tournament_game.id is None:
+        return []
     winner_id = tournament_game.user_winner_id
     if winner_id is None:
         return []
@@ -193,6 +195,8 @@ def get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> BetU
     if wallet is None:
         data_access_create_bet_user_wallet_for_tournament(tournament_id, user_id, DEFAULT_MONEY)
         wallet = data_access_get_bet_user_wallet_for_tournament(tournament_id, user_id)
+    if wallet is None:
+        raise ValueError("Error creating wallet")
     return wallet
 
 
@@ -235,15 +239,17 @@ async def system_generate_game_odd(tournament_id: int) -> None:
     ]
     # 4 Generate the odd for the games without bet_game
     for game in games_without_bet_game:
+        if game.id is None:
+            continue
         # 4.1 Get the wallet of the two users
-        user_info1: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user1_id)
-        user_info2: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user2_id)
+        user_info1: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user1_id) if game.user1_id else None
+        user_info2: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user2_id) if game.user2_id else None
         if user_info1 is None or user_info2 is None:
             odd_user1 = 0.5
             odd_user2 = 0.5
         else:
             # Here find a way like getting the user MMR
-            odd_user1, odd_user2 = define_odds_between_two_users(game.user1_id, game.user2_id)
+            odd_user1, odd_user2 = define_odds_between_two_users(user_info1.id, user_info2.id)
         # 4.3 Insert the generated odd into the database
         data_access_create_bet_game(tournament_id, game.id, odd_user1, odd_user2)
 
@@ -291,10 +297,10 @@ def place_bet_for_game(
     game: List[TournamentGame] = [game for game in games if game.id == tournament_game_id]
     if len(game) == 0:
         raise ValueError("The game does not exist")
-    game: TournamentGame = game[0]
-    if game.user_winner_id is not None:
+    single_game: TournamentGame = game[0]
+    if single_game.user_winner_id is not None:
         raise ValueError("The game is already finished")
-    if game.user1_id == user_who_is_betting_id or game.user2_id == user_who_is_betting_id:
+    if single_game.user1_id == user_who_is_betting_id or single_game.user2_id == user_who_is_betting_id:
         raise ValueError("The user cannot bet on a game where he/she is playing")
     if amount < MIN_BET_AMOUNT:
         raise ValueError(f"The minimum amount to bet is ${MIN_BET_AMOUNT}")
@@ -304,7 +310,7 @@ def place_bet_for_game(
         raise ValueError("The user does not have enough money")
 
     # 3 Calculate the probability when the bet is placed
-    is_user_1 = user_id_bet_placed_on == game.user1_id
+    is_user_1 = user_id_bet_placed_on == single_game.user1_id
     if is_user_1:
         probability = bet_game.probability_user_1_win
     else:
@@ -340,13 +346,15 @@ async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
     """
     Get a message that is a list of all the user who betted on a tournament in order of larger amountin their wallet
     """
+    if tournament.id is None:
+        return ""
     wallets: List[BetUserTournament] = data_access_get_all_wallet_for_tournament(tournament_id=tournament.id)
     wallets_sorted = sorted(wallets, key=lambda x: x.amount, reverse=True)
     msg = ""
     rank = 1
     for wallet in wallets_sorted:
         member1 = await fetch_user_info_by_user_id(wallet.user_id)
-        user1_display = member1.display_name if member1 else wallet.user1_id
+        user1_display = member1.display_name if member1 else wallet.user_id
 
         msg += f"{rank} - {user1_display} - ${wallet.amount:.2f}\n"
         rank += 1
@@ -399,9 +407,7 @@ async def generate_msg_bet_game(tournament_game: TournamentNode) -> str:
     print_log(
         f"generate_msg_bet_game: bet_game.id {bet_game.id} and tournament_game.id = {tournament_game.id} found for tournament_game {tournament_game.id}"
     )
-    all_bet_user_game: List[BetUserGame] = data_access_get_bet_user_game_for_tournament(
-        tournament_game.tournament_id
-    )
+    all_bet_user_game: List[BetUserGame] = data_access_get_bet_user_game_for_tournament(tournament_game.tournament_id)
     print_log(f"generate_msg_bet_game: all_bet_user_game count = {len(all_bet_user_game)}")
     all_bet_user_game_dict = {bet.id: bet for bet in all_bet_user_game}
 

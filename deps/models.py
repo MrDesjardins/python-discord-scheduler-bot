@@ -3,7 +3,7 @@
 import dataclasses
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from deps.data_access_data_class import UserInfo
 from deps.functions_date import convert_to_datetime
@@ -233,7 +233,7 @@ class UserFullMatchStats:
             kills_per_round=row[49],
             deaths_per_round=row[50],
             assists_per_round=row[51],
-            has_win=bool(row[52])
+            has_win=bool(row[52]),
         )
 
 
@@ -302,7 +302,7 @@ class UserQueueForStats:
     """
 
     user_info: UserInfo
-    guild_id: str
+    guild_id: int
     time_queue: datetime
 
 
@@ -318,7 +318,7 @@ class UserWithUserMatchInfo:
 class Reason:
     """Instead of a boolean, a function can return a reason why it failed"""
 
-    def __init__(self, is_successful: bool, text: Optional[str] = None, context: any = None):
+    def __init__(self, is_successful: bool, text: Optional[str] = None, context: Any = None):
         self.is_successful = is_successful
         self.text = text
         self.context = context
