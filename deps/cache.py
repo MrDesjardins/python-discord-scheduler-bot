@@ -118,7 +118,7 @@ def remove_cache(in_memory: bool, key: str) -> None:
 async def get_cache(
     in_memory: bool,
     key: str,
-    fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], str]]] = None,
+    fetch_function: Optional[Union[Callable[[], Awaitable], Callable[[], Any]]] = None,
     ttl_in_seconds: Optional[int] = None,
 ) -> Any:
     """Get the value from the cache from the in-memory or data cache

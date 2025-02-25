@@ -92,8 +92,9 @@ def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
     The activity.detail will give information about where in the game the user is (e.g. in a match)
     """
     for activity in member.activities:
-        if activity.name == "Rainbow Six Siege":
-            return activity
+        if isinstance(activity, discord.Activity):
+            if activity.name == "Rainbow Six Siege":
+                return activity
     return None
 
 

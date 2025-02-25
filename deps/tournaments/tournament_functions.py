@@ -21,6 +21,7 @@ from deps.tournaments.tournament_data_access import (
     save_tournament_games,
 )
 from deps.models import Reason
+from deps.tournaments.tournament_mapper import map_tournament_node_to_tournament_game
 
 
 def can_register_to_tournament(tournament_id: int, user_id: int) -> Reason:
@@ -139,7 +140,7 @@ def auto_assign_winner(tournament_games: List[TournamentGame]) -> List[Tournamen
     Assign the user1_id or user2_id of the parent node to the user_winner_id of the child node
     """
     # Find all nodes with user1_id set to None or user2_id set to None
-    dict_nodes: dict[int, TournamentGame] = {node.id: node for node in tournament_games}
+    dict_nodes: dict[int, TournamentGame] = {node.id: node for node in tournament_games if node.id is not None}
     node_to_save: dict[int, TournamentGame] = {}
     tree = build_tournament_tree(tournament_games)
     if tree is None:
@@ -305,7 +306,7 @@ def assign_people_to_games(
     leaf_nodes = [node for node in tournament_games if not node.next_game1_id and not node.next_game2_id]
 
     # Sort the list of leaf nodes by ID
-    leaf_nodes.sort(key=lambda x: x.id)
+    leaf_nodes.sort(key=lambda x: x.id if x.id is not None else 0)
 
     # Reduce the list for the number of people
     if len(leaf_nodes) > len(people):
@@ -419,14 +420,16 @@ async def report_lost_tournament(tournament_id: int, user_id: int, score: str) -
         if node_parent.user1_id is not None and node_parent.user2_id is not None:
             node_parent.map = random.choice(tournament.maps.split(","))
         # Save the updated tournament games
-        save_tournament_games([node, node_parent])
+        save_tournament_games(
+            [map_tournament_node_to_tournament_game(node), map_tournament_node_to_tournament_game(node_parent)]
+        )
     else:
-        save_tournament_games([node])
+        save_tournament_games([map_tournament_node_to_tournament_game(node)])
 
     # Auto assign user as a winner if there is no possible opponent in the other side of the bracket
     # Refetch to make sure we have all the latest
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
-    node_to_save2: List[TournamentNode] = auto_assign_winner(tournament_games)
+    refetch_tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    node_to_save2: List[TournamentGame] = auto_assign_winner(refetch_tournament_games)
     save_tournament_games(node_to_save2)
 
     # Close bets of the games (mostly the one reported)
@@ -552,6 +555,11 @@ def get_tournament_final_result_positions(root: TournamentNode) -> Optional[Tour
     third_position_2 = (
         semi_finals[1].user1_id if semi_finals[1].user2_id == semi_finals[1].user_winner_id else semi_finals[1].user2_id
     )
+
+    # Should never happen but in the case there isn't at least 4 people, we set to zero the id of the winners 
+    second_position = second_position if second_position is not None else 0
+    third_position_1 = third_position_1 if third_position_1 is not None else 0
+    third_position_2 = third_position_2 if third_position_2 is not None else 0
 
     return TournamentResult(
         first_place_user_id=first_position,

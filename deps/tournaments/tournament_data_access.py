@@ -412,7 +412,7 @@ def save_tournament(tournament: Tournament) -> None:
     database_manager.get_conn().commit()
 
 
-def save_tournament_games(games: List[TournamentNode]) -> None:
+def save_tournament_games(games: List[TournamentGame]) -> None:
     """
     Save the tournament games.
     """

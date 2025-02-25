@@ -99,7 +99,7 @@ async def adjust_reaction(
 
 
 async def get_adjust_reaction_votes(
-    guild_id: int, channel_id: id, message_id: int, user: SimpleUser, time_clicked: str
+    guild_id: int, channel_id: int, message_id: int, user: SimpleUser, time_clicked: str
 ) -> Dict[str, List[SimpleUser]]:
     """
     Adjust the reaction for the user on the message at the time the user clicked

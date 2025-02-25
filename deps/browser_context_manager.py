@@ -95,6 +95,9 @@ class BrowserContextManager:
         # # Step 1: Download the page content
         self.counter += 1
         ubisoft_user_name = user_queued.user_info.ubisoft_username_active
+        if not ubisoft_user_name:
+            print_error_log("download_matches: Ubisoft username not found.")
+            return []
         api_url = get_url_api_ranked_matches(ubisoft_user_name)
         self.driver.get(api_url)
         print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
@@ -128,6 +131,7 @@ class BrowserContextManager:
                 print_error_log(f"download_matches: Error parsing JSON: {e}")
         else:
             print_error_log("download_matches: JSON data not found within <pre> tag.")
+        return []
 
     def refresh_browser(self) -> None:
         """Refresh the browser"""

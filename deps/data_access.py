@@ -1,6 +1,6 @@
 """ Access to the data is done throught this data access"""
 
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
 import discord
@@ -85,7 +85,7 @@ async def data_access_get_member(guild_id: int, user_id: int) -> Union[discord.M
     if user_id is None:
         return None
 
-    async def fetch():
+    async def fetch() -> Union[discord.Member, None]:
         guild: Optional[discord.Guild] = await data_access_get_guild(guild_id)
         if guild is None:
             return None
@@ -101,7 +101,7 @@ async def data_access_get_member(guild_id: int, user_id: int) -> Union[discord.M
 async def data_access_get_channel(channel_id: int) -> Union[discord.TextChannel, None]:
     """Get the channel by the given channel id"""
 
-    async def fetch():
+    async def fetch() -> Any:
         return BotSingleton().bot.get_channel(channel_id)
 
     return await get_cache(True, f"{KEY_CHANNEL}:{channel_id}", fetch)
@@ -423,4 +423,3 @@ def data_access_set_daily_message_id(guild_id: int, message_id: int) -> None:
     current_date = get_now_eastern().strftime("%Y-%m-%d")
     key = f"{KEY_DAILY_MSG}:{guild_id}:{current_date}"
     set_cache(False, key, message_id, THREE_DAY_TTL)
- 
