@@ -287,10 +287,6 @@ def times_by_months(user_activities: list[UserActivity]) -> pd.Series:
     # Convert the session list to a DataFrame and print to debug
     sessions_df = pd.DataFrame(sessions)
 
-    # Check if 'month' column exists before proceeding
-    if "month" not in sessions_df.columns:
-        raise ValueError("Expected 'month' column not found in sessions DataFrame.")
-
     # Aggregate by month to get the total session time per month
     monthly_sessions = sessions_df.groupby("month")["duration"].sum() / 3600  # Convert seconds to hours
     return monthly_sessions

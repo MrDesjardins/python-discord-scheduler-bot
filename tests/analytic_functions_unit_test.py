@@ -3,6 +3,8 @@
 from datetime import datetime
 from typing import Dict, List, Tuple, Union
 from unittest.mock import patch
+from pandas import DataFrame, Index, Series
+import pandas.testing as pdt
 import pytest
 from deps.analytic_models import UserInfoWithCount
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
@@ -13,6 +15,7 @@ from deps.analytic_functions import (
     compute_users_weights,
     computer_users_voice_in_out,
     compute_users_voice_channel_time_sec,
+    times_by_months,
     user_times_by_month,
     users_by_weekday,
     users_last_played_over_day,
@@ -534,3 +537,23 @@ def test_multiple_month_two_users() -> None:
         },
     }
     assert result == expected_result
+
+
+def test_times_by_months() -> None:
+    """Test multiple months with two users"""
+    activity_data = [
+        UserActivity(1, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
+        UserActivity(1, 100, EVENT_DISCONNECT, "2024-10-09 14:00:00+00:00", 1),
+        UserActivity(2, 100, EVENT_CONNECT, "2024-10-09 13:00:00+00:00", 1),
+        UserActivity(2, 100, EVENT_DISCONNECT, "2024-10-09 18:00:00+00:00", 1),
+        UserActivity(1, 100, EVENT_CONNECT, "2024-11-09 13:00:00+00:00", 1),
+        UserActivity(1, 100, EVENT_DISCONNECT, "2024-11-09 15:00:00+00:00", 1),
+    ]
+    result = times_by_months(activity_data)
+    expected_result = Series(
+        data=[6, 2],
+        index=Index(data=["2024-10", "2024-11"], dtype="object", name="month"),
+        name="duration",
+        dtype="float64",  # Explicitly set data dtype
+    )
+    pdt.assert_series_equal(result, expected_result)
