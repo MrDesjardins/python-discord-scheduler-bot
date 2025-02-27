@@ -480,11 +480,11 @@ def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day
     df = df[top_user_ids.tolist() + ["Other"]]
 
     # Rename columns to include both user_id and display_name (e.g., "1 - Alice") for top users
-    df.columns = [
-        f"{data_user_id_name[user_id].display_name}" if user_id in data_user_id_name else "Other"
+    list_display_name = [
+        data_user_id_name[int(user_id)].display_name if user_id in data_user_id_name else "Other"
         for user_id in df.columns
     ]
-    print(df)
+    df.columns = pd.Index(list_display_name)
     # Plot stacked bar chart
     df.plot(kind="bar", stacked=True, figsize=(12, 6), colormap="viridis")
     plt.xlabel("Month")
@@ -785,10 +785,13 @@ def display_user_rank_match_played_server(
     # Define colors based on value thresholds
     colors = []
     for v in rate_play_in_circus:
-        if float(v) >= 0.85:
+        v_percentage = float(v)  # Convert to percentage
+        if v_percentage >= 80:
             colors.append("green")
-        elif float(v) >= 0.4:
-            colors.append("orange")
+        elif v_percentage >= 65:
+            colors.append("purple")
+        elif v_percentage >= 50:
+            colors.append("blue")
         else:
             colors.append("red")
 
@@ -796,14 +799,32 @@ def display_user_rank_match_played_server(
     fig, ax = plt.subplots(figsize=(12, 8))
     y_pos = np.arange(len(names))
 
+    # Set x-axis ticks every 5%
+    ax.set_xticks(np.arange(0, 105, 5))
+    ax.set_xticklabels([f"{int(x)}%" for x in np.arange(0, 105, 5)])
+
     # Plot bars with individual colors
     ax.barh(y_pos, rate_play_in_circus, color=colors)
+
+    # Add vertical reference line at 50%
+    ax.axvline(50, color="blue", linestyle="--", linewidth=1, label="50%")
+    ax.axvline(65, color="purple", linestyle="--", linewidth=1, label="65%")
+    ax.axvline(80, color="green", linestyle="--", linewidth=1, label="80%")
 
     # Set labels and title
     ax.set_yticks(y_pos)
     ax.set_yticklabels(names, fontsize=10)
     ax.set_xlabel("Rate", fontsize=12)
-    ax.set_title("User Percentage Playing Rank in Circus Maximus", fontsize=14)
+    from_str = from_date.strftime("%Y-%m-%d")
+    to_str = to_date.strftime("%Y-%m-%d")
+    ax.set_title(
+        f"User Percentage Playing Rank in Circus Maximus between {from_str} and {to_str}",
+        fontsize=14,
+    )
+
+    # Add legend
+    ax.legend()
+
     return _plot_return(plt, show)
 
 

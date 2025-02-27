@@ -1,7 +1,7 @@
 """ User interface for the bot"""
 
 import traceback
-from typing import List
+from typing import Any, Callable, Coroutine, List
 import discord
 from discord.ui import View
 from deps.analytic_data_access import fetch_user_info_by_user_id
@@ -31,12 +31,18 @@ class BetTournamentSelectorForActiveMarket(View):
         #     self.tournament_id = self.list_tournaments[0].id
         # else:
         for tournament in self.list_tournaments:
-            button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
+            button: discord.ui.Button = discord.ui.Button(
+                label=tournament.name, custom_id=f"tournament_{tournament.id}"
+            )
             button.callback = self.create_button_callback(tournament.id)
             self.add_item(button)
 
-    def create_button_callback(self, tournament_id: int):
-        async def callback(interaction: discord.Interaction):
+    def create_button_callback(self, tournament_id: int) -> Coroutine[Any, Any, Any]:
+        """
+        Create a buttong with a callback
+        """
+
+        async def callback(interaction: discord.Interaction) -> None:
             """Handles button press for selecting a tournament."""
             try:
                 await interaction.response.defer()
@@ -60,6 +66,11 @@ class BetTournamentSelectorForActiveMarket(View):
                 tournament_games_dict = {game.id: game for game in tournament_games}
 
                 tournament = next((t for t in self.list_tournaments if t.id == tournament_id), None)
+                if tournament is None:
+                    await interaction.followup.send(
+                        "An unexpected error occurred. Please contact a moderator.", ephemeral=True
+                    )
+                    return
                 msg = ""
 
                 for bet in bet_user_games:
@@ -67,7 +78,8 @@ class BetTournamentSelectorForActiveMarket(View):
                     if bet_game is not None:
                         tournament_game = tournament_games_dict.get(bet_game.tournament_game_id, None)
                         if tournament_game is not None:
-
+                            if tournament_game.user1_id is None or tournament_game.user2_id is None:
+                                continue
                             member1 = await fetch_user_info_by_user_id(tournament_game.user1_id)
                             user1_display = member1.display_name if member1 else tournament_game.user1_id
                             user1_odd = bet_game.odd_user_1()
@@ -91,11 +103,12 @@ class BetTournamentSelectorForActiveMarket(View):
                 else:
                     msg = f'Active bet for the tournament "**{tournament.name}**":\n\n' + msg
                 # Update the interaction message with the new view
-                await interaction.followup.edit_message(
-                    message_id=interaction.message.id,
-                    content=msg,
-                    view=self,
-                )
+                if interaction.message is not None:
+                    await interaction.followup.edit_message(
+                        message_id=interaction.message.id,
+                        content=msg,
+                        view=self,
+                    )
             except Exception as e:
                 print_error_log(f"BetTournamentSelectorForActiveMarket>An error occurred: {e}")
                 traceback.print_exc()  # This prints the full error traceback

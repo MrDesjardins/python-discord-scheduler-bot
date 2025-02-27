@@ -21,9 +21,9 @@ class TournamentMatchScoreReport(View):
 
     def __init__(self, list_tournaments: List[Tournament], user_id: Optional[int] = None):
         super().__init__()
-        self.tournament_id = None
-        self.round_lost = None
-        self.round_won = None
+        self.tournament_id: Optional[int] = None
+        self.round_lost: Optional[int] = None
+        self.round_won: Optional[int] = None
         self.list_tournaments = list_tournaments
         self.user_id_lost_match = user_id  # The user that lost the match, only provided when the user is not the one that lost the match (moderator report)
 
@@ -37,7 +37,7 @@ class TournamentMatchScoreReport(View):
                 self.add_item(button)
 
         # Add dropdown for "round lost"
-        self.round_lost_select = Select(
+        self.round_lost_select: discord.ui.Select = Select(
             placeholder="Round lost:",
             options=[discord.SelectOption(value=str(i), label=str(i)) for i in range(11)],
             custom_id="round_lost",
@@ -48,7 +48,7 @@ class TournamentMatchScoreReport(View):
         self.add_item(self.round_lost_select)
 
         # Add dropdown for "round won"
-        self.round_won_select = Select(
+        self.round_won_select: discord.ui.Select = Select(
             placeholder="Round won:",
             options=[discord.SelectOption(value=str(i), label=str(i)) for i in range(11)],
             custom_id="round_won",
@@ -88,8 +88,23 @@ class TournamentMatchScoreReport(View):
             await self.process_tournament_result(interaction)
 
     async def process_tournament_result(self, interaction: discord.Interaction):
-        """Processes the tournament match result."""
+        """
+        Processes the tournament match result.
+        This function should always have the tournament_id, round_lost and round_won set.
+        """
 
+        if interaction.guild_id is None:
+            print_error_log("TournamentMatchScoreReport: process_tournament_result: Guild id is None")
+            await interaction.followup.send("An unexpected error occurred. Please contact a moderator.", ephemeral=True)
+            return
+        if self.round_lost is None or self.round_won is None:
+            print_error_log("TournamentMatchScoreReport: process_tournament_result: Round lost or round won is None")
+            await interaction.followup.send("An unexpected error occurred. Please contact a moderator.", ephemeral=True)
+            return
+        if self.tournament_id is None:
+            print_error_log("TournamentMatchScoreReport: process_tournament_result: Tournament id is None")
+            await interaction.followup.send("An unexpected error occurred. Please contact a moderator.", ephemeral=True)
+            return
         score_string = f"{self.round_won}-{self.round_lost}"
         user_id = self.user_id_lost_match if self.user_id_lost_match is not None else interaction.user.id
         result = await report_lost_tournament(self.tournament_id, user_id, score_string)
@@ -104,22 +119,45 @@ class TournamentMatchScoreReport(View):
 
         if result.is_successful:
             completed_node: TournamentNode = result.context
-            # Played can be set by a moderator
+            if completed_node.user_winner_id is None:
+                print_error_log(
+                    f"TournamentMatchScoreReport: process_tournament_result: User winner id is None for tournament {self.tournament_id}"
+                )
+                await interaction.followup.send(
+                    "The winner wasn't saved properly. Please contact a moderator.", ephemeral=True
+                )
+                return
+            # Played can be set by a moderator, if the case, user_id_lost_match is set, otherwise, none and use the interaction user
+            player_lose: Optional[discord.Member] = None
             if self.user_id_lost_match is not None:
-                player_lose = await data_access_get_member(interaction.guild_id, self.user_id_lost_match)
+                user_or_member = await data_access_get_member(interaction.guild_id, self.user_id_lost_match)
+                player_lose = (
+                    user_or_member if isinstance(user_or_member, discord.Member) else None
+                )  # Ensure it's a Member
             else:
-                player_lose: discord.Member = interaction.user
+                player_lose = interaction.user if isinstance(interaction.user, discord.Member) else None
+
+            if player_lose is None:
+                print_error_log(
+                    f"TournamentMatchScoreReport: process_tournament_result: player_lose is None for tournament {self.tournament_id}"
+                )
+                await interaction.followup.send("Losing member not found. Please contact a moderator.", ephemeral=True)
+                return
             try:
                 player_win = await data_access_get_member(
                     guild_id=interaction.guild_id, user_id=completed_node.user_winner_id
                 )
-                player_win_display_name = player_win.mention
+                player_win_display_name: str = ""
+                if player_win is None:
+                    player_win_display_name = str(completed_node.user_winner_id)
+                else:
+                    player_win_display_name = player_win.mention
             except Exception as e:
                 # Might go in here in development since there is no member in the guild
                 print_error_log(
                     f"TournamentMatchScoreReport: process_tournament_result: Error while fetching member: {e}"
                 )
-                player_win_display_name = completed_node.user_winner_id
+                player_win_display_name = str(completed_node.user_winner_id)
             await interaction.followup.send(
                 f"{player_win_display_name} wins against {player_lose.mention} on {completed_node.map} with a score of {completed_node.score}",
                 ephemeral=False,

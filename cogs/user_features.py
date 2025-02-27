@@ -105,6 +105,12 @@ class UserFeatures(commands.Cog):
         """
         await interaction.response.defer(ephemeral=True)
 
+        if interaction.guild is None:
+            print_error_log(
+                f"set_max_user_account: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.followup.send("Guild not found for this command.", ephemeral=True)
+            return
         view = ConfirmCancelView()
         await interaction.followup.send(
             f"Are you sure you want to perform this action? If {ubisoft_connect_name} is not your real account you will face consequences.",
@@ -121,7 +127,7 @@ class UserFeatures(commands.Cog):
         elif view.result:
 
             guild_id = interaction.guild.id
-            member: discord.Member = await data_access_get_member(guild_id, interaction.user.id)
+            member = await data_access_get_member(guild_id, interaction.user.id)
             # member: discord.Member = interaction.guild.get_member(interaction.user.id)
             if member is None:
                 print_error_log(f"adjust_rank: Cannot find a member from user id {interaction.user.id}.")
@@ -154,12 +160,16 @@ class UserFeatures(commands.Cog):
         """Looking for group command"""
         await interaction.response.defer(ephemeral=False)
         user = interaction.user
-        if user.voice:
+        if interaction.guild_id is None:
+            print_error_log(f"looking_for_group: No guild_id available for user {user.display_name}({user.id}).")
+            await interaction.followup.send("Guild not found for this user.", ephemeral=True)
+            return
+        if isinstance(user, discord.Member) and user.voice is not None and user.voice.channel is not None:
             voice_channel = user.voice.channel
             # Get everyone in the voice channel
             members = voice_channel.members
             if isinstance(members, list):
-                list_members_in_voice_channel = get_list_users_with_rank(self.bot, members, interaction.guild.id)
+                list_members_in_voice_channel = get_list_users_with_rank(self.bot, members, interaction.guild_id)
                 current_count = len(members)
                 missing_count = 5 - current_count if number_of_users_needed is None else number_of_users_needed
                 if missing_count > 0:
@@ -174,7 +184,7 @@ class UserFeatures(commands.Cog):
                         )
                 else:
                     await interaction.followup.send(
-                        f"There are already five people in the voice channel: <#{voice_channel.id}>. The {COMMAND_LFG} is will no 'at mention' the channel.",
+                        f"There are already five people in the voice channel: <#{voice_channel.id}>. The {COMMAND_LFG} will not 'at mention' the channel.",
                         ephemeral=True,
                     )
             else:

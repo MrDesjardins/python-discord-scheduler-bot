@@ -41,11 +41,14 @@ class ModTournament(commands.Cog):
 
     @app_commands.command(name=COMMAND_TOURNAMENT_CHANNEL_SET_CHANNEL)
     @commands.has_permissions(administrator=True)
-    async def set_tournament_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+    async def set_tournament_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         """
         An administrator can set the channel where the tournament message will be sent
         """
-        guild_id = interaction.guild.id
+        guild_id = interaction.guild_id
+        if guild_id is None:
+            print_error_log("set_tournament_text_channel: Guild ID is None.")
+            return
         data_access_set_guild_tournament_text_channel_id(guild_id, channel.id)
 
         await interaction.response.send_message(
@@ -58,10 +61,14 @@ class ModTournament(commands.Cog):
     async def see_tournament_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("see_tournament_text_channel: Guild is None.")
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No tournament channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"No tournament channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("Tournament text channel not set.", ephemeral=True)
             return
 
@@ -82,10 +89,14 @@ class ModTournament(commands.Cog):
     ):
         """Create a tournament"""
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("create_tournament: Guild is None.")
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"create_tournament:No tournament channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"create_tournament:No tournament channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("Tournament text channel not set.", ephemeral=True)
             return
 
@@ -114,9 +125,16 @@ class ModTournament(commands.Cog):
     async def start_tournament_by_id(self, interaction: discord.Interaction, tournament_id: int):
         """Start tournament"""
         await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("start_tournament_by_id: Guild is None.")
+            return
 
-        if interaction.user.id == interaction.guild.owner_id:
-            tournament: Tournament = fetch_tournament_by_id(tournament_id)
+        if interaction.user.id == guild.owner_id:
+            tournament = fetch_tournament_by_id(tournament_id)
+            if tournament is None:
+                await interaction.followup.send(f"Tournament with id {tournament_id} not found", ephemeral=True)
+                return
             await start_tournament(tournament)
             await interaction.followup.send(f"Tournament '{tournament.name}' Started", ephemeral=True)
         else:
@@ -128,12 +146,16 @@ class ModTournament(commands.Cog):
         Select a user, then a tournament to make the user report a lost match
         """
         user_id = member.id
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         list_tournaments: List[Tournament] = fetch_tournament_active_to_interact_for_user(guild_id, user_id)
 
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"send_score_tournament_by_mod: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
+                f"send_score_tournament_by_mod: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
             )
             await interaction.response.send_message(
                 f"No active tournament available for {member.display_name}.", ephemeral=True

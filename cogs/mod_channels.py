@@ -32,7 +32,7 @@ from deps.values import (
     COMMAND_SET_NEW_USER_CHANNEL,
 )
 from deps.mybot import MyBot
-from deps.log import print_warning_log
+from deps.log import print_error_log, print_warning_log
 
 
 class ModChannels(commands.Cog):
@@ -48,9 +48,12 @@ class ModChannels(commands.Cog):
         An administrator can set the channel where the user name is shown
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         data_access_set_guild_username_text_channel_id(guild_id, channel.id)
-
         await interaction.followup.send(
             f"Confirmed to send a user name message into #{channel.name}.",
             ephemeral=True,
@@ -61,10 +64,14 @@ class ModChannels(commands.Cog):
     async def see_username_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_guild_username_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No username text channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"No username text channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("Username Text channel not set.", ephemeral=True)
             return
 
@@ -77,7 +84,11 @@ class ModChannels(commands.Cog):
         An administrator can set the channel where the user name is shown
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         data_access_set_gaming_session_text_channel_id(guild_id, channel.id)
 
         await interaction.followup.send(
@@ -90,10 +101,14 @@ class ModChannels(commands.Cog):
     async def see_gaming_session_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_gaming_session_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No gaming session stats channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"No gaming session stats channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("Gaming Session Text channel not set.", ephemeral=True)
             return
 
@@ -106,7 +121,11 @@ class ModChannels(commands.Cog):
         An administrator can set the channel where the user name is shown
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         data_access_set_new_user_text_channel_id(guild_id, channel.id)
 
         await interaction.followup.send(
@@ -119,10 +138,14 @@ class ModChannels(commands.Cog):
     async def see_new_user_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_new_user_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No new user channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"No new user channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("New User Text channel not set.", ephemeral=True)
             return
 
@@ -135,7 +158,11 @@ class ModChannels(commands.Cog):
         Set the voice channels to listen to the users in the voice channel
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
         if voice_channel_ids is None:
             voice_channel_ids = []
@@ -152,7 +179,11 @@ class ModChannels(commands.Cog):
         Set the voice channels to listen to the users in the voice channel
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         data_access_set_guild_voice_channel_ids(guild_id, None)
 
         await interaction.followup.send("Deleted all configuration for voice channels", ephemeral=True)
@@ -160,12 +191,18 @@ class ModChannels(commands.Cog):
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION)
     @commands.has_permissions(administrator=True)
     async def see_voice_channels(self, interaction: discord.Interaction):
-        """Display the voice channels configured"""
+        """
+        Display the voice channels configured
+        """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         voice_ids = await data_access_get_guild_voice_channel_ids(guild_id)
         if voice_ids is None:
-            print_warning_log(f"No voice channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"No voice channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("Voice channel not set.", ephemeral=True)
             return
         names = []
@@ -182,24 +219,34 @@ class ModChannels(commands.Cog):
         An administrator can set the channel where the daily schedule message will be sent
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         data_access_set_guild_schedule_text_channel_id(guild_id, channel.id)
 
         await interaction.followup.send(
             f"Confirmed to send a daily schedule message into #{channel.name}.",
             ephemeral=True,
         )
-        await send_daily_question_to_a_guild(self.bot, interaction.guild)
+        await send_daily_question_to_a_guild(self.bot, guild)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_GET_SCHEDULE_CHANNEL)
     @commands.has_permissions(administrator=True)
     async def see_schedule_text_channel(self, interaction: discord.Interaction):
-        """Display the text channel configured"""
+        """
+        Display the text channel configured
+        """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No schedule text channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"No schedule text channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("Schedule text channel not set.", ephemeral=True)
             return
 
@@ -212,24 +259,34 @@ class ModChannels(commands.Cog):
         An administrator can set the channel where the daily schedule message will be sent
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         data_access_set_main_text_channel_id(guild_id, channel.id)
 
         await interaction.followup.send(
             f"Confirmed to send main interaction message into #{channel.name}.",
             ephemeral=True,
         )
-        await send_daily_question_to_a_guild(self.bot, interaction.guild)
+        await send_daily_question_to_a_guild(self.bot, guild)
 
     @app_commands.command(name=COMMAND_CHANNEL_GET_MAIN_CHANNEL)
     @commands.has_permissions(administrator=True)
     async def see_main_text_channel(self, interaction: discord.Interaction):
-        """Display the text channel configured"""
+        """
+        Display the text channel configured
+        """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_main_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No main text channel in guild {interaction.guild.name}. Skipping.")
+            print_warning_log(f"No main text channel in guild {guild.name}. Skipping.")
             await interaction.followup.send("Main text channel not set.", ephemeral=True)
             return
 

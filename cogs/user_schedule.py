@@ -19,7 +19,7 @@ from deps.values import (
     COMMAND_SCHEDULE_SEE,
     DAYS_OF_WEEK,
 )
-from deps.log import print_log, print_warning_log
+from deps.log import print_error_log, print_log, print_warning_log
 from deps.models import DayOfWeek, SimpleUserHour
 from deps.mybot import MyBot
 
@@ -49,7 +49,11 @@ class UserSchedule(commands.Cog):
         """
         Remove the schedule for the active user who perform the command
         """
-        guild_id = interaction.guild_id
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("setup_user: No guild", ephemeral=True)
+            return
+        guild_id = guild.id
         day_str = day.value
         list_users: Union[List[SimpleUserHour] | None] = await data_access_get_users_auto_schedule(guild_id, day_str)
         if list_users is None:
@@ -64,10 +68,13 @@ class UserSchedule(commands.Cog):
         Show the current schedule for the user
         """
         response = ""
-        guild_id = interaction.guild_id
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message("see_user_own_schedule: No guild", ephemeral=True)
+            return
+        guild_id = guild.id
         for day, day_display in enumerate(DAYS_OF_WEEK):
             list_users: Union[List[SimpleUserHour] | None] = await data_access_get_users_auto_schedule(guild_id, day)
-            print_log(list_users)
             if list_users is not None:
                 for user_hour in list_users:
                     if user_hour.simple_user.user_id == interaction.user.id:
@@ -85,20 +92,30 @@ class UserSchedule(commands.Cog):
         Should not have to use it, but admin can trigger the sync
         """
         await interaction.response.defer(ephemeral=True)
-        guild_id = interaction.guild.id
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("apply_schedule: Guild is None.")
+            await interaction.response.send_message("apply_schedule: No guild", ephemeral=True)
+            return
+        guild_id = guild.id
         channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if channel_id is None:
-            print_warning_log(f"No text channel in guild {interaction.guild.name}. Skipping.")
-            await interaction.followup.send("Text channel not set.", ephemeral=True)
+            print_warning_log(f"No text channel in guild {guild.name}. Skipping.")
+            await interaction.followup.send("Schedule channel not set by the admin.", ephemeral=True)
             return
 
-        channel: discord.TextChannel = await data_access_get_channel(channel_id)
+        channel = await data_access_get_channel(channel_id)
+        if channel is None:
+            print_warning_log(f"No channel found in guild {guild.name}. Skipping.")
+            await interaction.followup.send("Schedule Channel not found.", ephemeral=True)
+            return
         # last_message_id = await data_access_get_daily_message_id(guild_id)
         last_message = await get_last_schedule_message(self.bot, channel)
         last_message_id = last_message.id if last_message is not None else None
         if last_message_id is None:
             print_warning_log(f"No message found in the channel {channel.name}. Skipping.")
             await interaction.followup.send(f"Cannot find a schedule message #{channel.name}.", ephemeral=True)
+            return
         last_message = await data_access_get_message(guild_id, channel_id, last_message_id)
         if last_message is None:
             print_warning_log(f"Cannot find a message id {last_message_id} in the channel {channel.name}. Skipping.")

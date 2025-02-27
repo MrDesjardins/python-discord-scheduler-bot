@@ -4,11 +4,11 @@ from discord.ext import commands
 from discord import app_commands
 from deps.bot_common_actions import persist_siege_matches_cross_guilds, send_session_stats_directly
 from deps.data_access import (
+    data_access_get_channel,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_message,
     data_access_get_reaction_message,
     data_access_set_reaction_message,
-    data_access_get_member,
 )
 from deps.analytic_data_access import data_access_set_ubisoft_username_active, data_access_set_ubisoft_username_max
 from deps.values import (
@@ -85,11 +85,14 @@ class ModeratorOnUserBehalf(commands.Cog):
         if guild_id is None:
             await interaction.followup.send("Cannot set the user schedule.", ephemeral=True)
             return
-        channel = data_access_get_guild_schedule_text_channel_id(guild_id)
+        channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
+        if channel_id is None:
+            await interaction.followup.send("No channel id found for the schedule.", ephemeral=True)
+            return
+        channel = await data_access_get_channel(channel_id)
         if channel is None:
             await interaction.followup.send("No channel found for the schedule.", ephemeral=True)
             return
-        channel_id = channel.id
         last_message = await get_last_schedule_message(self.bot, channel)
         last_message_id = last_message.id if last_message is not None else None
         # last_message_id = await data_access_get_daily_message_id(guild_id)
