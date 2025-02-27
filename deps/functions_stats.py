@@ -429,7 +429,7 @@ def build_msg_count_ratio_stats(
 
 def build_msg_4_counts(stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, int, int]]) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 20
+    top = 15
     col_width = 16
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
