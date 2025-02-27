@@ -4,7 +4,6 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Union
 import discord
-import json
 from deps.data_access import (
     data_access_get_channel,
     data_access_get_guild,
@@ -186,7 +185,6 @@ async def auto_assign_user_to_daily_question(
 
         data_access_set_reaction_message(guild_id, channel_id, message_id, message_votes)
         print_log(f"Updated message {message_id} with the user schedules for the day {day_of_week_number}")
-        print_log(json.dumps(message_votes))
         await update_vote_message(message, message_votes, guild_emoji)
 
     else:
