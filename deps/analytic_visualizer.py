@@ -4,7 +4,7 @@ Code to show the relationsip between the users
 
 import io
 from collections import defaultdict
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Union, Any
 import plotly.graph_objs as go
@@ -73,6 +73,7 @@ def _get_data(from_day, to_day) -> list[UsersRelationship]:
     Display the relationship between users in a graph
     """
     calculate_time_spent_from_db(from_day, to_day)
+
     # Fetch the data from the user_weights table
     database_manager.get_cursor().execute(
         """
@@ -89,7 +90,11 @@ def _get_data(from_day, to_day) -> list[UsersRelationship]:
         user_info as ui2 on user_weights.user_b = ui2.id
     """
     )
-    return [UsersRelationship(*row) for row in database_manager.get_cursor().fetchall()]
+    all_data = [UsersRelationship(*row) for row in database_manager.get_cursor().fetchall()]
+    # Remove relationship with not a lot of time spent together (under 1 hour)
+    data = [user for user in all_data if user.weight > 3600]  # 1 hour
+
+    return data
 
 
 def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
@@ -299,6 +304,8 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
     """
     top = 50
     data = _get_data(from_day, to_day)
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
 
     (users_uni_direction, max_weight) = get_unidirection_users(data)
 
@@ -323,8 +330,10 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
     data_for_plot.sort(key=lambda x: x["weight"], reverse=True)
     # Get the top 20
     data_for_plot = data_for_plot[:top]
+
     # Create a bar chart
-    plt.figure(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(10, 10))
+
     # Get the names
     names = [f"{user['user1']} - {user['user2']}" for user in data_for_plot]
     # Get the weights
@@ -333,7 +342,10 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
     plt.barh(names, weights)
     plt.xlabel("Hours spent together")
     plt.ylabel("User pairs")
-    plt.title(f"Top {top} user pairs with the most time spent together")
+
+    fig.suptitle(f"Top {top} user pairs with the most time spent together", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+
     plt.xticks(fontsize=10)  # Reduce x-axis font size if needed
     plt.yticks(fontsize=8)  # Reduce y-axis font size to fit long names
     plt.gca().invert_yaxis()  # Invert the y-axis to have larger weights at the top
@@ -349,6 +361,9 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
     data_user_activity = fetch_all_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_info()
 
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
+
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
     user_times = compute_users_voice_channel_time_sec(auser_in_outs)
 
@@ -363,13 +378,16 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
     users_display_name: List[str] = [data_user_id_name[user_id].display_name for user_id in users]  # Convert user
 
     # Create the bar plot
-    plt.figure(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(10, 8))
+
     plt.bar(users_display_name, times_in_hours, color="skyblue")
 
     # Add labels and title
     plt.xlabel("Users")
     plt.ylabel("Total Time (Hours)")
-    plt.title(f"Top {top} Users by Total Voice Channel Time (in Hours)")
+    fig.suptitle(f"Top {top} Users by Total Voice Channel Time (in Hours)", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+
     plt.xticks(rotation=90)  # Rotate user names for better readability
     plt.tight_layout()  # Adjust layout to fit labels better
     return _plot_return(plt, show)
@@ -382,6 +400,8 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
     top = 50
     data_user_activity = fetch_all_user_activities(from_day, to_day)
     data_user_id_name = fetch_user_info()
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
 
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
     user_times = users_last_played_over_day(auser_in_outs)
@@ -394,13 +414,14 @@ def display_inactive_user(show: bool = True, from_day: int = 3600, to_day: int =
     user_names = [data_user_id_name[user_id].display_name for user_id in user_ids]  # Convert user
 
     # Create the horizontal bar plot
-    plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 8))
     plt.barh(user_names, time_day, color="skyblue")  # Swap axes here: barh for horizontal bars
 
     # Add labels and title
     plt.ylabel("Users")  # Change x and y labels accordingly
     plt.xlabel("Days Inactive")
-    plt.title(f"Top {top} Users Inactive Users (in Days)")
+    fig.suptitle(f"Top {top} Users Inactive Users (in Days)", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
 
     # Ensure X-axis shows only integers
     plt.xticks(np.arange(0, max(time_day) + 1, step=1))
@@ -419,6 +440,10 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
     data_user_activity: list[UserActivity] = fetch_all_user_activities(from_day, to_day)
     data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
     users_by_weekday_dict: Dict[int, list[UserInfoWithCount]] = users_by_weekday(data_user_activity, data_user_id_name)
+
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
+
     # Get unique users and weekdays
     weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     user_ids = sorted(data_user_id_name.keys())  # Get a sorted list of user IDs
@@ -437,7 +462,7 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
     activity_matrix_with_nan = np.where(activity_matrix == 0, np.nan, activity_matrix)
 
     # Create a heatmap
-    plt.figure(figsize=(20, 20))
+    fig, ax = plt.subplots(figsize=(20, 20))
     sns.heatmap(
         activity_matrix_with_nan,
         annot=True,
@@ -447,7 +472,9 @@ def display_user_day_week(show: bool = True, from_day: int = 3600, to_day: int =
         yticklabels=user_names,
         mask=np.isnan(activity_matrix_with_nan),
     )
-    plt.title("User Activity by Weekday")
+    fig.suptitle("User Activity by Weekday", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+
     plt.xlabel("Weekday")
     plt.ylabel("Users")
 
@@ -508,6 +535,9 @@ def display_user_timeline_voice_time_by_day(
     # Temporary dictionary to hold start times
     start_times = {}
 
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
+
     # Parse timestamps and compute playtime
     for activity in user_activities:
         timestamp = datetime.fromisoformat(activity.timestamp)
@@ -538,7 +568,9 @@ def display_user_timeline_voice_time_by_day(
     # Format plot
     ax.set_xlabel("Date")
     ax.set_ylabel("Time Played (seconds)")
-    ax.set_title("Daily Playtime for Top 20 Active Users")
+    fig.suptitle("Daily Playtime for Top 20 Active Users", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+
     ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1), title="User ID")
     ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter("%Y-%m-%d"))
     ax.grid(True)
@@ -568,6 +600,9 @@ def display_user_timeline_voice_time_by_week(
 
     # Temporary dictionary to hold start times
     start_times = {}
+
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
 
     # Parse timestamps and compute playtime
     for activity in user_activities:
@@ -609,7 +644,9 @@ def display_user_timeline_voice_time_by_week(
         # Format each subplot
         ax.set_xlabel("Week Starting (Monday)")
         ax.set_ylabel("Time Played (minutes)")
-        ax.set_title(title)
+        fig.suptitle(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=16)
+        ax.set_title(title, fontsize=14)
+
         ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1), title="User Names")
         ax.grid(True)
         fig.autofmt_xdate()
@@ -651,6 +688,9 @@ def display_user_line_graph_time(
     # Temporary dictionary to hold start times
     start_times = {}
 
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
+
     # Parse timestamps and compute playtime
     for activity in user_activities:
         timestamp = datetime.fromisoformat(activity.timestamp)
@@ -673,7 +713,7 @@ def display_user_line_graph_time(
     all_dates: list[datetime] = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
 
     # Prepare plot with three subplots
-    plt.figure(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(12, 8))
 
     # Fill in missing weeks with zero to create a continuous line
     user_times = [user_weekly_play_times.get(week, 0) for week in all_weeks]
@@ -685,7 +725,9 @@ def display_user_line_graph_time(
     # Format each subplot
     plt.xlabel("Week Starting (Monday)")
     plt.ylabel("Time Played (minutes)")
-    plt.title(f"Weekly Time Played for {user_info.display_name} (total: {user_play_times//60} hours)")
+
+    fig.suptitle(f"Weekly Time Played for {user_info.display_name} (total: {user_play_times//60} hours)", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
 
     plt.grid(True)
     plt.tight_layout()
@@ -759,7 +801,7 @@ def display_user_top_operators(
     ax.set_xlabel("Users", fontsize=12)
     ax.set_ylabel("Operators", fontsize=12)
     fig.suptitle("Top User-Operator Count Heatmap", fontsize=16)
-    ax.set_title(f"Since {from_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}", fontsize=14)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {datetime.now().strftime('%Y-%m-%d')}", fontsize=14)
     return _plot_return(plt, show)
 
 
@@ -815,12 +857,8 @@ def display_user_rank_match_played_server(
     ax.set_yticks(y_pos)
     ax.set_yticklabels(names, fontsize=10)
     ax.set_xlabel("Rate", fontsize=12)
-    from_str = from_date.strftime("%Y-%m-%d")
-    to_str = to_date.strftime("%Y-%m-%d")
-    ax.set_title(
-        f"User Percentage Playing Rank in Circus Maximus between {from_str} and {to_str}",
-        fontsize=14,
-    )
+    fig.suptitle("User Percentage Playing Rank in Circus Maximus", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
 
     # Add legend
     ax.legend()
@@ -876,7 +914,8 @@ def display_user_rank_match_win_rate_played_server(
     ax.set_yticks(y_pos)
     ax.set_yticklabels(names_with_star, fontsize=10)
     ax.set_xlabel("Win Rate", fontsize=12)
-    ax.set_title("User Win Rate in and outside Circus Maximus", fontsize=14)
+    fig.suptitle("User Win Rate in and outside Circus Maximus", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
 
     # Add legend
     ax.legend()
