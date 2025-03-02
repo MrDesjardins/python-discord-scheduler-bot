@@ -15,6 +15,7 @@ from deps.analytic_data_access import (
     data_access_fetch_best_duo,
     data_access_fetch_best_trio,
     data_access_fetch_best_worse_map,
+    data_access_fetch_clutch_round_rate,
     data_access_fetch_clutch_win_rate,
     data_access_fetch_first_death,
     data_access_fetch_first_kill,
@@ -60,20 +61,34 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     last_30_days = today - timedelta(days=day_30)
     last_60_days = today - timedelta(days=day_60)
     first_day_current_year = datetime(today.year, 1, 1, tzinfo=timezone.utc)
+    msg_intruction: Optional[str] = None
     if stats_number is not None:
         function_number = stats_number
     else:
-        function_number = get_rotated_number_from_current_day(14)
+        function_number = get_rotated_number_from_current_day(16)
     if function_number == 0:
         msg = stats_rank_match_count(day_14, last_14_days)
     elif function_number == 1:
         msg = stats_kd(day_14, last_14_days)
+        msg_intruction = """The K/D are for matches played in or not on that server. However, it might not contain all your matches if you are not active.
+The bot tracks on a daily basis the matches played by fetching the last 20 matches stats on days you visited this server. If you are playing actively elsewhere and not on this server, the stats might not be accurate.
+If you are joining a voice channel about every 20 ranks matches, the stats should be accurate."""
     elif function_number == 2:
         msg = stats_first_death(day_30, last_30_days)
+        msg_intruction = """The ratio means the rate of time you left your time into a 4v5 situation.
+A number approachin 0.10 is normal since Siege is a 10 men game.
+Above 0.10 means you are dying more often than the 9 other players.
+A high number means you are taking more risk but this number should be balanced with the first kill ratio (stats we will provide another day).
+As long as your first kill and first death ratio is above 0.5, you are doing a good job."""
     elif function_number == 3:
         msg = stats_first_kill(day_30, last_30_days)
     elif function_number == 4:
         msg = stats_ratio_first_kill_death(day_30, last_30_days)
+        msg_intruction = """The ratio of the stats means is the rate between first kill and first death. The formula is : first kill count/(first death count + first kill count). 
+So, the maximum you can have is 1.0. For example, someone got 10 first kill, 0 first death.
+Someone with a ratio of 0.5 means you let your team in a 5v4 almost the same amount that you left your team in a 5v4. 
+Under 0.5 means you left your team more often in a numerical disadvantage (4v5). 
+Above 0.5 means you are setting your team in a advantageous position (5v4)."""
     elif function_number == 5:
         msg = stats_user_best_trio(day_30, last_30_days)
     elif function_number == 6:
@@ -85,7 +100,7 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     elif function_number == 9:
         msg = stats_average_kill_match(day_14, last_14_days)
     elif function_number == 10:
-        msg = stats_user_time_voice_channel(day_7)
+        msg = stats_user_time_voice_channel(day_14)
     elif function_number == 11:
         msg, file = await stats_ops_by_members(day_14, last_14_days)
         if file is not None:
@@ -108,11 +123,21 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
                 f"send_daily_stats_to_a_guild: Error in stats_best_worse_map with safe_guard at {safe_guard}"
             )
         return
+    elif function_number == 15:
+        msg = stats_clutch_round_rate(day_60, last_60_days)
+        msg_intruction = """The clutch rate shows the number of time a user is in a 1vX situation.
+A rate around 0.1 is normal since Siege is a 5v5 game. A rate above 0.1 might mean you are more passive and a rate lower than 0.1 might indicate you are more aggressive and taking more risk."""
+    elif function_number == 16:
+        msg = "No stats today"
     else:
         print_log(f"send_daily_stats_to_a_guild: No stats to show for random number {function_number}")
         return
 
-    await channel.send(content=msg)
+    msg_len = len(msg)
+    print_log(f"send_daily_stats_to_a_guild: Sending stats {function_number} to {guild.name} total size {msg_len}")
+    await channel.send(content=msg[:1999])
+    if msg_intruction is not None:
+        await channel.send(content=msg_intruction)
 
 
 def stats_rank_match_count(day: int, last_7_days: date) -> str:
@@ -168,7 +193,7 @@ def stats_user_time_voice_channel(
 
     # Get the display name of the user to create a list of tuple with id, username and time
     stats = [(user_id, data_user_id_name[user_id].display_name, round(time, 2)) for user_id, time in sorted_users]
-    msg = build_msg_stats_key_value_decimal("hours in voice channels", f"in the last {day} days", stats)
+    msg = build_msg_stats_key_value_decimal("amount of hours in voice channels", f"in the last {day} days", stats)
     return msg
 
 
@@ -252,6 +277,17 @@ def stats_ace_count(day: int, last_x_day: date) -> str:
     return msg
 
 
+def stats_clutch_round_rate(day: int, last_x_day: date) -> str:
+    """
+    Stats that check the count of ace, 4k, 3k
+    """
+    stats = data_access_fetch_clutch_round_rate(last_x_day)
+    msg = build_msg_4_counts_2(
+        "Clutch win, lost, total round, ratio in clutch position", f"in the last {day} days", stats
+    )
+    return msg
+
+
 def stats_best_worse_map(day: int, last_x_day: date, index: int = 0) -> tuple[str, Union[int, None]]:
     """
     Stats to know the best and worse map of each user who has at least one match different map
@@ -273,12 +309,13 @@ def build_msg_stats_key_value_decimal(
     decimal_precision: bool = True,
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 20
-    col_width = 24
+    top = 30
+    col_width = 16
+    col_width_data = 5
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
     previous_value: Union[int, float] = -1
-    msg += f"{columnize('#', 3)}" f"{columnize('Name', col_width)}" f"{columnize('Count', col_width)}\n"
+    msg += f"{columnize('#', 3)}" f"{columnize('Name', col_width)}" f"{columnize('Count', col_width_data)}\n"
     for stat in stats_tuple:
         if rank >= top:
             break
@@ -287,7 +324,7 @@ def build_msg_stats_key_value_decimal(
             previous_value = stat[2]
 
         value = f"{stat[2]:.3f}" if decimal_precision else int(stat[2])
-        msg += f"{columnize(rank,3)}{columnize(stat[1], col_width)}{columnize(value, col_width)}\n"
+        msg += f"{columnize(rank,3)}{columnize(stat[1], col_width)}{columnize(value, col_width_data)}\n"
     msg += "```"
     return msg
 
@@ -331,6 +368,7 @@ def build_msg_stats_trio(
     """Build a message that can be resused between the stats msg"""
     top = 15
     col_width = 12
+    col_data = 7
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
     win_rate: Union[int, float] = -1
@@ -339,9 +377,9 @@ def build_msg_stats_trio(
         f"{columnize('Name', col_width)}"
         f"{columnize('Name', col_width)}"
         f"{columnize('Name', col_width)}"
-        f"{columnize('Game Count', col_width)}"
-        f"{columnize('Win Count', col_width)}"
-        f"{columnize('Win Rate', col_width)}\n"
+        f"{columnize('# Game', col_data)}"
+        f"{columnize('# Win', col_data)}"
+        f"{columnize('Rate', col_data)}\n"
     )
     for stat in stats_tuple:
         if rank >= top:
@@ -349,7 +387,7 @@ def build_msg_stats_trio(
         if win_rate != stat[5]:
             rank += 1
             win_rate = stat[5]
-        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width)}{columnize(stat[2], col_width)}{columnize(stat[3],col_width)}{columnize(stat[4],col_width)}{columnize(f'{stat[5]:.3f}', col_width)}\n"
+        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width)}{columnize(stat[2], col_width)}{columnize(stat[3],col_data)}{columnize(stat[4],col_data)}{columnize(f'{stat[5]:.3f}', col_data)}\n"
     msg += "```"
     return msg
 
@@ -358,17 +396,18 @@ def build_msg_stats_two_counts_rate(
     stats_name: str, rate_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 20
-    col_width = 12
+    top = 30
+    col_width = 16
+    col_width_data = 8
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
     win_rate: Union[int, float] = -1
     msg += (
         f"{columnize('#', 3)}"
         f"{columnize('Name', col_width)}"
-        f"{columnize(f'Count {rate_name}', col_width)}"
-        f"{columnize('Count Round', col_width)}"
-        f"{columnize('Rate', col_width)}\n"
+        f"{columnize(f'# {rate_name}', col_width_data)}"
+        f"{columnize('# Round', col_width_data)}"
+        f"{columnize('Rate', col_width_data)}\n"
     )
     for stat in stats_tuple:
         if rank >= top:
@@ -376,14 +415,14 @@ def build_msg_stats_two_counts_rate(
         if win_rate != stat[3]:
             rank += 1
             win_rate = stat[3]
-        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width)}{columnize(stat[2], col_width)}{columnize(f'{stat[3]:.3f}', col_width)}\n"
+        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width_data)}{columnize(stat[2], col_width_data)}{columnize(f'{stat[3]:.3f}', col_width_data)}\n"
     msg += "```"
     return msg
 
 
 def build_msg_stats_name_percentage(stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, float]]) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 20
+    top = 30
     col_width = 16
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
@@ -404,17 +443,18 @@ def build_msg_count_ratio_stats(
     stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 20
+    top = 30
     col_width = 16
+    col_width_data = 7
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
     last_rate: Union[int, float] = -1
     msg += (
         f"{columnize('#', 3)}"
         f"{columnize('Name', col_width)}"
-        f"{columnize('Win', col_width)}"
-        f"{columnize('Loss', col_width)}"
-        f"{columnize('Rate', col_width)}\n"
+        f"{columnize('Win', col_width_data)}"
+        f"{columnize('Loss', col_width_data)}"
+        f"{columnize('Rate', col_width_data)}\n"
     )
     for stat in stats_tuple:
         if rank >= top:
@@ -422,25 +462,26 @@ def build_msg_count_ratio_stats(
         if last_rate != stat[3]:
             rank += 1
             last_rate = stat[3]
-        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width)}{columnize(stat[2], col_width)}{columnize(f'{stat[3]:.3f}', col_width)}\n"
+        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width_data)}{columnize(stat[2], col_width_data)}{columnize(f'{stat[3]:.3f}', col_width_data)}\n"
     msg += "```"
     return msg
 
 
 def build_msg_4_counts(stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, int, int]]) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 15
+    top = 30
     col_width = 16
+    col_width_data = 5
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
     last_rate: Union[int, float] = -1
     msg += (
         f"{columnize('#', 3)}"
         f"{columnize('Name', col_width)}"
-        f"{columnize('5k (Ace)', col_width)}"
-        f"{columnize('4k', col_width)}"
-        f"{columnize('3k', col_width)}"
-        f"{columnize('Total', col_width)}\n"
+        f"{columnize('5k', col_width_data)}"
+        f"{columnize('4k', col_width_data)}"
+        f"{columnize('3k', col_width_data)}"
+        f"{columnize('Total', col_width_data)}\n"
     )
     for stat in stats_tuple:
         if rank >= top:
@@ -448,7 +489,36 @@ def build_msg_4_counts(stats_name: str, info_time_str: str, stats_tuple: list[tu
         if last_rate != stat[4]:
             rank += 1
             last_rate = stat[4]
-        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width)}{columnize(stat[2], col_width)}{columnize(f'{stat[3]}', col_width)}{columnize(f'{stat[4]}', col_width)}\n"
+        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width_data)}{columnize(stat[2], col_width_data)}{columnize(f'{stat[3]}', col_width_data)}{columnize(f'{stat[4]}', col_width_data)}\n"
+    msg += "```"
+    return msg
+
+
+def build_msg_4_counts_2(
+    stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, int, float]]
+) -> str:
+    """Build a message that can be resused between the stats msg"""
+    top = 30
+    col_width = 16
+    col_width_data = 6
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    rank = 0
+    last_rate: Union[int, float] = -1
+    msg += (
+        f"{columnize('#', 3)}"
+        f"{columnize('Name', col_width)}"
+        f"{columnize('Win', col_width_data)}"
+        f"{columnize('Loss', col_width_data)}"
+        f"{columnize('Round', col_width_data)}"
+        f"{columnize('Rate', col_width_data)}\n"
+    )
+    for stat in stats_tuple:
+        if rank >= top:
+            break
+        if last_rate != stat[4]:
+            rank += 1
+            last_rate = stat[4]
+        msg += f"{columnize(rank,3)}{columnize(stat[0], col_width)}{columnize(stat[1], col_width_data)}{columnize(stat[2], col_width_data)}{columnize(f'{stat[3]}', col_width_data)}{columnize(f'{stat[4]:.3f}', col_width_data)}\n"
     msg += "```"
     return msg
 

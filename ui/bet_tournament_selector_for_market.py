@@ -2,6 +2,7 @@
 
 import traceback
 from typing import List, Optional, Union
+from functools import partial
 import discord
 from discord.ui import Select, View
 from deps.data_access import data_access_get_member
@@ -38,16 +39,18 @@ class BetTournamentSelectorForMarket(View):
         self.user_info1: Optional[UserInfo] = None
         self.user_info2: Optional[UserInfo] = None
 
-        # Dynamically add buttons for each tournament
-        # if (len(self.list_tournaments)) == 1:
-        #     self.tournament_id = self.list_tournaments[0].id
-        # else:
         for tournament in self.list_tournaments:
-            button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
+            button: discord.ui.Button = discord.ui.Button(
+                label=tournament.name, custom_id=f"tournament_{tournament.id}"
+            )
             button.callback = lambda interaction, tid=tournament.id: self.create_button_callback(tid)(interaction)
             self.add_item(button)
 
     def create_button_callback(self, tournament_id: int):
+        """
+        Create a new button for each tournament
+        """
+
         async def callback(interaction: discord.Interaction):
             """Handles button press for selecting a tournament."""
             try:

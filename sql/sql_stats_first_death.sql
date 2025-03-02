@@ -57,14 +57,14 @@ FROM
   user_full_match_info
   LEFT JOIN user_info ON user_info.id = user_id
 WHERE
-  match_timestamp >= '2025-02-10'
+  match_timestamp >= '2025-02-02'
   AND user_full_match_info.user_id IN (
     SELECT DISTINCT
       user_id
     from
       user_activity
     where
-      timestamp >= datetime ('2025-02-10')
+      timestamp >= datetime ('2025-02-02')
   )
 GROUP BY
   user_id

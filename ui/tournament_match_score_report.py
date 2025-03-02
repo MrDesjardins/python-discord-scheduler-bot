@@ -32,9 +32,12 @@ class TournamentMatchScoreReport(View):
             self.tournament_id = self.list_tournaments[0].id
         else:
             for tournament in self.list_tournaments:
-                button = discord.ui.Button(label=tournament.name, custom_id=f"tournament_{tournament.id}")
-                button.callback = self.create_button_callback(tournament.id)
-                self.add_item(button)
+                if tournament.id is not None:
+                    button: discord.ui.Button = discord.ui.Button(
+                        label=tournament.name, custom_id=f"tournament_{tournament.id}"
+                    )
+                    button.callback = self.create_button_callback(tournament.id)
+                    self.add_item(button)
 
         # Add dropdown for "round lost"
         self.round_lost_select: discord.ui.Select = Select(
@@ -59,6 +62,10 @@ class TournamentMatchScoreReport(View):
         self.add_item(self.round_won_select)
 
     def create_button_callback(self, tournament_id: int):
+        """
+        Create a button action. Each tournament as a different action using the tournament.id
+        """
+
         async def callback(interaction: discord.Interaction):
             """Handles button press for selecting a tournament."""
             self.tournament_id = tournament_id

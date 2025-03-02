@@ -8,7 +8,7 @@ from deps.values import valid_time_zone_options
 class TimeZoneButton(discord.ui.Button):
     """Button to select a single timezone"""
 
-    def __init__(self, label, custom_id, user_id):
+    def __init__(self, label: str, custom_id: str, user_id: int):
         """Button to select a timezone"""
         super().__init__(label=label, custom_id=custom_id)
         self.user_id = user_id
@@ -17,7 +17,8 @@ class TimeZoneButton(discord.ui.Button):
         """Action for the timezone button"""
         await interaction.response.send_message(f"You selected: {self.custom_id}", ephemeral=True)
         # Call your data access function here
-        data_access_set_usertimezone(self.user_id, self.custom_id)
+        if self.custom_id is not None:
+            data_access_set_usertimezone(self.user_id, self.custom_id)
 
 
 class TimeZoneView(discord.ui.View):

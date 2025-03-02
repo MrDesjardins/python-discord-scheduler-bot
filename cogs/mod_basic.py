@@ -166,7 +166,7 @@ class ModBasic(commands.Cog):
         guild = interaction.guild
         await interaction.response.defer(ephemeral=True)
         await send_daily_stats_to_a_guild(guild, stats_id)
-        await interaction.followup.send("Task completed!", ephemeral=True)
+        await interaction.followup.send(f"Generating stats for id {stats_id} completed!", ephemeral=True)
 
 
 async def setup(bot):
