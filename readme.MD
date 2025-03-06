@@ -1,3 +1,7 @@
+# Discord Bot
+
+The project is a Python Discord bot that aim to perform repetitive tasks for a gaming community around Ubisoft Rainbow Six Siege.
+
 # What is this Bot doing?
 
 1. The bot sends a daily message to a specific channel of the guild asking the user when they plan to play the game. It uses reaction by emoji for user to specify many range of hours that they plan to play.
@@ -40,7 +44,6 @@ Every time a match is completed, the money is distributed to the winners.
 
 ![Bet Wins Distributed](readme_assets/bet_distributed.png)
 
-
 # Daily Stats
 
 The bot show stats about the last 7 days every day like the number of T/K, numbers of kills divided by matches, the most used operators by users, etc.
@@ -48,7 +51,8 @@ The bot show stats about the last 7 days every day like the number of T/K, numbe
 ![Example of a daily stats](readme_assets/daily_stats_example1.png)
 
 # Auto-LFG
-The auto-lfg feature is a feature that allows the bot to send a message to the guild when a user is back in the menu (from a arcade, AI, etc or when a stack complete a rank match). 
+
+The auto-lfg feature is a feature that allows the bot to send a message to the guild when a user is back in the menu (from a arcade, AI, etc or when a stack complete a rank match).
 
 ![Example of an LFG sent by the bot](readme_assets/auto_lfg.png)
 
@@ -463,6 +467,8 @@ To lint the code, you can use the following command:
 pylint **/*.py
 black **/*.py
 mypy deps
+mypy cogs
+mypy tests
 ```
 
 # Deployment

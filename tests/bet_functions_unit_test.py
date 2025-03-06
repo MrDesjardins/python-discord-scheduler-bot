@@ -7,7 +7,6 @@ from unittest.mock import patch, call
 from datetime import datetime, timezone
 import pytest
 from deps.data_access_data_class import UserInfo
-from deps.bet.bet_data_access import delete_all_bet_tables
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.bet.bet_functions import (
     DEFAULT_MONEY,
@@ -24,7 +23,6 @@ from deps.bet.bet_functions import (
     system_generate_game_odd,
 )
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
-from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.bet import bet_functions
 from deps.models import UserFullMatchStats
 from deps.tournaments.tournament_models import TournamentNode
@@ -32,21 +30,6 @@ from deps.tournaments.tournament_models import TournamentNode
 fake_date = datetime(2024, 9, 20, 13, 20, 0, 6318)
 
 HOUSE_CUT = 0  # The house cut between 0 and 1 is the percentage of the money that the house takes
-
-
-@pytest.fixture(autouse=True)
-def setup_and_teardown():
-    """Setup and Teardown for the test"""
-    # Setup
-    database_manager.set_database_name(DATABASE_NAME_TEST)
-    delete_all_bet_tables()
-
-    # Yield control to the test functions
-    yield
-
-    # Teardown
-    database_manager.set_database_name(DATABASE_NAME)
-
 
 def test_calculate_gain_lost_for_open_bet_game_with_game_not_defined() -> None:
     """

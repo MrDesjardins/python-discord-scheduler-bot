@@ -5,7 +5,7 @@ Integration test for the bet functions
 from unittest.mock import patch
 from datetime import datetime, timezone
 import pytest
-from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_id, delete_all_bet_tables
+from deps.bet.bet_data_access import data_access_fetch_bet_games_by_tournament_id
 from deps.bet.bet_functions import (
     system_generate_game_odd,
 )
@@ -21,7 +21,8 @@ def setup_and_teardown():
     """Setup and Teardown for the test"""
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
-    delete_all_bet_tables()
+    database_manager.drop_all_tables()
+    database_manager.init_database()
 
     # Yield control to the test functions
     yield
@@ -35,7 +36,7 @@ async def test_generating_odd_for_tournament_games_for_only_game_without_ones(mo
     """Test that generate the odd for the tournament games"""
     # Arrange
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
-    list_tournament_games: TournamentGame = [
+    list_tournament_games = [
         TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
         TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
         TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),

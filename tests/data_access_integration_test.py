@@ -14,9 +14,24 @@ from deps.data_access import (
     data_acess_remove_list_member_stats,
 )
 from deps.models import UserQueueForStats
+from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from tests.mock_model import mock_user1, mock_user2
 
 lock = asyncio.Lock()
+
+@pytest.fixture(autouse=True)
+def setup_and_teardown():
+    """Setup and Teardown for the test"""
+    # Setup
+    database_manager.set_database_name(DATABASE_NAME_TEST)
+    database_manager.drop_all_tables()
+    database_manager.init_database()
+
+    # Yield control to the test functions
+    yield
+
+    # Teardown
+    database_manager.set_database_name(DATABASE_NAME)
 
 
 @pytest.fixture(scope="function", autouse=True)

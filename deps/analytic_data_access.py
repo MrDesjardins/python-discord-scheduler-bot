@@ -82,19 +82,6 @@ SELECT_USER_FULL_MATCH_INFO = """
     user_full_match_info.has_win
 """
 
-
-def delete_all_analytic_tables() -> None:
-    """
-    Delete all tables
-    """
-    # print(f"Deleting all tables from database {database_manager.get_database_name()}")
-    database_manager.get_cursor().execute("DELETE FROM user_info")
-    database_manager.get_cursor().execute("DELETE FROM user_activity")
-    database_manager.get_cursor().execute("DELETE FROM user_weights")
-    database_manager.get_cursor().execute("DELETE FROM user_full_match_info")
-    database_manager.get_conn().commit()
-
-
 def delete_all_user_weights():
     """
     Erase everything to start the calculation from scratch

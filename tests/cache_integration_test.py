@@ -2,7 +2,6 @@
 
 import time
 import pytest
-from deps.cache_data_access import delete_all_tables
 from deps.cache import set_cache
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 
@@ -12,7 +11,8 @@ def setup_and_teardown():
     """Setup and Teardown for the test"""
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
-    delete_all_tables()
+    database_manager.drop_all_tables()
+    database_manager.init_database()
 
     # Yield control to the test functions
     yield

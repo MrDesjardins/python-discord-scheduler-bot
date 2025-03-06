@@ -3,7 +3,7 @@ Logic that interact with the database
 """
 
 from datetime import datetime
-from typing import List, Optional, Union
+from typing import List, Union
 
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.system_database import database_manager
@@ -44,20 +44,6 @@ SELECT_LEDGER = """
     bet_ledger_entry.user_id, 
     bet_ledger_entry.amount
 """
-
-
-def delete_all_bet_tables() -> None:
-    """
-    Delete all tables
-    """
-    # print(f"Deleting all tables from database {database_manager.get_database_name()}")
-    database_manager.get_cursor().execute("DROP TABLE bet_user_tournament")
-    database_manager.get_cursor().execute("DROP TABLE bet_game")
-    database_manager.get_cursor().execute("DROP TABLE bet_user_game")
-    database_manager.get_cursor().execute("DROP TABLE bet_ledger_entry")
-    database_manager.get_conn().commit()
-    database_manager.init_database()
-
 
 def data_access_get_all_wallet_for_tournament(tournament_id: int) -> List[BetUserTournament]:
     """

@@ -10,7 +10,7 @@ from deps.system_database import database_manager
 from deps.log import print_error_log
 
 
-def delete_all_tables() -> None:
+def delete_cache_tables() -> None:
     """
     Delete all tables
     """

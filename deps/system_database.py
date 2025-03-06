@@ -15,11 +15,13 @@ DATABASE_NAME_TEST = "user_activity_test.db"  # Can use DATABASE_NAME_TEST = ":m
 
 # Adapter for datetime objects
 def adapt_datetime(dt):
+    """Convert a datetime object to a string"""
     return dt.isoformat()
 
 
 # Converter for datetime objects
 def convert_datetime(s):
+    """Convert a string to a datetime object"""
     return datetime.datetime.fromisoformat(s)
 
 
@@ -46,6 +48,21 @@ class DatabaseManager:
     def get_database_name(self):
         """Get the database name, useful to know if test or prod"""
         return self.name
+
+    def drop_all_tables(self):
+        """Drop all tables"""
+        self.get_cursor().execute("DROP TABLE IF EXISTS cache")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_activity")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_info")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_weights")
+        self.get_cursor().execute("DROP TABLE IF EXISTS tournament")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_tournament")
+        self.get_cursor().execute("DROP TABLE IF EXISTS tournament_game")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_full_match_info")
+        self.get_cursor().execute("DROP TABLE IF EXISTS bet_user_tournament")
+        self.get_cursor().execute("DROP TABLE IF EXISTS bet_game")
+        self.get_cursor().execute("DROP TABLE IF EXISTS bet_user_game")
+        self.get_cursor().execute("DROP TABLE IF EXISTS bet_ledger_entry")
 
     def init_database(self):
         """Ensure that database has all the tables"""

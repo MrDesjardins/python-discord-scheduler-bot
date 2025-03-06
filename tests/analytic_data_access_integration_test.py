@@ -1,4 +1,4 @@
-""" Test that touch the bet and the database """
+"""Test that touch the bet and the database"""
 
 from datetime import datetime, timezone
 import pytest
@@ -7,10 +7,10 @@ from deps.data_access_data_class import UserInfo
 from deps.analytic_data_access import (
     data_access_fetch_tk_count_by_user,
     data_access_fetch_user_full_match_info,
-    delete_all_analytic_tables,
     insert_if_nonexistant_full_match_info,
+    insert_user_activity,
 )
-from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
+from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, database_manager
 from deps.models import UserFullMatchStats
 
 fake_date = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
@@ -21,8 +21,8 @@ def setup_and_teardown():
     """Setup and Teardown for the test"""
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
-
-    delete_all_analytic_tables()
+    database_manager.drop_all_tables()
+    database_manager.init_database()
 
     # Yield control to the test functions
     yield
@@ -106,7 +106,7 @@ def test_fetch_tk() -> None:
     list_matches: list[UserFullMatchStats] = [
         UserFullMatchStats(
             id=None,
-            user_id=1,
+            user_id=user_info.id,
             match_uuid="match-uuid-1",
             match_timestamp=fake_date,
             match_duration_ms=60000,
@@ -161,6 +161,9 @@ def test_fetch_tk() -> None:
         )
     ]
     insert_if_nonexistant_full_match_info(user_info, list_matches)
+    insert_user_activity(
+        user_info.id, user_info.display_name, 1, 1, EVENT_CONNECT, fake_date
+    )  # Need to have activity to be part of the fetching operation
     # Act
     result = data_access_fetch_tk_count_by_user(fake_date)
     # Assert

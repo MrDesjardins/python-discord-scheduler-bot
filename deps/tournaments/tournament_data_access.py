@@ -8,7 +8,6 @@ from typing import List, Optional
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
-from deps.tournaments.tournament_models import TournamentNode
 
 KEY_TOURNAMENT_GUILD = "tournament_guild"
 KEY_TOURNAMENT_GAMES = "tournament_games"
@@ -26,18 +25,6 @@ SELECT_TOURNAMENT = """
     tournament.has_started,
     tournament.has_finished
     """
-
-
-def delete_all_tournament_tables() -> None:
-    """
-    Delete all tables related to tournament
-    """
-    # print(f"Deleting all tables from database {database_manager.get_database_name()}")
-    database_manager.get_cursor().execute("DELETE FROM user_tournament;")
-    database_manager.get_cursor().execute("DELETE FROM tournament_game;")
-    database_manager.get_cursor().execute("DELETE FROM tournament;")
-    database_manager.get_conn().commit()
-
 
 def data_access_insert_tournament(
     guild_id: int,

@@ -12,14 +12,12 @@ from deps.bet.bet_data_access import (
     data_access_fetch_bet_user_game_by_tournament_id,
     data_access_get_bet_ledger_entry_for_tournament,
     data_access_get_bet_user_wallet_for_tournament,
-    delete_all_bet_tables,
     data_access_fetch_bet_games_by_tournament_id,
     data_access_get_bet_user_game_ready_for_distribution,
 )
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from deps.tournaments.tournament_data_access import (
     data_access_insert_tournament,
-    delete_all_tournament_tables,
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     register_user_for_tournament,
@@ -34,8 +32,8 @@ def setup_and_teardown():
     """Setup and Teardown for the test"""
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
-    delete_all_tournament_tables()
-    delete_all_bet_tables()
+    database_manager.drop_all_tables()
+    database_manager.init_database()
 
     # Yield control to the test functions
     yield
