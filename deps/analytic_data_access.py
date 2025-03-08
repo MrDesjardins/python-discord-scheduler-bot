@@ -82,6 +82,7 @@ SELECT_USER_FULL_MATCH_INFO = """
     user_full_match_info.has_win
 """
 
+
 def delete_all_user_weights():
     """
     Erase everything to start the calculation from scratch
@@ -676,7 +677,7 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     except Exception as e:
         if last_match is None:
             print_error_log("insert_if_nonexistant_full_match_info: Error inserting match: No match to insert")
-        stringify_match = json.dumps(asdict(last_match), indent=4)
+        stringify_match = json.dumps(asdict(last_match), indent=4) if last_match is not None else "No match data"
         print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}\n{stringify_match}")
         raise e
 

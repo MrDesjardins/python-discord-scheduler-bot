@@ -5,18 +5,9 @@ Module to gather access to the cached data
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Union
 import base64
-import dill as pickle
+import dill as pickle  # type: ignore
 from deps.system_database import database_manager
 from deps.log import print_error_log
-
-
-def delete_cache_tables() -> None:
-    """
-    Delete all tables
-    """
-    # print(f"Deleting all tables from database {database_manager.get_database_name()}")
-    database_manager.get_cursor().execute("DELETE FROM cache")
-    database_manager.get_conn().commit()
 
 
 def set_value(key: str, value: Any, ttl_seconds: Optional[int]) -> None:

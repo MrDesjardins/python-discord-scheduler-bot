@@ -1,8 +1,9 @@
+from typing import Union
 from deps.siege import get_aggregation_siege_activity
 from deps.models import ActivityTransition
 
 
-def test_get_aggregation_siege_activity_no_data():
+def test_get_aggregation_siege_activity_no_data() -> None:
     """
     Test the case where there isn't any data
     """
@@ -18,11 +19,11 @@ def test_get_aggregation_siege_activity_no_data():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_none_entry():
+def test_get_aggregation_siege_activity_none_entry() -> None:
     """
     Test the case where a None is part of the dictionary
     """
-    dict_users_activities: dict[int, ActivityTransition] = {1: None}
+    dict_users_activities: dict[int, Union[ActivityTransition, None]] = {1: None}
     result = get_aggregation_siege_activity(dict_users_activities)
     assert result.count_in_menu == 0
     assert result.game_not_started == 0
@@ -34,7 +35,7 @@ def test_get_aggregation_siege_activity_none_entry():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_no_before_no_after():
+def test_get_aggregation_siege_activity_no_before_no_after() -> None:
     """
     Test the case where before activity is none and after is not
     """
@@ -50,7 +51,7 @@ def test_get_aggregation_siege_activity_no_before_no_after():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_no_before_after_in_menu():
+def test_get_aggregation_siege_activity_no_before_after_in_menu() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -66,7 +67,7 @@ def test_get_aggregation_siege_activity_no_before_after_in_menu():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_no_before_after_playing_map_training():
+def test_get_aggregation_siege_activity_no_before_after_playing_map_training() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -82,7 +83,7 @@ def test_get_aggregation_siege_activity_no_before_after_playing_map_training():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_no_before_after_playing_shooting_range():
+def test_get_aggregation_siege_activity_no_before_after_playing_shooting_range() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -98,7 +99,7 @@ def test_get_aggregation_siege_activity_no_before_after_playing_shooting_range()
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_no_before_after_arcade():
+def test_get_aggregation_siege_activity_no_before_after_arcade() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -114,7 +115,7 @@ def test_get_aggregation_siege_activity_no_before_after_arcade():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_no_before_after_ai():
+def test_get_aggregation_siege_activity_no_before_after_ai() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -130,7 +131,7 @@ def test_get_aggregation_siege_activity_no_before_after_ai():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_no_after():
+def test_get_aggregation_siege_activity_before_but_no_after() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -146,7 +147,7 @@ def test_get_aggregation_siege_activity_before_but_no_after():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_1():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_1() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -162,7 +163,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_1():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_2():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_2() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -178,7 +179,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_2():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_3():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_3() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -194,7 +195,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_3():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_4():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_4() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -210,7 +211,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_4():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_5():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_5() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -226,7 +227,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_5():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_6():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_6() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -242,7 +243,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_6():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_7():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_7() -> None:
     """
     Test the case where before activity is none and after is defined
     """
@@ -258,7 +259,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_7():
     assert result.playing_standard == 0
 
 
-def test_get_aggregation_siege_activity_before_but_after_in_menu_8():
+def test_get_aggregation_siege_activity_before_but_after_in_menu_8() -> None:
     """
     Test the case where before activity is none and after is defined
     """

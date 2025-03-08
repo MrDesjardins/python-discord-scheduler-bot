@@ -4,7 +4,7 @@ Module to gather user activity data and calculate the time spent together
 
 from datetime import datetime, timezone
 from collections import defaultdict
-from typing import Any, Dict, Tuple, List, Union
+from typing import Dict, Tuple, List, Union
 import pandas as pd
 from dateutil import parser
 from deps.analytic_models import UserInfoWithCount
@@ -121,7 +121,7 @@ def computer_users_voice_in_out(
 
 
 def compute_users_voice_channel_time_sec(
-    users_in_out: Dict[int, List[Tuple[datetime, Union[datetime, None]]]]
+    users_in_out: Dict[int, List[Tuple[datetime, Union[datetime, None]]]],
 ) -> Dict[int, float]:
     """
     Compute the total time in second in all voice channels

@@ -1,6 +1,7 @@
-""" Test that touch the bet and the database """
+"""Test that touch the bet and the database"""
 
 from datetime import datetime
+from typing import Union
 from unittest.mock import patch
 import pytest
 from deps.bet.bet_functions import (
@@ -83,13 +84,15 @@ async def test_get_bet_game_ready_for_distribution_no_bet_placed() -> None:
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
     await start_tournament(tournament)
     # Tournament started but no bet by any user
     # Act
-    bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
+    bet_user_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
     # Assert
-    assert len(bet_games) == 0
+    assert len(bet_user_games) == 0
 
 
 async def test_get_bet_game_ready_for_distribution_one_game_done_with_one_user_lose_bet() -> None:
@@ -103,33 +106,39 @@ async def test_get_bet_game_ready_for_distribution_one_game_done_with_one_user_l
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
     await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
+    user1_id = games_dict[one_bet_game.tournament_game_id].user1_id
+    if user1_id is None:
+        assert False, "User 1 is None"
     place_bet_for_game(
         tournament_id,
         one_bet_game.id,
         user_placing_the_bet_id,
         10,
-        games_dict[one_bet_game.tournament_game_id].user1_id,
+        user1_id,
     )  # Bet user 1
 
     # Assert
-    bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
-    assert len(bet_games) == 0  # Because the game is not yet ended
+    bet_user_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
+    assert len(bet_user_games) == 0  # Because the game is not yet ended
     bet_all_games = data_access_fetch_bet_user_game_by_tournament_id(tournament_id)
     assert len(bet_all_games) == 1  # The game is not yet ended, so we have 1 (the bet placed
     # Act
-    await report_lost_tournament(
-        tournament_id, games_dict[one_bet_game.tournament_game_id].user2_id, "1-1"
-    )  # Lost user 2
+    user2_id = games_dict[one_bet_game.tournament_game_id].user2_id
+    if user2_id is None:
+        assert False, "User 2 is None"
+    await report_lost_tournament(tournament_id, user2_id, "1-1")  # Lost user 2
 
     # Assert
-    bet_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
-    assert len(bet_games) == 0  # The game ended and the code distributed the gain
+    bet_user_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)  # Winner bet here
+    assert len(bet_user_games) == 0  # The game ended and the code distributed the gain
     bet_all_games = data_access_fetch_bet_user_game_by_tournament_id(tournament_id)
     assert len(bet_all_games) == 1  # The game closed remains in the database
 
@@ -145,23 +154,29 @@ async def test_distribute_gain_on_recent_ended_game_winning_bet_scenario() -> No
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
     await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
+    user_1 = games_dict[one_bet_game.tournament_game_id].user1_id
+    if user_1 is None:
+        assert False, "User 1 is None"
+    user_2 = games_dict[one_bet_game.tournament_game_id].user2_id
+    if user_2 is None:
+        assert False, "User 2 is None"
     place_bet_for_game(
         tournament_id,
         one_bet_game.id,
         user_placing_the_bet_id,
         10,
-        games_dict[one_bet_game.tournament_game_id].user1_id,
+        user_1,
     )  # Bet user 1
     # Act
-    await report_lost_tournament(
-        tournament_id, games_dict[one_bet_game.tournament_game_id].user2_id, "1-1"
-    )  # Lost user 2
+    await report_lost_tournament(tournament_id, user_2, "1-1")  # Lost user 2
     # Assert
     user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=1009)
     assert user_wallet.amount == 1010
@@ -188,23 +203,26 @@ async def test_distribute_gain_on_recent_ended_game_losing_bet_scenario() -> Non
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
     await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
+    user_1 = games_dict[one_bet_game.tournament_game_id].user1_id
+    if user_1 is None:
+        assert False, "User 1 is None"
     place_bet_for_game(
         tournament_id,
         one_bet_game.id,
         user_placing_the_bet_id,
         10,
-        games_dict[one_bet_game.tournament_game_id].user1_id,
+        user_1,
     )  # Bet user 1
     # Act (call distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
-    await report_lost_tournament(
-        tournament_id, games_dict[one_bet_game.tournament_game_id].user1_id, "1-1"
-    )  # Lost user 1
+    await report_lost_tournament(tournament_id, user_1, "1-1")  # Lost user 1
     # Assert user wallet (bet_user_tournament)
     user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=1009)
     assert user_wallet.amount == 990
@@ -234,24 +252,30 @@ async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
-    tournament: Tournament = fetch_tournament_by_id(tournament_id)
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
     await start_tournament(tournament)
     games = fetch_tournament_games_by_tournament_id(tournament_id)
     games_dict = {game.id: game for game in games}
     bet_games = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     one_bet_game = bet_games[0]
+    user_1 = games_dict[one_bet_game.tournament_game_id].user1_id
+    if user_1 is None:
+        assert False, "User 1 is None"
+    user_2 = games_dict[one_bet_game.tournament_game_id].user2_id
+    if user_2 is None:
+        assert False, "User 2 is None"
     place_bet_for_game(
         tournament_id,
         one_bet_game.id,
         user_placing_the_bet_id,
         10,
-        games_dict[one_bet_game.tournament_game_id].user1_id,
+        user_1,
     )  # Bet user 1
     update_wallet_mock.side_effect = Exception("Error")  # <----- Mock the error
     # Act (report lost call distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
-    await report_lost_tournament(
-        tournament_id, games_dict[one_bet_game.tournament_game_id].user2_id, "1-1"
-    )  # User 1 win
+    await report_lost_tournament(tournament_id, user_2, "1-1")  # User 1 win
     # Assert user wallet (bet_user_tournament)
     user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=1009)
     assert user_wallet.amount == 1000  # did not change! because of the error (rollback)

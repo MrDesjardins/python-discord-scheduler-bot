@@ -7,13 +7,13 @@ from collections import defaultdict
 from datetime import datetime, date, timedelta
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Union, Any
-import plotly.graph_objs as go
+import plotly.graph_objs as go  # type: ignore
 import seaborn as sns
 import numpy as np
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
-import community as community_louvain
+import community as community_louvain  # type: ignore
 from deps.analytic_models import UserInfoWithCount
 from deps.data_access_data_class import UserActivity, UserInfo
 from deps.analytic_functions import (

@@ -31,6 +31,7 @@ fake_date = datetime(2024, 9, 20, 13, 20, 0, 6318)
 
 HOUSE_CUT = 0  # The house cut between 0 and 1 is the percentage of the money that the house takes
 
+
 def test_calculate_gain_lost_for_open_bet_game_with_game_not_defined() -> None:
     """
     Test the exceptional case of a tournament game without an id
@@ -229,7 +230,7 @@ async def test_generating_odd_for_tournament_games_for_only_game_without_ones_an
         TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
     ]
     mock_fetch_tournament.return_value = list_tournament_games
-    list_existing_bet_games = []
+    list_existing_bet_games: List[BetGame] = []
     mock_fetch_bet_games.return_value = list_existing_bet_games
     mock_fetch_user.return_value = None
     # Act
@@ -266,7 +267,7 @@ async def test_generating_odd_for_tournament_games_for_only_game_without_ones_an
         TournamentGame(7, 1, None, None, None, None, None, now_date, 5, 6),
     ]
     mock_fetch_tournament.return_value = list_tournament_games
-    list_existing_bet_games = []
+    list_existing_bet_games: List[BetGame] = []
     mock_fetch_bet_games.return_value = list_existing_bet_games
     mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
     mock_define_odds.return_value = (0.5, 0.5)
@@ -723,6 +724,7 @@ async def test_placing_bet_on_game_user2(
         mock_dynamically_adjust_bet_game_odd.assert_called_once()
         mock_create_bet_user_game.assert_called_once_with(1, 1, 5, 99.99, 2, now_date, 0.6)
 
+
 @patch.object(bet_functions, bet_functions.print_error_log.__name__)
 @patch.object(bet_functions, bet_functions.dynamically_adjust_bet_game_odd.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
@@ -739,7 +741,7 @@ async def test_placing_bet_on_game_user_with_dynamic_adjust_bet_failing(
     mock_update_user_wallet_for_tournament,
     mock_probability_update,
     mock_dynamically_adjust_bet_game_odd,
-    mock_print_error_log
+    mock_print_error_log,
 ) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
     # Arrange
@@ -772,6 +774,7 @@ async def test_placing_bet_on_game_user_with_dynamic_adjust_bet_failing(
         place_bet_for_game(1, 1, 5, 99.99, 2)
         mock_print_error_log.assert_called_once()
 
+
 @patch.object(bet_functions, bet_functions.print_error_log.__name__)
 @patch.object(bet_functions, bet_functions.dynamically_adjust_bet_game_odd.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
@@ -788,7 +791,7 @@ async def test_placing_bet_on_game_user_with_update_bet_probability_failing(
     mock_update_user_wallet_for_tournament,
     mock_probability_update,
     mock_dynamically_adjust_bet_game_odd,
-    mock_print_error_log
+    mock_print_error_log,
 ) -> None:
     """Test the scenario of the user who place a bet on a completed game"""
     # Arrange
@@ -820,6 +823,7 @@ async def test_placing_bet_on_game_user_with_update_bet_probability_failing(
         # Act
         place_bet_for_game(1, 1, 5, 99.99, 2)
         mock_print_error_log.assert_called_once()
+
 
 @patch.object(bet_functions, bet_functions.dynamically_adjust_bet_game_odd.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
@@ -929,6 +933,7 @@ async def test_generate_msg_bet_leaderboard_no_users(mock_get_all_wallet) -> Non
     # Assert
     assert msg == ""
 
+
 @patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
 async def test_generate_msg_bet_leaderboard_tournament_no_id(mock_get_all_wallet) -> None:
     """
@@ -941,6 +946,7 @@ async def test_generate_msg_bet_leaderboard_tournament_no_id(mock_get_all_wallet
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
     assert msg == ""
+
 
 @patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
@@ -988,6 +994,8 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_winning_bet(
     """
     # Arrange
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    if tournament.id is None:
+        assert False, "The tournament id should not be None"
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
     ]
@@ -1035,6 +1043,8 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_many_winning_bet(
     """
     # Arrange
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    if tournament.id is None:
+        assert False, "The tournament id should not be None"
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
     ]
@@ -1091,6 +1101,8 @@ def test_distribute_gain_on_recent_ended_game_success_scenario_losing_bet(
     """
     # Arrange
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    if tournament.id is None:
+        assert False, "The tournament id should not be None"
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, 10, "1-4", None, None, None, None)
     ]
@@ -1138,6 +1150,8 @@ def test_distribute_gain_on_recent_ended_game_without_winner_id(
     """
     # Arrange
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    if tournament.id is None:
+        assert False, "The tournament id should not be None"
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, None, "1-4", None, None, None, None)  # no winner id
     ]
@@ -1185,6 +1199,8 @@ def test_distribute_gain_on_recent_ended_game_with_mismatch_bet_game(
     """
     # Arrange
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    if tournament.id is None:
+        assert False, "The tournament id should not be None"
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, None, "1-4", None, None, None, None)  # no winner id
     ]
@@ -1233,6 +1249,8 @@ def test_distribute_gain_on_recent_ended_game_with_mismatch_tournament_game(
     """
     # Arrange
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    if tournament.id is None:
+        assert False, "The tournament id should not be None"
     mock_fetch_tournament_games_by_tournament_id.return_value = [
         TournamentGame(1, tournament.id, 10, 11, None, "1-4", None, None, None, None)  # no winner id
     ]
@@ -1260,8 +1278,8 @@ def test_define_odds_between_two_users_users_no_data(mock_data_access_full_match
     """
     Test when both users does not have data
     """
-    data_user_1 = []
-    data_user_2 = []
+    data_user_1: List[UserFullMatchStats] = []
+    data_user_2: List[UserFullMatchStats] = []
     mock_data_access_full_match.side_effect = lambda user_id: data_user_1 if user_id == 1 else data_user_2
     result = define_odds_between_two_users(1, 2)
     assert result == (0.5, 0.5)
@@ -1329,7 +1347,7 @@ def test_define_odds_between_two_users_one_user_no_data(mock_data_access_full_ma
             has_win=True,
         )
     ]
-    data_user_2 = []
+    data_user_2: List[UserFullMatchStats] = []
     mock_data_access_full_match.side_effect = lambda user_id: data_user_1 if user_id == 1 else data_user_2
     result = define_odds_between_two_users(1, 2)
     assert result == (0.5, 0.5)

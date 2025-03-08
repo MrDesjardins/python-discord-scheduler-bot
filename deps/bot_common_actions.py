@@ -1,9 +1,9 @@
-""" Common Actions that the bots Cogs or Bots can invoke """
+"""Common Actions that the bots Cogs or Bots can invoke"""
 
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Union
-from gtts import gTTS
+from gtts import gTTS  # type: ignore
 import discord
 from deps.browser import download_full_matches_async
 from deps.analytic_data_access import (
@@ -226,7 +226,7 @@ async def send_notification_voice_channel(
         return
     # Send DM to the user
     # await member.send(
-    #     f"You're the only one in the voice channel: Feel free to message the Siege channel with \"@here lfg 4 rank\" to find other players and check the other players' schedule in <#{text_channel_id}>."
+    #     f"You're the only one in the voice channel: Feel free to message the Siege channel with \"/lfg\" to find other players and check the other players' schedule in <#{text_channel_id}>."
     # )
     channel_schedule: Optional[discord.TextChannel] = await data_access_get_channel(schedule_text_channel_id)
     channel_name = channel_schedule.name if channel_schedule is not None else "schedule"
@@ -249,25 +249,24 @@ async def send_notification_voice_channel(
     # Convert text to speech using gTTS
     tts = gTTS(text_message, lang="en")
     tts.save("welcome.mp3")
+
     # Connect to the voice channel
     if member.guild.voice_client is None:  # Bot isn't already in a channel
-        voice_client = await voice_channel.connect()
-    else:
-        voice_client = member.guild.voice_client
+        voice_client: discord.VoiceClient = await voice_channel.connect()
 
-    # Play the audio
-    audio_source = discord.FFmpegPCMAudio("welcome.mp3")
-    voice_client.play(audio_source)
+        # Play the audio
+        audio_source = discord.FFmpegPCMAudio("welcome.mp3")
+        voice_client.play(audio_source)
 
-    # Wait for the audio to finish playing
-    while voice_client.is_playing():
-        await discord.utils.sleep_until(datetime.now() + timedelta(seconds=1))
+        # Wait for the audio to finish playing
+        while voice_client.is_playing():
+            await discord.utils.sleep_until(datetime.now() + timedelta(seconds=1))
 
-    # Disconnect after playing the audio
-    await voice_client.disconnect()
+        # Disconnect after playing the audio
+        await voice_client.disconnect()
 
-    # Clean up the saved audio file
-    os.remove("welcome.mp3")
+        # Clean up the saved audio file
+        os.remove("welcome.mp3")
 
 
 async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str: str) -> List[SimpleUser]:

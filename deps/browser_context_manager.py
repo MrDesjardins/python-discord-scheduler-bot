@@ -1,4 +1,4 @@
-""" Browser Context Manager to handle the browser and download the matches from the Ubisoft API """
+"""Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 
 import os
 from typing import List
@@ -8,8 +8,8 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import undetected_chromedriver as uc
-from xvfbwrapper import Xvfb
+import undetected_chromedriver as uc  # type: ignore
+from xvfbwrapper import Xvfb  # type: ignore
 from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserQueueForStats
 from deps.log import print_error_log, print_log

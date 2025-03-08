@@ -94,10 +94,14 @@ async def test_full_registration_tournament() -> None:
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
+    if tournament_tree.next_game1 is None or tournament_tree.next_game2 is None:
+        assert False, "Next game is None"
     node1_user1 = tournament_tree.next_game1.user1_id  # Will lose
     node1_user2 = tournament_tree.next_game1.user2_id  # Will win, then lose
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
     node2_user2 = tournament_tree.next_game2.user2_id  # Will win
+    if node1_user1 is None or node1_user2 is None or node2_user1 is None or node2_user2 is None:
+        assert False, "Some user is None"
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user1, "7-5")
@@ -107,7 +111,7 @@ async def test_full_registration_tournament() -> None:
         report_result = await report_lost_tournament(tournament_id, node1_user2, "6-9")
 
     # The tournament is over, get the winner
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
@@ -149,9 +153,13 @@ async def test_partial_one_registration_tournament() -> None:
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
+    if tournament_tree.next_game1 is None or tournament_tree.next_game2 is None:
+        assert False, "Next game is None"
     node1_user1 = tournament_tree.next_game1.user1_id  # Will lose
     node1_user2 = tournament_tree.next_game1.user2_id  # Will win, then lose
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
+    if node1_user1 is None or node1_user2 is None or node2_user1 is None:
+        assert False, "Some user is None"
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user1, "7-5")
@@ -160,7 +168,7 @@ async def test_partial_one_registration_tournament() -> None:
         assert report_result.is_successful is True, report_result.text
 
     # The tournament is over, get the winner
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
@@ -203,10 +211,14 @@ async def test_very_small_participation_reduce_tournament_size() -> None:
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
+    if tournament_tree.next_game1 is None or tournament_tree.next_game2 is None:
+        assert False, "Next game is None"
     node1_user1 = tournament_tree.next_game1.user1_id  # Will lose
     node1_user2 = tournament_tree.next_game1.user2_id  # Will win, then lose
     node2_user1 = tournament_tree.next_game2.user1_id  # Will win, then win (winner of the tournament)
     node2_user2 = tournament_tree.next_game2.user2_id  # Will lose
+    if node1_user1 is None or node1_user2 is None or node2_user1 is None or node2_user2 is None:
+        assert False, "Some user is None"
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user1, "7-5")
@@ -216,7 +228,7 @@ async def test_very_small_participation_reduce_tournament_size() -> None:
         report_result = await report_lost_tournament(tournament_id, node1_user2, "1-5")
         assert report_result.is_successful is True
     # The tournament is over, get the winner
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
@@ -297,7 +309,11 @@ async def test_reporting_if_already_lost() -> None:
 
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
+    if tournament_tree is None or tournament_tree.next_game1 is None or tournament_tree.next_game1.next_game1 is None:
+        assert False, "Next game is None"
     node1_user2 = tournament_tree.next_game1.next_game1.user2_id
+    if node1_user2 is None:
+        assert False, "User is None"
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
@@ -346,12 +362,22 @@ async def test_partial_registration_tournament_two_level_lost() -> None:
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
+    if (
+        tournament_tree is None
+        or tournament_tree.next_game1 is None
+        or tournament_tree.next_game1.next_game1 is None
+        or tournament_tree.next_game1.next_game2 is None
+        or tournament_tree.next_game2 is None
+        or tournament_tree.next_game2.next_game1 is None
+    ):
+        assert False, "Next game is None"
     node1_user1 = tournament_tree.next_game1.next_game1.user1_id
     node1_user2 = tournament_tree.next_game1.next_game1.user2_id
     node2_user1 = tournament_tree.next_game1.next_game2.user1_id
     node2_user2 = tournament_tree.next_game1.next_game2.user2_id
     node3_user1 = tournament_tree.next_game2.next_game1.user1_id
-
+    if node1_user2 is None or node1_user1 is None or node2_user1 is None or node2_user2 is None or node3_user1 is None:
+        assert False, "Some user is None"
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = date_start
         report_result = await report_lost_tournament(tournament_id, node1_user2, "7-5")
@@ -362,10 +388,19 @@ async def test_partial_registration_tournament_two_level_lost() -> None:
         assert report_result.is_successful is True
         report_result = await report_lost_tournament(tournament_id, node1_user1, "7-5")
     # The tournament is over, get the winner
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
+    if (
+        tournament_tree is None
+        or tournament_tree.next_game1 is None
+        or tournament_tree.next_game1.next_game1 is None
+        or tournament_tree.next_game1.next_game2 is None
+        or tournament_tree.next_game2 is None
+        or tournament_tree.next_game2.next_game1 is None
+    ):
+        assert False, "Next game is None"
     assert tournament_tree.user_winner_id == node3_user1
     assert tournament_tree.next_game1.user_winner_id == node1_user1
     assert tournament_tree.next_game2.user_winner_id == node3_user1
@@ -528,7 +563,7 @@ async def test_full_tournament() -> None:
         await start_tournament(tournament)
     bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     assert len(bet_games_to_assert) == 3
-    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    tournament = fetch_tournament_by_id(tournament_id)
     if tournament is None:
         assert False, "Tournament is None"
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
@@ -540,11 +575,22 @@ async def test_full_tournament() -> None:
         if tournament_tree.next_game1 and tournament_tree.next_game1.next_game1
         else None
     )
+    if (
+        tournament_tree is None
+        or tournament_tree.next_game1 is None
+        or tournament_tree.next_game1.next_game1 is None
+        or tournament_tree.next_game1.next_game2 is None
+        or tournament_tree.next_game2 is None
+        or tournament_tree.next_game2.next_game1 is None
+    ):
+        assert False, "Next game is None"
     u2 = tournament_tree.next_game1.next_game1.user2_id
     u3 = tournament_tree.next_game1.next_game2.user1_id
     u4 = tournament_tree.next_game1.next_game2.user2_id
     u5 = tournament_tree.next_game2.next_game1.user1_id
     u6 = tournament_tree.next_game2.next_game1.user2_id
+    if u1 is None or u2 is None or u3 is None or u4 is None or u5 is None or u6 is None:
+        assert False, "Some user is None"
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         with patch("deps.tournaments.tournament_visualizer.fetch_user_info") as mock_fetch_user_info:
             mock_tournament_functions_datetime.now.return_value = date_start
@@ -556,9 +602,12 @@ async def test_full_tournament() -> None:
                 5: mock_user5,
                 6: mock_user6,
             }
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tournament_tree,
                 True,
                 "./tests/generated_contents/bracket_1.png",
             )
@@ -566,47 +615,64 @@ async def test_full_tournament() -> None:
             assert report_result.is_successful is True, report_result.text
             bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
             assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 2
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tournament_tree,
                 True,
                 "./tests/generated_contents/bracket_2.png",
             )
             report_result = await report_lost_tournament(tournament_id, u4, "5-2")
             assert report_result.is_successful is True, report_result.text
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tournament_tree,
                 True,
                 "./tests/generated_contents/bracket_3.png",
             )
             report_result = await report_lost_tournament(tournament_id, u2, "2-4")
             assert report_result.is_successful is True, report_result.text
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tournament_tree,
                 True,
                 "./tests/generated_contents/bracket_4.png",
             )
             report_result = await report_lost_tournament(tournament_id, u5, "1-2")
             assert report_result.is_successful is True, report_result.text
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tournament_tree,
                 True,
                 "./tests/generated_contents/bracket_5.png",
             )
             report_result = await report_lost_tournament(tournament_id, u6, "5-2")
             assert report_result.is_successful is True, report_result.text
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tournament_tree,
                 True,
                 "./tests/generated_contents/bracket_6.png",
             )
     # The tournament is over, get the winner
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
+    if tournament_tree is None:
+        assert False, "Tournament tree is None"
     assert tournament_tree.user_winner_id == u3
     bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 0
@@ -656,19 +722,30 @@ async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
         await start_tournament(tournament)
     bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     assert len(bet_games_to_assert) == 3
-    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    tournament = fetch_tournament_by_id(tournament_id)
     if tournament is None:
         assert False, "Tournament is None"
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"
+    if (
+        tournament_tree is None
+        or tournament_tree.next_game1 is None
+        or tournament_tree.next_game1.next_game1 is None
+        or tournament_tree.next_game1.next_game2 is None
+        or tournament_tree.next_game2 is None
+        or tournament_tree.next_game2.next_game1 is None
+    ):
+        assert False, "Next game is None"
     u1 = tournament_tree.next_game1.next_game1.user1_id
     u2 = tournament_tree.next_game1.next_game1.user2_id
     u3 = tournament_tree.next_game1.next_game2.user1_id
     u4 = tournament_tree.next_game1.next_game2.user2_id
     u5 = tournament_tree.next_game2.next_game1.user1_id
     u6 = tournament_tree.next_game2.next_game1.user2_id
+    if u1 is None or u2 is None or u3 is None or u4 is None or u5 is None or u6 is None:
+        assert False, "Some user is None"
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         with patch("deps.tournaments.tournament_visualizer.fetch_user_info") as mock_fetch_user_info:
             mock_tournament_functions_datetime.now.return_value = date_start
@@ -680,9 +757,12 @@ async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
                 5: mock_user5,
                 6: mock_user6,
             }
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tournament_tree,
                 True,
                 "./tests/generated_contents/bracket_1.png",
             )
@@ -757,14 +837,17 @@ async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
             )
             report_result = await report_lost_tournament(tournament_id, u6, "5-2")
             assert report_result.is_successful is True, report_result.text
+            tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tree is None:
+                assert False, "Tree is None"
             plot_tournament_bracket(
                 tournament,
-                build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id)),
+                tree,
                 True,
                 "./tests/generated_contents/bracket_6.png",
             )
     # The tournament is over, get the winner
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)
     if tournament_tree is None:
         assert False, "Tournament tree is None"

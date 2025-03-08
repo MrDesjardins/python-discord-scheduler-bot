@@ -2,6 +2,7 @@
 Integration test for the bet functions
 """
 
+from typing import List
 from unittest.mock import patch
 from datetime import datetime, timezone
 import pytest
@@ -36,7 +37,7 @@ async def test_generating_odd_for_tournament_games_for_only_game_without_ones(mo
     """Test that generate the odd for the tournament games"""
     # Arrange
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
-    list_tournament_games = [
+    list_tournament_games: List[TournamentGame] = [
         TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
         TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
         TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),
@@ -59,7 +60,7 @@ async def test_generating_odd_for_tournament_games_once_per_game(mock_fetch_tour
     """Test that generate the odd for the tournament games"""
     # Arrange
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
-    list_tournament_games: TournamentGame = [
+    list_tournament_games: List[TournamentGame] = [
         TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
         TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
         TournamentGame(3, 1, 5, 6, None, None, None, now_date, None, None),

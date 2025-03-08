@@ -46,6 +46,11 @@ fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3"
 
 def test_build_tournament_tree_full_first_round() -> None:
     """Test to generate the tree from a list"""
+    #                        [7]
+    #                       /   \
+    #                    [5]    [6]
+    #                   / \    /  \
+    #               [1]  [2] [3] [4]
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
     list_tournament_games = [
         TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
@@ -59,11 +64,17 @@ def test_build_tournament_tree_full_first_round() -> None:
     tree = build_tournament_tree(list_tournament_games)
     assert tree is not None
     assert tree.id == 7  # Root node
+    assert tree.next_game1 is not None
     assert tree.next_game1.id == 5
+    assert tree.next_game2 is not None
     assert tree.next_game2.id == 6
+    assert tree.next_game1.next_game1 is not None
     assert tree.next_game1.next_game1.id == 1
+    assert tree.next_game1.next_game2 is not None
     assert tree.next_game1.next_game2.id == 2
+    assert tree.next_game2.next_game1 is not None
     assert tree.next_game2.next_game1.id == 3
+    assert tree.next_game2.next_game2 is not None
     assert tree.next_game2.next_game2.id == 4
     assert tree.next_game1.next_game1.next_game1 is None
     assert tree.next_game1.next_game1.next_game2 is None
@@ -77,6 +88,11 @@ def test_build_tournament_tree_full_first_round() -> None:
 
 def test_build_tournament_tree_partial_first_round() -> None:
     """Test to generate the tree from a list that does not have enough participants"""
+    #                        [7]
+    #                       /   \
+    #                    [5]    [6]
+    #                   / \    /  \
+    #               [1]  [2] [3] [4]
     now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
     list_tournament_games: List[TournamentGame] = [
         TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
@@ -90,11 +106,17 @@ def test_build_tournament_tree_partial_first_round() -> None:
     tree = build_tournament_tree(list_tournament_games)
     assert tree is not None
     assert tree.id == 7  # Root node
+    assert tree.next_game1 is not None
     assert tree.next_game1.id == 5
+    assert tree.next_game2 is not None
     assert tree.next_game2.id == 6
+    assert tree.next_game1.next_game1 is not None
     assert tree.next_game1.next_game1.id == 1
+    assert tree.next_game1.next_game2 is not None
     assert tree.next_game1.next_game2.id == 2
+    assert tree.next_game2.next_game1 is not None
     assert tree.next_game2.next_game1.id == 3
+    assert tree.next_game2.next_game2 is not None
     assert tree.next_game2.next_game2.id == 4
     assert tree.next_game1.next_game1.next_game1 is None
     assert tree.next_game1.next_game1.next_game2 is None
@@ -109,6 +131,7 @@ def test_build_tournament_tree_partial_first_round() -> None:
 @patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__, return_value=None)
 def test_can_register_tournament_does_not_exist(mock_fetch_tournament_by_id) -> None:
     """Test to check if a user can register for a tournament that does not exist"""
+    mock_fetch_tournament_by_id.return_value = None
     reason: Reason = can_register_to_tournament(1, 1)
     assert reason.is_successful is False
     assert reason.text == "The tournament does not exist."
@@ -120,8 +143,8 @@ def test_can_register_tournament_has_started(mock_tournament, mock_datetime) -> 
     """Test to check if a user can register for a tournament when registration has not started"""
     mock_datetime.now.return_value = t1
     fake_tournament2 = copy.copy(fake_tournament)
-    fake_tournament2.has_started = 1
-    mock_tournament.has_started = 1
+    fake_tournament2.has_started = True
+    mock_tournament.has_started = True
 
     reason: Reason = can_register_to_tournament(1, 1)
     assert reason.is_successful is False

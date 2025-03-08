@@ -1,6 +1,6 @@
-""" Information about Siege """
+"""Information about Siege"""
 
-from typing import List, Mapping, Optional
+from typing import List, Mapping, Optional, Union
 import discord
 
 from deps.models import ActivityTransition, SiegeActivityAggregation
@@ -98,7 +98,9 @@ def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
     return None
 
 
-def get_aggregation_siege_activity(dict_users_activities: Mapping[int, ActivityTransition]) -> SiegeActivityAggregation:
+def get_aggregation_siege_activity(
+    dict_users_activities: Mapping[int, Union[ActivityTransition, None]],
+) -> SiegeActivityAggregation:
     """
     From the before and after activity detail, get the count of user from different transition to determine
     if we send a message or not
