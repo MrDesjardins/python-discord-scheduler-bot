@@ -1,3 +1,7 @@
+"""
+Tasks are running code that is scheduled to run at a specific time or interval.
+"""
+
 from datetime import datetime, time, timedelta, timezone
 from discord.ext import commands, tasks
 import pytz

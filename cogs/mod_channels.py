@@ -1,3 +1,7 @@
+"""
+Moderator command to set specific channels for the bot to interact with
+"""
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -112,7 +116,10 @@ class ModChannels(commands.Cog):
             await interaction.followup.send("Gaming Session Text channel not set.", ephemeral=True)
             return
 
-        await interaction.followup.send(f"The gaming session text channel is <#{channel_id}>", ephemeral=True)
+        await interaction.followup.send(
+            f"The gaming session text channel is <#{channel_id}>",
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_SET_NEW_USER_CHANNEL)
     @commands.has_permissions(administrator=True)
@@ -170,7 +177,10 @@ class ModChannels(commands.Cog):
         if channel.id not in voice_channel_ids:
             voice_channel_ids.append(channel.id)
         data_access_set_guild_voice_channel_ids(guild_id, voice_channel_ids)
-        await interaction.followup.send(f"The bot will check the voice channel #{channel.name}.", ephemeral=True)
+        await interaction.followup.send(
+            f"The bot will check the voice channel #{channel.name}.",
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION)
     @commands.has_permissions(administrator=True)

@@ -1,7 +1,7 @@
-""" 
-Integration Test Functions 
+"""
+Integration Test Functions
 
-Performs tests that are more complex and take more time. For example, 
+Performs tests that are more complex and take more time. For example,
 tests that involve database access, network access, or more than one class.
 """
 
@@ -37,3 +37,9 @@ class TestR6Tracker:
         """Test the highest rank of a user that exist"""
         rank = await get_r6tracker_max_rank("Funkyshmug")
         assert rank == "Champion"
+
+    @pytest.mark.asyncio
+    async def test_highest_rank_emerald(self):
+        """Test the highest rank of a user that exist"""
+        rank = await get_r6tracker_max_rank("Adahdf.")
+        assert rank == "Emerald"

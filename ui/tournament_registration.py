@@ -39,7 +39,7 @@ class TournamentRegistration(View):
                 await interaction.followup.send("Guild not found in the interaction.", ephemeral=True)
                 return True
             guild_id = guild.id
- 
+
             # Save user responses
             tournament_id = int(interaction.data["custom_id"])
             reason = register_for_tournament(tournament_id, interaction.user.id)

@@ -1,3 +1,7 @@
+"""
+Tasks are scheduled code that runs at a specific time or interval. This file focus on tournament tasks.
+"""
+
 from datetime import datetime, time
 from discord.ext import commands, tasks
 import pytz

@@ -1,3 +1,7 @@
+"""
+Moderator command related to the tournament feature
+"""
+
 from datetime import date, datetime, timezone
 from typing import List
 import discord
@@ -29,7 +33,9 @@ from deps.tournaments.tournament_functions import (
     clean_maps_input,
     start_tournament,
 )
-from deps.tournaments.tournament_ui_functions import post_end_tournament_messages
+from deps.tournaments.tournament_ui_functions import (
+    post_end_tournament_messages,
+)
 from ui.tournament_match_score_report import TournamentMatchScoreReport
 
 
@@ -133,12 +139,18 @@ class ModTournament(commands.Cog):
         if interaction.user.id == guild.owner_id:
             tournament = fetch_tournament_by_id(tournament_id)
             if tournament is None:
-                await interaction.followup.send(f"Tournament with id {tournament_id} not found", ephemeral=True)
+                await interaction.followup.send(
+                    f"Tournament with id {tournament_id} not found",
+                    ephemeral=True,
+                )
                 return
             await start_tournament(tournament)
             await interaction.followup.send(f"Tournament '{tournament.name}' Started", ephemeral=True)
         else:
-            await interaction.followup.send("Only the owner of the guild can reset the cache", ephemeral=True)
+            await interaction.followup.send(
+                "Only the owner of the guild can reset the cache",
+                ephemeral=True,
+            )
 
     @app_commands.command(name=COMMAND_TOURNAMENT_MOD_SEND_SCORE_TOURNAMENT)
     async def send_score_tournament_by_mod(self, interaction: discord.Interaction, member: discord.Member):
@@ -155,10 +167,12 @@ class ModTournament(commands.Cog):
 
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"send_score_tournament_by_mod: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."
+                f"""send_score_tournament_by_mod: No active tournament available for user 
+{interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."""
             )
             await interaction.response.send_message(
-                f"No active tournament available for {member.display_name}.", ephemeral=True
+                f"No active tournament available for {member.display_name}.",
+                ephemeral=True,
             )
             return
         view = TournamentMatchScoreReport(list_tournaments, user_id)
@@ -179,7 +193,10 @@ class ModTournament(commands.Cog):
             await post_end_tournament_messages(interaction, tournament_id)
         except Exception as e:
             print_error_log(f"send_end_tournament_by_mod: {e}")
-            await interaction.followup.send("Error while displaying the end of the tournament", ephemeral=True)
+            await interaction.followup.send(
+                "Error while displaying the end of the tournament",
+                ephemeral=True,
+            )
 
 
 async def setup(bot):

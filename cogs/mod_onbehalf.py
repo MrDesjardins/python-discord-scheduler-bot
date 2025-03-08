@@ -1,8 +1,15 @@
+"""
+Moderator commands when a moderator acts on behalf of a user
+"""
+
 from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.bot_common_actions import persist_siege_matches_cross_guilds, send_session_stats_directly
+from deps.bot_common_actions import (
+    persist_siege_matches_cross_guilds,
+    send_session_stats_directly,
+)
 from deps.data_access import (
     data_access_get_channel,
     data_access_get_guild_schedule_text_channel_id,
@@ -10,7 +17,10 @@ from deps.data_access import (
     data_access_get_reaction_message,
     data_access_set_reaction_message,
 )
-from deps.analytic_data_access import data_access_set_ubisoft_username_active, data_access_set_ubisoft_username_max
+from deps.analytic_data_access import (
+    data_access_set_ubisoft_username_active,
+    data_access_set_ubisoft_username_max,
+)
 from deps.values import (
     COMMAND_SCHEDULE_ADD_USER,
     COMMAND_SET_USER_TIME_ZONE_OTHER_USER,
@@ -48,24 +58,36 @@ class ModeratorOnUserBehalf(commands.Cog):
     @commands.has_permissions(administrator=True)
     @app_commands.command(name=COMMAND_SET_USER_MAX_RANK_ACCOUNT_OTHER_USER)
     async def set_user_ubisoft_max_rank_for_other_user(
-        self, interaction: discord.Interaction, member: discord.Member, ubisoft_username: str
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        ubisoft_username: str,
     ):
         """Command to set the user Ubisoft username"""
         await interaction.response.defer(ephemeral=True)
 
         data_access_set_ubisoft_username_max(member.id, ubisoft_username)
-        await interaction.followup.send(f"Max Account for {member.mention} -> `{ubisoft_username}`", ephemeral=True)
+        await interaction.followup.send(
+            f"Max Account for {member.mention} -> `{ubisoft_username}`",
+            ephemeral=True,
+        )
 
     @commands.has_permissions(administrator=True)
     @app_commands.command(name=COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER)
     async def set_user_ubisoft_active_account_for_other_user(
-        self, interaction: discord.Interaction, member: discord.Member, ubisoft_username: str
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        ubisoft_username: str,
     ):
         """Command to set the user Ubisoft username"""
         await interaction.response.defer(ephemeral=True)
 
         data_access_set_ubisoft_username_active(member.id, ubisoft_username)
-        await interaction.followup.send(f"Active Account for {member.mention} -> `{ubisoft_username}`", ephemeral=True)
+        await interaction.followup.send(
+            f"Active Account for {member.mention} -> `{ubisoft_username}`",
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_SCHEDULE_ADD_USER)
     @commands.has_permissions(administrator=True)
@@ -103,7 +125,8 @@ class ModeratorOnUserBehalf(commands.Cog):
         message = await data_access_get_message(guild_id, channel_id, message_id)
         if message is None:
             await interaction.followup.send(
-                f"No messages found in this channel for id {last_message_id}.", ephemeral=True
+                f"No messages found in this channel for id {last_message_id}.",
+                ephemeral=True,
             )
             return
         message_votes = await data_access_get_reaction_message(guild_id, channel_id, message_id)

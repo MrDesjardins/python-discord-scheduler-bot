@@ -1,3 +1,7 @@
+"""
+Basic moderator commands
+"""
+
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -59,7 +63,10 @@ class ModBasic(commands.Cog):
             data_access_reset_guild_cache(guild_id)
             await interaction.response.send_message("Cached flushed", ephemeral=True)
         else:
-            await interaction.response.send_message("Only the owner of the guild can reset the cache", ephemeral=True)
+            await interaction.response.send_message(
+                "Only the owner of the guild can reset the cache",
+                ephemeral=True,
+            )
 
     @app_commands.command(name=COMMAND_GUILD_ENABLE_BOT_VOICE)
     @commands.has_permissions(administrator=True)
@@ -159,7 +166,8 @@ class ModBasic(commands.Cog):
         """
         if interaction.guild is None:
             print_error_log(
-                f"send_stats_to_server: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+                f"""send_stats_to_server: No guild available for 
+user {interaction.user.display_name}({interaction.user.id})."""
             )
             await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
             return

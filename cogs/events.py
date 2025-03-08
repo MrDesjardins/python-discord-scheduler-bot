@@ -1,7 +1,12 @@
+"""
+Events cog for the bot
+Events are actions that the bot listens and reacts to
+"""
+
 import os
-from dotenv import load_dotenv
-from datetime import datetime, timezone
 import asyncio
+from datetime import datetime, timezone
+from dotenv import load_dotenv
 from discord.ext import commands
 import discord
 from deps.cache import start_periodic_cache_cleanup
@@ -100,7 +105,10 @@ class MyEventsCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_voice_state_update(
-        self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState,
     ):
         """
         Check if the user is the only one in the voice channel
@@ -138,7 +146,10 @@ class MyEventsCog(commands.Cog):
                     # Add the user to the voice channel list with the current siege activity detail
                     user_activity = get_siege_activity(member)
                     await data_access_update_voice_user_list(
-                        guild_id, after.channel.id, member.id, user_activity.details if user_activity else None
+                        guild_id,
+                        after.channel.id,
+                        member.id,
+                        user_activity.details if user_activity else None,
                     )
 
                 elif before.channel is not None and after.channel is None:
@@ -178,12 +189,16 @@ class MyEventsCog(commands.Cog):
                         EVENT_CONNECT,
                         datetime.now(timezone.utc),
                     )
-                    # Remove the user from the voice channel list (before.channel is different then the after, remove from before.channel)
+                    # Remove the user from the voice channel list
+                    # #(before.channel is different then the after, remove from before.channel)
                     await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
                     # Add the user to the voice channel list with the current siege activity detail
                     user_activity = get_siege_activity(member)
                     await data_access_update_voice_user_list(
-                        guild_id, after.channel.id, member.id, user_activity.details if user_activity else None
+                        guild_id,
+                        after.channel.id,
+                        member.id,
+                        user_activity.details if user_activity else None,
                     )
             except Exception as e:
                 print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
@@ -192,7 +207,12 @@ class MyEventsCog(commands.Cog):
             if after.channel is not None and after.channel.id in voice_channel_ids:
                 # Check if the user is the only one in the voice channel
                 if len(after.channel.members) == 1:
-                    await send_notification_voice_channel(guild_id, member, after.channel, schedule_text_channel_id)
+                    await send_notification_voice_channel(
+                        guild_id,
+                        member,
+                        after.channel,
+                        schedule_text_channel_id,
+                    )
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -223,7 +243,11 @@ class MyEventsCog(commands.Cog):
             return
         # Send message into the text channel with mention to the user to welcome them
         await channel.send(
-            f"Welcome {member.mention} to the server! Use the command `/setupprofile` (in any text channel) to set up your profile which will give you a role and access to many voice channels. You can check who plan to play in the schedule channel <#{text_channel_id}>. When ready to play, join a voice channel and then use the command `/lfg` to find other players."
+            f"""Welcome {member.mention} to the server! Use the command `/setupprofile` 
+(in any text channel) to set up your profile which will give you a role and access 
+to many voice channels. You can check who plan to play in the schedule channel 
+<#{text_channel_id}>. When ready to play, join a voice channel and then use the 
+command `/lfg` to find other players."""
         )
         print_log(f"on_member_join: New user message sent to {member.display_name} in guild {member.guild.name}.")
 
@@ -258,7 +282,10 @@ class MyEventsCog(commands.Cog):
             print_log(message)
         # Add the user to the voice channel list with the current siege activity detail
         await data_access_update_voice_user_list(
-            guild_id, after.voice.channel.id, after.id, ActivityTransition(before_details, after_details)
+            guild_id,
+            after.voice.channel.id,
+            after.id,
+            ActivityTransition(before_details, after_details),
         )
         # await send_automatic_lfg_message(self.bot, after.guild, after.voice.channel)
         await self.send_automatic_lfg_message_debounced(guild_id, after.voice.channel.id)

@@ -1,3 +1,7 @@
+"""
+Command for moderator only concerning analytic
+"""
+
 import io
 import discord
 from discord.ext import commands
@@ -15,7 +19,12 @@ class ModAnalytics(commands.Cog):
 
     @app_commands.command(name=COMMAND_SHOW_COMMUNITY)
     @commands.has_permissions(administrator=True)
-    async def community_show_image(self, interaction: discord.Interaction, from_day_ago: int = 90, to_day_ago: int = 0):
+    async def community_show_image(
+        self,
+        interaction: discord.Interaction,
+        from_day_ago: int = 90,
+        to_day_ago: int = 0,
+    ):
         """Activate or deactivate the bot voice message"""
         img_bytes = display_graph_cluster_people(False, from_day_ago, to_day_ago)
         bytesio = io.BytesIO(img_bytes)

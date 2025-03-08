@@ -19,6 +19,7 @@ from tests.mock_model import mock_user1, mock_user2
 
 lock = asyncio.Lock()
 
+
 @pytest.fixture(autouse=True)
 def setup_and_teardown():
     """Setup and Teardown for the test"""
