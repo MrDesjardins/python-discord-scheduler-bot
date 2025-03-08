@@ -556,7 +556,7 @@ def get_tournament_final_result_positions(root: TournamentNode) -> Optional[Tour
         semi_finals[1].user1_id if semi_finals[1].user2_id == semi_finals[1].user_winner_id else semi_finals[1].user2_id
     )
 
-    # Should never happen but in the case there isn't at least 4 people, we set to zero the id of the winners 
+    # Should never happen but in the case there isn't at least 4 people, we set to zero the id of the winners
     second_position = second_position if second_position is not None else 0
     third_position_1 = third_position_1 if third_position_1 is not None else 0
     third_position_2 = third_position_2 if third_position_2 is not None else 0

@@ -45,6 +45,7 @@ SELECT_LEDGER = """
     bet_ledger_entry.amount
 """
 
+
 def data_access_get_all_wallet_for_tournament(tournament_id: int) -> List[BetUserTournament]:
     """
     Get the wallet of a user for a specific tournament

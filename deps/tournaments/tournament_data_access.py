@@ -26,6 +26,7 @@ SELECT_TOURNAMENT = """
     tournament.has_finished
     """
 
+
 def data_access_insert_tournament(
     guild_id: int,
     name: str,
