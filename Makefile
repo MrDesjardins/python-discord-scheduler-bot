@@ -22,7 +22,10 @@ integration-test-coverage:
 lint: lint-pylint lint-black lint-mypy
 
 lint-pylint:
-	pylint **/*.py
+	pylint --rcfile=.pylintrc deps/ || true
+	pylint --rcfile=.pylintrc cogs/ || true
+	pylint --rcfile=.pylintrc ui/ || true
+	pylint --rcfile=tests/.pylintrc tests/ || true
 
 lint-black:
 	black **/*.py

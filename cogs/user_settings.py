@@ -1,3 +1,7 @@
+"""
+Commands for the user's setting
+"""
+
 import discord
 from discord.ext import commands
 from discord import app_commands

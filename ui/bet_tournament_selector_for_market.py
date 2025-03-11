@@ -1,4 +1,4 @@
-""" User interface for the bot"""
+"""User interface for the bot"""
 
 import traceback
 from typing import List, Optional, Union
@@ -74,6 +74,8 @@ class BetTournamentSelectorForMarket(View):
                     ]
                     options: List[discord.SelectOption] = []
                     for game in games_with_bet_game:
+                        if game.id is None:
+                            continue
                         user_info1: Optional[UserInfo] = (
                             await fetch_user_info_by_user_id(game.user1_id) if game.user1_id else None
                         )
@@ -87,7 +89,8 @@ class BetTournamentSelectorForMarket(View):
                         if user_info1 is None or user_info2 is None:
                             print_error_log(f"User info not found for game {game.id}")
                             continue
-                        text_display = f"{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"
+                        text_display = f"""{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) 
+vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"""
                         options.append(discord.SelectOption(label=text_display, value=str(bet_game_for_game.id)))
                     if len(options) == 0:
                         await interaction.followup.send(
@@ -114,7 +117,8 @@ class BetTournamentSelectorForMarket(View):
                     try:
                         await interaction.followup.edit_message(
                             message_id=interaction.message.id,
-                            content=f"Select one of the bets available in the market for this tournament. You have ${self.wallet.amount:.2f}",
+                            content=f"""Select one of the bets available in the market for this tournament. 
+You have ${self.wallet.amount:.2f}""",
                             view=self,
                         )
                     except discord.errors.NotFound:
@@ -137,8 +141,8 @@ class BetTournamentSelectorForMarket(View):
             # Safely access the selected values
             if interaction.data is None or not isinstance(interaction.data, list):
                 raise ValueError("No values found in interaction data.")
-            else:
-                selected_values = interaction.data.get("values", [])
+
+            selected_values = interaction.data.get("values", [])
 
             if not selected_values:
                 raise ValueError("No values found in interaction data.")
@@ -225,8 +229,7 @@ class BetTournamentSelectorForMarket(View):
             # Safely access the selected values
             if interaction.data is None or not isinstance(interaction.data, list):
                 raise ValueError("No values found in interaction data.")
-            else:
-                selected_values = interaction.data.get("values", [])
+            selected_values = interaction.data.get("values", [])
 
             self.user_bet_on_id = int(selected_values[0])  # Convert to int
         except Exception as e:

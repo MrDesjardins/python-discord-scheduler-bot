@@ -1,10 +1,14 @@
+"""
+User command for anything related to the user like their max rank, active rank, timezone, etc.
+"""
+
 from typing import Optional
-import discord
 from datetime import datetime
+import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
 from ui.confirmation_rank_view import ConfirmCancelView
+from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
 from deps.data_access import (
     data_access_get_member,
 )
@@ -13,7 +17,6 @@ from deps.analytic_data_access import (
     data_access_set_ubisoft_username_max,
     fetch_user_info_by_user_id_list,
 )
-from deps.data_access_data_class import UserInfo
 from deps.values import (
     COMMAND_ACTIVE_RANK_USER_ACCOUNT,
     COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL,
@@ -43,7 +46,8 @@ class UserFeatures(commands.Cog):
         guild = interaction.guild
         if guild is None:
             print_error_log(
-                f"get_users_time_zone_from_voice_channel: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+                f"""get_users_time_zone_from_voice_channel: 
+No guild_id available for user {interaction.user.display_name}({interaction.user.id})."""
             )
             await interaction.followup.send("Guild not found for this user.", ephemeral=True)
             return
@@ -78,7 +82,9 @@ class UserFeatures(commands.Cog):
 
             user_name = member.mention if member is not None else user_info.display_name
             if user_info is not None:
-                entry = f"{rank} {user_name} ({user_info.ubisoft_username_active if user_info.ubisoft_username_active is not None else user_info.ubisoft_username_max if user_info.ubisoft_username_max is not None else '?'})"
+                entry = f"""{rank} {user_name} (
+{user_info.ubisoft_username_active if user_info.ubisoft_username_active is not None else user_info.ubisoft_username_max 
+ if user_info.ubisoft_username_max is not None else '?'})"""
                 if user_info.time_zone == "US/Eastern":
                     eastern += f"{entry}\n"
                 elif user_info.time_zone == "US/Central":
@@ -107,13 +113,15 @@ class UserFeatures(commands.Cog):
 
         if interaction.guild is None:
             print_error_log(
-                f"set_max_user_account: No guild_id available for user {interaction.user.display_name}({interaction.user.id})."
+                f"""set_max_user_account: 
+No guild_id available for user {interaction.user.display_name}({interaction.user.id})."""
             )
             await interaction.followup.send("Guild not found for this command.", ephemeral=True)
             return
         view = ConfirmCancelView()
         await interaction.followup.send(
-            f"Are you sure you want to perform this action? If {ubisoft_connect_name} is not your real account you will face consequences.",
+            f"""Are you sure you want to perform this action? 
+If {ubisoft_connect_name} is not your real account you will face consequences.""",
             view=view,
             ephemeral=True,
         )
@@ -137,7 +145,8 @@ class UserFeatures(commands.Cog):
             max_rank = await adjust_role_from_ubisoft_max_account(interaction.guild, member, ubisoft_connect_name)
             if max_rank is None:
                 await interaction.followup.send(
-                    "Sorry, we cannot change your role for the moment. Please contact a moderator to manually change it.",
+                    """Sorry, we cannot change your role for the moment. 
+Please contact a moderator to manually change it.""",
                     ephemeral=True,
                 )
                 return
@@ -175,16 +184,19 @@ class UserFeatures(commands.Cog):
                 if missing_count > 0:
                     if missing_count > 10:
                         await interaction.followup.send(
-                            f"The command is not sent to the channel. The {COMMAND_LFG} allows a maximum of 10 people.",
+                            f"""The command is not sent to the channel. 
+The {COMMAND_LFG} allows a maximum of 10 people.""",
                             ephemeral=True,
                         )
                     else:
                         await interaction.followup.send(
-                            f"@here {list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people."
+                            f"""@here {list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} 
+in the voice channel: <#{voice_channel.id}> and need {missing_count} more people."""
                         )
                 else:
                     await interaction.followup.send(
-                        f"There are already five people in the voice channel: <#{voice_channel.id}>. The {COMMAND_LFG} will not 'at mention' the channel.",
+                        f"""There are already five people in the voice channel: <#{voice_channel.id}>. 
+The {COMMAND_LFG} will not 'at mention' the channel.""",
                         ephemeral=True,
                     )
             else:

@@ -1,3 +1,7 @@
+"""
+User bet commands
+"""
+
 from typing import List
 import discord
 from discord.ext import commands
@@ -76,30 +80,9 @@ class UserBetFeatures(commands.Cog):
                     )
                     await interaction.response.send_message("Tournament not found for this guild.", ephemeral=True)
                     return
-                wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament.id, user_id)
-                msg += f"➡️ {tournament.name}: ${wallet.amount:.2f}\n"
+                one_wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament.id, user_id)
+                msg += f"➡️ {tournament.name}: ${one_wallet.amount:.2f}\n"
             await interaction.response.send_message(msg, ephemeral=True)
-
-    # @app_commands.command(name=COMMAND_BET_MARKET)
-    # async def bet_market(self, interaction: discord.Interaction):
-    #     """
-    #     See the market (available games to bet)
-    #     """
-    #     guild_id = interaction.guild.id
-    #     list_tournaments: List[Tournament] = fetch_active_tournament_by_guild(guild_id)
-    #     if len(list_tournaments) == 0:
-    #         print_warning_log(
-    #             f"bet_market: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {interaction.guild.name}({interaction.guild.id})."
-    #         )
-    #         await interaction.response.send_message("No active tournament available to bet.", ephemeral=True)
-    #         return
-    #     view = BetTournamentSelectorForMarket(list_tournaments)
-
-    #     await interaction.response.send_message(
-    #         "Choose the tournament to see the market",
-    #         view=view,
-    #         ephemeral=True,
-    #     )
 
     @app_commands.command(name=COMMAND_BET)
     async def place_bet(self, interaction: discord.Interaction):

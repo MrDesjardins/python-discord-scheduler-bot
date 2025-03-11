@@ -1,9 +1,13 @@
+"""
+User Schedule commands
+"""
+
 from typing import List, Union
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deps.functions import get_last_schedule_message
 from ui.schedule_day_hours_view import ScheduleDayHours
+from deps.functions import get_last_schedule_message
 from deps.functions_schedule import auto_assign_user_to_daily_question
 from deps.data_access import (
     data_access_get_channel,
@@ -19,7 +23,7 @@ from deps.values import (
     COMMAND_SCHEDULE_SEE,
     DAYS_OF_WEEK,
 )
-from deps.log import print_error_log, print_log, print_warning_log
+from deps.log import print_error_log, print_warning_log
 from deps.models import DayOfWeek, SimpleUserHour
 from deps.mybot import MyBot
 
@@ -38,7 +42,8 @@ class UserSchedule(commands.Cog):
         view = ScheduleDayHours(self.bot.guild_emoji)
 
         await interaction.response.send_message(
-            "Choose your day and hour. If you already have a schedule, this new one will add on top of the previous schedule with the new hours for the day choosen.",
+            """Choose your day and hour. If you already have a schedule, 
+this new one will add on top of the previous schedule with the new hours for the day choosen.""",
             view=view,
             ephemeral=True,
         )
