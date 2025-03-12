@@ -29,6 +29,7 @@ def test_data():
         data_7 = json.loads(file.read())
     return data_1, data_3, data_4, data_5, data_6, data_7
 
+
 def test_data_exist_for_tests(test_data):
     """Test to ensure the testing files are loaded correctly."""
     data_1, data_3, data_4, data_5, data_6, data_7 = test_data

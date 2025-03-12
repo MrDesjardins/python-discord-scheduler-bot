@@ -696,7 +696,7 @@ def test_clean_map_single_with_spaces() -> None:
     """
     Test to clean the map with spaces
     """
-    map_r6= "  map  "
+    map_r6 = "  map  "
     cleaned_map = clean_maps_input(map_r6)
     assert cleaned_map == "map"
 
