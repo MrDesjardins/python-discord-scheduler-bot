@@ -1,3 +1,7 @@
+"""
+Siege functions logics
+"""
+
 from typing import Union
 from deps.siege import get_aggregation_siege_activity
 from deps.models import ActivityTransition

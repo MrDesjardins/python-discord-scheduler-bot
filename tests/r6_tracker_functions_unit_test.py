@@ -1,3 +1,7 @@
+"""
+Unit test about the R6 tracker data manipulation functions
+"""
+
 import json
 from datetime import datetime, timezone
 import pytest
@@ -24,7 +28,6 @@ def test_data():
     with open("./tests/tests_assets/player7_rank_history.json", "r", encoding="utf8") as file:
         data_7 = json.loads(file.read())
     return data_1, data_3, data_4, data_5, data_6, data_7
-
 
 def test_data_exist_for_tests(test_data):
     """Test to ensure the testing files are loaded correctly."""
@@ -362,7 +365,7 @@ def test_parse_json_from_full_matches_dataset_6_rollback(test_data):
     assert match.has_win is False
 
 
-def test_get_r6tracker_parse_one_map(test_data):
+def test_get_r6tracker_parse_one_map():
     """
     Test that we can load a string
     """
@@ -854,7 +857,7 @@ def test_get_r6tracker_parse_one_map(test_data):
     assert len(lst) >= 1
 
 
-def test_get_r6tracker_parse_with_null_map(test_data):
+def test_get_r6tracker_parse_with_null_map():
     """
     Test that we can load a string but with a map to null
     """

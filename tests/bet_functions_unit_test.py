@@ -772,6 +772,7 @@ async def test_placing_bet_on_game_user_with_dynamic_adjust_bet_failing(
         mock_dynamically_adjust_bet_game_odd.side_effect = Exception("Error")
         # Act
         place_bet_for_game(1, 1, 5, 99.99, 2)
+        mock_probability_update.assert_not_called()
         mock_print_error_log.assert_called_once()
 
 
@@ -822,6 +823,7 @@ async def test_placing_bet_on_game_user_with_update_bet_probability_failing(
         mock_probability_update.side_effect = Exception("Error")
         # Act
         place_bet_for_game(1, 1, 5, 99.99, 2)
+        mock_dynamically_adjust_bet_game_odd.assert_called_once()
         mock_print_error_log.assert_called_once()
 
 
@@ -866,7 +868,7 @@ async def test_placing_bet_on_game_too_small_amount(
     mock_create_bet_user_game.return_value = None
     mock_update_user_wallet_for_tournament.return_value = None
     # Act
-    with pytest.raises(ValueError, match=f"The minimum amount to bet is \${MIN_BET_AMOUNT}"):
+    with pytest.raises(ValueError, match=rf"The minimum amount to bet is \${MIN_BET_AMOUNT}"):
         place_bet_for_game(1, 2, 1, 0.99, 1)
     # Assert
     mock_probability_update.assert_not_called()
@@ -1599,7 +1601,7 @@ async def test_generate_msg_bet_game_no_betgame(
         user_id, f"User {user_id}", None, None, None, "pst"
     )
     # Act
-    msg = await generate_msg_bet_game(tournament_node)
+    await generate_msg_bet_game(tournament_node)
     # Asert
     mock_print_error_log.assert_called_once()
 
@@ -1858,7 +1860,7 @@ async def test_generate_msg_bet_game_many_bets_in_mismatch_ledget_user_bet(
         user_id, f"User {user_id}", None, None, None, "pst"
     )
     # Act
-    msg = await generate_msg_bet_game(tournament_node)
+    await generate_msg_bet_game(tournament_node)
     # Asert
     mock_print_error_log.assert_called_once()
 

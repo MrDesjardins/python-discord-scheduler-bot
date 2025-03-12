@@ -1,3 +1,7 @@
+"""
+Unit test for Bet data access that does not require accessing the database
+"""
+
 from datetime import datetime, timezone
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 

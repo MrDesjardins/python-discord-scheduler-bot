@@ -1,9 +1,9 @@
-""" Unit tests for the analytic_gatherer module """
+"""Unit tests for the analytic_gatherer module"""
 
 from datetime import datetime
 from typing import Dict, List, Tuple, Union
 from unittest.mock import patch
-from pandas import DataFrame, Index, Series
+from pandas import Index, Series
 import pandas.testing as pdt
 import pytest
 from deps.analytic_models import UserInfoWithCount
@@ -328,6 +328,9 @@ def test_single_user_without_disconnect() -> None:
 
 @pytest.fixture
 def mock_datetime():
+    """
+    Mock date time for every tests
+    """
     with patch("deps.analytic_functions.datetime") as mock:
         yield mock
 

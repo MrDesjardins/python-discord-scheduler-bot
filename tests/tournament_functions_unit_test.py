@@ -696,8 +696,8 @@ def test_clean_map_single_with_spaces() -> None:
     """
     Test to clean the map with spaces
     """
-    map = "  map  "
-    cleaned_map = clean_maps_input(map)
+    map_r6= "  map  "
+    cleaned_map = clean_maps_input(map_r6)
     assert cleaned_map == "map"
 
 
@@ -705,8 +705,8 @@ def test_clean_map_many_with_spaces() -> None:
     """
     Test to clean the map with spaces
     """
-    map = "map1, map2"
-    cleaned_map = clean_maps_input(map)
+    map_r6 = "map1, map2"
+    cleaned_map = clean_maps_input(map_r6)
     assert cleaned_map == "map1,map2"
 
 
@@ -714,6 +714,6 @@ def test_clean_map_many_with_spaces_and_upper_case() -> None:
     """
     Test to clean the map with spaces
     """
-    map = "map1, map2, Map3, MAP4"
-    cleaned_map = clean_maps_input(map)
+    map_r6 = "map1, map2, Map3, MAP4"
+    cleaned_map = clean_maps_input(map_r6)
     assert cleaned_map == "map1,map2,map3,map4"
