@@ -166,8 +166,7 @@ class ModBasic(commands.Cog):
         """
         if interaction.guild is None:
             print_error_log(
-                f"""send_stats_to_server: No guild available for 
-user {interaction.user.display_name}({interaction.user.id})."""
+                f"""send_stats_to_server: No guild available for user {interaction.user.display_name}({interaction.user.id})."""
             )
             await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
             return

@@ -129,8 +129,7 @@ class TournamentMatchScoreReport(View):
 
         if not tournament:
             print_error_log(
-                f"""TournamentMatchScoreReport: process_tournament_result: 
-Tournament not found for id {self.tournament_id}"""
+                f"""TournamentMatchScoreReport: process_tournament_result: Tournament not found for id {self.tournament_id}"""
             )
             await interaction.followup.send("Tournament not found. Please try again.", ephemeral=True)
             return
@@ -139,8 +138,7 @@ Tournament not found for id {self.tournament_id}"""
             completed_node: TournamentNode = result.context
             if completed_node.user_winner_id is None:
                 print_error_log(
-                    f"""TournamentMatchScoreReport: process_tournament_result: 
-User winner id is None for tournament {self.tournament_id}"""
+                    f"""TournamentMatchScoreReport: process_tournament_result: User winner id is None for tournament {self.tournament_id}"""
                 )
                 await interaction.followup.send(
                     "The winner wasn't saved properly. Please contact a moderator.", ephemeral=True
@@ -158,8 +156,7 @@ User winner id is None for tournament {self.tournament_id}"""
 
             if player_lose is None:
                 print_error_log(
-                    f"""TournamentMatchScoreReport: process_tournament_result: 
-player_lose is None for tournament {self.tournament_id}"""
+                    f"""TournamentMatchScoreReport: process_tournament_result: player_lose is None for tournament {self.tournament_id}"""
                 )
                 await interaction.followup.send(
                     """Losing member not found. Please contact a moderator.""", ephemeral=True
@@ -181,8 +178,7 @@ player_lose is None for tournament {self.tournament_id}"""
                 )
                 player_win_display_name = str(completed_node.user_winner_id)
             await interaction.followup.send(
-                f"""{player_win_display_name} wins against {player_lose.mention} on {completed_node.map} 
-with a score of {completed_node.score}""",
+                f"""{player_win_display_name} wins against {player_lose.mention} on {completed_node.map} with a score of {completed_node.score}""",
                 ephemeral=False,
             )
 
@@ -191,31 +187,26 @@ with a score of {completed_node.score}""",
                 msg_result_bets = await generate_msg_bet_game(result.context)
                 if msg_result_bets != "":
                     await interaction.followup.send(
-                        f"""Bets results for the match {player_win_display_name} vs {player_lose.mention}:
-\n{msg_result_bets}""",
+                        f"""Bets results for the match {player_win_display_name} vs {player_lose.mention}:\n{msg_result_bets}""",
                         ephemeral=False,
                     )
             except Exception as e:
                 print_error_log(
-                    f"""TournamentMatchScoreReport: process_tournament_result: 
-Error while generating bet game: {e}"""
+                    f"""TournamentMatchScoreReport: process_tournament_result: Error while generating bet game: {e}"""
                 )
             try:
                 await post_end_tournament_messages(interaction, self.tournament_id)
             except Exception as e:
                 print_error_log(
-                    f"""TournamentMatchScoreReport: process_tournament_result: 
-Error while posting end tournament messages: {e}"""
+                    f"""TournamentMatchScoreReport: process_tournament_result: Error while posting end tournament messages: {e}"""
                 )
                 await interaction.followup.send(
-                    """The tournament ended but the final ranking and the bet leaderboard could not be displayed. 
-Please contact a moderator to re-generate.""",
+                    """The tournament ended but the final ranking and the bet leaderboard could not be displayed. Please contact a moderator to re-generate.""",
                     ephemeral=True,
                 )
         else:
             print_error_log(f"Error while reporting lost: {result.text}")
             await interaction.followup.send(
-                f"""TournamentMatchScoreReport: process_tournament_result: Cannot report lost match: 
-{result.text} Please contact a moderator if you should have reported a match.""",
+                f"""TournamentMatchScoreReport: process_tournament_result: Cannot report lost match: {result.text} Please contact a moderator if you should have reported a match.""",
                 ephemeral=True,
             )

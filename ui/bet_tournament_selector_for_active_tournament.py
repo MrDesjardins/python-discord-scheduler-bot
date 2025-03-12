@@ -1,7 +1,7 @@
-""" User interface for the bot"""
+"""User interface for the bot"""
 
 import traceback
-from typing import Any, Callable, Coroutine, List
+from typing import Any, Coroutine, List
 import discord
 from discord.ui import View
 from deps.analytic_data_access import fetch_user_info_by_user_id
@@ -96,7 +96,7 @@ class BetTournamentSelectorForActiveMarket(View):
                                 user1_display if bet.user_id_bet_placed == tournament_game.user1_id else user2_display
                             )
 
-                            msg += f"💰 `{user3_display}` placed a bet of **${bet.amount:.2f}** on `{user_on_who_the_bed_is_on}` in the game of `{user1_display} ({user1_odd:.2f})` vs `{user2_display} ({user2_odd:.2f})`\n"
+                            msg += f"""💰 `{user3_display}` placed a bet of **${bet.amount:.2f}** on `{user_on_who_the_bed_is_on}` in the game of `{user1_display} ({user1_odd:.2f})` vs `{user2_display} ({user2_odd:.2f})`\n"""
 
                 if msg == "":
                     msg = f"No active bet for this tournament. Use the command `/{COMMAND_BET}` to place a bet."

@@ -167,8 +167,7 @@ class ModTournament(commands.Cog):
 
         if len(list_tournaments) == 0:
             print_warning_log(
-                f"""send_score_tournament_by_mod: No active tournament available for user 
-{interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."""
+                f"""send_score_tournament_by_mod: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."""
             )
             await interaction.response.send_message(
                 f"No active tournament available for {member.display_name}.",

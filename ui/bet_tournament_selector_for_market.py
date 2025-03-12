@@ -88,8 +88,7 @@ class BetTournamentSelectorForMarket(View):
                         if user_info1 is None or user_info2 is None:
                             print_error_log(f"User info not found for game {game.id}")
                             continue
-                        text_display = f"""{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f})
- vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"""
+                        text_display = f"""{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"""
                         options.append(discord.SelectOption(label=text_display, value=str(bet_game_for_game.id)))
                     if len(options) == 0:
                         await interaction.followup.send(
@@ -116,8 +115,7 @@ class BetTournamentSelectorForMarket(View):
                     try:
                         await interaction.followup.edit_message(
                             message_id=interaction.message.id,
-                            content=f"""Select one of the bets available in the market for this tournament.
- You have ${self.wallet.amount:.2f}""",
+                            content=f"""Select one of the bets available in the market for this tournament. You have ${self.wallet.amount:.2f}""",
                             view=self,
                         )
                     except discord.errors.NotFound:
@@ -138,12 +136,12 @@ class BetTournamentSelectorForMarket(View):
         """Handles selection of the round lost."""
         try:
             # Safely access the selected values
-            if interaction.data is None or not isinstance(interaction.data, list):
+            if interaction.data is None:
                 raise ValueError("No values found in interaction data.")
 
             selected_values = interaction.data.get("values", [])
 
-            if not selected_values:
+            if not selected_values or not isinstance(selected_values, list):
                 raise ValueError("No values found in interaction data.")
 
             self.bet_game_id = int(selected_values[0])  # Convert to int
@@ -226,9 +224,13 @@ class BetTournamentSelectorForMarket(View):
         """Handles selection of the round lost."""
         try:
             # Safely access the selected values
-            if interaction.data is None or not isinstance(interaction.data, list):
+            if interaction.data is None:
                 raise ValueError("No values found in interaction data.")
+
             selected_values = interaction.data.get("values", [])
+
+            if not selected_values or not isinstance(selected_values, list):
+                raise ValueError("No values found in interaction data.")
 
             self.user_bet_on_id = int(selected_values[0])  # Convert to int
         except Exception as e:
@@ -282,8 +284,7 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
             self.view.amount = amount
         except ValueError as e:
             print_error_log(
-                f"""bet_tournament_selector_for_market_handle_bet_game_ui:
- (user id {interaction.user.id}) AmountModal_on_submit: {e}"""
+                f"""bet_tournament_selector_for_market_handle_bet_game_ui: (user id {interaction.user.id}) AmountModal_on_submit: {e}"""
             )
             await interaction.response.send_message("Please enter a valid number.", ephemeral=True)
             return
@@ -306,15 +307,13 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
             )
         except ValueError as e:
             print_warning_log(
-                f"""bet_tournament_selector_for_market_handle_bet_game_ui:
- (user id {interaction.user.id}) AmountModal_on_submit: {e}"""
+                f"""bet_tournament_selector_for_market_handle_bet_game_ui: (user id {interaction.user.id}) AmountModal_on_submit: {e}"""
             )
             await interaction.followup.send(f"An error occurred while placing the bet: {e}", ephemeral=True)
             return
         except Exception as e:
             print_error_log(
-                f"""bet_tournament_selector_for_market_handle_bet_game_ui: 
- (user id {interaction.user.id}) AmountModal_on_submit: {e}"""
+                f"""bet_tournament_selector_for_market_handle_bet_game_ui:  (user id {interaction.user.id}) AmountModal_on_submit: {e}"""
             )
             await interaction.followup.send(
                 "An error occurred while placing the bet. Please notify a moderator.", ephemeral=True
@@ -339,7 +338,6 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
 
             tournament_name = next(t for t in self.view.list_tournaments if t.id == self.view.tournament_id).name
             await interaction.followup.send(
-                f'''💰 {interaction.user.mention} bet **${amount:.2f}** on {user_bet_on} in the match
- {user1} ({user1_odd:.2f}) vs {user2} ({user2_odd:.2f}) in tournanent "{tournament_name}"''',
+                f'''💰 {interaction.user.mention} bet **${amount:.2f}** on {user_bet_on} in the match {user1} ({user1_odd:.2f}) vs {user2} ({user2_odd:.2f}) in tournanent "{tournament_name}"''',
                 ephemeral=False,
             )

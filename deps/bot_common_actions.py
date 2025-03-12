@@ -307,8 +307,7 @@ async def adjust_role_from_ubisoft_max_account(
     max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name, True)
 
     print_log(
-        f"""adjust_role_from_ubisoft_max_account: R6 Tracker Downloaded Info for user {member.display_name} 
-and found for user name {ubisoft_connect_name} the max role: {max_rank}"""
+        f"""adjust_role_from_ubisoft_max_account: R6 Tracker Downloaded Info for user {member.display_name} and found for user name {ubisoft_connect_name} the max role: {max_rank}"""
     )
     try:
         await set_member_role_from_rank(guild, member, max_rank)
@@ -334,13 +333,10 @@ and found for user name {ubisoft_connect_name} the max role: {max_rank}"""
         active_msg = ""
         return ""
     else:
-        active_msg = f"""\nCurrently playing on the 
-[{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."""
+        active_msg = f"""\nCurrently playing on the [{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."""
 
     await channel.send(
-        content=f"""{member.mention} main account is 
-[{ubisoft_connect_name}]({get_url_user_profile_overview(ubisoft_connect_name)}) 
-with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.""",
+        content=f"""{member.mention} main account is [{ubisoft_connect_name}]({get_url_user_profile_overview(ubisoft_connect_name)}) with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.""",
     )
     return max_rank
 
@@ -449,8 +445,7 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
             )
             if aggregation is None:
                 print_log(
-                    f"""send_channel_list_stats: User {user_info.display_name} 
-has no stats to show in the last {last_hour} hours. Overall stats found {len(users_stats)}"""
+                    f"""send_channel_list_stats: User {user_info.display_name} has no stats to show in the last {last_hour} hours. Overall stats found {len(users_stats)}"""
                 )
                 continue  # Skip to the next user
 
@@ -486,8 +481,7 @@ def get_gaming_session_user_embed_message(
     title = f"{member.display_name} Stats"
     embed = discord.Embed(
         title=title,
-        description=f"""{member.mention} ({user_info.ubisoft_username_active}) played {aggregation.match_count} 
-matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.""",
+        description=f"""{member.mention} ({user_info.ubisoft_username_active}) played {aggregation.match_count} matches: {aggregation.match_win_count} wins and {aggregation.match_loss_count} losses.""",
         color=get_color_for_rank(member),
         timestamp=datetime.now(),
         url=get_url_user_profile_main(aggregation.ubisoft_username_active),
@@ -564,8 +558,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
     if user_count == 0 or user_count >= 5:
         # No user or too many users, nothing to do
         print_log(
-            f"""send_automatic_lfg_message: User count {user_count} in guild id 
-{guild_id} for voice channel {voice_channel_id}. Skipping."""
+            f"""send_automatic_lfg_message: User count {user_count} in guild id {guild_id} for voice channel {voice_channel_id}. Skipping."""
         )
 
     current_time = datetime.now(timezone.utc)
@@ -583,8 +576,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
     vc_channel = await data_access_get_channel(voice_channel_id)
     if vc_channel is None:
         print_warning_log(
-            f"""send_automatic_lfg_message: Voice channel {voice_channel_id} not 
-found for guild id {guild_id} . Skipping."""
+            f"""send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild id {guild_id} . Skipping."""
         )
         return
     user_count_vc = len(vc_channel.members)
@@ -598,11 +590,7 @@ found for guild id {guild_id} . Skipping."""
     try:
         aggregation = get_aggregation_siege_activity(dict_users)
         print_log(
-            f"""send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started 
-{aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, 
-done_warming_up {aggregation.done_warming_up_waiting_in_menu}, done_match_waiting_in_menu 
-{aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, 
-playing_standard {aggregation.playing_standard}"""
+            f"""send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started {aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, done_warming_up {aggregation.done_warming_up_waiting_in_menu}, done_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, playing_standard {aggregation.playing_standard}"""
         )
         ready_to_play = aggregation.done_match_waiting_in_menu + aggregation.done_warming_up_waiting_in_menu
         already_playing = aggregation.playing_rank + aggregation.playing_standard

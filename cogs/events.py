@@ -243,11 +243,7 @@ class MyEventsCog(commands.Cog):
             return
         # Send message into the text channel with mention to the user to welcome them
         await channel.send(
-            f"""Welcome {member.mention} to the server! Use the command `/setupprofile` 
-(in any text channel) to set up your profile which will give you a role and access 
-to many voice channels. You can check who plan to play in the schedule channel 
-<#{text_channel_id}>. When ready to play, join a voice channel and then use the 
-command `/lfg` to find other players."""
+            f"""Welcome {member.mention} to the server! Use the command `/setupprofile` (in any text channel) to set up your profile which will give you a role and access to many voice channels. You can check who plan to play in the schedule channel <#{text_channel_id}>. When ready to play, join a voice channel and then use the command `/lfg` to find other players."""
         )
         print_log(f"on_member_join: New user message sent to {member.display_name} in guild {member.guild.name}.")
 
