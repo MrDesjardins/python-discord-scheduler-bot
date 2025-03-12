@@ -2,7 +2,6 @@
 
 import traceback
 from typing import List
-from functools import partial
 import discord
 from discord.ui import View
 from deps.bet.bet_functions import generate_msg_bet_leaderboard

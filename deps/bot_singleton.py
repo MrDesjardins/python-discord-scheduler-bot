@@ -2,7 +2,6 @@
 
 from __future__ import annotations  # Enables forward reference resolution
 from typing import Union
-import discord
 from deps.mybot import MyBot
 
 

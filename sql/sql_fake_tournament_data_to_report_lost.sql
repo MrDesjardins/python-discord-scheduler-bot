@@ -27,11 +27,11 @@ VALUES
     'Fake Tournament #2',
     '2025-01-01 00:00:00',
     '2025-01-10 00:00:00',
-    '2025-01-31 00:00:00',
+    '2025-05-31 00:00:00',
     3,
     8,
     'oregon,villa,clubhouse,kafe,consulate',
-    false
+    true
   );
 
 -- Create fake tournament players

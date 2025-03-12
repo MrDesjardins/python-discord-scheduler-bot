@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" Entry file for the Discord bot """
+"""Entry file for the Discord bot"""
 
 import os
 from dotenv import load_dotenv
