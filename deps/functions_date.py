@@ -77,3 +77,9 @@ def is_today(date_time: datetime) -> bool:
 
     # Compare the date portion
     return date_time_eastern.date() == eastern_today
+
+
+def iso_to_gregorian(year: int, week: int) -> datetime:
+    """Convert ISO year and week to the starting date of that ISO week (Monday) in UTC."""
+    dt = datetime.strptime(f"{year}-W{week}-1", "%G-W%V-%u")
+    return dt.replace(tzinfo=timezone.utc)

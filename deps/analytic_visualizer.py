@@ -33,6 +33,7 @@ from deps.analytic_data_access import (
     calculate_time_spent_from_db,
 )
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
+from deps.functions_date import iso_to_gregorian
 
 
 @dataclass
@@ -580,11 +581,6 @@ def display_user_timeline_voice_time_by_day(
     return _plot_return(plt, show)
 
 
-def iso_to_gregorian(year: int, week: int) -> datetime:
-    """Convert ISO year and week to the starting date of that ISO week (Monday)."""
-    return datetime.strptime(f"{year}-W{week}-1", "%Y-W%W-%w")
-
-
 def display_user_timeline_voice_time_by_week(
     show: bool = True, from_day: int = 3600, to_day: int = 0
 ) -> Union[bytes, None]:
@@ -628,15 +624,19 @@ def display_user_timeline_voice_time_by_week(
     # Identify all unique weeks across top users for consistent x-axis alignment
     all_weeks = sorted(set(week for user_data in user_weekly_play_times.values() for week in user_data.keys()))
     all_dates = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
+    all_dates.sort()
     # Prepare plot with three subplots
-    fig, axs = plt.subplots(3, 1, figsize=(12, 18))
+    fig, axs = plt.subplots(3, 1, figsize=(18, 18))
     segments = [top_users[:10], top_users[10:20], top_users[20:30]]  # Split top_users into three segments
     titles = ["Top 10 Active Users", "Users 11-20", "Users 21-30"]
     for ax, segment, title in zip(axs, segments, titles):
         for user_id, _ in segment:
             # Fill in missing weeks with zero to create a continuous line
-            user_times = [user_weekly_play_times[user_id].get(week, 0) for week in all_weeks]
 
+            user_times = [
+                user_weekly_play_times[user_id].get(f"{timestamp.isocalendar().year}-{timestamp.isocalendar().week}", 0)
+                for timestamp in all_dates
+            ]
             if any(user_times):  # Only plot if there's data
                 user_name = data_user_id_name[user_id].display_name  # Fetch the user name
                 ax.plot(all_dates, user_times, label=user_name, marker="o", linestyle="-")
@@ -710,13 +710,19 @@ def display_user_line_graph_time(
                 user_play_times += play_duration  # Track total time per user
 
     all_weeks = sorted(set(user_weekly_play_times.keys()))
+
     all_dates: list[datetime] = [iso_to_gregorian(int(w.split("-")[0]), int(w.split("-")[1])) for w in all_weeks]
+    # Sort dates in ascending order
+    all_dates.sort()
 
     # Prepare plot with three subplots
     fig, ax = plt.subplots(figsize=(12, 8))
 
     # Fill in missing weeks with zero to create a continuous line
-    user_times = [user_weekly_play_times.get(week, 0) for week in all_weeks]
+    user_times = [
+        user_weekly_play_times.get(f"{timestamp.isocalendar().year}-{timestamp.isocalendar().week}", 0)
+        for timestamp in all_dates
+    ]
 
     if any(user_times):  # Only plot if there's data
         user_name = data_user_id_name[user_id].display_name  # Fetch the user name

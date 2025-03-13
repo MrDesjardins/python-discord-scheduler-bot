@@ -1,9 +1,15 @@
-""" Test Functions """
+"""Test Functions"""
 
 from datetime import datetime, timezone
 from unittest.mock import patch
 import pytz
-from deps.functions_date import convert_to_datetime, ensure_utc, get_current_hour_eastern, get_now_eastern
+from deps.functions_date import (
+    convert_to_datetime,
+    ensure_utc,
+    get_current_hour_eastern,
+    get_now_eastern,
+    iso_to_gregorian,
+)
 
 
 @patch("deps.functions_date.datetime")
@@ -164,3 +170,13 @@ def test_convert_to_datetime_when_time_zone_east():
     dt = datetime(2024, 11, 25, 20, 10, 0, tzinfo=pytz.timezone("US/Eastern")).isoformat()
     result = convert_to_datetime(dt)
     assert isinstance(result, datetime)
+
+
+def test_iso_to_gregorian() -> None:
+    """
+    Convert the first week of the year
+    """
+    result = iso_to_gregorian(2025, 1)
+    assert result == datetime(2024, 12, 30, 0, 0, 0, tzinfo=timezone.utc)
+    result = iso_to_gregorian(2025, 6)
+    assert result == datetime(2025, 2, 3, 0, 0, 0, tzinfo=timezone.utc)
