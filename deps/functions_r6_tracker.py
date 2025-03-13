@@ -1,4 +1,4 @@
-""" R6 Tracker API functions """
+"""R6 Tracker API functions"""
 
 import os
 from typing import List, Optional
@@ -25,6 +25,7 @@ async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
         page = requests.get(url, timeout=5)
         page.raise_for_status()  # Check if the request was successful
     except requests.exceptions.RequestException:
+        print_error_log(f"get_r6tracker_max_rank: Error downloading the page for {ubisoft_user_name}. Using URL {url}")
         return rank
 
     # Parse the page content
@@ -43,6 +44,7 @@ async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
     if rank in siege_ranks:
         return rank
     else:
+        print_error_log(f"get_r6tracker_max_rank: Rank {rank} not found in the list of ranks. Gave Copper instead.")
         return "Copper"
 
 
