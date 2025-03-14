@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import call, patch
 import pytest
 
 from deps.analytic_functions import compute_users_weights
@@ -20,19 +20,17 @@ from deps.analytic_data_access import (
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.models import UserFullMatchStats
 from deps.functions_r6_tracker import parse_json_from_full_matches
+from deps import analytic_data_access
 
 fake_date = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
 CHANNEL1_ID = 100
 CHANNEL2_ID = 200
 GUILD_ID = 1000
 
-# Apply patch globally
-patcher = patch("deps.analytic_data_access.print_log", lambda *args, **kwargs: None)
-patcher.start()  # Start the patch before tests run
-
-
-@pytest.fixture(scope="module")
-def test_data():
+# # Apply patch globally
+# patcher = patch("deps.analytic_data_access.print_log", lambda *args, **kwargs: None)
+# patcher.start()  # Start the patch before tests run
+def get_test_data():
     """Load test data for all test cases."""
     with open("./tests/tests_assets/player_rank_history.json", "r", encoding="utf8") as file:
         data_1 = json.loads(file.read())
@@ -133,13 +131,13 @@ def test_get_only_user_active():
     assert users[0].id == 1
     assert users[1].id == 2
 
-
-def test_insert_if_nonexistant_full_match_info(test_data):
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_insert_if_nonexistant_full_match_info(mock_log):
     """
     Test the insertion of statistic into the database
     """
-    data_1, data_3, data_4, data_5, data_6 = test_data
-
+    data_1, data_3, data_4, data_5, data_6 = get_test_data()
+    mock_log.side_effect = None
     user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
     upsert_user_info(
         user_info.id,
@@ -180,11 +178,15 @@ def test_insert_if_nonexistant_no_match():
     insert_if_nonexistant_full_match_info(user_info, [])
 
 
-def test_insert_if_nonexistant_with_duplicate(test_data):
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_insert_if_nonexistant_with_duplicate(mock_log):
     """
     Test if there isn't any match to insert
     """
-    data_1 = test_data
+    # Get only one data
+    data_1 = get_test_data()[0]
+    data_1["data"]["matches"] = data_1["data"]["matches"][:1]
+    mock_log.side_effect = None
 
     user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
     upsert_user_info(
@@ -198,7 +200,76 @@ def test_insert_if_nonexistant_with_duplicate(test_data):
 
     matches_1 = parse_json_from_full_matches(data_1, user_info)
     insert_if_nonexistant_full_match_info(user_info, matches_1)
+    # Reset all the calls
+    mock_log.reset_mock()
     insert_if_nonexistant_full_match_info(user_info, matches_1)
+    mock_log.assert_called_once_with(
+        "insert_if_nonexistant_full_match_info: Found 0 new matches to insert out of 1 for DiscordName1"
+    )
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_insert_if_nonexistant_with_no_duplicate(mock_log):
+    """
+    Test if there isn't any match to insert
+    """
+    # Get only one data
+    data_1 = get_test_data()[0]
+    all_matches = data_1["data"]["matches"]
+    data_1["data"]["matches"] = all_matches[:1]
+    mock_log.side_effect = None
+
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+    )
+    mock_log.reset_mock()
+    matches_1 = parse_json_from_full_matches(data_1, user_info)
+    insert_if_nonexistant_full_match_info(user_info, matches_1)
+    # Reset all the calls
+    mock_log.reset_mock()
+    data_1["data"]["matches"] = all_matches[1:2]
+    matches_1 = parse_json_from_full_matches(data_1, user_info)
+    insert_if_nonexistant_full_match_info(user_info, matches_1)
+
+    mock_log.assert_has_calls(
+        [
+            call("insert_if_nonexistant_full_match_info: Found 1 new matches to insert out of 1 for DiscordName1"),
+            call("insert_if_nonexistant_full_match_info: Inserted match 1 for DiscordName1"),
+        ]
+    )
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_insert_if_nonexistant_with_no_match(mock_log):
+    """
+    Test if there isn't any match to insert
+    """
+    # Get only one data
+    data_1 = get_test_data()[0]
+    data_1["data"]["matches"] = []
+    mock_log.side_effect = None
+
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+    )
+
+    matches_1 = parse_json_from_full_matches(data_1, user_info)
+    insert_if_nonexistant_full_match_info(user_info, matches_1)
+    mock_log.assert_called_once_with(
+        "insert_if_nonexistant_full_match_info: No user-match pair to insert, leaving the function early"
+    )
 
 
 def test_two_users_same_channels():
