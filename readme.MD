@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/MrDesjardins/python-discord-scheduler-bot/graph/badge.svg?token=k56oCsm7fW)](https://codecov.io/gh/MrDesjardins/python-discord-scheduler-bot)
+
 # Discord Bot
 
 The project is a Python Discord bot that aim to perform repetitive tasks for a gaming community around Ubisoft Rainbow Six Siege.

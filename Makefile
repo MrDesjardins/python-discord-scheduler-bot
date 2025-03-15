@@ -14,7 +14,7 @@ unit-test-coverage-web:
 	coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py && coverage html
 
 unit-test-coverage:
-	pytest --cov=. --cov-report=xml -s ./tests/*unit_test.py
+	pytest --cov=deps --cov=cogs --cov-report=xml -s ./tests/*unit_test.py
 
 integration-test:
 	pytest -v -s ./tests/*_integration_test.py
@@ -23,7 +23,7 @@ integration-test-coverage-web:
 	coverage run --omit="./tests/*" -m pytest -v -s ./tests/*_integration_test.py && coverage html
 
 integration-test-coverage:
-	pytest --cov=. --cov-report=xml -s ./tests/*_integration_test.py
+	pytest --cov=deps --cov=cogs --cov-report=xml -s ./tests/*_integration_test.py
 
 lint: lint-pylint lint-black lint-mypy
 
