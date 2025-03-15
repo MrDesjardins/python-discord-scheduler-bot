@@ -744,21 +744,23 @@ def data_access_fetch_tk_count_by_user(from_data: datetime) -> list[tuple[int, s
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def data_access_fetch_rollback_count_by_user(from_data: date) -> list[tuple[int, str, int]]:
+def data_access_fetch_rollback_positive_count_by_user(from_data: date) -> list[tuple[int, str, int, int]]:
     """
-    Fetch the rollback count for each user
+    Fetch the rollback count for each user that gave back points
     """
     query = """
         SELECT
             user_full_match_info.user_id,
             user_info.display_name,
-            count(user_full_match_info.id) as count_rollbacks
+            count(user_full_match_info.id) as count_rollbacks,
+            sum(points_gained) as total_points_gained
         FROM
             user_full_match_info
         LEFT JOIN user_info 
             ON user_info.id = user_full_match_info.user_id
         WHERE
             user_full_match_info.is_rollback = true
+            AND points_gained > 0
             AND user_full_match_info.match_timestamp >= :from_data
             AND user_full_match_info.user_id IN (
                     SELECT DISTINCT
@@ -769,7 +771,7 @@ def data_access_fetch_rollback_count_by_user(from_data: date) -> list[tuple[int,
                     timestamp >= :from_data
                 )
         GROUP BY user_id
-        ORDER BY count_rollbacks DESC;
+        order by count_rollbacks desc, total_points_gained desc;
         """
     result = (
         database_manager.get_cursor().execute(
@@ -780,8 +782,48 @@ def data_access_fetch_rollback_count_by_user(from_data: date) -> list[tuple[int,
         )
     ).fetchall()
     # Convert the result to a dictionary of user_id -> tk_count
-    return [(row[0], row[1], row[2]) for row in result]
+    return [(row[0], row[1], row[2], row[3]) for row in result]
 
+def data_access_fetch_rollback_negative_count_by_user(from_data: date) -> list[tuple[int, str, int, int]]:
+    """
+    Fetch the rollback count for each user that gave back points
+    """
+    query = """
+        SELECT
+            user_full_match_info.user_id,
+            user_info.display_name,
+            count(user_full_match_info.id) as count_rollbacks,
+            sum(points_gained) as total_points_gained
+        FROM
+            user_full_match_info
+        LEFT JOIN user_info 
+            ON user_info.id = user_full_match_info.user_id
+        WHERE
+            user_full_match_info.is_rollback = true
+            AND points_gained < 0
+            AND user_full_match_info.match_timestamp >= :from_data
+            AND user_full_match_info.user_id IN (
+                    SELECT DISTINCT
+                    user_id
+                    from
+                    user_activity
+                    where
+                    timestamp >= :from_data
+                )
+        GROUP BY user_id
+        order by
+            count_rollbacks desc, total_points_gained asc;
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "from_data": from_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    # Convert the result to a dictionary of user_id -> tk_count
+    return [(row[0], row[1], row[2], row[3]) for row in result]
 
 def data_access_fetch_avg_kill_match(from_data: date) -> list[tuple[int, str, int]]:
     """

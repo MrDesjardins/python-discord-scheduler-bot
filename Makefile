@@ -1,11 +1,22 @@
 # PHONY does not check if the file exists or not, it will always run the command
-.PHONY: all test unit-test integration-test unit-test-coverage integration-test-coverage lint lint-pylint lint-black lint-mypy
-
-all: test
+.PHONY: test 
+.PHONY: test-coverage
+.PHONY: unit-test 
+.PHONY: unit-test-coverage-web 
+.PHONY: unit-test-coverage 
+.PHONY: integration-test 
+.PHONY: integration-test-coverage-web
+.PHONY: integration-test-coverage
+.PHONY: lint
+.PHONY: lint-pylint
+.PHONY: lint-black
+.PHONY: lint-mypy
+.PHONY: install-reps
+.PHONY: save-deps
 
 test: unit-test integration-test
 
-test-coverage: unit-test-coverage integration-test-coverageF
+test-coverage: unit-test-coverage integration-test-coverage
 
 unit-test:
 	pytest -v -s ./tests/*_unit_test.py
@@ -40,3 +51,9 @@ lint-mypy:
 	mypy deps
 	mypy cogs
 	mypy tests
+
+install-reps:
+	python3 -m pip install -r requirements.txt
+
+save-deps:
+	python3 -m pip freeze > requirements.txt

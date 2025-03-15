@@ -79,7 +79,7 @@ async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild):
 
     channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
     if channel_id is None:
-        print_error_log(f"\t⚠️ Channel id (configuration) not found for guild {guild.name}. Skipping.")
+        print_error_log(f"\t⚠️ Channel id (schedule channel) not found for guild {guild.name}. Skipping.")
         return
 
     channel = await data_access_get_channel(channel_id)

@@ -21,7 +21,8 @@ from deps.analytic_data_access import (
     data_access_fetch_first_kill,
     data_access_fetch_kd_by_user,
     data_access_fetch_match_played_count_by_user,
-    data_access_fetch_rollback_count_by_user,
+    data_access_fetch_rollback_positive_count_by_user,
+    data_access_fetch_rollback_negative_count_by_user,
     data_access_fetch_success_fragging,
     data_access_fetch_tk_count_by_user,
     fetch_all_user_activities,
@@ -92,7 +93,10 @@ Above 0.5 means you are setting your team in a advantageous position (5v4)."""
     elif function_number == 5:
         msg = stats_user_best_trio(day_30, last_30_days)
     elif function_number == 6:
-        msg = stats_rollback(day_14, last_14_days)
+        msg = stats_rollback_positive(day_14, last_14_days)
+        msg_intruction = """The rollbacks stats contains only the number of rollbacks that gave you back points.
+Receiving points back means you played against a cheater.
+The rollbacks that removed points are not counted in this stats and will be shown another day."""
     elif function_number == 7:
         msg = stats_ratio_clutch(day_60, last_60_days)
     elif function_number == 8:
@@ -105,7 +109,7 @@ Above 0.5 means you are setting your team in a advantageous position (5v4)."""
         msg, file = await stats_ops_by_members(day_14, last_14_days)
         if file is not None:
             await channel.send(file=file, content=msg)
-            return
+            return  # Needed because we have a special case where we loop channel.send a file here
     elif function_number == 12:
         msg = stats_user_best_duo(day_30, last_30_days)
     elif function_number == 13:
@@ -122,15 +126,18 @@ Above 0.5 means you are setting your team in a advantageous position (5v4)."""
             print_error_log(
                 f"send_daily_stats_to_a_guild: Error in stats_best_worse_map with safe_guard at {safe_guard}"
             )
-        return
+        return  # Needed because we have a special case where we loop channel.send
     elif function_number == 15:
         msg = stats_clutch_round_rate(day_60, last_60_days)
         msg_intruction = """The clutch rate shows the number of time a user is in a 1vX situation.
 A rate around 0.1 is normal since Siege is a 5v5 game. A rate above 0.1 might mean you are more passive and a rate lower than 0.1 might indicate you are more aggressive and taking more risk."""
     elif function_number == 16:
-        msg = "No stats today"
+        msg = stats_rollback_negative(day_14, last_14_days)
+        msg_intruction = """The rollbacks stats contains only the number of rollbacks that you lost point points.
+Losing points means you played with a cheater and the system removes the gained point from your account.
+The rollbacks that added points are not counted in this stats and will be shown another day."""
     else:
-        print_log(f"send_daily_stats_to_a_guild: No stats to show for random number {function_number}")
+        print_error_log(f"send_daily_stats_to_a_guild: No stats to show for random number {function_number}")
         return
 
     msg_len = len(msg)
@@ -158,13 +165,23 @@ def stats_kd(day: int, last_7_days: date) -> str:
     return msg
 
 
-def stats_rollback(day: int, last_7_days: date) -> str:
+def stats_rollback_positive(day: int, last_7_days: date) -> str:
     """The count of rollback in the last 7 days"""
-    stats = data_access_fetch_rollback_count_by_user(last_7_days)
+    stats = data_access_fetch_rollback_positive_count_by_user(last_7_days)
     if len(stats) == 0:
         print_log("stats_rollback: No rollback stats to show")
         return "No rollback stats to show"
-    msg = build_msg_stats_key_value_decimal("rollbacks", f"in the last {day} days", stats, False)
+    msg = build_msg_stats_rollback("rollbacks that gave back points", f"in the last {day} days", stats)
+    return msg
+
+
+def stats_rollback_negative(day: int, last_7_days: date) -> str:
+    """The count of rollback in the last 7 days"""
+    stats = data_access_fetch_rollback_negative_count_by_user(last_7_days)
+    if len(stats) == 0:
+        print_log("stats_rollback: No rollback stats to show")
+        return "No rollback stats to show"
+    msg = build_msg_stats_rollback("rollbacks that gave removed points", f"in the last {day} days", stats)
     return msg
 
 
@@ -300,6 +317,39 @@ def stats_best_worse_map(day: int, last_x_day: date, index: int = 0) -> tuple[st
         stats,
         index,
     )
+
+
+def build_msg_stats_rollback(
+    stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[int, str, int, int]]
+) -> str:
+    """Build a message that can be resused between the stats msg"""
+    top = 30
+    col_width = 16
+    col_width_data = 5
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    rank = 0
+    previous_value: Union[int, float] = -1
+    msg += (
+        f"{columnize('#', 3)}"
+        f"{columnize('Name', col_width)}"
+        f"{columnize('Count', col_width_data)}"
+        f"{columnize('RP', col_width_data)}\n"
+    )
+    for stat in stats_tuple:
+        if rank >= top:
+            break
+        if previous_value != stat[2]:
+            rank += 1
+            previous_value = stat[2]
+
+        msg += (
+            f"{columnize(rank,3)}"
+            f"{columnize(stat[1], col_width)}"
+            f"{columnize(stat[2], col_width_data)}"
+            f"{columnize(stat[3], col_width_data)}\n"
+        )
+    msg += "```"
+    return msg
 
 
 def build_msg_stats_key_value_decimal(
