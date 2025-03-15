@@ -43,7 +43,6 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     Send the daily schedule stats to a specific guild
     """
     guild_id = guild.id
-    day_7 = 7
     day_14 = 14
     day_30 = 30
     day_60 = 60

@@ -23,6 +23,8 @@ unit-test:
 
 unit-test-coverage-web:
 	coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py && coverage html
+	explorer.exe `wslpath -w "./htmlcov"`
+	# xdg-open ./htmlcov/index.html
 
 unit-test-coverage:
 	pytest --cov=deps --cov-report=xml -s ./tests/*unit_test.py

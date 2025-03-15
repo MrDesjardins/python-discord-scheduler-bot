@@ -48,8 +48,7 @@ async def get_last_schedule_message(
             # and message.created_at >= time_threshold
             and (message.content.startswith(MSG_UNIQUE_STRING) or len(message.embeds) > 0)
         ):
-            last_message = message
-            return last_message
+            return message
     return None
 
 

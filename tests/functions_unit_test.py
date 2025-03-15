@@ -1,9 +1,11 @@
-""" Test Functions """
+"""Test Functions"""
 
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import patch, Mock
+import discord
 from deps.functions_model import get_empty_votes, get_supported_time_time_label
 from deps.functions import (
+    get_last_schedule_message,
     get_rotated_number_from_current_day,
     get_sha,
     get_time_choices,
@@ -15,6 +17,8 @@ from deps.functions import (
 )
 from deps.models import TimeLabel
 import deps.functions
+from deps.mybot import MyBot
+from deps.values import MSG_UNIQUE_STRING
 
 
 def test_most_common_no_tie():
@@ -162,3 +166,94 @@ def test_get_rotated_number_from_current_day_3(mock_get_now_eastern):
     mock_get_now_eastern.return_value = datetime(2024, 1, 4, 10, 0, 0, 6318, timezone.utc)
     result = get_rotated_number_from_current_day(3)
     assert result == 0
+
+
+async def test_get_last_schedule_message_no_channel():
+    """Test how the number rotates based on the current day"""
+    bot = Mock(spec=MyBot)
+    result = await get_last_schedule_message(
+        bot,
+        None,
+    )
+    assert result is None
+
+
+@patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
+async def test_get_last_schedule_message_no_last_message(mock_get_now_eastern):
+    """Test how the number rotates based on the current day"""
+    mock_get_now_eastern.return_value = datetime(2024, 1, 1, 10, 0, 0, 6318, timezone.utc)
+    bot = Mock(spec=MyBot)
+    channel = Mock(spec=discord.TextChannel)
+
+    # Mock an empty async iterable for history
+    async def async_iter():
+        for _ in []:
+            yield _
+
+    channel.history = Mock(return_value=async_iter())  # Ensure it returns an async iterable
+
+    result = await get_last_schedule_message(bot, channel)
+    assert result is None
+
+
+@patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
+async def test_get_last_schedule_message_with_last_message_but_not_bot(mock_get_now_eastern):
+    """Test how the number rotates based on the current day"""
+    mock_get_now_eastern.return_value = datetime(2024, 1, 1, 10, 0, 0, 6318, timezone.utc)
+    bot = Mock(spec=MyBot)
+    channel = Mock(spec=discord.TextChannel)
+
+    # Mock an empty async iterable for history
+    async def async_iter():
+        for _ in [Mock(spec=discord.Message, author=Mock(spec=discord.User, bot=False))]:
+            yield _
+
+    channel.history = Mock(return_value=async_iter())  # Ensure it returns an async iterable
+
+    result = await get_last_schedule_message(bot, channel)
+    assert result is None
+
+@patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
+async def test_get_last_schedule_message_with_last_message_is_bot_with_not_right_msg_format(mock_get_now_eastern):
+    """Test how the number rotates based on the current day"""
+    mock_get_now_eastern.return_value = datetime(2024, 1, 1, 10, 0, 0, 6318, timezone.utc)
+    bot = Mock(spec=MyBot)
+    bot.user = Mock(spec=discord.User)
+    channel = Mock(spec=discord.TextChannel)
+
+    # Mock an empty async iterable for history
+    msg1 = Mock(spec=discord.Message, author=Mock(spec=discord.User, bot=True))
+    msg1.author = bot.user
+    msg1.embeds = []
+    msg1.content = "Not the right message format"
+    async def async_iter():
+        for _ in [msg1]:
+            yield _
+
+    channel.history = Mock(return_value=async_iter())  # Ensure it returns an async iterable
+
+    result = await get_last_schedule_message(bot, channel)
+    assert result is None
+
+
+@patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
+async def test_get_last_schedule_message_with_last_message_is_bot_with_right_msg_format(mock_get_now_eastern):
+    """Test how the number rotates based on the current day"""
+    mock_get_now_eastern.return_value = datetime(2024, 1, 1, 10, 0, 0, 6318, timezone.utc)
+    bot = Mock(spec=MyBot)
+    bot.user = Mock(spec=discord.User)
+    channel = Mock(spec=discord.TextChannel)
+
+    # Mock an empty async iterable for history
+    msg1 = Mock(spec=discord.Message, author=Mock(spec=discord.User, bot=True))
+    msg1.author = bot.user
+    msg1.embeds = []
+    msg1.content = f"{MSG_UNIQUE_STRING} And more"
+    async def async_iter():
+        for _ in [msg1]:
+            yield _
+
+    channel.history = Mock(return_value=async_iter())  # Ensure it returns an async iterable
+
+    result = await get_last_schedule_message(bot, channel)
+    assert result is msg1
