@@ -1,7 +1,7 @@
 """Test Functions"""
 
 from datetime import datetime, timezone
-from unittest.mock import patch, Mock
+from unittest.mock import call, patch, Mock, AsyncMock
 import discord
 from deps.functions_model import get_empty_votes, get_supported_time_time_label
 from deps.functions import (
@@ -19,6 +19,7 @@ from deps.models import TimeLabel
 import deps.functions
 from deps.mybot import MyBot
 from deps.values import MSG_UNIQUE_STRING
+import deps.siege
 
 
 def test_most_common_no_tie():
@@ -213,6 +214,7 @@ async def test_get_last_schedule_message_with_last_message_but_not_bot(mock_get_
     result = await get_last_schedule_message(bot, channel)
     assert result is None
 
+
 @patch.object(deps.functions, deps.functions.get_now_eastern.__name__)
 async def test_get_last_schedule_message_with_last_message_is_bot_with_not_right_msg_format(mock_get_now_eastern):
     """Test how the number rotates based on the current day"""
@@ -226,6 +228,7 @@ async def test_get_last_schedule_message_with_last_message_is_bot_with_not_right
     msg1.author = bot.user
     msg1.embeds = []
     msg1.content = "Not the right message format"
+
     async def async_iter():
         for _ in [msg1]:
             yield _
@@ -249,6 +252,7 @@ async def test_get_last_schedule_message_with_last_message_is_bot_with_right_msg
     msg1.author = bot.user
     msg1.embeds = []
     msg1.content = f"{MSG_UNIQUE_STRING} And more"
+
     async def async_iter():
         for _ in [msg1]:
             yield _
@@ -257,3 +261,39 @@ async def test_get_last_schedule_message_with_last_message_is_bot_with_right_msg
 
     result = await get_last_schedule_message(bot, channel)
     assert result is msg1
+
+
+async def test_set_member_role_from_rank_with_role_to_remove_remove_all_possibles_rank_then_add():
+    """
+    The test ensures that the function
+    1) Removes all the possible roles
+    2) Adds the new role
+    """
+    # Arrange
+    guild = Mock(spec=discord.Guild)
+    member = Mock(spec=discord.Member)
+    role_1 = Mock(spec=discord.Role, name="rank1")  # Create a new role for rank1
+    role_2 = Mock(spec=discord.Role, name="rank2")  # Create a new role for rank2
+    member.roles = [role_1, role_2]
+    member.add_roles = AsyncMock()
+
+    def mock_discord_get(roles, name):
+        """Return different roles based on name lookup."""
+        if name == "rank1":
+            return role_1
+        elif name == "rank2":
+            return role_2
+        return None
+
+    discord.utils.get = Mock(side_effect=mock_discord_get)
+    # Act
+    with patch("deps.functions.siege_ranks", ["rank1", "rank2"]):
+        await deps.functions.set_member_role_from_rank(guild, member, "rank2")
+        # Assert
+        member.remove_roles.assert_has_calls(
+            [
+                call(role_1, reason="Bot removed rank1 before assigning new rank role."),
+                call(role_2, reason="Bot removed rank2 before assigning new rank role."),
+            ]
+        )
+        member.add_roles.assert_called_once_with(role_2, reason="Bot assigned role based on rank from R6 Tracker")

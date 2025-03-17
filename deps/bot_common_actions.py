@@ -489,8 +489,7 @@ def get_gaming_session_user_embed_message(
 
     # Get the list of kill_death into a string with comma separated
     str_kda = "\n".join(
-        f"""Match #{i+1} - {'won 🏆' if match.has_win else 'lose ☠'} - 
-{match.map_name}: {match.kill_count}/{match.death_count}/{match.assist_count}"""
+        f"""Match #{i+1} - {'won 🏆' if match.has_win else 'lose ☠'} - {match.map_name}: {match.kill_count}/{match.death_count}/{match.assist_count}"""
         for i, match in enumerate(reversed(aggregation.matches_recent))
     )
     if member.avatar is not None:

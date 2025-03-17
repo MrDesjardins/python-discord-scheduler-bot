@@ -10,5 +10,6 @@
   },
   "black-formatter.args": [
     "--verbose"
-  ]
+  ],
+  "makefile.configureOnOpen": false
 }
