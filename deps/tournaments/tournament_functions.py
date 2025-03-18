@@ -1,4 +1,4 @@
-""" Functions usesd in the tournament module """
+"""Functions usesd in the tournament module"""
 
 from datetime import datetime, timezone
 from collections import deque
@@ -247,7 +247,7 @@ def build_tournament_tree(tournament: List[TournamentGame]) -> Optional[Tourname
     Returns:
         Optional[TournamentNode]: The root node of the tournament tree.
     """
-    if not tournament or len(tournament) == 0:
+    if len(tournament) == 0:
         return None
 
     # Map to hold nodes by their ID

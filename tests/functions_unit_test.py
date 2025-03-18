@@ -268,6 +268,7 @@ async def test_set_member_role_from_rank_with_role_to_remove_remove_all_possible
     The test ensures that the function
     1) Removes all the possible roles
     2) Adds the new role
+    Tag: #good_test, #good_practice
     """
     # Arrange
     guild = Mock(spec=discord.Guild)

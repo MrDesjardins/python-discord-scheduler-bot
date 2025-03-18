@@ -7,6 +7,7 @@ import copy
 from typing import List
 from unittest.mock import patch
 from datetime import datetime, timezone
+from deps.bet import bet_functions
 from deps.tournaments.tournament_functions import (
     assign_people_to_games,
     auto_assign_winner,
@@ -15,12 +16,16 @@ from deps.tournaments.tournament_functions import (
     clean_maps_input,
     get_tournament_final_result_positions,
     has_node_without_user,
+    next_power_of_two,
     register_for_tournament,
+    report_lost_tournament,
     resize_tournament,
+    start_tournament,
 )
 from deps.tournaments import tournament_functions
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.models import Reason
+from deps.tournaments import tournament_data_access
 from tests.mock_model import (
     mock_user1,
     mock_user2,
@@ -42,6 +47,14 @@ t5 = datetime(2024, 11, 27, 12, 30, 0, tzinfo=timezone.utc)
 t6 = datetime(2024, 11, 28, 12, 30, 0, tzinfo=timezone.utc)
 
 fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3", False, False, 0)
+
+
+def test_build_tournament_tree_without_game() -> None:
+    """
+    Build a tournament tree without game returns None
+    """
+    tree = build_tournament_tree([])
+    assert tree is None
 
 
 def test_build_tournament_tree_full_first_round() -> None:
@@ -717,3 +730,200 @@ def test_clean_map_many_with_spaces_and_upper_case() -> None:
     map_r6 = "map1, map2, Map3, MAP4"
     cleaned_map = clean_maps_input(map_r6)
     assert cleaned_map == "map1,map2,map3,map4"
+
+
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_data_access.get_people_registered_for_tournament.__name__)
+@patch.object(tournament_functions, tournament_functions.resize_tournament.__name__)
+@patch.object(tournament_functions, tournament_data_access.data_access_create_bracket.__name__)
+@patch.object(tournament_functions, tournament_data_access.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(tournament_functions, tournament_functions.assign_people_to_games.__name__)
+@patch.object(tournament_functions, tournament_functions.auto_assign_winner.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament_games.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament.__name__)
+@patch.object(tournament_functions, bet_functions.system_generate_game_odd.__name__)
+async def test_start_tournament_success(
+    mock_system_generate_game_odd,
+    mock_save_tournament,
+    mock_save_tournament_games,
+    mock_auto_assign_winner,
+    mock_assign_people_to_games,
+    mock_fetch_games,
+    mock_create_bracket,
+    mock_resize,
+    mock_get_people_registered_for_tournament,
+    mock_datetime,
+) -> None:
+    """
+    Test the start of a tournament when all the conditions are met
+    """
+    # Arrange
+    tournament = fake_tournament
+    mock_datetime.now.return_value = t3
+    mock_get_people_registered_for_tournament.return_value = [mock_user1, mock_user2, mock_user3, mock_user4]
+    mock_resize.return_value = 4
+    mock_fetch_games.return_value = [
+        TournamentGame(1, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(2, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(3, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(4, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(5, 1, None, None, None, None, None, None, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, None, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, None, 5, 6),
+    ]
+    mock_assign_people_to_games.return_value = [
+        TournamentGame(1, 1, None, None, None, None, None, None, 1, 2),
+        TournamentGame(2, 1, None, None, None, None, None, None, 3, 4),
+        TournamentGame(3, 1, None, None, None, None, None, None, 5, 6),
+    ]
+    mock_auto_assign_winner.return_value = []
+
+    # Act
+    await start_tournament(tournament)
+
+    # Assert
+    mock_get_people_registered_for_tournament.assert_called_once_with(tournament.id)
+    mock_resize.assert_called_once_with(4, 4)
+    mock_create_bracket.assert_called_once_with(tournament.id, 4)
+    mock_fetch_games.assert_called_once_with(tournament.id)
+    mock_assign_people_to_games.assert_called_once()
+    mock_auto_assign_winner.assert_called_once()
+    mock_save_tournament_games.assert_called_once()
+    mock_save_tournament.assert_called_once()
+    mock_system_generate_game_odd.assert_called_once()
+
+
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_data_access.get_people_registered_for_tournament.__name__)
+@patch.object(tournament_functions, tournament_functions.resize_tournament.__name__)
+@patch.object(tournament_functions, tournament_data_access.data_access_create_bracket.__name__)
+@patch.object(tournament_functions, tournament_data_access.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(tournament_functions, tournament_functions.assign_people_to_games.__name__)
+@patch.object(tournament_functions, tournament_functions.auto_assign_winner.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament_games.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament.__name__)
+@patch.object(tournament_functions, bet_functions.system_generate_game_odd.__name__)
+async def test_start_tournament_not_yet_created(
+    mock_system_generate_game_odd,
+    mock_save_tournament,
+    mock_save_tournament_games,
+    mock_auto_assign_winner,
+    mock_assign_people_to_games,
+    mock_fetch_games,
+    mock_create_bracket,
+    mock_resize,
+    mock_get_people_registered_for_tournament,
+    mock_datetime,
+) -> None:
+    """
+    Test the start of a tournament when all the conditions are met
+    """
+    # Arrange
+    tournament = fake_tournament
+    tournament.id = None
+    mock_datetime.now.return_value = t3
+    mock_get_people_registered_for_tournament.return_value = []
+    mock_resize.return_value = 4
+    mock_fetch_games.return_value = []
+    mock_assign_people_to_games.return_value = []
+    mock_auto_assign_winner.return_value = []
+
+    # Act
+    await start_tournament(tournament)
+
+    # Assert
+    mock_get_people_registered_for_tournament.assert_not_called()
+    mock_resize.assert_not_called()
+    mock_create_bracket.assert_not_called()
+    mock_fetch_games.assert_not_called()
+    mock_assign_people_to_games.assert_not_called()
+    mock_auto_assign_winner.assert_not_called()
+    mock_save_tournament_games.assert_not_called()
+    mock_save_tournament.assert_not_called()
+    mock_system_generate_game_odd.assert_not_called()
+
+
+async def test_next_power_of_two() -> None:
+    """
+    Test to get the next power of two
+    """
+    assert next_power_of_two(0) == 1
+    assert next_power_of_two(1) == 1
+    assert next_power_of_two(2) == 2
+    assert next_power_of_two(3) == 4
+    assert next_power_of_two(4) == 4
+    assert next_power_of_two(5) == 8
+    assert next_power_of_two(6) == 8
+    assert next_power_of_two(7) == 8
+    assert next_power_of_two(8) == 8
+    assert next_power_of_two(9) == 16
+
+
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__, return_value=None)
+async def test_report_lost_tournament_no_tournament(mock_fetch_tournament) -> None:
+    """
+    Test to report a lost tournament when the tournament does not exist
+    """
+    # Arrange
+    tournament_id = 1
+    user_id = 1
+    score = "7-1"
+    mock_fetch_tournament.return_value = None
+
+    # Act
+    result = await report_lost_tournament(tournament_id, user_id, score)
+
+    # Assert
+    assert result.is_successful is False
+    assert result.text == "The tournament does not exist."
+
+
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__, return_value=None)
+@patch.object(tournament_functions, tournament_data_access.get_people_registered_for_tournament.__name__)
+async def test_report_lost_tournament_user_not_in_tournament(
+    mock_get_people_registered_for_tournament, mock_fetch_tournament
+) -> None:
+    """
+    Test that a report was done by someone not in the tournament
+    """
+    # Arrange
+    tournament_id = 1
+    score = "7-1"
+    mock_fetch_tournament.return_value = fake_tournament
+    mock_get_people_registered_for_tournament.return_value = [mock_user2, mock_user3, mock_user4]
+
+    # Act
+    result = await report_lost_tournament(tournament_id, mock_user1.id, score)
+
+    # Assert
+    assert result.is_successful is False
+    assert result.text == "User is not registered for the tournament."
+
+
+@patch.object(tournament_functions, tournament_functions.fetch_tournament_by_id.__name__, return_value=None)
+@patch.object(tournament_functions, tournament_data_access.get_people_registered_for_tournament.__name__)
+@patch.object(tournament_functions, tournament_data_access.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(tournament_functions, tournament_functions.build_tournament_tree.__name__)
+async def test_report_lost_tournament_no_games_in_tournament(
+    mock_build_tournament_tree,
+    mock_fetch_tournament_games,
+    mock_get_people_registered_for_tournament,
+    mock_fetch_tournament,
+) -> None:
+    """
+    Test that a report was done by someone not in the tournament
+    """
+    # Arrange
+    tournament_id = 1
+    score = "7-1"
+    mock_fetch_tournament.return_value = fake_tournament
+    mock_get_people_registered_for_tournament.return_value = [mock_user1, mock_user2, mock_user3, mock_user4]
+    mock_fetch_tournament_games.return_value = []
+    mock_build_tournament_tree.return_value = None
+
+    # Act
+    result = await report_lost_tournament(tournament_id, mock_user1.id, score)
+
+    # Assert
+    assert result.is_successful is False
+    assert result.text == "The tournament tree is empty."
