@@ -23,6 +23,7 @@ from deps.functions import (
 from deps.data_access import (
     data_access_get_channel,
     data_access_get_guild_voice_channel_ids,
+    data_access_get_main_text_channel_id,
     data_access_reset_guild_cache,
     data_access_set_bot_voice_first_user,
 )
@@ -188,16 +189,34 @@ class ModBasic(commands.Cog):
             )
             await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
             return
-        await interaction.response.defer(ephemeral=False)
+        await interaction.response.defer(ephemeral=True)
+
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
+        channel_id = await data_access_get_main_text_channel_id(guild_id)
+        if channel_id is None:
+            print_error_log(
+                f"\t⚠️ generate_ai_summary: Channel id (main text) not found for guild {guild.name}. Skipping."
+            )
+            return
+        channel = await data_access_get_channel(channel_id)
+        if channel is None:
+            print_error_log(f"\t⚠️ generate_ai_summary: Channel not found for guild {guild.name}. Skipping.")
+            return
+
         msg = generate_message_summary_matches(hours)
         if msg == "":
-            await interaction.followup.send("Error while generating the summary", ephemeral=False)
+            await interaction.followup.send("Error while generating the summary", ephemeral=True)
             return
         # Split the message into chunks of 2000 characters
         chunks = [msg[i : i + 2000] for i in range(0, len(msg), 2000)]
         # Send each chunk as a separate message
         for chunk in chunks:
-            await interaction.followup.send(chunk, ephemeral=False)
+            await channel.send(content=chunk)
+        await interaction.followup.send("Done", ephemeral=True)
 
 
 async def setup(bot):

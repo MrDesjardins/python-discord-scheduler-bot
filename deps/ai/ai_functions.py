@@ -56,12 +56,14 @@ def generate_message_summary_matches(hours: int) -> str:
     context += "For the match summary, ensure to talk about the map and operators if something stand out and talk about the overall wins (has_win) and also a summary of the total points gained when interesting. Keep it short and concise."
     context += "Here is the list of the users:"
     context += user_info_serialized
-    context += "Here is the list of the matches with in a dictionary format where the key is the user id "
+    context += "Here is the list of the matches with in a dictionary format where the key is the user id:"
     context += match_info_serialized
     context += "Format in a way that does not mention the request of this message and that it is easy to split in chunk of 2000 characters."
     context += "Try to have the tone of a sport commentary. Dont mention anything about what I asked you to do, just the result. Change line without empty line (do not add two new lines in a row)."
+    context += "Format your text not in bullet point, but in a text like we would read in a sport news paper."
+    context += "Be professional, sport and concise. Do not add any emoji or special character."
     try:
-        response = "✨ AI summary generated of the last few hours:\n" + ask_gemini(context)
+        response = f"✨**AI summary generated of the last {hours} hours**✨\n" + ask_gemini(context)
     except Exception as e:
         print_error_log(f"Error while asking Gemini: {e}")
         return ""
