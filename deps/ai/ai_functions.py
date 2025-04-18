@@ -36,7 +36,11 @@ def gather_information_for_generating_message_summary(hours) -> tuple[List[UserI
     users: List[UserInfo] = get_active_user_info(from_time, to_time)
     full_matches_info_by_user_id = []
     for user in users:
-        full_matches_info_by_user_id.extend(data_access_fetch_user_full_match_info(user.id))
+        # Keep only the data for matched in the last hours
+        data_from_last_hours = data_access_fetch_user_full_match_info(user.id)
+        for match in data_from_last_hours:
+            if from_time <= match.match_timestamp <= to_time:
+                full_matches_info_by_user_id.append(match)
     return users, full_matches_info_by_user_id
 
 
@@ -48,18 +52,24 @@ def generate_message_summary_matches(hours: int) -> str:
     user_info_serialized = json.dumps([u.__dict__ for u in users])  # Serialize the value
     match_info_serialized = json.dumps([m.to_dict() for m in full_matches_info_by_user_id])
 
-    context = "Your goal is to generate a summary of maximum 4000 characters (including white space and change line) of the matches played by the users"
-    context += "I am providing you a list of users and their matches."
-    context += "Your message must give one or two sentences about each user, and the highlight of the matches played when something interesting happened."
+    context = "Your goal is to generate a summary of maximum 6000 characters (including white space and change line) of the matches played by the users"
+    context += "I am providing you a list of users and a list of their matches. You need to use both."
+    context += "Your message must give one or three sentences about each user."
+    context += "You need to find something to say for every one if they have at least one match. If not match, say nothing, don't even say they did not play."
     context += "Please mention every user by their display_name, so you must match the user id with the display_name."
-    context += "Information that are valuable are the number of clutches, especially ace and 1v2, 1v3, 1v4 and 1v5 especially against multiple enemies, kd ratios above 1, and number of kills above 5. tk_count are interesting since they show a huge blunder. A head shot percentage above 0.5 is also interesting."
-    context += "For the match summary, ensure to talk about the map and operators if something stand out and talk about the overall wins (has_win) and also a summary of the total points gained when interesting. Keep it short and concise."
+    context += "Provide an highlight of the matches played when something interesting happened. Try to find the best match of the user and the worst match."
+    context += "Try to make relationship between the users who played the same match using the r6_tracker_active_id"
+    context += "Information that are valuable are the number of clutches, ace and 1v2, 1v3, 1v4 and 1v5 especially against multiple enemies, kd ratios above 1, and number of kills above 5. The value of tk_count is interesting since they show a huge blunder. A head shot percentage above 0.5 is also interesting."
+    context += "For the match summary, ensure to talk about the map and operators if something stand out and talk about the overall wins (look at has_win)."
+    context += "A summary of the total points gained when interesting. Keep it short and concise."
     context += "Here is the list of the users:"
     context += user_info_serialized
     context += "Here is the list of the matches with in a dictionary format where the key is the user id:"
     context += match_info_serialized
     context += "Format in a way that does not mention the request of this message and that it is easy to split in chunk of 2000 characters."
-    context += "Try to have the tone of a sport commentary. Dont mention anything about what I asked you to do, just the result. Change line without empty line (do not add two new lines in a row)."
+    context += "Try to have the tone of a sport commentary."
+    context += "Dont mention anything about what I asked you to do, just the result."
+    context += "Change line without empty line (do not add two new lines in a row)."
     context += "Format your text not in bullet point, but in a text like we would read in a sport news paper."
     context += "Be professional, sport and concise. Do not add any emoji or special character."
     try:
