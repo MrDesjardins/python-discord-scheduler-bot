@@ -196,7 +196,7 @@ def stats_user_time_voice_channel(
     day: int,
 ):
     """The amount of time spent in voice channel in the last 7 days"""
-    data_user_activity = fetch_all_user_activities(7, 0)
+    data_user_activity = fetch_all_user_activities(day, 0)
     data_user_id_name = fetch_user_info()
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
     user_times = compute_users_voice_channel_time_sec(auser_in_outs)

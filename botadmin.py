@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-""" Entry file for the Discord bot admin command """
+"""Entry file for the Discord bot admin command"""
 from datetime import datetime, timedelta
 import subprocess
 import glob
@@ -127,6 +127,17 @@ def get_from_to_days(menu_entry_index2: int) -> tuple[int, int]:
         to_day = (current_date - last_month_last_day).days
         return (from_day, to_day)
     elif menu_entry_index2 == 3:
+        # Get the current date
+        current_date = datetime.now()
+
+        # Determine the first day of the last 3 months
+        three_months_ago = current_date - timedelta(days=90)
+        last_month_first_day = datetime(three_months_ago.year, three_months_ago.month, 1)
+        # Calculate the number of days since the first and last day of the last month
+        from_day = (current_date - last_month_first_day).days
+        to_day = 0
+        return (from_day, to_day)
+    elif menu_entry_index2 == 4:
         # Since September 21th, 2024
         from_day = (datetime.now() - datetime(2024, 9, 21)).days
         to_day = 0
@@ -153,7 +164,13 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     ]
     if time_choice is None:
         terminal_menu2 = TerminalMenu(
-            ["[1] Last 30 days", "[2] Current month", "[3] Last Month", "[4] Since September 21th, 2024"],
+            [
+                "[1] Last 30 days",
+                "[2] Current month",
+                "[3] Last Month",
+                "[3] Last 3 months",
+                "[5] Since September 21th, 2024",
+            ],
             title="Days",
             show_shortcut_hints=True,
         )
