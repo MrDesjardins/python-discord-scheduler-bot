@@ -10,6 +10,7 @@ from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.values import (
     COMMAND_DAILY_STATS,
     COMMAND_FORCE_SEND,
+    COMMAND_GENERATE_AI_SUMMARY,
     COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY,
     COMMAND_TEST_JOIN,
     COMMAND_VERSION,
@@ -29,6 +30,7 @@ from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
 from deps.siege import get_siege_activity
 from deps.functions_stats import send_daily_stats_to_a_guild
+from deps.ai.ai_functions import generate_message_summary_matches
 
 
 class ModBasic(commands.Cog):
@@ -174,6 +176,28 @@ class ModBasic(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         await send_daily_stats_to_a_guild(guild, stats_id)
         await interaction.followup.send(f"Generating stats for id {stats_id} completed!", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_GENERATE_AI_SUMMARY)
+    async def generate_ai_summary(self, interaction: discord.Interaction, hours: int = 24):
+        """
+        Generate an AI summary of the matches.
+        """
+        if interaction.guild is None:
+            print_error_log(
+                f"""generate_ai_summary: No guild available for user {interaction.user.display_name}({interaction.user.id})."""
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=False)
+        msg = generate_message_summary_matches(hours)
+        if msg == "":
+            await interaction.followup.send("Error while generating the summary", ephemeral=False)
+            return
+        # Split the message into chunks of 2000 characters
+        chunks = [msg[i : i + 2000] for i in range(0, len(msg), 2000)]
+        # Send each chunk as a separate message
+        for chunk in chunks:
+            await interaction.followup.send(chunk, ephemeral=False)
 
 
 async def setup(bot):

@@ -1,4 +1,4 @@
-""" Class, enum and other data structure used in the bot"""
+"""Class, enum and other data structure used in the bot"""
 
 import dataclasses
 from datetime import datetime
@@ -56,8 +56,6 @@ class SimpleUserHour:
         self.simple_user = user
         self.hour = hour
 
-
-@dataclasses.dataclass
 class UserFullMatchStats:
     """
     Represent the information from a single match for a specific user
@@ -235,6 +233,14 @@ class UserFullMatchStats:
             assists_per_round=row[51],
             has_win=bool(row[52]),
         )
+
+    def to_dict(self):
+        """
+        Convert the object to a dictionary representation
+        """
+        return {
+            key: (value.isoformat() if isinstance(value, datetime) else value) for key, value in self.__dict__.items()
+        }
 
 
 @dataclasses.dataclass
