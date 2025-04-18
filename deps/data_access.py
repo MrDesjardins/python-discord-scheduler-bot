@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
 import discord
+from deps.browser_context_manager import BrowserContextManager
 from deps.bot_singleton import BotSingleton
 from deps.cache import (
     ALWAYS_TTL,
@@ -17,8 +18,6 @@ from deps.cache import (
     set_cache,
 )
 from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueueForStats
-
-from deps.functions_r6_tracker import get_r6tracker_max_rank
 from deps.log import print_log
 from deps.functions_date import get_now_eastern
 
@@ -205,7 +204,9 @@ async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch
     """Get from R6 Tracker website the max rank for the user"""
 
     async def fetch():
-        return await get_r6tracker_max_rank(ubisoft_user_name)
+        # return await get_r6tracker_max_rank(ubisoft_user_name)
+        with BrowserContextManager(ubisoft_user_name) as context:
+            return context.download_max_rank()
 
     if force_fetch:
         remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")

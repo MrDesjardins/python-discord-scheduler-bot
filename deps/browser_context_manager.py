@@ -1,8 +1,9 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 
 import os
-from typing import List
+from typing import List, Optional
 import json
+import re
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -14,7 +15,8 @@ from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserQueueForStats
 from deps.log import print_error_log, print_log
 from deps.functions_r6_tracker import parse_json_from_full_matches
-from deps.functions import get_url_api_ranked_matches, get_url_user_ranked_matches
+from deps.functions import get_url_api_ranked_matches, get_url_user_ranked_matches, get_url_user_profile_overview
+from deps.siege import siege_ranks
 
 
 class BrowserContextManager:
@@ -29,10 +31,16 @@ class BrowserContextManager:
     sudo apt install chromium-browser
     """
 
-    def __init__(self):
+    driver: webdriver.Chrome
+    wrapped: Xvfb
+    default_profile: str
+    counter: int
+
+    def __init__(self, default_profile: str = "noSleep_rb6"):
         self.wrapped = None
-        self.driver = None
         self.counter = 0
+        self.profile_page_source = ""
+        self.default_profile = default_profile
 
     def __enter__(self):
         self.wrapped = Xvfb()
@@ -78,7 +86,7 @@ class BrowserContextManager:
         print_log(f"_config_browser: Using binary location: {options.binary_location}")
         try:
             # Step 2: Visit the public profile page to establish the session
-            profile_url = get_url_user_ranked_matches("noSleep_rb6")
+            profile_url = get_url_user_ranked_matches(self.default_profile)
             self.driver.get(profile_url)
             WebDriverWait(self.driver, 45).until(EC.visibility_of_element_located((By.ID, "app-container")))
         except Exception as e:
@@ -138,3 +146,67 @@ class BrowserContextManager:
         self.driver.refresh()
         WebDriverWait(self.driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
         print_log("refresh_browser: Browser refreshed")
+
+    def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> str:
+        """Download the web page, and extract the max rank"""
+        rank = "Copper"
+        if ubisoft_user_name is not None:
+            if ubisoft_user_name != self.default_profile:
+                url = get_url_user_profile_overview(ubisoft_user_name)
+                self.driver.get(url)
+                print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {url}")
+                # Wait until the page contains the expected data
+                WebDriverWait(self.driver, 45).until(EC.visibility_of_element_located((By.ID, "app-container")))
+
+        # Step 3: Find the max rank directly using JavaScript
+        try:
+            # Use JavaScript to extract the embedded data directly
+            script_data = self.driver.execute_script(
+                """
+            try {
+                const stateData = window.__INITIAL_STATE__;
+                if (stateData && stateData.stats && stateData.stats.standardProfiles) {
+                    const profile = stateData.stats.standardProfiles[0];
+                    if (profile && profile.segments) {
+                        // Find the current season segment with the highest rank
+                        let highestRank = null;
+                        let highestValue = 0;
+                        
+                        for (const segment of profile.segments) {
+                            if (segment.type === 'season' && segment.attributes && segment.attributes.sessionType == "ranked" 
+                                && segment.metadata && segment.metadata.rankType == "rp"
+                                && segment.stats && segment.stats.maxRankPoints) {
+                                const rankValue = segment.stats.maxRankPoints.value || 0;
+                                if (rankValue > highestValue) {
+                                    highestValue = rankValue;
+                                    highestRank = segment.stats.maxRankPoints.metadata.name;
+                                }
+                            }
+                        }
+                        return highestRank;
+                    }
+                }
+                return null;
+            } catch (error) {
+                console.error('Error extracting rank:', error);
+                return null;
+            }
+            """
+            )
+            if script_data is None:
+                print_error_log("download_max_rank: No rank data found in the page source.")
+                page_source = self.driver.page_source
+                print(page_source)
+
+            if script_data and isinstance(script_data, str) and script_data != "NO RANK":
+                rank_name = script_data
+                rank = rank_name.split(" ")[0].lower().capitalize()
+                print_log(f"Successfully extracted rank: {rank_name}")
+        except Exception as e:
+            print_error_log(f"Error executing JavaScript to extract rank: {e}")
+
+        if rank in siege_ranks:
+            return rank
+        else:
+            print_error_log(f"get_r6tracker_max_rank: Rank {rank} not found in the list of ranks. Gave Copper instead.")
+            return "Copper"

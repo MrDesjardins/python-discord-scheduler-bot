@@ -24,8 +24,9 @@ async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
     try:
         page = requests.get(url, timeout=5)
         page.raise_for_status()  # Check if the request was successful
-    except requests.exceptions.RequestException:
+    except requests.exceptions.RequestException as e:
         print_error_log(f"get_r6tracker_max_rank: Error downloading the page for {ubisoft_user_name}. Using URL {url}")
+        print_error_log(f"get_r6tracker_max_rank: {e}")
         return rank
 
     # Parse the page content
