@@ -190,7 +190,7 @@ class MyEventsCog(commands.Cog):
                         datetime.now(timezone.utc),
                     )
                     # Remove the user from the voice channel list
-                    # #(before.channel is different then the after, remove from before.channel)
+                    # (before.channel is different then the after, remove from before.channel)
                     await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
                     # Add the user to the voice channel list with the current siege activity detail
                     user_activity = get_siege_activity(member)

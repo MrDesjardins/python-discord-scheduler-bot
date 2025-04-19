@@ -1,13 +1,17 @@
+"""
+Generate message for the matches played by the users
+"""
+
 from datetime import datetime, timedelta, timezone
 import os
+import json
 from typing import List
 from dotenv import load_dotenv
 from google import genai
-import json
 from deps.analytic_data_access import data_access_fetch_user_full_match_info, get_active_user_info
 from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats
-from deps.log import print_error_log
+from deps.log import print_error_log, print_log
 
 
 load_dotenv()
@@ -34,17 +38,22 @@ def gather_information_for_generating_message_summary(hours) -> tuple[List[UserI
     from_time = datetime.now(timezone.utc) - timedelta(hours=hours)
     to_time = datetime.now(timezone.utc)
     users: List[UserInfo] = get_active_user_info(from_time, to_time)
+    print_log(f"gather_information_for_generating_message_summary: Found {len(users)} users")
     full_matches_info_by_user_id = []
     r6_user_dict = {}
     for user in users:
         # Keep only the data for matched in the last hours
         data_from_last_hours = data_access_fetch_user_full_match_info(user.id)
         for match in data_from_last_hours:
-            if from_time <= match.match_timestamp <= to_time:
+            if from_time <= match.match_timestamp and match.match_timestamp <= to_time:
                 r6_user_dict[match.r6_tracker_user_uuid] = match.r6_tracker_user_uuid
                 full_matches_info_by_user_id.append(match)
+    print_log(
+        f"gather_information_for_generating_message_summary: full_matches_info_by_user_id {len(full_matches_info_by_user_id)} matches"
+    )
     # Remove users who have not match in the full_matches_info_by_user_id (by looking at the r6_tracker_active_id)
     users = [user for user in users if r6_user_dict.get(str(user.r6_tracker_active_id)) is not None]
+    print_log(f"gather_information_for_generating_message_summary: Found {len(users)} users with matches")
     return users, full_matches_info_by_user_id
 
 

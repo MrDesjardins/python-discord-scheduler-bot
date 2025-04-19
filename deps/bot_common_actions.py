@@ -421,9 +421,18 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
 
 
 async def post_post_queued_user_stats(all_users_matches: List[UserWithUserMatchInfo]) -> None:
-    """Post to the channel the stats for the"""
-
-    await send_channel_list_stats(all_users_matches)
+    """Post to the channel the stats for the users who disconnected"""
+    try:
+        # Persist the data into the database
+        for user_stats in all_users_matches:
+            insert_if_nonexistant_full_match_info(user_stats.user_request_stats.user_info, user_stats.match_stats)
+    except Exception as e:
+        print_error_log(f"post_post_queued_user_stats: Error persisting the data: {e}")
+    try:
+        # Send the stats to the channel
+        await send_channel_list_stats(all_users_matches)
+    except Exception as e:
+        print_error_log(f"post_post_queued_user_stats: Error sending the stats: {e}")
 
 
 async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> None:
