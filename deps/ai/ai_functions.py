@@ -82,6 +82,7 @@ def generate_message_summary_matches(hours: int) -> str:
     context += "Format in a way that does not mention the request of this message and that it is easy to split in chunk of 2000 characters."
     context += "Try to have the tone of a sport commentary."
     context += "Dont mention anything about what I asked you to do, just the result."
+    context += "Dont mention any ID, for example do not talk about r6_tracker_active_id or match uuid."
     context += "Change line without empty line (do not add two new lines in a row)."
     context += "Format your text not in bullet point, but in a text like we would read in a sport news paper."
     context += "Be professional, sport and concise. Do not add any emoji or special character."
