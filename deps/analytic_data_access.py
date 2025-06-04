@@ -449,7 +449,7 @@ def get_active_user_info(from_time: datetime, to_time: datetime) -> list[UserInf
 
     # Get the user info to get the ubisoft name
     user_infos = fetch_user_info_by_user_id_list(user_ids)
-    
+
     # Remove user without active or max account
     return [
         user_info for user_info in user_infos if user_info is not None and user_info.ubisoft_username_active is not None

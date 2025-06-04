@@ -59,6 +59,7 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS user_tournament")
         self.get_cursor().execute("DROP TABLE IF EXISTS tournament_game")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_full_match_info")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_full_stats_info")
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_user_tournament")
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_game")
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_user_game")
@@ -304,6 +305,88 @@ class DatabaseManager:
 
         self.get_cursor().execute(
             """
+            CREATE TABLE IF NOT EXISTS user_full_stats_info (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                r6_tracker_user_uuid TEXT NOT NULL,
+                total_matches_played INTEGER DEFAULT 0,
+                total_matches_won INTEGER DEFAULT 0,
+                total_matches_lost INTEGER DEFAULT 0,
+                total_matches_abandoned INTEGER DEFAULT 0,
+                time_played_seconds INTEGER DEFAULT 0,
+                total_kills INTEGER DEFAULT 0,
+                total_deaths INTEGER DEFAULT 0,
+                total_attacker_round_wins INTEGER DEFAULT 0,
+                total_defender_round_wins INTEGER DEFAULT 0,
+                total_headshots INTEGER DEFAULT 0,
+                total_headshots_missed INTEGER DEFAULT 0,
+                headshot_percentage REAL DEFAULT 0.0,
+                total_wall_bang INTEGER DEFAULT 0,
+                total_damage INTEGER DEFAULT 0,
+                total_assists INTEGER DEFAULT 0,
+                total_team_kills INTEGER DEFAULT 0,
+                attacked_breacher_count INTEGER DEFAULT 0,
+                attacked_breacher_percentage REAL DEFAULT 0.0,
+                attacked_fragger_count INTEGER DEFAULT 0,
+                attacked_fragger_percentage REAL DEFAULT 0.0,
+                attacked_intel_count INTEGER DEFAULT 0,
+                attacked_intel_percentage REAL DEFAULT 0.0,
+                attacked_roam_count INTEGER DEFAULT 0,
+                attacked_roam_percentage REAL DEFAULT 0.0,
+                attacked_support_count INTEGER DEFAULT 0,
+                attacked_support_percentage REAL DEFAULT 0.0,
+                attacked_utility_count INTEGER DEFAULT 0,
+                attacked_utility_percentage REAL DEFAULT 0.0,
+                defender_debuffer_count INTEGER DEFAULT 0,
+                defender_debuffer_percentage REAL DEFAULT 0.0,
+                defender_entry_denier_count INTEGER DEFAULT 0,
+                defender_entry_denier_percentage REAL DEFAULT 0.0,
+                defender_intel_count INTEGER DEFAULT 0,
+                defender_intel_percentage REAL DEFAULT 0.0,
+                defender_support_count INTEGER DEFAULT 0,
+                defender_support_percentage REAL DEFAULT 0.0,
+                defender_trapper_count INTEGER DEFAULT 0,
+                defender_trapper_percentage REAL DEFAULT 0.0,
+                defender_utility_denier_count INTEGER DEFAULT 0,
+                defender_utility_denier_percentage REAL DEFAULT 0.0,
+                kd_radio REAL DEFAULT 0.0,
+                kill_per_match REAL DEFAULT 0.0,
+                kill_per_minute REAL DEFAULT 0.0,
+                win_percentage REAL DEFAULT 0.0,
+                rank_match_played INTEGER DEFAULT 0,
+                rank_match_won INTEGER DEFAULT 0,
+                rank_match_lost INTEGER DEFAULT 0,
+                rank_match_abandoned INTEGER DEFAULT 0,
+                rank_kills_count INTEGER DEFAULT 0,
+                rank_deaths_count INTEGER DEFAULT 0,
+                rank_kd_ratio REAL DEFAULT 0.0,
+                rank_kill_per_match REAL DEFAULT 0.0,
+                rank_win_percentage REAL DEFAULT 0.0,
+                arcade_match_played INTEGER DEFAULT 0,
+                arcade_match_won INTEGER DEFAULT 0,
+                arcade_match_lost INTEGER DEFAULT 0,
+                arcade_match_abandoned INTEGER DEFAULT 0,
+                arcade_kills_count INTEGER DEFAULT 0,
+                arcade_deaths_count INTEGER DEFAULT 0,
+                arcade_kd_ratio REAL DEFAULT 0.0,
+                arcade_kill_per_match REAL DEFAULT 0.0,
+                arcade_win_percentage REAL DEFAULT 0.0,
+                quickmatch_match_played INTEGER DEFAULT 0,
+                quickmatch_match_won INTEGER DEFAULT 0,
+                quickmatch_match_lost INTEGER DEFAULT 0,
+                quickmatch_match_abandoned INTEGER DEFAULT 0,
+                quickmatch_kills_count INTEGER DEFAULT 0,
+                quickmatch_deaths_count INTEGER DEFAULT 0,
+                quickmatch_kd_ratio REAL DEFAULT 0.0,
+                quickmatch_kill_per_match REAL DEFAULT 0.0,
+                quickmatch_win_percentage REAL DEFAULT 0.0,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            """
+        )
+
+        self.get_cursor().execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_user_activity_event ON user_activity(user_id, channel_id, guild_id, event, timestamp);
             """
         )
@@ -324,6 +407,16 @@ class DatabaseManager:
             """
         )
 
+        self.get_cursor().execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_full_stats_info_user_id ON user_full_stats_info(user_id);
+            """
+        )
+        self.get_cursor().execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_full_stats_info_r6_tracker_user_uuid ON user_full_stats_info(r6_tracker_user_uuid);
+            """
+        )
 
     def get_conn(self):
         """Access to the database connection"""

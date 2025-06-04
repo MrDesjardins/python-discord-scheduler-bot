@@ -1,9 +1,8 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 import json
-import re
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -12,10 +11,15 @@ from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc  # type: ignore
 from xvfbwrapper import Xvfb  # type: ignore
 from bs4 import BeautifulSoup
-from deps.models import UserFullMatchStats, UserQueueForStats
+from deps.models import UserFullMatchStats, UserFullStatsInfo, UserQueueForStats
 from deps.log import print_error_log, print_log
-from deps.functions_r6_tracker import parse_json_from_full_matches
-from deps.functions import get_url_api_ranked_matches, get_url_user_ranked_matches, get_url_user_profile_overview
+from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_max_rank, parse_json_user_info
+from deps.functions import (
+    get_url_api_ranked_matches,
+    get_url_user_ranked_matches,
+    get_url_user_profile_overview,
+    get_url_api_user_info,
+)
 from deps.siege import siege_ranks
 
 
@@ -155,53 +159,54 @@ class BrowserContextManager:
                 url = get_url_user_profile_overview(ubisoft_user_name)
                 self.driver.get(url)
                 print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {url}")
-                # Wait until the page contains the expected data
-                WebDriverWait(self.driver, 45).until(EC.visibility_of_element_located((By.ID, "app-container")))
 
-        # Step 3: Find the max rank directly using JavaScript
+        # Step 1: Wait until the page contains the expected data
+        WebDriverWait(self.driver, 45).until(EC.visibility_of_element_located((By.ID, "app-container")))
+
         try:
-            # Use JavaScript to extract the embedded data directly
-            script_data = self.driver.execute_script(
-                """
-            try {
-                const stateData = window.__INITIAL_STATE__;
-                if (stateData && stateData.stats && stateData.stats.standardProfiles) {
-                    const profile = stateData.stats.standardProfiles[0];
-                    if (profile && profile.segments) {
-                        // Find the current season segment with the highest rank
-                        let highestRank = null;
-                        let highestValue = 0;
-                        
-                        for (const segment of profile.segments) {
-                            if (segment.type === 'season' && segment.attributes && segment.attributes.sessionType == "ranked" 
-                                && segment.metadata && segment.metadata.rankType == "rp"
-                                && segment.stats && segment.stats.maxRankPoints) {
-                                const rankValue = segment.stats.maxRankPoints.value || 0;
-                                if (rankValue > highestValue) {
-                                    highestValue = rankValue;
-                                    highestRank = segment.stats.maxRankPoints.metadata.name;
-                                }
-                            }
-                        }
-                        return highestRank;
-                    }
-                }
-                return null;
-            } catch (error) {
-                console.error('Error extracting rank:', error);
-                return null;
-            }
-            """
-            )
-            if script_data is None:
-                print_error_log("download_max_rank: No rank data found in the page source.")
-                page_source = self.driver.page_source
-                print(page_source)
+            # Step 2: Download the page content
+            self.counter += 1
+            if not ubisoft_user_name:
+                print_error_log("download_max_rank: Ubisoft username not found.")
+                return rank
+            api_url = get_url_api_user_info(ubisoft_user_name)
+            self.driver.get(api_url)
+            print_log(f"download_max_rank: Downloading profile for {ubisoft_user_name} using {api_url}")
+            # Wait until the page contains the expected JSON data
+            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
 
-            if script_data and isinstance(script_data, str) and script_data != "NO RANK":
-                rank_name = script_data
-                rank = rank_name.split(" ")[0].lower().capitalize()
-                print_log(f"Successfully extracted rank: {rank_name}")
+            # Step 3: Extract the page content, expecting JSON
+            page_source = self.driver.page_source
+
+            # Step 4: Remove the HTML
+            soup = BeautifulSoup(page_source, "html.parser")
+            # Find the <pre> tag containing the JSON
+            pre_tag = soup.find("pre")
+
+            # Ensure the <pre> tag is found and contains the expected JSON data
+            if pre_tag:
+                # Step 4: Extract the text content of the <pre> tag
+                json_data = pre_tag.get_text().strip()
+
+                try:
+                    # Step 5: Parse the JSON data
+                    data = json.loads(json_data)
+                    print_log(f"download_matches: JSON found for {ubisoft_user_name}")
+                    # Save the JSON data to a file for debugging
+                    if os.getenv("ENV") == "dev":
+                        with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
+                            file.write(json.dumps(data, indent=4))
+                    # Step 6: Parse the JSON data to extract the matches
+                    data_json = parse_json_max_rank(
+                        data,
+                    )
+                    return data_json
+                except json.JSONDecodeError as e:
+                    print_error_log(f"download_matches: Error parsing JSON: {e}")
+            else:
+                print_error_log("download_matches: JSON data not found within <pre> tag.")
+            return rank
+
         except Exception as e:
             print_error_log(f"Error executing JavaScript to extract rank: {e}")
 
@@ -210,3 +215,48 @@ class BrowserContextManager:
         else:
             print_error_log(f"get_r6tracker_max_rank: Rank {rank} not found in the list of ranks. Gave Copper instead.")
             return "Copper"
+
+    def download_full_user_stats(self, user_queued: UserQueueForStats) -> Union[UserFullStatsInfo | None]:
+        """
+        Download the user stats for the given Ubisoft username
+        """
+        # # Step 1: Download the page content
+        self.counter += 1
+        ubisoft_user_name = user_queued.user_info.ubisoft_username_active
+        if not ubisoft_user_name:
+            print_error_log("download_full_user_stats: Ubisoft username not found.")
+            return None
+        api_url = get_url_api_ranked_matches(ubisoft_user_name)
+        self.driver.get(api_url)
+        print_log(f"download_full_user_stats: Downloading matches for {ubisoft_user_name} using {api_url}")
+        # Wait until the page contains the expected JSON data
+        WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+
+        # Step 2: Extract the page content, expecting JSON
+        page_source = self.driver.page_source
+
+        # Step 3: Remove the HTML
+        soup = BeautifulSoup(page_source, "html.parser")
+        # Find the <pre> tag containing the JSON
+        pre_tag = soup.find("pre")
+
+        # Ensure the <pre> tag is found and contains the expected JSON data
+        if pre_tag:
+            # Step 4: Extract the text content of the <pre> tag
+            json_data = pre_tag.get_text().strip()
+
+            try:
+                # Step 5: Parse the JSON data
+                data = json.loads(json_data)
+                print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
+                # Save the JSON data to a file for debugging
+                if os.getenv("ENV") == "dev":
+                    with open(f"r6tracker_data_full_user_stats_{self.counter}.json", "w", encoding="utf8") as file:
+                        file.write(json.dumps(data, indent=4))
+                # Step 6: Parse the JSON data to extract the matches
+                return parse_json_user_info(user_queued.user_info.id, data)
+            except json.JSONDecodeError as e:
+                print_error_log(f"download_full_user_stats: Error parsing JSON: {e}")
+        else:
+            print_error_log("download_full_user_stats: JSON data not found within <pre> tag.")
+        return None

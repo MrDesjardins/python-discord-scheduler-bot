@@ -27,6 +27,7 @@ CHANNEL1_ID = 100
 CHANNEL2_ID = 200
 GUILD_ID = 1000
 
+
 # # Apply patch globally
 # patcher = patch("deps.analytic_data_access.print_log", lambda *args, **kwargs: None)
 # patcher.start()  # Start the patch before tests run
@@ -130,6 +131,7 @@ def test_get_only_user_active():
     assert len(users) == 2
     assert users[0].id == 1
     assert users[1].id == 2
+
 
 @patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
 def test_insert_if_nonexistant_full_match_info(mock_log):

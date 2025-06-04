@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
 import pytz
+from deps.data_access import data_access_get_r6tracker_max_rank
 from deps.functions_date import (
     convert_to_datetime,
     ensure_utc,

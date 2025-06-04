@@ -26,7 +26,7 @@ class TestR6Tracker:
 
     @pytest.mark.asyncio
     async def test_highest_rank_user_not_found(self):
-        """Test the highest rank of a user that exist"""
+        """Test the highest rank of a user that does not exist"""
         # with pytest.raises(Exception):
         #     await get_r6tracker_max_rank("DoesNotExist123000Name")
         rank = await get_r6tracker_max_rank("DoesNotExist123000Name")
@@ -54,4 +54,9 @@ class TestR6Tracker:
     async def test_highest_rank_emerald_2(self):
         """Test the highest rank of a user that exist"""
         rank = await get_r6tracker_max_rank("Samtbs2")
+        assert rank == "Emerald" @ pytest.mark.asyncio
+
+    async def test_highest_rank_emerald_2_2(self):
+        """Test the highest rank of a user that exist"""
+        rank = await get_r6tracker_max_rank("ThiShiPihhMeOff")
         assert rank == "Emerald"

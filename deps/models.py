@@ -56,6 +56,7 @@ class SimpleUserHour:
         self.simple_user = user
         self.hour = hour
 
+
 class UserFullMatchStats:
     """
     Represent the information from a single match for a specific user
@@ -362,3 +363,249 @@ class SiegeActivityAggregation:
         self.done_match_waiting_in_menu = done_match_waiting_in_menu
         self.playing_rank = playing_rank
         self.playing_standard = playing_standard
+
+
+class UserFullStatsInfo:
+    """
+    Represent the information of a user
+    Information coming from this URL:
+        https://api.tracker.gg/api/v2/r6siege/standard/profile/ubi/noSleep_rb6?
+    """
+
+    def __init__(
+        self,
+        user_id: int,
+        r6_tracker_user_uuid: str,
+        total_matches_played: int = 0,
+        total_matches_won: int = 0,
+        total_matches_lost: int = 0,
+        total_matches_abandoned: int = 0,
+        time_played_seconds: int = 0,
+        total_kills: int = 0,
+        total_deaths: int = 0,
+        total_attacker_round_wins: int = 0,
+        total_defender_round_wins: int = 0,
+        total_headshots: int = 0,
+        total_headshots_missed: int = 0,
+        headshot_percentage: float = 0.0,
+        total_wall_bang: int = 0,
+        total_damage: int = 0,
+        total_assists: int = 0,
+        total_team_kills: int = 0,
+        attacked_breacher_count: int = 0,
+        attacked_breacher_percentage: float = 0.0,
+        attacked_fragger_count: int = 0,
+        attacked_fragger_percentage: float = 0.0,
+        attacked_intel_count: int = 0,
+        attacked_intel_percentage: float = 0.0,
+        attacked_roam_count: int = 0,
+        attacked_roam_percentage: float = 0.0,
+        attacked_support_count: int = 0,
+        attacked_support_percentage: float = 0.0,
+        attacked_utility_count: int = 0,
+        attacked_utility_percentage: float = 0.0,
+        defender_debuffer_count: int = 0,
+        defender_debuffer_percentage: float = 0.0,
+        defender_entry_denier_count: int = 0,
+        defender_entry_denier_percentage: float = 0.0,
+        defender_intel_count: int = 0,
+        defender_intel_percentage: float = 0.0,
+        defender_support_count: int = 0,
+        defender_support_percentage: float = 0.0,
+        defender_trapper_count: int = 0,
+        defender_trapper_percentage: float = 0.0,
+        defender_utility_denier_count: int = 0,
+        defender_utility_denier_percentage: float = 0.0,
+        kd_radio: float = 0.0,
+        kill_per_match: float = 0.0,
+        kill_per_minute: float = 0.0,
+        win_percentage: float = 0.0,
+        rank_match_played: int = 0,
+        rank_match_won: int = 0,
+        rank_match_lost: int = 0,
+        rank_match_abandoned: int = 0,
+        rank_kills_count: int = 0,
+        rank_deaths_count: int = 0,
+        rank_kd_ratio: float = 0.0,
+        rank_kill_per_match: float = 0.0,
+        rank_win_percentage: float = 0.0,
+        arcade_match_played: int = 0,
+        arcade_match_won: int = 0,
+        arcade_match_lost: int = 0,
+        arcade_match_abandoned: int = 0,
+        arcade_kills_count: int = 0,
+        arcade_deaths_count: int = 0,
+        arcade_kd_ratio: float = 0.0,
+        arcade_kill_per_match: float = 0.0,
+        arcade_win_percentage: float = 0.0,
+        quickmatch_match_played: int = 0,
+        quickmatch_match_won: int = 0,
+        quickmatch_match_lost: int = 0,
+        quickmatch_match_abandoned: int = 0,
+        quickmatch_kills_count: int = 0,
+        quickmatch_deaths_count: int = 0,
+        quickmatch_kd_ratio: float = 0.0,
+        quickmatch_kill_per_match: float = 0.0,
+        quickmatch_win_percentage: float = 0.0,
+    ):
+        self.id = id
+        self.r6_tracker_user_uuid = r6_tracker_user_uuid
+        self.user_id = user_id
+        self.total_matches_played = total_matches_played
+        self.total_matches_won = total_matches_won
+        self.total_matches_lost = total_matches_lost
+        self.total_matches_abandoned = total_matches_abandoned
+        self.time_played_seconds = time_played_seconds
+        self.total_kills = total_kills
+        self.total_deaths = total_deaths
+        self.total_attacker_round_wins = total_attacker_round_wins
+        self.total_defender_round_wins = total_defender_round_wins
+        self.total_headshots = total_headshots
+        self.total_headshots_missed = total_headshots_missed
+        self.headshot_percentage = headshot_percentage
+        self.total_wall_bang = total_wall_bang
+        self.total_damage = total_damage
+        self.total_assists = total_assists
+        self.total_team_kills = total_team_kills
+        self.attacked_breacher_count = attacked_breacher_count
+        self.attacked_breacher_percentage = attacked_breacher_percentage
+        self.attacked_fragger_count = attacked_fragger_count
+        self.attacked_fragger_percentage = attacked_fragger_percentage
+        self.attacked_intel_count = attacked_intel_count
+        self.attacked_intel_percentage = attacked_intel_percentage
+        self.attacked_roam_count = attacked_roam_count
+        self.attacked_roam_percentage = attacked_roam_percentage
+        self.attacked_support_count = attacked_support_count
+        self.attacked_support_percentage = attacked_support_percentage
+        self.attacked_utility_count = attacked_utility_count
+        self.attacked_utility_percentage = attacked_utility_percentage
+        self.defender_debuffer_count = defender_debuffer_count
+        self.defender_debuffer_percentage = defender_debuffer_percentage
+        self.defender_entry_denier_count = defender_entry_denier_count
+        self.defender_entry_denier_percentage = defender_entry_denier_percentage
+        self.defender_intel_count = defender_intel_count
+        self.defender_intel_percentage = defender_intel_percentage
+        self.defender_support_count = defender_support_count
+        self.defender_support_percentage = defender_support_percentage
+        self.defender_trapper_count = defender_trapper_count
+        self.defender_trapper_percentage = defender_trapper_percentage
+        self.defender_utility_denier_count = defender_utility_denier_count
+        self.defender_utility_denier_percentage = defender_utility_denier_percentage
+        self.kd_radio = kd_radio
+        self.kill_per_match = kill_per_match
+        self.kill_per_minute = kill_per_minute
+        self.win_percentage = win_percentage
+        self.rank_match_played = rank_match_played
+        self.rank_match_won = rank_match_won
+        self.rank_match_lost = rank_match_lost
+        self.rank_match_abandoned = rank_match_abandoned
+        self.rank_kills_count = rank_kills_count
+        self.rank_deaths_count = rank_deaths_count
+        self.rank_kd_ratio = rank_kd_ratio
+        self.rank_kill_per_match = rank_kill_per_match
+        self.rank_win_percentage = rank_win_percentage
+        self.arcade_match_played = arcade_match_played
+        self.arcade_match_won = arcade_match_won
+        self.arcade_match_lost = arcade_match_lost
+        self.arcade_match_abandoned = arcade_match_abandoned
+        self.arcade_kills_count = arcade_kills_count
+        self.arcade_deaths_count = arcade_deaths_count
+        self.arcade_kd_ratio = arcade_kd_ratio
+        self.arcade_kill_per_match = arcade_kill_per_match
+        self.arcade_win_percentage = arcade_win_percentage
+        self.quickmatch_match_played = quickmatch_match_played
+        self.quickmatch_match_won = quickmatch_match_won
+        self.quickmatch_match_lost = quickmatch_match_lost
+        self.quickmatch_match_abandoned = quickmatch_match_abandoned
+        self.quickmatch_kills_count = quickmatch_kills_count
+        self.quickmatch_deaths_count = quickmatch_deaths_count
+        self.quickmatch_kd_ratio = quickmatch_kd_ratio
+        self.quickmatch_kill_per_match = quickmatch_kill_per_match
+        self.quickmatch_win_percentage = quickmatch_win_percentage
+
+    @staticmethod
+    def from_db_row(row):
+        """Create an object from a database row"""
+        return UserFullStatsInfo(
+            user_id=row[0],
+            r6_tracker_user_uuid=row[1],
+            total_matches_played=row[2],
+            total_matches_won=row[3],
+            total_matches_lost=row[4],
+            total_matches_abandoned=row[5],
+            time_played_seconds=row[6],
+            total_kills=row[7],
+            total_deaths=row[8],
+            total_attacker_round_wins=row[9],
+            total_defender_round_wins=row[10],
+            total_headshots=row[11],
+            total_headshots_missed=row[12],
+            headshot_percentage=row[13],
+            total_wall_bang=row[14],
+            total_damage=row[15],
+            total_assists=row[16],
+            total_team_kills=row[17],
+            attacked_breacher_count=row[18],
+            attacked_breacher_percentage=row[19],
+            attacked_fragger_count=row[20],
+            attacked_fragger_percentage=row[21],
+            attacked_intel_count=row[22],
+            attacked_intel_percentage=row[23],
+            attacked_roam_count=row[24],
+            attacked_roam_percentage=row[25],
+            attacked_support_count=row[26],
+            attacked_support_percentage=row[27],
+            attacked_utility_count=row[28],
+            attacked_utility_percentage=row[29],
+            defender_debuffer_count=row[30],
+            defender_debuffer_percentage=row[31],
+            defender_entry_denier_count=row[32],
+            defender_entry_denier_percentage=row[33],
+            defender_intel_count=row[34],
+            defender_intel_percentage=row[35],
+            defender_support_count=row[36],
+            defender_support_percentage=row[37],
+            defender_trapper_count=row[38],
+            defender_trapper_percentage=row[39],
+            defender_utility_denier_count=row[40],
+            defender_utility_denier_percentage=row[41],
+            kd_radio=row[42],
+            kill_per_match=row[43],
+            kill_per_minute=row[44],
+            win_percentage=row[45],
+            rank_match_played=row[46],
+            rank_match_won=row[47],
+            rank_match_lost=row[48],
+            rank_match_abandoned=row[49],
+            rank_kills_count=row[50],
+            rank_deaths_count=row[51],
+            rank_kd_ratio=row[52],
+            rank_kill_per_match=row[53],
+            rank_win_percentage=row[54],
+            arcade_match_played=row[55],
+            arcade_match_won=row[56],
+            arcade_match_lost=row[57],
+            arcade_match_abandoned=row[58],
+            arcade_kills_count=row[59],
+            arcade_deaths_count=row[60],
+            arcade_kd_ratio=row[61],
+            arcade_kill_per_match=row[62],
+            arcade_win_percentage=row[63],
+            quickmatch_match_played=row[64],
+            quickmatch_match_won=row[65],
+            quickmatch_match_lost=row[66],
+            quickmatch_match_abandoned=row[67],
+            quickmatch_kills_count=row[68],
+            quickmatch_deaths_count=row[69],
+            quickmatch_kd_ratio=row[70],
+            quickmatch_kill_per_match=row[71],
+            quickmatch_win_percentage=row[72],
+        )
+
+    def to_dict(self):
+        """
+        Convert the object to a dictionary representation
+        """
+        return {
+            key: (value.isoformat() if isinstance(value, datetime) else value) for key, value in self.__dict__.items()
+        }

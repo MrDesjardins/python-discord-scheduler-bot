@@ -1,14 +1,14 @@
 """R6 Tracker API functions"""
 
 import os
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Union
 import json
 from datetime import datetime
 from dateutil import parser
 import requests
 from bs4 import BeautifulSoup, Tag
 from deps.data_access_data_class import UserInfo
-from deps.models import UserFullMatchStats, UserMatchInfoSessionAggregate
+from deps.models import UserFullMatchStats, UserFullStatsInfo, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
 from deps.log import print_error_log
 from deps.functions import get_url_user_profile_overview
@@ -206,4 +206,340 @@ def get_user_gaming_session_stats(
         total_clutches_loss_count=sum(match.clutches_loss_count for match in matches_recent),
         total_first_death_count=sum(match.first_death_count for match in matches_recent),
         total_first_kill_count=sum(match.first_kill_count for match in matches_recent),
+    )
+
+
+def parse_json_max_rank(data_dict: dict) -> str:
+    """
+    Parse the JSON data to extract the max rank.
+    """
+    try:
+        # Extract the rank from the JSON data
+        segments = data_dict["data"]["segments"]
+        match_infos = []
+        for segment in segments:
+            if segment.get("type") == "season":
+                stats = segment.get("stats", {})
+                max_rank_points = stats.get("maxRankPoints", {})
+                value = max_rank_points.get("value", 0)
+                rank_name = max_rank_points.get("metadata", {}).get("name", "Copper")
+                if value is not None and isinstance(value, (int, float)) and value > 0:
+                    # Only consider valid ranks with positive points
+                    if isinstance(rank_name, str) and rank_name.strip() != "":
+                        # Ensure rank_name is a non-empty string
+                        match_infos.append((value, rank_name))
+        # Find the highest rank
+        for value, rank in sorted(match_infos, key=lambda x: x[0], reverse=True):
+            if isinstance(rank, str):
+                return rank.split(" ")[0].lower().capitalize()
+
+        print_error_log("parse_json_max_rank: Rank not found")
+        return "Copper"
+    except KeyError as e:
+        print_error_log(f"parse_json_max_rank: KeyError: {e} not found in the JSON data.")
+        return "Copper"
+    except TypeError as e:
+        print_error_log(f"parse_json_max_rank: TypeError: Unexpected data format - {e}")
+        return "Copper"
+
+
+def parse_json_user_full_stats_info(user_id: int, json_content: dict) -> UserFullStatsInfo:
+    """
+    Parse the JSON content from the R6 Tracker API and create a UserInformation object
+
+    Args:
+        user_id: Discord user ID
+        json_content: JSON content from the R6 Tracker API, can be a string or already parsed dict
+
+    Returns:
+        UserInformation object populated with data from the JSON
+    """
+    # Parse JSON if it's a string
+    if isinstance(json_content, str):
+        data = json.loads(json_content)
+    else:
+        data = json_content
+
+    # Get the main data section
+    main_data = data.get("data", {})
+
+    # Extract platform info for r6_tracker_user_uuid
+    platform_info = main_data.get("platformInfo", {})
+    r6_tracker_user_uuid = platform_info.get("platformUserId", "")
+
+    # Get overview stats
+    overview_segment = None
+    for segment in main_data.get("segments", []):
+        if segment.get("type") == "overview":
+            overview_segment = segment
+            break
+
+    if not overview_segment:
+        # If no overview segment found, create an empty UserInformation object
+        return UserFullStatsInfo(user_id=user_id, r6_tracker_user_uuid=r6_tracker_user_uuid)
+
+    # Extract gamemode stats (ranked, arcade, quickmatch)
+    ranked_segment = None
+    arcade_segment = None
+    quickmatch_segment = None
+
+    for segment in main_data.get("segments", []):
+        if segment.get("type") == "gamemode":
+            if segment.get("attributes", {}).get("sessionType") == "ranked":
+                ranked_segment = segment
+            elif segment.get("attributes", {}).get("sessionType") == "arcade":
+                arcade_segment = segment
+            elif segment.get("attributes", {}).get("sessionType") in ["quickplay", "standard"]:
+                quickmatch_segment = segment
+
+    # Helper function to get stat value
+    def get_stat_value(segment, stat_name, default=0):
+        if not segment:
+            return default
+        return segment.get("stats", {}).get(stat_name, {}).get("value", default)
+
+    # Extract playstyle percentages
+    def get_percentage(segment, stat_name, default=0.0):
+        if not segment:
+            return default
+        value = segment.get("stats", {}).get(stat_name, {}).get("value", default)
+        # Convert to percentage if it's not already
+        if value and value > 0 and value <= 1:
+            return value * 100
+        return value or default
+
+    # Create UserInformation object
+    return UserFullStatsInfo(
+        user_id=user_id,
+        r6_tracker_user_uuid=r6_tracker_user_uuid,
+        # Overview stats
+        total_matches_played=get_stat_value(overview_segment, "matchesPlayed"),
+        total_matches_won=get_stat_value(overview_segment, "matchesWon"),
+        total_matches_lost=get_stat_value(overview_segment, "matchesLost"),
+        total_matches_abandoned=get_stat_value(overview_segment, "matchesAbandoned"),
+        time_played_seconds=get_stat_value(overview_segment, "timePlayed"),
+        total_kills=get_stat_value(overview_segment, "kills"),
+        total_deaths=get_stat_value(overview_segment, "deaths"),
+        total_attacker_round_wins=get_stat_value(overview_segment, "attackerRoundsWon"),
+        total_defender_round_wins=get_stat_value(overview_segment, "defenderRoundsWon"),
+        total_headshots=get_stat_value(overview_segment, "headshots"),
+        total_headshots_missed=get_stat_value(overview_segment, "headshotsMissed"),
+        headshot_percentage=get_stat_value(overview_segment, "headshotPercentage", 0.0),
+        total_wall_bang=get_stat_value(overview_segment, "wallbangs"),
+        total_damage=get_stat_value(overview_segment, "damageDealt"),
+        total_assists=get_stat_value(overview_segment, "assists"),
+        total_team_kills=get_stat_value(overview_segment, "teamKills"),
+        # Attacker playstyles
+        attacked_breacher_count=get_stat_value(overview_segment, "playstyleAttackerBreacher"),
+        attacked_breacher_percentage=get_percentage(overview_segment, "playstyleAttackerBreacher"),
+        attacked_fragger_count=get_stat_value(overview_segment, "playstyleAttackerEntryFragger"),
+        attacked_fragger_percentage=get_percentage(overview_segment, "playstyleAttackerEntryFragger"),
+        attacked_intel_count=get_stat_value(overview_segment, "playstyleAttackerIntelProvider"),
+        attacked_intel_percentage=get_percentage(overview_segment, "playstyleAttackerIntelProvider"),
+        attacked_roam_count=get_stat_value(overview_segment, "playstyleAttackerRoamClearer"),
+        attacked_roam_percentage=get_percentage(overview_segment, "playstyleAttackerRoamClearer"),
+        attacked_support_count=get_stat_value(overview_segment, "playstyleAttackerSupporter"),
+        attacked_support_percentage=get_percentage(overview_segment, "playstyleAttackerSupporter"),
+        attacked_utility_count=get_stat_value(overview_segment, "playstyleAttackerUtilityClearer"),
+        attacked_utility_percentage=get_percentage(overview_segment, "playstyleAttackerUtilityClearer"),
+        # Defender playstyles
+        defender_debuffer_count=get_stat_value(overview_segment, "playstyleDefenderDebuffer"),
+        defender_debuffer_percentage=get_percentage(overview_segment, "playstyleDefenderDebuffer"),
+        defender_entry_denier_count=get_stat_value(overview_segment, "playstyleDefenderEntryDenier"),
+        defender_entry_denier_percentage=get_percentage(overview_segment, "playstyleDefenderEntryDenier"),
+        defender_intel_count=get_stat_value(overview_segment, "playstyleDefenderIntelProvider"),
+        defender_intel_percentage=get_percentage(overview_segment, "playstyleDefenderIntelProvider"),
+        defender_support_count=get_stat_value(overview_segment, "playstyleDefenderSupporter"),
+        defender_support_percentage=get_percentage(overview_segment, "playstyleDefenderSupporter"),
+        defender_trapper_count=get_stat_value(overview_segment, "playstyleDefenderTrapper"),
+        defender_trapper_percentage=get_percentage(overview_segment, "playstyleDefenderTrapper"),
+        defender_utility_denier_count=get_stat_value(overview_segment, "playstyleDefenderUtilityDenier"),
+        defender_utility_denier_percentage=get_percentage(overview_segment, "playstyleDefenderUtilityDenier"),
+        # Overall stats
+        kd_radio=get_stat_value(overview_segment, "kdRatio", 0.0),
+        kill_per_match=get_stat_value(overview_segment, "killsPerMatch", 0.0),
+        kill_per_minute=get_stat_value(overview_segment, "killsPerMin", 0.0),
+        win_percentage=get_stat_value(overview_segment, "winPercentage", 0.0),
+        # Ranked stats
+        rank_match_played=get_stat_value(ranked_segment, "matchesPlayed"),
+        rank_match_won=get_stat_value(ranked_segment, "matchesWon"),
+        rank_match_lost=get_stat_value(ranked_segment, "matchesLost"),
+        rank_match_abandoned=get_stat_value(ranked_segment, "matchesAbandoned"),
+        rank_kills_count=get_stat_value(ranked_segment, "kills"),
+        rank_deaths_count=get_stat_value(ranked_segment, "deaths"),
+        rank_kd_ratio=get_stat_value(ranked_segment, "kdRatio", 0.0),
+        rank_kill_per_match=get_stat_value(ranked_segment, "killsPerMatch", 0.0),
+        rank_win_percentage=get_stat_value(ranked_segment, "winPercentage", 0.0),
+        # Arcade stats
+        arcade_match_played=get_stat_value(arcade_segment, "matchesPlayed"),
+        arcade_match_won=get_stat_value(arcade_segment, "matchesWon"),
+        arcade_match_lost=get_stat_value(arcade_segment, "matchesLost"),
+        arcade_match_abandoned=get_stat_value(arcade_segment, "matchesAbandoned"),
+        arcade_kills_count=get_stat_value(arcade_segment, "kills"),
+        arcade_deaths_count=get_stat_value(arcade_segment, "deaths"),
+        arcade_kd_ratio=get_stat_value(arcade_segment, "kdRatio", 0.0),
+        arcade_kill_per_match=get_stat_value(arcade_segment, "killsPerMatch", 0.0),
+        arcade_win_percentage=get_stat_value(arcade_segment, "winPercentage", 0.0),
+        # Quickmatch stats
+        quickmatch_match_played=get_stat_value(quickmatch_segment, "matchesPlayed"),
+        quickmatch_match_won=get_stat_value(quickmatch_segment, "matchesWon"),
+        quickmatch_match_lost=get_stat_value(quickmatch_segment, "matchesLost"),
+        quickmatch_match_abandoned=get_stat_value(quickmatch_segment, "matchesAbandoned"),
+        quickmatch_kills_count=get_stat_value(quickmatch_segment, "kills"),
+        quickmatch_deaths_count=get_stat_value(quickmatch_segment, "deaths"),
+        quickmatch_kd_ratio=get_stat_value(quickmatch_segment, "kdRatio", 0.0),
+        quickmatch_kill_per_match=get_stat_value(quickmatch_segment, "killsPerMatch", 0.0),
+        quickmatch_win_percentage=get_stat_value(quickmatch_segment, "winPercentage", 0.0),
+    )
+
+
+def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]]) -> UserFullStatsInfo:
+    """
+    Parse the JSON content from the R6 Tracker API and create a UserInformation object
+
+    Args:
+        user_id: Discord user ID
+        json_content: JSON content from the R6 Tracker API, can be a string or already parsed dict
+
+    Returns:
+        UserInformation object populated with data from the JSON
+    """
+    # Parse JSON if it's a string
+    if isinstance(json_content, str):
+        data = json.loads(json_content)
+    else:
+        data = json_content
+
+    # Get the main data section
+    main_data = data.get("data", {})
+
+    # Extract platform info for r6_tracker_user_uuid
+    platform_info = main_data.get("platformInfo", {})
+    r6_tracker_user_uuid = platform_info.get("platformUserId", "")
+
+    # Get overview stats
+    overview_segment = None
+    for segment in main_data.get("segments", []):
+        if segment.get("type") == "overview":
+            overview_segment = segment
+            break
+
+    if not overview_segment:
+        # If no overview segment found, create an empty UserInformation object
+        return UserFullStatsInfo(user_id=user_id, r6_tracker_user_uuid=r6_tracker_user_uuid)
+
+    overview_stats = overview_segment.get("stats", {})
+
+    # Extract gamemode stats (ranked, arcade, quickmatch)
+    ranked_segment = None
+    arcade_segment = None
+    quickmatch_segment = None
+
+    for segment in main_data.get("segments", []):
+        if segment.get("type") == "gamemode":
+            if segment.get("attributes", {}).get("sessionType") == "ranked":
+                ranked_segment = segment
+            elif segment.get("attributes", {}).get("sessionType") == "arcade":
+                arcade_segment = segment
+            elif segment.get("attributes", {}).get("sessionType") in ["quickplay", "standard"]:
+                quickmatch_segment = segment
+
+    # Helper function to get stat value
+    def get_stat_value(segment, stat_name, default=0):
+        if not segment:
+            return default
+        return segment.get("stats", {}).get(stat_name, {}).get("value", default)
+
+    # Extract playstyle percentages
+    def get_percentage(segment, stat_name, default=0.0):
+        if not segment:
+            return default
+        value = segment.get("stats", {}).get(stat_name, {}).get("value", default)
+        # Convert to percentage if it's not already
+        if value and value > 0 and value <= 1:
+            return value * 100
+        return value or default
+
+    # Create UserInformation object
+    return UserFullStatsInfo(
+        user_id=user_id,
+        r6_tracker_user_uuid=r6_tracker_user_uuid,
+        # Overview stats
+        total_matches_played=get_stat_value(overview_segment, "matchesPlayed"),
+        total_matches_won=get_stat_value(overview_segment, "matchesWon"),
+        total_matches_lost=get_stat_value(overview_segment, "matchesLost"),
+        total_matches_abandoned=get_stat_value(overview_segment, "matchesAbandoned"),
+        time_played_seconds=get_stat_value(overview_segment, "timePlayed"),
+        total_kills=get_stat_value(overview_segment, "kills"),
+        total_deaths=get_stat_value(overview_segment, "deaths"),
+        total_attacker_round_wins=get_stat_value(overview_segment, "attackerRoundsWon"),
+        total_defender_round_wins=get_stat_value(overview_segment, "defenderRoundsWon"),
+        total_headshots=get_stat_value(overview_segment, "headshots"),
+        total_headshots_missed=get_stat_value(overview_segment, "headshotsMissed"),
+        headshot_percentage=get_stat_value(overview_segment, "headshotPercentage", 0.0),
+        total_wall_bang=get_stat_value(overview_segment, "wallbangs"),
+        total_damage=get_stat_value(overview_segment, "damageDealt"),
+        total_assists=get_stat_value(overview_segment, "assists"),
+        total_team_kills=get_stat_value(overview_segment, "teamKills"),
+        # Attacker playstyles
+        attacked_breacher_count=get_stat_value(overview_segment, "playstyleAttackerBreacher"),
+        attacked_breacher_percentage=get_percentage(overview_segment, "playstyleAttackerBreacher"),
+        attacked_fragger_count=get_stat_value(overview_segment, "playstyleAttackerEntryFragger"),
+        attacked_fragger_percentage=get_percentage(overview_segment, "playstyleAttackerEntryFragger"),
+        attacked_intel_count=get_stat_value(overview_segment, "playstyleAttackerIntelProvider"),
+        attacked_intel_percentage=get_percentage(overview_segment, "playstyleAttackerIntelProvider"),
+        attacked_roam_count=get_stat_value(overview_segment, "playstyleAttackerRoamClearer"),
+        attacked_roam_percentage=get_percentage(overview_segment, "playstyleAttackerRoamClearer"),
+        attacked_support_count=get_stat_value(overview_segment, "playstyleAttackerSupporter"),
+        attacked_support_percentage=get_percentage(overview_segment, "playstyleAttackerSupporter"),
+        attacked_utility_count=get_stat_value(overview_segment, "playstyleAttackerUtilityClearer"),
+        attacked_utility_percentage=get_percentage(overview_segment, "playstyleAttackerUtilityClearer"),
+        # Defender playstyles
+        defender_debuffer_count=get_stat_value(overview_segment, "playstyleDefenderDebuffer"),
+        defender_debuffer_percentage=get_percentage(overview_segment, "playstyleDefenderDebuffer"),
+        defender_entry_denier_count=get_stat_value(overview_segment, "playstyleDefenderEntryDenier"),
+        defender_entry_denier_percentage=get_percentage(overview_segment, "playstyleDefenderEntryDenier"),
+        defender_intel_count=get_stat_value(overview_segment, "playstyleDefenderIntelProvider"),
+        defender_intel_percentage=get_percentage(overview_segment, "playstyleDefenderIntelProvider"),
+        defender_support_count=get_stat_value(overview_segment, "playstyleDefenderSupporter"),
+        defender_support_percentage=get_percentage(overview_segment, "playstyleDefenderSupporter"),
+        defender_trapper_count=get_stat_value(overview_segment, "playstyleDefenderTrapper"),
+        defender_trapper_percentage=get_percentage(overview_segment, "playstyleDefenderTrapper"),
+        defender_utility_denier_count=get_stat_value(overview_segment, "playstyleDefenderUtilityDenier"),
+        defender_utility_denier_percentage=get_percentage(overview_segment, "playstyleDefenderUtilityDenier"),
+        # Overall stats
+        kd_radio=get_stat_value(overview_segment, "kdRatio", 0.0),
+        kill_per_match=get_stat_value(overview_segment, "killsPerMatch", 0.0),
+        kill_per_minute=get_stat_value(overview_segment, "killsPerMin", 0.0),
+        win_percentage=get_stat_value(overview_segment, "winPercentage", 0.0),
+        # Ranked stats
+        rank_match_played=get_stat_value(ranked_segment, "matchesPlayed"),
+        rank_match_won=get_stat_value(ranked_segment, "matchesWon"),
+        rank_match_lost=get_stat_value(ranked_segment, "matchesLost"),
+        rank_match_abandoned=get_stat_value(ranked_segment, "matchesAbandoned"),
+        rank_kills_count=get_stat_value(ranked_segment, "kills"),
+        rank_deaths_count=get_stat_value(ranked_segment, "deaths"),
+        rank_kd_ratio=get_stat_value(ranked_segment, "kdRatio", 0.0),
+        rank_kill_per_match=get_stat_value(ranked_segment, "killsPerMatch", 0.0),
+        rank_win_percentage=get_stat_value(ranked_segment, "winPercentage", 0.0),
+        # Arcade stats
+        arcade_match_played=get_stat_value(arcade_segment, "matchesPlayed"),
+        arcade_match_won=get_stat_value(arcade_segment, "matchesWon"),
+        arcade_match_lost=get_stat_value(arcade_segment, "matchesLost"),
+        arcade_match_abandoned=get_stat_value(arcade_segment, "matchesAbandoned"),
+        arcade_kills_count=get_stat_value(arcade_segment, "kills"),
+        arcade_deaths_count=get_stat_value(arcade_segment, "deaths"),
+        arcade_kd_ratio=get_stat_value(arcade_segment, "kdRatio", 0.0),
+        arcade_kill_per_match=get_stat_value(arcade_segment, "killsPerMatch", 0.0),
+        arcade_win_percentage=get_stat_value(arcade_segment, "winPercentage", 0.0),
+        # Quickmatch stats
+        quickmatch_match_played=get_stat_value(quickmatch_segment, "matchesPlayed"),
+        quickmatch_match_won=get_stat_value(quickmatch_segment, "matchesWon"),
+        quickmatch_match_lost=get_stat_value(quickmatch_segment, "matchesLost"),
+        quickmatch_match_abandoned=get_stat_value(quickmatch_segment, "matchesAbandoned"),
+        quickmatch_kills_count=get_stat_value(quickmatch_segment, "kills"),
+        quickmatch_deaths_count=get_stat_value(quickmatch_segment, "deaths"),
+        quickmatch_kd_ratio=get_stat_value(quickmatch_segment, "kdRatio", 0.0),
+        quickmatch_kill_per_match=get_stat_value(quickmatch_segment, "killsPerMatch", 0.0),
+        quickmatch_win_percentage=get_stat_value(quickmatch_segment, "winPercentage", 0.0),
     )

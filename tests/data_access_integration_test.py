@@ -11,6 +11,7 @@ from deps.data_access import (
     KEY_QUEUE_USER_STATS,
     data_access_add_list_member_stats,
     data_access_get_list_member_stats,
+    data_access_get_r6tracker_max_rank,
     data_acess_remove_list_member_stats,
 )
 from deps.models import UserQueueForStats
@@ -105,3 +106,57 @@ async def test_remove_expired_user(mock_datetime):
 
         list_users = await data_access_get_list_member_stats()
         assert len(list_users) == 1
+
+
+async def test_data_access_get_r6tracker_max_rank_test_diamond() -> None:
+    """
+    Test the function to get the max rank from R6Tracker
+    """
+
+    result = await data_access_get_r6tracker_max_rank("noSleep_rb6", True)
+    assert result == "Diamond"
+
+
+async def test_data_access_get_r6tracker_max_rank_test_platinum() -> None:
+    """
+    Test the function to get the max rank from R6Tracker
+    """
+
+    result = await data_access_get_r6tracker_max_rank("LebronsCock", True)
+    assert result == "Platinum"
+
+
+async def test_data_access_get_r6tracker_max_rank_test_does_not_exist() -> None:
+    """
+    Test the function to get the max rank from R6Tracker
+    """
+
+    result = await data_access_get_r6tracker_max_rank("DoesNotExist123000Name", True)
+    assert result == "Copper"
+
+
+async def test_data_access_get_r6tracker_max_rank_test_champion() -> None:
+    """
+    Test the function to get the max rank from R6Tracker
+    """
+
+    result = await data_access_get_r6tracker_max_rank("Funkyshmug", True)
+    assert result == "Champion"
+
+
+async def test_data_access_get_r6tracker_max_rank_test_emerald_period() -> None:
+    """
+    Test the function to get the max rank from R6Tracker
+    """
+
+    result = await data_access_get_r6tracker_max_rank("Adahdf.", True)
+    assert result == "Emerald"
+
+
+async def test_data_access_get_r6tracker_max_rank_test_gold() -> None:
+    """
+    Test the function to get the max rank from R6Tracker
+    """
+
+    result = await data_access_get_r6tracker_max_rank("J0hn_Th1cc", True)
+    assert result == "Gold"

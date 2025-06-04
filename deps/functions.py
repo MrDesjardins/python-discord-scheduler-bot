@@ -1,4 +1,4 @@
-""" Utility functions used by the bot. """
+"""Utility functions used by the bot."""
 
 from datetime import timedelta
 import subprocess
@@ -9,6 +9,7 @@ from deps.values import (
     MSG_UNIQUE_STRING,
     SUPPORTED_TIMES_ARR,
     URL_TRN_API_RANKED_MATCHES,
+    URL_TRN_API_USER_INFO,
     URL_TRN_PROFILE_MAIN,
     URL_TRN_PROFILE_OVERVIEW,
     URL_TRN_RANKED_PAGE,
@@ -112,3 +113,10 @@ def get_rotated_number_from_current_day(max_number: int) -> int:
     day_of_year = today.timetuple().tm_yday  # 1 for Jan 1, 365 for Dec 31
     function_number = (day_of_year - 1) % max_number
     return function_number
+
+
+def get_url_api_user_info(ubisoft_user_name: str) -> str:
+    """
+    Get the URL for the API to get the user info.
+    """
+    return URL_TRN_API_USER_INFO.format(account_name=ubisoft_user_name.strip())

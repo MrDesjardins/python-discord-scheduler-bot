@@ -1,4 +1,4 @@
-""" Access to the data is done throught this data access"""
+"""Access to the data is done throught this data access"""
 
 from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
@@ -201,12 +201,15 @@ def data_access_set_bot_voice_first_user(guild_id: int, enabled: bool) -> None:
 
 
 async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch: bool = False) -> str:
-    """Get from R6 Tracker website the max rank for the user"""
+    """
+    @deprecated: Use data_access_get_r6tracker_max_rank instead
+    Get from R6 Tracker website the max rank for the user
+    """
 
     async def fetch():
         # return await get_r6tracker_max_rank(ubisoft_user_name)
         with BrowserContextManager(ubisoft_user_name) as context:
-            return context.download_max_rank()
+            return context.download_max_rank(ubisoft_user_name)
 
     if force_fetch:
         remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")

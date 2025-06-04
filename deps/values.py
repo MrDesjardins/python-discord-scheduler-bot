@@ -1,4 +1,4 @@
-""" Constants used in the bot. """
+"""Constants used in the bot."""
 
 DATE_FORMAT = "%A, %B %d, %Y"
 
@@ -132,7 +132,7 @@ URL_TRN_RANKED_PAGE = "https://r6.tracker.network/r6siege/profile/uplay/{account
 URL_TRN_API_RANKED_MATCHES = (
     "https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/{account_name}?gamemode=pvp_ranked"
 )
-
+URL_TRN_API_USER_INFO = "https://api.tracker.gg/api/v2/r6siege/standard/profile/ubi/{account_name}?"
 # Tournament
 COMMAND_TOURNAMENT_CHANNEL_SET_CHANNEL = "modtexttournamentchannel"
 COMMAND_TOURNAMENT_CHANNEL_GET_CHANNEL = "modseestournamentchannel"
