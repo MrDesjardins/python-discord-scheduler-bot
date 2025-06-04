@@ -121,7 +121,7 @@ class MyTasksCog(commands.Cog):
         """
         print_log(f"Running SQL Lite Checkpoint, current time {datetime.now()}")
         try:
-            await run_wal_checkpoint()
+            run_wal_checkpoint()
         except Exception as e:
             print_error_log(f"run_db_checkpoint_task task: {e}")
 
