@@ -14,7 +14,7 @@ from deps.cache import (
     get_cache,
 )
 from deps.functions_date import ensure_utc
-from deps.models import UserFullMatchStats
+from deps.models import UserFullMatchStats, UserInformation
 from deps.log import print_error_log, print_log
 
 KEY_USER_INFO = "user_info"
@@ -80,6 +80,83 @@ SELECT_USER_FULL_MATCH_INFO = """
     user_full_match_info.deaths_per_round,
     user_full_match_info.assists_per_round,
     user_full_match_info.has_win
+"""
+
+
+SELECT_USER_FULL_STATS_INFO = """
+    user_full_stats_info.user_id,
+    user_full_stats_info.r6_tracker_user_uuid,
+    user_full_stats_info.total_matches_played,
+    user_full_stats_info.total_matches_won,
+    user_full_stats_info.total_matches_lost,
+    user_full_stats_info.total_matches_abandoned,
+    user_full_stats_info.time_played_seconds,
+    user_full_stats_info.total_kills,
+    user_full_stats_info.total_deaths,
+    user_full_stats_info.total_attacker_round_wins,
+    user_full_stats_info.total_defender_round_wins,
+    user_full_stats_info.total_headshots,
+    user_full_stats_info.total_headshots_missed,
+    user_full_stats_info.headshot_percentage,
+    user_full_stats_info.total_wall_bang,
+    user_full_stats_info.total_damage,
+    user_full_stats_info.total_assists,
+    user_full_stats_info.total_team_kills,
+    user_full_stats_info.attacked_breacher_count,
+    user_full_stats_info.attacked_breacher_percentage,
+    user_full_stats_info.attacked_fragger_count,
+    user_full_stats_info.attacked_fragger_percentage,
+    user_full_stats_info.attacked_intel_count,
+    user_full_stats_info.attacked_intel_percentage,
+    user_full_stats_info.attacked_roam_count,
+    user_full_stats_info.attacked_roam_percentage,
+    user_full_stats_info.attacked_support_count,
+    user_full_stats_info.attacked_support_percentage,
+    user_full_stats_info.attacked_utility_count,
+    user_full_stats_info.attacked_utility_percentage,
+    user_full_stats_info.defender_debuffer_count,
+    user_full_stats_info.defender_debuffer_percentage,
+    user_full_stats_info.defender_entry_denier_count,
+    user_full_stats_info.defender_entry_denier_percentage,
+    user_full_stats_info.defender_intel_count,
+    user_full_stats_info.defender_intel_percentage,
+    user_full_stats_info.defender_support_count,
+    user_full_stats_info.defender_support_percentage,
+    user_full_stats_info.defender_trapper_count,
+    user_full_stats_info.defender_trapper_percentage,
+    user_full_stats_info.defender_utility_denier_count,
+    user_full_stats_info.defender_utility_denier_percentage,
+    user_full_stats_info.kd_radio,
+    user_full_stats_info.kill_per_match,
+    user_full_stats_info.kill_per_minute,
+    user_full_stats_info.win_percentage,
+    user_full_stats_info.rank_match_played,
+    user_full_stats_info.rank_match_won,
+    user_full_stats_info.rank_match_lost,
+    user_full_stats_info.rank_match_abandoned,
+    user_full_stats_info.rank_kills_count,
+    user_full_stats_info.rank_deaths_count,
+    user_full_stats_info.rank_kd_ratio,
+    user_full_stats_info.rank_kill_per_match,
+    user_full_stats_info.rank_win_percentage,
+    user_full_stats_info.arcade_match_played,
+    user_full_stats_info.arcade_match_won,
+    user_full_stats_info.arcade_match_lost,
+    user_full_stats_info.arcade_match_abandoned,
+    user_full_stats_info.arcade_kills_count,
+    user_full_stats_info.arcade_deaths_count,
+    user_full_stats_info.arcade_kd_ratio,
+    user_full_stats_info.arcade_kill_per_match,
+    user_full_stats_info.arcade_win_percentage,
+    user_full_stats_info.quickmatch_match_played,
+    user_full_stats_info.quickmatch_match_won,
+    user_full_stats_info.quickmatch_match_lost,
+    user_full_stats_info.quickmatch_match_abandoned,
+    user_full_stats_info.quickmatch_kills_count,
+    user_full_stats_info.quickmatch_deaths_count,
+    user_full_stats_info.quickmatch_kd_ratio,
+    user_full_stats_info.quickmatch_kill_per_match,
+    user_full_stats_info.quickmatch_win_percentage
 """
 
 
@@ -703,6 +780,299 @@ def data_access_fetch_user_full_match_info(
     ).fetchall()
     # Convert the result to a list of Stats
     return [UserFullMatchStats.from_db_row(row) for row in result]
+
+
+def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: UserInformation) -> None:
+    """
+    Insert or update the user full stats info if it does not exist.
+    This function checks if stats already exist for the user in the database
+    and inserts the new stats if they don't.
+
+    Args:
+        user_info: The UserInfo object containing the user's basic information
+        user_information: The UserInformation object containing the detailed user statistics
+    """
+    # Check if a record for this user already exists and delete it
+    cursor = database_manager.get_cursor()
+    query = """
+        DELETE FROM user_full_stats_info
+        WHERE user_id = ?
+    """
+
+    cursor.execute(query, (user_info.id,))
+    deleted_count = cursor.rowcount
+
+    if deleted_count > 0:
+        print_log(
+            f"insert_if_nonexistant_full_user_info: Deleted {deleted_count} existing record(s) for user {user_info.display_name}"
+        )
+
+    # Insert the new record if it doesn't exist
+    try:
+
+        cursor = database_manager.get_cursor()
+        cursor.execute(
+            """
+            INSERT INTO user_full_stats_info (
+                user_id,
+                r6_tracker_user_uuid,
+                total_matches_played,
+                total_matches_won,
+                total_matches_lost,
+                total_matches_abandoned,
+                time_played_seconds,
+                total_kills,
+                total_deaths,
+                total_attacker_round_wins,
+                total_defender_round_wins,
+                total_headshots,
+                total_headshots_missed,
+                headshot_percentage,
+                total_wall_bang,
+                total_damage,
+                total_assists,
+                total_team_kills,
+                attacked_breacher_count,
+                attacked_breacher_percentage,
+                attacked_fragger_count,
+                attacked_fragger_percentage,
+                attacked_intel_count,
+                attacked_intel_percentage,
+                attacked_roam_count,
+                attacked_roam_percentage,
+                attacked_support_count,
+                attacked_support_percentage,
+                attacked_utility_count,
+                attacked_utility_percentage,
+                defender_debuffer_count,
+                defender_debuffer_percentage,
+                defender_entry_denier_count,
+                defender_entry_denier_percentage,
+                defender_intel_count,
+                defender_intel_percentage,
+                defender_support_count,
+                defender_support_percentage,
+                defender_trapper_count,
+                defender_trapper_percentage,
+                defender_utility_denier_count,
+                defender_utility_denier_percentage,
+                kd_radio,
+                kill_per_match,
+                kill_per_minute,
+                win_percentage,
+                rank_match_played,
+                rank_match_won,
+                rank_match_lost,
+                rank_match_abandoned,
+                rank_kills_count,
+                rank_deaths_count,
+                rank_kd_ratio,
+                rank_kill_per_match,
+                rank_win_percentage,
+                arcade_match_played,
+                arcade_match_won,
+                arcade_match_lost,
+                arcade_match_abandoned,
+                arcade_kills_count,
+                arcade_deaths_count,
+                arcade_kd_ratio,
+                arcade_kill_per_match,
+                arcade_win_percentage,
+                quickmatch_match_played,
+                quickmatch_match_won,
+                quickmatch_match_lost,
+                quickmatch_match_abandoned,
+                quickmatch_kills_count,
+                quickmatch_deaths_count,
+                quickmatch_kd_ratio,
+                quickmatch_kill_per_match,
+                quickmatch_win_percentage
+            )
+            VALUES (
+                :user_id,
+                :r6_tracker_user_uuid,
+                :total_matches_played,
+                :total_matches_won,
+                :total_matches_lost,
+                :total_matches_abandoned,
+                :time_played_seconds,
+                :total_kills,
+                :total_deaths,
+                :total_attacker_round_wins,
+                :total_defender_round_wins,
+                :total_headshots,
+                :total_headshots_missed,
+                :headshot_percentage,
+                :total_wall_bang,
+                :total_damage,
+                :total_assists,
+                :total_team_kills,
+                :attacked_breacher_count,
+                :attacked_breacher_percentage,
+                :attacked_fragger_count,
+                :attacked_fragger_percentage,
+                :attacked_intel_count,
+                :attacked_intel_percentage,
+                :attacked_roam_count,
+                :attacked_roam_percentage,
+                :attacked_support_count,
+                :attacked_support_percentage,
+                :attacked_utility_count,
+                :attacked_utility_percentage,
+                :defender_debuffer_count,
+                :defender_debuffer_percentage,
+                :defender_entry_denier_count,
+                :defender_entry_denier_percentage,
+                :defender_intel_count,
+                :defender_intel_percentage,
+                :defender_support_count,
+                :defender_support_percentage,
+                :defender_trapper_count,
+                :defender_trapper_percentage,
+                :defender_utility_denier_count,
+                :defender_utility_denier_percentage,
+                :kd_radio,
+                :kill_per_match,
+                :kill_per_minute,
+                :win_percentage,
+                :rank_match_played,
+                :rank_match_won,
+                :rank_match_lost,
+                :rank_match_abandoned,
+                :rank_kills_count,
+                :rank_deaths_count,
+                :rank_kd_ratio,
+                :rank_kill_per_match,
+                :rank_win_percentage,
+                :arcade_match_played,
+                :arcade_match_won,
+                :arcade_match_lost,
+                :arcade_match_abandoned,
+                :arcade_kills_count,
+                :arcade_deaths_count,
+                :arcade_kd_ratio,
+                :arcade_kill_per_match,
+                :arcade_win_percentage,
+                :quickmatch_match_played,
+                :quickmatch_match_won,
+                :quickmatch_match_lost,
+                :quickmatch_match_abandoned,
+                :quickmatch_kills_count,
+                :quickmatch_deaths_count,
+                :quickmatch_kd_ratio,
+                :quickmatch_kill_per_match,
+                :quickmatch_win_percentage
+            )
+            """,
+            {
+                "user_id": user_info.id,
+                "r6_tracker_user_uuid": user_information.r6_tracker_user_uuid,
+                "total_matches_played": user_information.total_matches_played,
+                "total_matches_won": user_information.total_matches_won,
+                "total_matches_lost": user_information.total_matches_lost,
+                "total_matches_abandoned": user_information.total_matches_abandoned,
+                "time_played_seconds": user_information.time_played_seconds,
+                "total_kills": user_information.total_kills,
+                "total_deaths": user_information.total_deaths,
+                "total_attacker_round_wins": user_information.total_attacker_round_wins,
+                "total_defender_round_wins": user_information.total_defender_round_wins,
+                "total_headshots": user_information.total_headshots,
+                "total_headshots_missed": user_information.total_headshots_missed,
+                "headshot_percentage": user_information.headshot_percentage,
+                "total_wall_bang": user_information.total_wall_bang,
+                "total_damage": user_information.total_damage,
+                "total_assists": user_information.total_assists,
+                "total_team_kills": user_information.total_team_kills,
+                "attacked_breacher_count": user_information.attacked_breacher_count,
+                "attacked_breacher_percentage": user_information.attacked_breacher_percentage,
+                "attacked_fragger_count": user_information.attacked_fragger_count,
+                "attacked_fragger_percentage": user_information.attacked_fragger_percentage,
+                "attacked_intel_count": user_information.attacked_intel_count,
+                "attacked_intel_percentage": user_information.attacked_intel_percentage,
+                "attacked_roam_count": user_information.attacked_roam_count,
+                "attacked_roam_percentage": user_information.attacked_roam_percentage,
+                "attacked_support_count": user_information.attacked_support_count,
+                "attacked_support_percentage": user_information.attacked_support_percentage,
+                "attacked_utility_count": user_information.attacked_utility_count,
+                "attacked_utility_percentage": user_information.attacked_utility_percentage,
+                "defender_debuffer_count": user_information.defender_debuffer_count,
+                "defender_debuffer_percentage": user_information.defender_debuffer_percentage,
+                "defender_entry_denier_count": user_information.defender_entry_denier_count,
+                "defender_entry_denier_percentage": user_information.defender_entry_denier_percentage,
+                "defender_intel_count": user_information.defender_intel_count,
+                "defender_intel_percentage": user_information.defender_intel_percentage,
+                "defender_support_count": user_information.defender_support_count,
+                "defender_support_percentage": user_information.defender_support_percentage,
+                "defender_trapper_count": user_information.defender_trapper_count,
+                "defender_trapper_percentage": user_information.defender_trapper_percentage,
+                "defender_utility_denier_count": user_information.defender_utility_denier_count,
+                "defender_utility_denier_percentage": user_information.defender_utility_denier_percentage,
+                "kd_radio": user_information.kd_radio,
+                "kill_per_match": user_information.kill_per_match,
+                "kill_per_minute": user_information.kill_per_minute,
+                "win_percentage": user_information.win_percentage,
+                "rank_match_played": user_information.rank_match_played,
+                "rank_match_won": user_information.rank_match_won,
+                "rank_match_lost": user_information.rank_match_lost,
+                "rank_match_abandoned": user_information.rank_match_abandoned,
+                "rank_kills_count": user_information.rank_kills_count,
+                "rank_deaths_count": user_information.rank_deaths_count,
+                "rank_kd_ratio": user_information.rank_kd_ratio,
+                "rank_kill_per_match": user_information.rank_kill_per_match,
+                "rank_win_percentage": user_information.rank_win_percentage,
+                "arcade_match_played": user_information.arcade_match_played,
+                "arcade_match_won": user_information.arcade_match_won,
+                "arcade_match_lost": user_information.arcade_match_lost,
+                "arcade_match_abandoned": user_information.arcade_match_abandoned,
+                "arcade_kills_count": user_information.arcade_kills_count,
+                "arcade_deaths_count": user_information.arcade_deaths_count,
+                "arcade_kd_ratio": user_information.arcade_kd_ratio,
+                "arcade_kill_per_match": user_information.arcade_kill_per_match,
+                "arcade_win_percentage": user_information.arcade_win_percentage,
+                "quickmatch_match_played": user_information.quickmatch_match_played,
+                "quickmatch_match_won": user_information.quickmatch_match_won,
+                "quickmatch_match_lost": user_information.quickmatch_match_lost,
+                "quickmatch_match_abandoned": user_information.quickmatch_match_abandoned,
+                "quickmatch_kills_count": user_information.quickmatch_kills_count,
+                "quickmatch_deaths_count": user_information.quickmatch_deaths_count,
+                "quickmatch_kd_ratio": user_information.quickmatch_kd_ratio,
+                "quickmatch_kill_per_match": user_information.quickmatch_kill_per_match,
+                "quickmatch_win_percentage": user_information.quickmatch_win_percentage,
+            },
+        )
+        print_log(f"insert_if_nonexistant_full_user_info: Inserted stats for user {user_info.display_name}")
+        # Commit the transaction
+        database_manager.get_conn().commit()
+    except Exception as e:
+        stringify_user_info = (
+            json.dumps(user_information.to_dict(), indent=4)
+            if hasattr(user_information, "to_dict")
+            else "No user stats data"
+        )
+        print_error_log(f"insert_if_nonexistant_full_user_info: Error inserting user stats: {e}\n{stringify_user_info}")
+        raise e
+
+
+def data_access_fetch_user_full_user_info(user_id: int) -> Union[UserInformation, None]:
+    """
+    Fetch the full user stats info for a specific user
+    """
+    query = f"""
+        SELECT {SELECT_USER_FULL_STATS_INFO}
+        FROM user_full_stats_info
+        WHERE user_id = :user_id
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"user_id": user_id},
+        )
+    ).fetchone()
+
+    if result is None:
+        return None
+
+    return UserInformation.from_db_row(result)
 
 
 def data_access_fetch_tk_count_by_user(from_data: datetime) -> list[tuple[int, str, int]]:

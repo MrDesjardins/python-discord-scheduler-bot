@@ -5,12 +5,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Union
 from gtts import gTTS  # type: ignore
 import discord
-from deps.browser import download_full_matches_async
+from deps.browser import download_full_matches_async, download_full_user_information_async
 from deps.analytic_data_access import (
     data_access_set_r6_tracker_id,
     fetch_user_info_by_user_id,
     get_active_user_info,
     insert_if_nonexistant_full_match_info,
+    insert_if_nonexistant_full_user_info,
 )
 from deps.data_access_data_class import UserInfo
 from deps.data_access import (
@@ -43,6 +44,7 @@ from deps.models import (
     SimpleUser,
     UserMatchInfoSessionAggregate,
     UserQueueForStats,
+    UserWithUserInformation,
     UserWithUserMatchInfo,
 )
 from deps.log import print_error_log, print_log, print_warning_log
@@ -647,3 +649,35 @@ async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWi
             # Update user with the R6 tracker if if it wasn't available before
             r6_id = match_stats[0].r6_tracker_user_uuid
             data_access_set_r6_tracker_id(user_info.id, r6_id)
+
+
+async def persist_user_full_information_cross_guilds(from_time: datetime, to_time: datetime) -> None:
+    """
+    Fetch and persist the user full information between two dates
+    """
+
+    # Get the list of user who were active between the time
+    users: List[UserInfo] = get_active_user_info(from_time, to_time)
+    users_stats: List[UserQueueForStats] = [UserQueueForStats(user, 0, from_time) for user in users]
+    # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
+    # Then, in the loop, use the cookies to get the stats using the API
+    await download_full_user_information_async(
+        users_stats, post_process_callback=post_persist_user_full_information_cross_guilds
+    )
+
+
+async def post_persist_user_full_information_cross_guilds(all_users: List[UserWithUserInformation]) -> None:
+    """
+    Persist the full user information in the database
+    """
+    for full_user_stats_info in all_users:
+        # Save the matches in the database
+        try:
+            insert_if_nonexistant_full_user_info(
+                full_user_stats_info.user_request_stats.user_info, full_user_stats_info.full_stats
+            )
+        except Exception as e:
+            print_error_log(
+                f"post_persist_user_full_information_cross_guilds: Error saving the user full stats info: {e}"
+            )
+            continue

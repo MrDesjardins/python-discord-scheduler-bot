@@ -122,6 +122,7 @@ COMMAND_VERSION = "modversion"
 COMMAND_RESET_CACHE = "modresetcache"  # Only owner of the server can execute that one
 COMMAND_STATS_MATCHES = "modstatsmatches"
 COMMAND_STATS_ACTIVE_USER = "modstatsactiveusers"
+COMMAND_USER_INFORMATION_ACTIVE_USER = "moduserinformationsactiveusers"
 COMMAND_DAILY_STATS = "moddailystats"
 COMMAND_GENERATE_AI_SUMMARY = "modgenaisummary"
 

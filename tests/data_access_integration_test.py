@@ -114,6 +114,8 @@ async def test_data_access_get_r6tracker_max_rank_test_diamond() -> None:
     """
 
     result = await data_access_get_r6tracker_max_rank("noSleep_rb6", True)
+    # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
+    await asyncio.sleep(5)
     assert result == "Diamond"
 
 
@@ -123,6 +125,8 @@ async def test_data_access_get_r6tracker_max_rank_test_platinum() -> None:
     """
 
     result = await data_access_get_r6tracker_max_rank("LebronsCock", True)
+    # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
+    await asyncio.sleep(5)
     assert result == "Platinum"
 
 
@@ -132,6 +136,8 @@ async def test_data_access_get_r6tracker_max_rank_test_does_not_exist() -> None:
     """
 
     result = await data_access_get_r6tracker_max_rank("DoesNotExist123000Name", True)
+    # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
+    await asyncio.sleep(5)
     assert result == "Copper"
 
 
@@ -141,6 +147,8 @@ async def test_data_access_get_r6tracker_max_rank_test_champion() -> None:
     """
 
     result = await data_access_get_r6tracker_max_rank("Funkyshmug", True)
+    # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
+    await asyncio.sleep(5)
     assert result == "Champion"
 
 
@@ -150,6 +158,8 @@ async def test_data_access_get_r6tracker_max_rank_test_emerald_period() -> None:
     """
 
     result = await data_access_get_r6tracker_max_rank("Adahdf.", True)
+    # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
+    await asyncio.sleep(5)
     assert result == "Emerald"
 
 
@@ -159,4 +169,6 @@ async def test_data_access_get_r6tracker_max_rank_test_gold() -> None:
     """
 
     result = await data_access_get_r6tracker_max_rank("J0hn_Th1cc", True)
+    # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
+    await asyncio.sleep(5)
     assert result == "Gold"

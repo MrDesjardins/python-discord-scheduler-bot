@@ -193,7 +193,7 @@ class ModBasic(commands.Cog):
 
         guild = interaction.guild
         if guild is None:
-            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            print_error_log("generate_ai_summary: Guild is None.")
             return
         guild_id = guild.id
         channel_id = await data_access_get_main_text_channel_id(guild_id)

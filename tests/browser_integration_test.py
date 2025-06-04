@@ -32,7 +32,7 @@ async def test_highest_rank_diamond(mock_error_log):
     """Test the highest rank of a user that exist"""
     mock_error_log.return_value = None
     with BrowserContextManager("noSleep_rb6") as context:
-        rank = context.download_max_rank()
+        rank = context.download_max_rank("noSleep_rb6")
     assert rank == "Diamond"
 
 
@@ -43,7 +43,7 @@ async def test_highest_rank_platinum(mock_error_log):
     """Test the highest rank of a user that exist"""
     mock_error_log.return_value = None
     with BrowserContextManager("LebronsCock") as context:
-        rank = context.download_max_rank()
+        rank = context.download_max_rank("LebronsCock")
     assert rank == "Platinum"
 
 
@@ -54,7 +54,7 @@ async def test_highest_rank_user_not_found(mock_error_log):
     """Test the highest rank of a user that exist"""
     mock_error_log.return_value = None
     with BrowserContextManager("DoesNotExist123000Name") as context:
-        rank = context.download_max_rank()
+        rank = context.download_max_rank("DoesNotExist123000Name")
     assert rank == "Copper"
 
 
@@ -65,7 +65,7 @@ async def test_highest_rank_champion(mock_error_log):
     """Test the highest rank of a user that exist"""
     mock_error_log.return_value = None
     with BrowserContextManager("Funkyshmug") as context:
-        rank = context.download_max_rank()
+        rank = context.download_max_rank("Funkyshmug")
     assert rank == "Champion"
 
 
@@ -76,7 +76,7 @@ async def test_highest_rank_emerald(mock_error_log):
     """Test the highest rank of a user that exist"""
     mock_error_log.return_value = None
     with BrowserContextManager("Adahdf.") as context:
-        rank = context.download_max_rank()
+        rank = context.download_max_rank("Adahdf.")
     assert rank == "Emerald"
 
 
@@ -87,7 +87,7 @@ async def test_highest_rank_gold(mock_error_log):
     """Test the highest rank of a user that exist"""
     mock_error_log.return_value = None
     with BrowserContextManager("J0hn_Th1cc") as context:
-        rank = context.download_max_rank()
+        rank = context.download_max_rank("J0hn_Th1cc")
     assert rank == "Gold"
 
 
@@ -98,5 +98,5 @@ async def test_highest_rank_emerald_2(mock_error_log):
     """Test the highest rank of a user that exist"""
     mock_error_log.return_value = None
     with BrowserContextManager("Samtbs2") as context:
-        rank = context.download_max_rank()
+        rank = context.download_max_rank("Samtbs2")
     assert rank == "Emerald"

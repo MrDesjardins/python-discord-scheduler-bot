@@ -8,6 +8,7 @@ from discord.ext import commands
 from discord import app_commands
 from deps.bot_common_actions import (
     persist_siege_matches_cross_guilds,
+    persist_user_full_information_cross_guilds,
     send_session_stats_directly,
 )
 from deps.data_access import (
@@ -28,6 +29,7 @@ from deps.values import (
     COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER,
     COMMAND_STATS_ACTIVE_USER,
     COMMAND_STATS_MATCHES,
+    COMMAND_USER_INFORMATION_ACTIVE_USER,
 )
 from deps.log import print_log
 from deps.mybot import MyBot
@@ -169,6 +171,18 @@ class ModeratorOnUserBehalf(commands.Cog):
         begin_time = now_utc - timedelta(days=1)
         end_time = now_utc
         await persist_siege_matches_cross_guilds(begin_time, end_time)
+        await interaction.followup.send("Done", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_USER_INFORMATION_ACTIVE_USER)
+    @commands.has_permissions(administrator=True)
+    async def mod_user_information_active_users(self, interaction: discord.Interaction):
+        """Compute the user information for the active user"""
+        await interaction.response.defer(ephemeral=True)
+        print_log(f"mod_user_information_active_users: Saving User Information, current time {datetime.now()}")
+        now_utc = datetime.now(timezone.utc)
+        begin_time = now_utc - timedelta(days=1)
+        end_time = now_utc
+        await persist_user_full_information_cross_guilds(begin_time, end_time)
         await interaction.followup.send("Done", ephemeral=True)
 
 

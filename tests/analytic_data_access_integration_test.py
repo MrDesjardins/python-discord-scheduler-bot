@@ -10,16 +10,18 @@ from deps.data_access_data_class import UserInfo
 from deps.analytic_data_access import (
     data_access_fetch_tk_count_by_user,
     data_access_fetch_user_full_match_info,
+    data_access_fetch_user_full_user_info,
     fetch_all_user_activities,
     fetch_user_info_by_user_id_list,
     get_active_user_info,
     insert_if_nonexistant_full_match_info,
+    insert_if_nonexistant_full_user_info,
     insert_user_activity,
     upsert_user_info,
 )
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.models import UserFullMatchStats
-from deps.functions_r6_tracker import parse_json_from_full_matches
+from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_user_full_stats_info
 from deps import analytic_data_access
 
 fake_date = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
@@ -44,6 +46,15 @@ def get_test_data():
     with open("./tests/tests_assets/player6_rank_history.json", "r", encoding="utf8") as file:
         data_6 = json.loads(file.read())
     return data_1, data_3, data_4, data_5, data_6
+
+
+def get_user_full_info_test_data():
+    """Load test data for user full info."""
+    with open("./tests/tests_assets/player_profile.json", "r", encoding="utf8") as file:
+        data_1 = json.loads(file.read())
+    with open("./tests/tests_assets/player_profile2.json", "r", encoding="utf8") as file:
+        data_2 = json.loads(file.read())
+    return data_1, data_2
 
 
 @pytest.fixture(autouse=True)
@@ -131,6 +142,136 @@ def test_get_only_user_active():
     assert len(users) == 2
     assert users[0].id == 1
     assert users[1].id == 2
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_insert_if_nonexistant_user_full_stats_info(mock_log):
+    """
+    Test the insertion of statistic into the database
+    """
+    data_1, data_2 = get_user_full_info_test_data()
+    mock_log.side_effect = None
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info2 = UserInfo(2, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+    )
+    upsert_user_info(
+        user_info2.id,
+        user_info2.display_name,
+        user_info2.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info2.time_zone,
+    )
+    user_full_1 = parse_json_user_full_stats_info(user_info.id, data_1)
+    user_full_2 = parse_json_user_full_stats_info(user_info2.id, data_2)
+
+    insert_if_nonexistant_full_user_info(user_info, user_full_1)
+    insert_if_nonexistant_full_user_info(user_info2, user_full_2)
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_insert_if_nonexistant_user_full_stats_info_then_fetch_back(mock_log):
+    """
+    Test the insertion of statistic into the database
+    """
+    data_1, _ = get_user_full_info_test_data()
+    mock_log.side_effect = None
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+    )
+
+    user_full_1 = parse_json_user_full_stats_info(user_info.id, data_1)
+
+    insert_if_nonexistant_full_user_info(user_info, user_full_1)
+    result = data_access_fetch_user_full_user_info(user_info.id)
+    assert result is not None
+    assert result.user_id == user_full_1.user_id
+    assert result.r6_tracker_user_uuid == user_full_1.r6_tracker_user_uuid
+    assert result.total_matches_played == user_full_1.total_matches_played
+    assert result.total_matches_won == user_full_1.total_matches_won
+    assert result.total_matches_lost == user_full_1.total_matches_lost
+    assert result.total_matches_abandoned == user_full_1.total_matches_abandoned
+    assert result.time_played_seconds == user_full_1.time_played_seconds
+    assert result.total_kills == user_full_1.total_kills
+    assert result.total_deaths == user_full_1.total_deaths
+    assert result.total_attacker_round_wins == user_full_1.total_attacker_round_wins
+    assert result.total_defender_round_wins == user_full_1.total_defender_round_wins
+    assert result.total_headshots == user_full_1.total_headshots
+    assert result.total_headshots_missed == user_full_1.total_headshots_missed
+    assert result.headshot_percentage == user_full_1.headshot_percentage
+    assert result.total_wall_bang == user_full_1.total_wall_bang
+    assert result.total_damage == user_full_1.total_damage
+    assert result.total_assists == user_full_1.total_assists
+    assert result.total_team_kills == user_full_1.total_team_kills
+    assert result.attacked_breacher_count == user_full_1.attacked_breacher_count
+    assert result.attacked_breacher_percentage == user_full_1.attacked_breacher_percentage
+    assert result.attacked_fragger_count == user_full_1.attacked_fragger_count
+    assert result.attacked_fragger_percentage == user_full_1.attacked_fragger_percentage
+    assert result.attacked_intel_count == user_full_1.attacked_intel_count
+    assert result.attacked_intel_percentage == user_full_1.attacked_intel_percentage
+    assert result.attacked_roam_count == user_full_1.attacked_roam_count
+    assert result.attacked_roam_percentage == user_full_1.attacked_roam_percentage
+    assert result.attacked_support_count == user_full_1.attacked_support_count
+    assert result.attacked_support_percentage == user_full_1.attacked_support_percentage
+    assert result.attacked_utility_count == user_full_1.attacked_utility_count
+    assert result.attacked_utility_percentage == user_full_1.attacked_utility_percentage
+    assert result.defender_debuffer_count == user_full_1.defender_debuffer_count
+    assert result.defender_debuffer_percentage == user_full_1.defender_debuffer_percentage
+    assert result.defender_entry_denier_count == user_full_1.defender_entry_denier_count
+    assert result.defender_entry_denier_percentage == user_full_1.defender_entry_denier_percentage
+    assert result.defender_intel_count == user_full_1.defender_intel_count
+    assert result.defender_intel_percentage == user_full_1.defender_intel_percentage
+    assert result.defender_support_count == user_full_1.defender_support_count
+    assert result.defender_support_percentage == user_full_1.defender_support_percentage
+    assert result.defender_trapper_count == user_full_1.defender_trapper_count
+    assert result.defender_trapper_percentage == user_full_1.defender_trapper_percentage
+    assert result.defender_utility_denier_count == user_full_1.defender_utility_denier_count
+    assert result.defender_utility_denier_percentage == user_full_1.defender_utility_denier_percentage
+    assert result.kd_radio == user_full_1.kd_radio
+    assert result.kill_per_match == user_full_1.kill_per_match
+    assert result.kill_per_minute == user_full_1.kill_per_minute
+    assert result.win_percentage == user_full_1.win_percentage
+    assert result.rank_match_played == user_full_1.rank_match_played
+    assert result.rank_match_won == user_full_1.rank_match_won
+    assert result.rank_match_lost == user_full_1.rank_match_lost
+    assert result.rank_match_abandoned == user_full_1.rank_match_abandoned
+    assert result.rank_kills_count == user_full_1.rank_kills_count
+    assert result.rank_deaths_count == user_full_1.rank_deaths_count
+    assert result.rank_kd_ratio == user_full_1.rank_kd_ratio
+    assert result.rank_kill_per_match == user_full_1.rank_kill_per_match
+    assert result.rank_win_percentage == user_full_1.rank_win_percentage
+    assert result.arcade_match_played == user_full_1.arcade_match_played
+    assert result.arcade_match_won == user_full_1.arcade_match_won
+    assert result.arcade_match_lost == user_full_1.arcade_match_lost
+    assert result.arcade_match_abandoned == user_full_1.arcade_match_abandoned
+    assert result.arcade_kills_count == user_full_1.arcade_kills_count
+    assert result.arcade_deaths_count == user_full_1.arcade_deaths_count
+    assert result.arcade_kd_ratio == user_full_1.arcade_kd_ratio
+    assert result.arcade_kill_per_match == user_full_1.arcade_kill_per_match
+    assert result.arcade_win_percentage == user_full_1.arcade_win_percentage
+    assert result.quickmatch_match_played == user_full_1.quickmatch_match_played
+    assert result.quickmatch_match_won == user_full_1.quickmatch_match_won
+    assert result.quickmatch_match_lost == user_full_1.quickmatch_match_lost
+    assert result.quickmatch_match_abandoned == user_full_1.quickmatch_match_abandoned
+    assert result.quickmatch_kills_count == user_full_1.quickmatch_kills_count
+    assert result.quickmatch_deaths_count == user_full_1.quickmatch_deaths_count
+    assert result.quickmatch_kd_ratio == user_full_1.quickmatch_kd_ratio
+    assert result.quickmatch_kill_per_match == user_full_1.quickmatch_kill_per_match
+    assert result.quickmatch_win_percentage == user_full_1.quickmatch_win_percentage
 
 
 @patch.object(analytic_data_access, analytic_data_access.print_log.__name__)

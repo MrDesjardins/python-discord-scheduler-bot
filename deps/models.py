@@ -365,7 +365,7 @@ class SiegeActivityAggregation:
         self.playing_standard = playing_standard
 
 
-class UserFullStatsInfo:
+class UserInformation:
     """
     Represent the information of a user
     Information coming from this URL:
@@ -526,7 +526,7 @@ class UserFullStatsInfo:
     @staticmethod
     def from_db_row(row):
         """Create an object from a database row"""
-        return UserFullStatsInfo(
+        return UserInformation(
             user_id=row[0],
             r6_tracker_user_uuid=row[1],
             total_matches_played=row[2],
@@ -609,3 +609,11 @@ class UserFullStatsInfo:
         return {
             key: (value.isoformat() if isinstance(value, datetime) else value) for key, value in self.__dict__.items()
         }
+
+
+@dataclasses.dataclass
+class UserWithUserInformation:
+    """Represent the user who request stats and their stats"""
+
+    user_request_stats: UserQueueForStats
+    full_stats: UserInformation

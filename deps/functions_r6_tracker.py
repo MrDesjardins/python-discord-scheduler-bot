@@ -8,62 +8,12 @@ from dateutil import parser
 import requests
 from bs4 import BeautifulSoup, Tag
 from deps.data_access_data_class import UserInfo
-from deps.models import UserFullMatchStats, UserFullStatsInfo, UserMatchInfoSessionAggregate
+from deps.models import UserFullMatchStats, UserInformation, UserMatchInfoSessionAggregate
 from deps.siege import siege_ranks
 from deps.log import print_error_log
 from deps.functions import get_url_user_profile_overview
 
 TRN_API_KEY = os.getenv("TRN_API_KEY")
-
-
-async def get_r6tracker_max_rank(ubisoft_user_name: str) -> str:
-    """Download the web page, and extract the max rank"""
-    rank = "Copper"
-    url = get_url_user_profile_overview(ubisoft_user_name)
-    # Download the web page
-    try:
-        page = requests.get(url, timeout=5)
-        page.raise_for_status()  # Check if the request was successful
-    except requests.exceptions.RequestException as e:
-        print_error_log(f"get_r6tracker_max_rank: Error downloading the page for {ubisoft_user_name}. Using URL {url}")
-        print_error_log(f"get_r6tracker_max_rank: {e}")
-        return rank
-
-    # Parse the page content
-    soup = BeautifulSoup(page.content, "html.parser")
-    element = soup.find(class_="season-peaks__seasons")
-    if element:
-        # Find the first <img> within this element
-        img_tag = element.find("img")
-
-        if isinstance(img_tag, Tag):
-            alt_name_image = img_tag.get("alt")
-            if isinstance(alt_name_image, str):
-                rank = alt_name_image.split(" ")[0].lower().capitalize()
-            else:
-                rank = ""
-    if rank in siege_ranks:
-        return rank
-    else:
-        print_error_log(f"get_r6tracker_max_rank: Rank {rank} not found in the list of ranks. Gave Copper instead.")
-        return "Copper"
-
-
-# curl ^"https://api.tracker.gg/api/v2/r6siege/standard/matches/uplay/noSleep_rb6?gamemode=pvp_ranked^" ^
-#   -H ^"accept: application/json, text/plain, */*^" ^
-#   -H ^"accept-language: en-US,en;q=0.9,fr-CA;q=0.8,fr;q=0.7^" ^
-#   -H ^"cookie: X-Mapping-Server=s13; __cflb=02DiuFQAkRrzD1P1mdkJhfdTc9AmTWwYk4f6Y22nmXCKN; __cf_bm=Oukhd0sMUTvpa7HmjSrMAv.1fEyrpXSD4ZJnBn4xV10-1731018364-1.0.1.1-X9q64JztZ3Df5.Tk7qA6rDTIi.OIzip8e8TKRnkbeOVhgC3JWkzDCTf49nOkuyia7TJr_VSIxxAmn5T9_n7Y4PByoK94AjTmpTwTz5fNWRk^" ^
-#   -H ^"if-modified-since: Thu, 07 Nov 2024 22:26:05 GMT^" ^
-#   -H ^"origin: https://r6.tracker.network^" ^
-#   -H ^"priority: u=1, i^" ^
-#   -H ^"referer: https://r6.tracker.network/^" ^
-#   -H ^"sec-ch-ua: ^\^"Chromium^\^";v=^\^"130^\^", ^\^"Google Chrome^\^";v=^\^"130^\^", ^\^"Not?A_Brand^\^";v=^\^"99^\^"^" ^
-#   -H ^"sec-ch-ua-mobile: ?0^" ^
-#   -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
-#   -H ^"sec-fetch-dest: empty^" ^
-#   -H ^"sec-fetch-mode: cors^" ^
-#   -H ^"sec-fetch-site: cross-site^" ^
-#   -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36^"
 
 
 def download_stub_file() -> Optional[str]:
@@ -243,7 +193,7 @@ def parse_json_max_rank(data_dict: dict) -> str:
         return "Copper"
 
 
-def parse_json_user_full_stats_info(user_id: int, json_content: dict) -> UserFullStatsInfo:
+def parse_json_user_full_stats_info(user_id: int, json_content: dict) -> UserInformation:
     """
     Parse the JSON content from the R6 Tracker API and create a UserInformation object
 
@@ -276,7 +226,7 @@ def parse_json_user_full_stats_info(user_id: int, json_content: dict) -> UserFul
 
     if not overview_segment:
         # If no overview segment found, create an empty UserInformation object
-        return UserFullStatsInfo(user_id=user_id, r6_tracker_user_uuid=r6_tracker_user_uuid)
+        return UserInformation(user_id=user_id, r6_tracker_user_uuid=r6_tracker_user_uuid)
 
     # Extract gamemode stats (ranked, arcade, quickmatch)
     ranked_segment = None
@@ -309,7 +259,7 @@ def parse_json_user_full_stats_info(user_id: int, json_content: dict) -> UserFul
         return value or default
 
     # Create UserInformation object
-    return UserFullStatsInfo(
+    return UserInformation(
         user_id=user_id,
         r6_tracker_user_uuid=r6_tracker_user_uuid,
         # Overview stats
@@ -393,7 +343,7 @@ def parse_json_user_full_stats_info(user_id: int, json_content: dict) -> UserFul
     )
 
 
-def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]]) -> UserFullStatsInfo:
+def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]]) -> UserInformation:
     """
     Parse the JSON content from the R6 Tracker API and create a UserInformation object
 
@@ -426,7 +376,7 @@ def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]])
 
     if not overview_segment:
         # If no overview segment found, create an empty UserInformation object
-        return UserFullStatsInfo(user_id=user_id, r6_tracker_user_uuid=r6_tracker_user_uuid)
+        return UserInformation(user_id=user_id, r6_tracker_user_uuid=r6_tracker_user_uuid)
 
     overview_stats = overview_segment.get("stats", {})
 
@@ -461,7 +411,7 @@ def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]])
         return value or default
 
     # Create UserInformation object
-    return UserFullStatsInfo(
+    return UserInformation(
         user_id=user_id,
         r6_tracker_user_uuid=r6_tracker_user_uuid,
         # Overview stats
