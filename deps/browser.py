@@ -91,7 +91,7 @@ async def download_full_user_information(users_queued: List[UserQueueForStats]) 
         with BrowserContextManager() as context:
             for user_queue in users_queued:
                 try:
-                    user_info: Union[UserInformation | None] = context.download_full_user_information(user_queue)
+                    user_info: Union[UserInformation, None] = context.download_full_user_information(user_queue)
                     if user_info is None:
                         print_error_log(
                             f"download_full_user_information: No user info found for {user_queue.user_info.display_name}"

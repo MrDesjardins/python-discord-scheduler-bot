@@ -170,7 +170,7 @@ async def auto_assign_user_to_daily_question(
     )
 
     # Get the list of user and their hour for the specific day of the week
-    list_users: Union[List[SimpleUserHour] | None] = await data_access_get_users_auto_schedule(
+    list_users: Union[List[SimpleUserHour], None] = await data_access_get_users_auto_schedule(
         guild_id, day_of_week_number
     )
 

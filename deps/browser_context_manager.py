@@ -211,7 +211,7 @@ class BrowserContextManager:
             print_error_log(f"download_max_rank: Rank {rank} not found in the list of ranks. Gave Copper instead.")
             return "Copper"
 
-    def download_full_user_information(self, user_queued: UserQueueForStats) -> Union[UserInformation | None]:
+    def download_full_user_information(self, user_queued: UserQueueForStats) -> Union[UserInformation, None]:
         """
         Download the user stats for the given Ubisoft username
         """
