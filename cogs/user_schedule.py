@@ -60,7 +60,7 @@ this new one will add on top of the previous schedule with the new hours for the
             return
         guild_id = guild.id
         day_str = day.value
-        list_users: Union[List[SimpleUserHour] | None] = await data_access_get_users_auto_schedule(guild_id, day_str)
+        list_users: Union[List[SimpleUserHour], None] = await data_access_get_users_auto_schedule(guild_id, day_str)
         if list_users is None:
             list_users = []
         my_list = list(filter(lambda x: x.simple_user.user_id != interaction.user.id, list_users))
@@ -79,7 +79,7 @@ this new one will add on top of the previous schedule with the new hours for the
             return
         guild_id = guild.id
         for day, day_display in enumerate(DAYS_OF_WEEK):
-            list_users: Union[List[SimpleUserHour] | None] = await data_access_get_users_auto_schedule(guild_id, day)
+            list_users: Union[List[SimpleUserHour], None] = await data_access_get_users_auto_schedule(guild_id, day)
             if list_users is not None:
                 for user_hour in list_users:
                     if user_hour.simple_user.user_id == interaction.user.id:

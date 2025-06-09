@@ -17,7 +17,7 @@ from deps.log import print_error_log
 
 async def run_in_executor(func, *args):
     """
-    Run in another thread the function
+    Run in another thread the function to avoid blocking the main event loop.
     """
     loop = asyncio.get_event_loop()
     with ThreadPoolExecutor() as pool:
