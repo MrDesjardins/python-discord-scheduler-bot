@@ -539,6 +539,9 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     A match might exist in the case we fetched more and the user already had some matches recorded.
     """
 
+    # Remove duplicate match id (some times rollback appears twice)
+    list_matches = list({match.match_uuid: match for match in list_matches}.values())
+
     match_user_pairs = [
         (
             match.match_uuid,
@@ -748,7 +751,7 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
                     },
                 )
                 print_log(
-                    f"insert_if_nonexistant_full_match_info: Inserted match {cursor.rowcount} for {user_info.display_name}"
+                    f"insert_if_nonexistant_full_match_info: Inserted match {cursor.rowcount} for {user_info.display_name}. Match id {match.match_uuid} and user id {user_info.id}"
                 )
         # End transaction
     except Exception as e:
