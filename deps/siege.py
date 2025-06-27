@@ -93,7 +93,7 @@ def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
     """
     for activity in member.activities:
         if isinstance(activity, discord.Activity):
-            if activity.name == "Rainbow Six Siege":
+            if activity.name == "Rainbow Six Siege" or activity.name == "Tom Clancy's Rainbow Six Siege X":
                 return activity
     return None
 
