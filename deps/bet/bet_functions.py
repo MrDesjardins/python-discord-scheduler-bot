@@ -349,6 +349,15 @@ async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
     if tournament.id is None:
         return ""
     wallets: List[BetUserTournament] = data_access_get_all_wallet_for_tournament(tournament_id=tournament.id)
+    open_bets: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(tournament.id)
+    # Get all wallet amount by member
+    for bet in open_bets:
+        # Find user wallet
+        wallet = next((w for w in wallets if w.user_id == bet.user_id), None)
+        amount_bet = bet.amount
+        if wallet:
+            wallet.amount += amount_bet
+
     wallets_sorted = sorted(wallets, key=lambda x: x.amount, reverse=True)
     msg = ""
     rank = 1

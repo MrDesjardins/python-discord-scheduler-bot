@@ -923,13 +923,15 @@ async def test_placing_bet_on_game_dynamically_change_bet_and_update(
 
 
 @patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
-async def test_generate_msg_bet_leaderboard_no_users(mock_get_all_wallet) -> None:
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+async def test_generate_msg_bet_leaderboard_no_users(mock_bet_user, mock_get_all_wallet) -> None:
     """
     Test the generate_msg_bet_leaderboard function
     """
     # Arrange
     mock_get_all_wallet.return_value = []
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    mock_bet_user.return_value = []
     # Act
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
@@ -937,13 +939,15 @@ async def test_generate_msg_bet_leaderboard_no_users(mock_get_all_wallet) -> Non
 
 
 @patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
-async def test_generate_msg_bet_leaderboard_tournament_no_id(mock_get_all_wallet) -> None:
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+async def test_generate_msg_bet_leaderboard_tournament_no_id(mock_bet_user, mock_get_all_wallet) -> None:
     """
     Test the generate_msg_bet_leaderboard function
     """
     # Arrange
     mock_get_all_wallet.return_value = []
     tournament = Tournament(None, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    mock_bet_user.return_value = []
     # Act
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
@@ -952,7 +956,8 @@ async def test_generate_msg_bet_leaderboard_tournament_no_id(mock_get_all_wallet
 
 @patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
-async def test_generate_msg_bet_leaderboard_users(mock_fetch_user, mock_get_all_wallet) -> None:
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+async def test_generate_msg_bet_leaderboard_users(mock_bet_user, mock_fetch_user, mock_get_all_wallet) -> None:
     """
     Test the generate_msg_bet_leaderboard function
     """
@@ -963,11 +968,37 @@ async def test_generate_msg_bet_leaderboard_users(mock_fetch_user, mock_get_all_
         BetUserTournament(3, 2, 300, 30.99),
     ]
     mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
+    mock_bet_user.return_value = []
     tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
     # Act
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
     # Assert
     assert msg == "1 - User 300 - $30.99\n2 - User 200 - $20.99\n3 - User 100 - $10.99"
+
+@patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
+@patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+async def test_generate_msg_bet_leaderboard_users_with_active_bet(mock_bet_user, mock_fetch_user, mock_get_all_wallet) -> None:
+    """
+    Test the generate_msg_bet_leaderboard function
+    """
+    # Arrange
+    mock_get_all_wallet.return_value = [
+        BetUserTournament(1, 2, 100, 10.99),
+        BetUserTournament(2, 2, 200, 20.99),
+        BetUserTournament(3, 2, 300, 30.99),
+    ]
+    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
+    mock_bet_user.return_value = [
+        BetUserGame(1, 1, 33, 100, 1000, 10, fake_date, 0.5, False),
+    ]
+    tournament = Tournament(1, 2, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0)
+    # Act
+    msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
+    # Assert
+    assert msg == "1 - User 100 - $1010.99\n2 - User 300 - $30.99\n3 - User 200 - $20.99"
+
+
 
 
 @patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
