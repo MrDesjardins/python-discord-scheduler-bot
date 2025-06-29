@@ -1,5 +1,6 @@
 """User interface for the bot"""
 
+import math
 import traceback
 from typing import List, Optional, Union
 import discord
@@ -113,9 +114,10 @@ class BetTournamentSelectorForMarket(View):
                     self.add_item(self.bet_game_ui)
                     # Update the interaction message with the new view
                     try:
+                        amount = math.floor(self.wallet.amount * 100) / 100
                         await interaction.followup.edit_message(
                             message_id=interaction.message.id,
-                            content=f"""Select one of the bets available in the market for this tournament. You have ${self.wallet.amount:.2f}""",
+                            content=f"""Select one of the bets available in the market for this tournament. You have ${amount:.2f}""",
                             view=self,
                         )
                     except discord.errors.NotFound:
@@ -212,8 +214,9 @@ class BetTournamentSelectorForMarket(View):
                 self.bet_user_selection_ui.callback = self.handle_user_ui
                 self.add_item(self.bet_user_selection_ui)
                 # Update the interaction message with the new view
+                amount = math.floor(self.wallet.amount * 100) / 100
                 await interaction.followup.send(
-                    content=f"Select one of two participants. You have ${self.wallet.amount:.2f}",
+                    content=f"Select one of two participants. You have ${amount:.2f}",
                     view=self,
                     ephemeral=True,
                 )

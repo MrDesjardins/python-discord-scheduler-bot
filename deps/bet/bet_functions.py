@@ -307,7 +307,7 @@ def place_bet_for_game(
     # 2 Get the wallet of the user
     wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_who_is_betting_id)
     if wallet.amount < amount:
-        raise ValueError("The user does not have enough money")
+        raise ValueError(f"The user does not have enough money. The bet amount is ${amount} but the user has only ${wallet.amount:.2f}")
 
     # 3 Calculate the probability when the bet is placed
     is_user_1 = user_id_bet_placed_on == single_game.user1_id

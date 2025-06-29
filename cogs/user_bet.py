@@ -2,6 +2,7 @@
 User bet commands
 """
 
+import math
 from typing import List
 import discord
 from discord.ext import commands
@@ -65,7 +66,8 @@ class UserBetFeatures(commands.Cog):
                 await interaction.response.send_message("Tournament not found for this guild.", ephemeral=True)
                 return
             wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_id)
-            await interaction.response.send_message(f"You have ${wallet.amount:.2f}", ephemeral=True)
+            amount = math.floor(wallet.amount * 100) / 100
+            await interaction.response.send_message(f"You have ${amount:.2f}", ephemeral=True)
         else:
             # Combined message with all tournaments
             msg = "You have many wallets (one per tournament). Here are the amounts:\n"
@@ -77,7 +79,8 @@ class UserBetFeatures(commands.Cog):
                     await interaction.response.send_message("Tournament not found for this guild.", ephemeral=True)
                     return
                 one_wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament.id, user_id)
-                msg += f"➡️ {tournament.name}: ${one_wallet.amount:.2f}\n"
+                amount = math.floor(one_wallet.amount * 100) / 100
+                msg += f"➡️ {tournament.name}: ${amount:.2f}\n"
             await interaction.response.send_message(msg, ephemeral=True)
 
     @app_commands.command(name=COMMAND_BET)
