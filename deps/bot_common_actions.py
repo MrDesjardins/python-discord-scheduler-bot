@@ -563,13 +563,15 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
         )
         return
 
+    # Commented because the dict_users might not have all users since the activity is optional in Discord. Better do the rule about the user count using the vc_channel.members (we sdo it below)
     # Check the number of users in the voice channel
-    user_count = len(dict_users)
-    if user_count == 0 or user_count >= 5:
-        # No user or too many users, nothing to do
-        print_log(
-            f"""send_automatic_lfg_message: User count {user_count} in guild id {guild_id} for voice channel {voice_channel_id}. Skipping."""
-        )
+    # user_count = len(dict_users)
+    # if user_count == 0 or user_count >= 5:
+    #     # No user or too many users, nothing to do
+    #     # print_log(
+    #     #     f"""send_automatic_lfg_message: User count {user_count} in guild id {guild_id} for voice channel {voice_channel_id}. Skipping."""
+    #     # )
+    #     return
 
     current_time = datetime.now(timezone.utc)
     last_message_time: Optional[datetime] = await data_access_get_last_bot_message_in_main_text_channel(
@@ -589,6 +591,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
             f"""send_automatic_lfg_message: Voice channel {voice_channel_id} not found for guild id {guild_id} . Skipping."""
         )
         return
+    # Redundant check since we checked with the data_access_get_voice_user_list but we want to be sure
     user_count_vc = len(vc_channel.members)
     if user_count_vc >= 5:
         # print_log(
@@ -600,7 +603,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
     try:
         aggregation = get_aggregation_siege_activity(dict_users)
         print_log(
-            f"""send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started {aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, done_warming_up {aggregation.done_warming_up_waiting_in_menu}, done_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, playing_standard {aggregation.playing_standard}"""
+            f"""send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started {aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, done_warming_up {aggregation.done_warming_up_waiting_in_menu}, done_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, playing_standard {aggregation.playing_standard} for voice channel {voice_channel_id}"""
         )
         ready_to_play = aggregation.done_match_waiting_in_menu + aggregation.done_warming_up_waiting_in_menu
         already_playing = aggregation.playing_rank + aggregation.playing_standard

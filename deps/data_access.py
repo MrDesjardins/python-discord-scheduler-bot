@@ -341,12 +341,12 @@ def data_access_set_main_text_channel_id(guild_id: int, channel_id: int) -> None
 
 
 def data_access_set_voice_user_list(guild_id: int, channel_id: int, user_map: dict[int, ActivityTransition]) -> None:
-    """Set the channel that the bot will send text related to Siege"""
+    """Set the list of user for a voice channel and their activity"""
     set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
 
 
 async def data_access_get_voice_user_list(guild_id: int, channel_id: int) -> dict[int, ActivityTransition]:
-    """Set the channel that the bot will send text related to Siege"""
+    """Get the list of user for a voice channel and their activity"""
     result = await get_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}")
     if result is None:
         return {}
