@@ -73,3 +73,11 @@ mock_user8 = UserInfo(
     r6_tracker_active_id=None,
     time_zone="US/Pacific",
 )
+mock_user9 = UserInfo(
+    id=8,
+    display_name="user_9",
+    ubisoft_username_active="user_9",
+    ubisoft_username_max="user_9",
+    r6_tracker_active_id=None,
+    time_zone="US/Pacific",
+)

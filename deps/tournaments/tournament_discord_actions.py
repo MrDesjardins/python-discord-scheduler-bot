@@ -20,6 +20,7 @@ from deps.tournaments.tournament_data_access import (
     fetch_tournament_games_by_tournament_id,
     fetch_tournament_open_registration,
     fetch_tournament_start_today,
+    fetch_tournament_team_members_by_leader,
 )
 from deps.tournaments.tournament_visualizer import plot_tournament_bracket
 from deps.values import (
@@ -141,9 +142,28 @@ async def send_tournament_starting_to_a_guild(guild: discord.Guild) -> None:
         msg += f"\nUse the command `/{COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT}` to report your lost (winner has nothing to do)."
         for tournament in tournaments:
             try:
-                await start_tournament(tournament)
+                people_in, people_out = await start_tournament(tournament)
                 msg += f"\n{tournament.name}"
-
+                for person in people_in:
+                    if person.id is None:
+                        print_error_log("send_tournament_starting_to_a_guild: Person id is None. Skipping.")
+                        continue
+                    user_data = await data_access_get_member(guild_id, person.id)
+                    if user_data is None:
+                        print_error_log(f"send_tournament_starting_to_a_guild: User {person.id} not found. Skipping.")
+                        continue
+                    msg += f"\n➡️ {user_data.mention}"
+                for person in people_out:
+                    if person.id is None:
+                        print_error_log("send_tournament_starting_to_a_guild: Person id is None. Skipping.")
+                        continue
+                    user_data = await data_access_get_member(guild_id, person.id)
+                    if user_data is None:
+                        print_error_log(f"send_tournament_starting_to_a_guild: User {person.id} not found. Skipping.")
+                        continue
+                    msg += f"\n❌ {user_data.mention}"
+                if len(people_out) > 0:
+                    msg += f"\n❗️ {len(people_out)} people were removed from the tournament because the team size was not met."
             except Exception as e:
                 print_error_log(f"send_tournament_starting_to_a_guild: Error starting tournament {tournament.id}: {e}")
 
@@ -159,6 +179,24 @@ async def send_tournament_starting_to_a_guild(guild: discord.Guild) -> None:
                 )
                 continue
             await channel.send(content=f"Bracket for {tournament.name}", file=file)
+
+            # Send the leader and partner only if the tournament is a team tournament (skip if 1v1)
+            if tournament.team_size > 1:
+                msg = f"\n\n👑 Leaders and their teams for {tournament.name}:"
+                leaders_dic = fetch_tournament_team_members_by_leader(tournament.id)
+                for leader_id, teammate_ids in leaders_dic.items():
+                    leader = await data_access_get_member(guild_id, leader_id)
+                    if leader is None:
+                        print_error_log(f"send_tournament_starting_to_a_guild: Leader {leader_id} not found. Skipping.")
+                        continue
+                    msg += f"\n👥 Team of {leader.mention}:"
+                    for teammate_id in teammate_ids:
+                        member_data = await data_access_get_member(guild_id, teammate_id)
+                        if member_data is None:
+                            print_error_log(f"send_tournament_starting_to_a_guild: Member {teammate_id} not found. Skipping.")
+                            continue
+                        msg += f"\n➡️ {member_data.mention}"
+                await channel.send(content=msg)
     else:
         print_log(f"send_tournament_starting_to_a_guild: No open registration for guild {guild_id}")
 

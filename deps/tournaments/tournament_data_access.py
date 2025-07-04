@@ -23,7 +23,8 @@ SELECT_TOURNAMENT = """
     tournament.max_players,
     tournament.maps,
     tournament.has_started,
-    tournament.has_finished
+    tournament.has_finished,
+    tournament.team_size
     """
 
 
@@ -36,6 +37,7 @@ def data_access_insert_tournament(
     best_of: int,
     max_users: int,
     maps: str,
+    team_size: int = 1,
 ) -> int:
     """
     Insert a tournament and its associated games in a binary bracket system.
@@ -56,10 +58,10 @@ def data_access_insert_tournament(
     cursor.execute(
         """
         INSERT INTO tournament (
-            guild_id, name, registration_date, start_date, end_date, best_of, max_players, maps
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            guild_id, name, registration_date, start_date, end_date, best_of, max_players, maps, team_size
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
         """,
-        (guild_id, name, registration_date_start, start_date, end_date, best_of, max_users, maps),
+        (guild_id, name, registration_date_start, start_date, end_date, best_of, max_users, maps, team_size),
     )
     tournament_id = cursor.lastrowid
 
@@ -134,6 +136,7 @@ def fetch_tournament_start_today(guild_id: int) -> List[Tournament]:
         FROM tournament
         WHERE tournament.guild_id = :guild_id
         AND date(tournament.start_date) == date(:current_time);
+        and has_started = 0;
         """
     result = (
         database_manager.get_cursor()
@@ -463,3 +466,41 @@ def register_user_for_tournament(tournament_id: int, user_id: int, registration_
         {"tournament_id": tournament_id, "user_id": user_id, "registration_date": registration_date},
     )
     database_manager.get_conn().commit()
+
+
+def register_user_teammate_to_leader(tournament_id: int, leader_user_id: int, teammate_user_id: int) -> None:
+    """
+    Register a teammate for a leader in a tournament.
+    """
+    cursor = database_manager.get_cursor()
+    cursor.execute(
+        """
+        INSERT INTO tournament_team_members (tournament_id, user_leader_id, user_id)
+        VALUES (:tournament_id, :user_leader_id, :user_id);
+        """,
+        {"tournament_id": tournament_id, "user_leader_id": leader_user_id, "user_id": teammate_user_id},
+    )
+    database_manager.get_conn().commit()
+
+def fetch_tournament_team_members_by_leader(tournament_id:int) -> dict[int, List[int]]:
+    """
+    Fetch all team members for a tournament by leader.
+    Returns a dictionary where the key is the leader's user ID and the value is a list of team member user IDs.
+    """
+    cursor = database_manager.get_cursor()
+    cursor.execute(
+        """
+        SELECT user_leader_id, user_id
+        FROM tournament_team_members
+        WHERE tournament_id = :tournament_id;
+        """,
+        {"tournament_id": tournament_id},
+    )
+
+    team_members: dict[int, List[int]] = {}
+    for leader_id, member_id in cursor.fetchall():
+        if leader_id not in team_members:
+            team_members[leader_id] = []
+        team_members[leader_id].append(member_id)
+
+    return team_members

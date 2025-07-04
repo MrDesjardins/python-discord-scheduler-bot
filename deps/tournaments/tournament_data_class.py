@@ -22,6 +22,7 @@ class Tournament:
     has_started: bool
     has_finished: bool
     registered_user_count: int = 0  # Default value
+    team_size: int = 1
 
     @staticmethod
     def from_db_row(row):
@@ -38,7 +39,8 @@ class Tournament:
             maps=row[8],
             has_started=bool(row[9]),  # Convert integer to boolean
             has_finished=bool(row[10]),  # Convert integer to boolean
-            registered_user_count=row[11],
+            team_size=row[11],
+            registered_user_count=row[12], # Always last
         )
 
 

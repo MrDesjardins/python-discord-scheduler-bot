@@ -20,7 +20,8 @@ def test_tournament_from_db_row_all_fields() -> None:
             "Oregon,Clubhouse",
             1,
             0,
-            8,
+            1,
+            8
         )
     )
     assert tournament.id == 1
@@ -34,7 +35,8 @@ def test_tournament_from_db_row_all_fields() -> None:
     assert tournament.maps == "Oregon,Clubhouse"
     assert tournament.has_started is True
     assert tournament.has_finished is False
-    assert tournament.registered_user_count == 8
+    assert tournament.registered_user_count == 8 # Always last
+    assert tournament.team_size == 1
 
 
 def test_tournament_game_from_db_row_all_fields() -> None:
@@ -51,6 +53,7 @@ def test_tournament_game_from_db_row_all_fields() -> None:
             datetime(2021, 1, 2, 12, 0, 0, 0, tzinfo=timezone.utc).isoformat(),
             7000,
             70001,
+            1
         )
     )
     assert game.id == 1

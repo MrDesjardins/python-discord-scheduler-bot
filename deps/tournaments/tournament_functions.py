@@ -17,6 +17,7 @@ from deps.tournaments.tournament_data_access import (
     fetch_tournament_games_by_tournament_id,
     get_people_registered_for_tournament,
     register_user_for_tournament,
+    register_user_teammate_to_leader,
     save_tournament,
     save_tournament_games,
 )
@@ -74,18 +75,28 @@ def register_for_tournament(tournament_id: int, user_id: int) -> Reason:
         return reason
 
 
-async def start_tournament(tournament: Tournament) -> None:
+async def start_tournament(tournament: Tournament) -> tuple[List[UserInfo], List[UserInfo]]:
     """
     Start a specific tournament
     Create the bracket
     """
     if tournament.id is None:
-        return
+        return ([], [])
     # Get list of people ID who registered
     people: List[UserInfo] = get_people_registered_for_tournament(tournament.id)
 
+    # Get the number of team. If solo (1v1), then the number of team is the number of people.
+    team_count = len(people) // tournament.team_size  # Floor
+
+    # Ensure we have enough people to fill two teams
+    if team_count < 2:
+        raise ValueError("Not enough players for a tournament. At least 2 teams are required or two people for 1v1.")
+
+    # Reduce the list of people with few users that won't be part of the tournament
+    people_in, people_out = find_people_in_and_out(people, tournament.team_size)
+
     # Resize to the closest power of 2
-    tournament.max_players = resize_tournament(tournament.max_players, len(people))
+    tournament.max_players = resize_tournament(tournament.max_players, team_count)
 
     # Create the games (all brackets)
     data_access_create_bracket(tournament.id, tournament.max_players)
@@ -94,10 +105,16 @@ async def start_tournament(tournament: Tournament) -> None:
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
 
     # Assign people to tournament games
-    node_to_save: List[TournamentGame] = assign_people_to_games(tournament, tournament_games, people)
+    if tournament.team_size == 1:
+        leaders = people_in
+        teammates = []
+    else:
+        # Randomly select team_count people to lead the team
+        leaders = random.sample(people_in, team_count)
+        # Others are teammates that will be assigned later
+        teammates = [p for p in people_in if p not in leaders]
 
-    # Save the games
-    # save_tournament_games(node_to_save)
+    node_to_save: List[TournamentGame] = assign_people_to_games(tournament, tournament_games, leaders)
 
     # Auto assign user as a winner if there is no possible opponent in the other side of the bracket
     node_to_save2: List[TournamentGame] = auto_assign_winner(tournament_games)
@@ -105,12 +122,23 @@ async def start_tournament(tournament: Tournament) -> None:
     # Save the nodes that was determined as auto in
     save_tournament_games(node_to_save + node_to_save2)
 
+    # Save teammates to the first game of the tournament
+    if len(teammates) > 0:
+        for leader in leaders:
+            for _teammate_i in range(0, tournament.team_size - 1):  # -1 because of the leader
+                # Select a random teammate in the teammates list and remove it from the list
+                teammate = random.choice(teammates)
+                teammates.remove(teammate)
+                register_user_teammate_to_leader(tournament.id, leader.id, teammate.id)
+
     # Tournament status
     tournament.has_started = True
     save_tournament(tournament)
 
     # Generate bet_game
     await system_generate_game_odd(tournament.id)
+
+    return (people_in, people_out)
 
 
 def has_node_without_user(dict_nodes: dict[int, TournamentGame], node: TournamentGame) -> bool:
@@ -235,6 +263,23 @@ def resize_tournament(tournament_max_player: int, number_of_people: int) -> int:
 
     # If the closest power of 2 is greater than the max_players, return the max_players
     return next_power_of_two(number_of_people)
+
+
+def find_people_in_and_out(list_people: List[UserInfo], team_size: int) -> tuple[List[UserInfo], List[UserInfo]]:
+    """
+    Find the people in and out of the tournament based on the team size.
+
+    Args:
+        list_people (List[UserInfo]): The list of people registered for the tournament.
+        team_size (int): The size of the team.
+
+    Returns:
+        tuple[List[UserInfo], List[UserInfo]]: A tuple containing two lists:
+            - The first list contains the people who are in the tournament.
+            - The second list contains the people who are out of the tournament.
+    """
+    team_count = len(list_people) // team_size  # Floor division
+    return list_people[: team_count * team_size], list_people[team_count * team_size :]
 
 
 def build_tournament_tree(tournament: List[TournamentGame]) -> Optional[TournamentNode]:

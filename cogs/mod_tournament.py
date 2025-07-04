@@ -92,6 +92,7 @@ class ModTournament(commands.Cog):
         best_of: BestOf = BestOf.THREE,
         max_users: TournamentSize = TournamentSize.SIXTEEN,
         maps: str = TOURNAMENT_MAPS,
+        team_size: int = 1,
     ):
         """Create a tournament"""
         await interaction.response.defer(ephemeral=True)
@@ -114,6 +115,12 @@ class ModTournament(commands.Cog):
         best_of_number = best_of.value
         max_users_number = max_users.value
         clean_maps = clean_maps_input(maps)
+        if team_size < 1 or team_size > 2:
+            await interaction.followup.send(
+                "Team size must be 1 or 2 players.",
+                ephemeral=True,
+            )
+            return
         data_access_insert_tournament(
             guild_id,
             name,
@@ -123,6 +130,7 @@ class ModTournament(commands.Cog):
             best_of_number,
             max_users_number,
             clean_maps,
+            team_size,
         )
         await interaction.followup.send(f"Created tournament {name}", ephemeral=True)
 

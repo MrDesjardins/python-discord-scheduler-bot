@@ -8,14 +8,18 @@ from typing import Optional
 class UserInfo:
     """Match an user id with a display name. SQL table user_info"""
 
+    """ Discord user id """
     id: int
+    """ Discord display name """
     display_name: str
+    """ Ubisoft main account """
     ubisoft_username_max: Optional[str]
+    """ Ubisoft active account (could be the same as the main)"""
     ubisoft_username_active: Optional[str]
+    """  R6Tracker active account (could be the same as the main)"""
     r6_tracker_active_id: Optional[str]  # UUID
     """ List of time zones: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones """
     time_zone: str
-
 
 @dataclass
 class UserActivity:

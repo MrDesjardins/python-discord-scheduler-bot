@@ -7,6 +7,8 @@ import copy
 from typing import List
 from unittest.mock import patch
 from datetime import datetime, timezone
+
+import pytest
 from deps.bet import bet_functions
 from deps.tournaments.tournament_functions import (
     assign_people_to_games,
@@ -46,7 +48,7 @@ t4 = datetime(2024, 11, 26, 12, 30, 0, tzinfo=timezone.utc)
 t5 = datetime(2024, 11, 27, 12, 30, 0, tzinfo=timezone.utc)
 t6 = datetime(2024, 11, 28, 12, 30, 0, tzinfo=timezone.utc)
 
-fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3", False, False, 0)
+fake_tournament = Tournament(1, 1, "Test", t2, t4, t6, 3, 4, "Map 1,Map 2,Map 3", False, False, 0, 1)
 
 
 def test_build_tournament_tree_without_game() -> None:
@@ -332,6 +334,33 @@ def test_assign_people_to_games_when_full_participant(mock_shuffle) -> None:
     assert result[3].map is not None
     # Ensure random.shuffle was called once
     mock_shuffle.assert_called_once_with(people)
+
+
+def test_find_people_in_and_out_team_size_1() -> None:
+    """Test to find people in and out when team size is 1"""
+    people = [mock_user1, mock_user2, mock_user3, mock_user4]
+    team_size = 1
+    people_in, people_out = tournament_functions.find_people_in_and_out(people, team_size)
+    assert len(people_in) == 4
+    assert len(people_out) == 0
+
+
+def test_find_people_in_and_out_team_size_2_even_number() -> None:
+    """Test to find people in and out when team size is 2"""
+    people = [mock_user1, mock_user2, mock_user3, mock_user4, mock_user5, mock_user6]
+    team_size = 2
+    people_in, people_out = tournament_functions.find_people_in_and_out(people, team_size)
+    assert len(people_in) == 6
+    assert len(people_out) == 0
+
+
+def test_find_people_in_and_out_team_size_2_odd_number() -> None:
+    """Test to find people in and out when team size is 2 and odd number of participants"""
+    people = [mock_user1, mock_user2, mock_user3, mock_user4, mock_user5]
+    team_size = 2
+    people_in, people_out = tournament_functions.find_people_in_and_out(people, team_size)
+    assert len(people_in) == 4  # Only 4 can be in the tournament
+    assert len(people_out) == 1  # One person is left out
 
 
 def test_resize_tournament_already_full_no_resize() -> None:
@@ -742,7 +771,9 @@ def test_clean_map_many_with_spaces_and_upper_case() -> None:
 @patch.object(tournament_functions, tournament_data_access.save_tournament_games.__name__)
 @patch.object(tournament_functions, tournament_data_access.save_tournament.__name__)
 @patch.object(tournament_functions, bet_functions.system_generate_game_odd.__name__)
+@patch.object(tournament_functions, tournament_data_access.register_user_teammate_to_leader.__name__)
 async def test_start_tournament_success(
+    mock_register_user_teammate_to_leader,
     mock_system_generate_game_odd,
     mock_save_tournament,
     mock_save_tournament_games,
@@ -791,6 +822,7 @@ async def test_start_tournament_success(
     mock_save_tournament_games.assert_called_once()
     mock_save_tournament.assert_called_once()
     mock_system_generate_game_odd.assert_called_once()
+    mock_register_user_teammate_to_leader.assert_not_called()
 
 
 @patch("deps.tournaments.tournament_functions.datetime")
@@ -803,7 +835,137 @@ async def test_start_tournament_success(
 @patch.object(tournament_functions, tournament_data_access.save_tournament_games.__name__)
 @patch.object(tournament_functions, tournament_data_access.save_tournament.__name__)
 @patch.object(tournament_functions, bet_functions.system_generate_game_odd.__name__)
+@patch.object(tournament_functions, tournament_data_access.register_user_teammate_to_leader.__name__)
+async def test_start_tournament_success_team_odd_participant(
+    mock_register_user_teammate_to_leader,
+    mock_system_generate_game_odd,
+    mock_save_tournament,
+    mock_save_tournament_games,
+    mock_auto_assign_winner,
+    mock_assign_people_to_games,
+    mock_fetch_games,
+    mock_create_bracket,
+    mock_resize,
+    mock_get_people_registered_for_tournament,
+    mock_datetime,
+) -> None:
+    """
+    Test the start of a tournament when all the conditions are met
+    """
+    # Arrange
+    tournament = fake_tournament
+    tournament.team_size = 2
+    mock_datetime.now.return_value = t3
+    mock_get_people_registered_for_tournament.return_value = [
+        mock_user1,
+        mock_user2,
+        mock_user3,
+        mock_user4,
+        mock_user5,
+    ]
+    mock_resize.return_value = 4
+    mock_fetch_games.return_value = [
+        TournamentGame(1, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(2, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(3, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(4, 1, None, None, None, None, None, None, None, None),
+        TournamentGame(5, 1, None, None, None, None, None, None, 1, 2),
+        TournamentGame(6, 1, None, None, None, None, None, None, 3, 4),
+        TournamentGame(7, 1, None, None, None, None, None, None, 5, 6),
+    ]
+    mock_assign_people_to_games.return_value = [
+        TournamentGame(1, 1, None, None, None, None, None, None, 1, 2),
+        TournamentGame(2, 1, None, None, None, None, None, None, 3, 4),
+        TournamentGame(3, 1, None, None, None, None, None, None, 5, 6),
+    ]
+    mock_auto_assign_winner.return_value = []
+
+    # Act
+    people_in, people_out = await start_tournament(tournament)
+
+    # Assert
+    mock_get_people_registered_for_tournament.assert_called_once_with(tournament.id)
+    mock_resize.assert_called_once_with(4, 2) # 2 because we have team size of 2 (5/2 = 2.5, rounded to 4)
+    mock_create_bracket.assert_called_once_with(tournament.id, 4)
+    mock_fetch_games.assert_called_once_with(tournament.id)
+    mock_assign_people_to_games.assert_called_once()
+    mock_auto_assign_winner.assert_called_once()
+    mock_save_tournament_games.assert_called_once()
+    mock_save_tournament.assert_called_once()
+    mock_system_generate_game_odd.assert_called_once()
+    assert mock_register_user_teammate_to_leader.call_count == 2
+    assert len(people_in) == 4
+    assert len(people_out) == 1
+    assert people_out[0].id == mock_user5.id
+
+
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_data_access.get_people_registered_for_tournament.__name__)
+@patch.object(tournament_functions, tournament_functions.resize_tournament.__name__)
+@patch.object(tournament_functions, tournament_data_access.data_access_create_bracket.__name__)
+@patch.object(tournament_functions, tournament_data_access.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(tournament_functions, tournament_functions.assign_people_to_games.__name__)
+@patch.object(tournament_functions, tournament_functions.auto_assign_winner.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament_games.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament.__name__)
+@patch.object(tournament_functions, bet_functions.system_generate_game_odd.__name__)
+@patch.object(tournament_functions, tournament_data_access.register_user_teammate_to_leader.__name__)
+async def test_start_tournament_fail_team_not_enough_participant(
+    mock_register_user_teammate_to_leader,
+    mock_system_generate_game_odd,
+    mock_save_tournament,
+    mock_save_tournament_games,
+    mock_auto_assign_winner,
+    mock_assign_people_to_games,
+    mock_fetch_games,
+    mock_create_bracket,
+    mock_resize,
+    mock_get_people_registered_for_tournament,
+    mock_datetime,
+) -> None:
+    """
+    Test the start of a tournament when there are 3 people but team are of size 2 (thus minimum of 4 people)
+    """
+    # Arrange
+    tournament = fake_tournament
+    tournament.team_size = 2
+    mock_datetime.now.return_value = t3
+    mock_get_people_registered_for_tournament.return_value = [
+        mock_user1,
+        mock_user2,
+        mock_user3
+    ]
+
+    # Act
+    with pytest.raises(ValueError, match="Not enough players for a tournament. At least 2 teams are required or two people for 1v1."):
+        await start_tournament(tournament)
+
+    # Assert
+    mock_get_people_registered_for_tournament.assert_called_once_with(tournament.id)
+    mock_resize.assert_not_called()
+    mock_create_bracket.assert_not_called()
+    mock_fetch_games.assert_not_called()
+    mock_assign_people_to_games.assert_not_called()
+    mock_auto_assign_winner.assert_not_called()
+    mock_save_tournament_games.assert_not_called()
+    mock_save_tournament.assert_not_called()
+    mock_system_generate_game_odd.assert_not_called()
+    mock_register_user_teammate_to_leader.not_called()
+
+
+@patch("deps.tournaments.tournament_functions.datetime")
+@patch.object(tournament_functions, tournament_data_access.get_people_registered_for_tournament.__name__)
+@patch.object(tournament_functions, tournament_functions.resize_tournament.__name__)
+@patch.object(tournament_functions, tournament_data_access.data_access_create_bracket.__name__)
+@patch.object(tournament_functions, tournament_data_access.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(tournament_functions, tournament_functions.assign_people_to_games.__name__)
+@patch.object(tournament_functions, tournament_functions.auto_assign_winner.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament_games.__name__)
+@patch.object(tournament_functions, tournament_data_access.save_tournament.__name__)
+@patch.object(tournament_functions, bet_functions.system_generate_game_odd.__name__)
+@patch.object(tournament_functions, tournament_data_access.register_user_teammate_to_leader.__name__)
 async def test_start_tournament_not_yet_created(
+    mock_register_user_teammate_to_leader,
     mock_system_generate_game_odd,
     mock_save_tournament,
     mock_save_tournament_games,
@@ -841,6 +1003,7 @@ async def test_start_tournament_not_yet_created(
     mock_save_tournament_games.assert_not_called()
     mock_save_tournament.assert_not_called()
     mock_system_generate_game_odd.assert_not_called()
+    mock_register_user_teammate_to_leader.not_called()
 
 
 async def test_next_power_of_two() -> None:

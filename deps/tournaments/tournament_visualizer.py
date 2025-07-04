@@ -1,4 +1,4 @@
-""" Generate an image of a tournament bracket """
+"""Generate an image of a tournament bracket"""
 
 import io
 import os
@@ -9,6 +9,7 @@ from deps.tournaments.tournament_models import TournamentNode
 from deps.tournaments.tournament_data_class import Tournament
 from deps.values import COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT
 from deps.tournaments.tournament_functions import get_node_by_levels
+from deps.tournaments.tournament_data_access import fetch_tournament_team_members_by_leader
 
 font_path = os.path.abspath("./fonts/Minecraft.ttf")
 font1 = ImageFont.truetype(font_path, 16)
@@ -54,13 +55,16 @@ def plot_tournament_bracket(
     """
     image_header_space = 60
     image_margin = 25
-    node_width = 270
-    node_height = 60
+    node_width = 300
+    node_height = 70
     node_margin_vertical = 25
     node_margin_horizontal = 35
     node_padding = 10
 
     users_map = fetch_user_info()
+    if tournament.id is None:
+        raise ValueError("Tournament ID is None. Cannot fetch team members.")
+    leader_partners: dict[int, list[int]] = fetch_tournament_team_members_by_leader(tournament.id)
     positions: dict[int, tuple[int, int]] = {}
     labels = {}
     node_lookup = {}
@@ -97,21 +101,27 @@ def plot_tournament_bracket(
             if node.user1_id is None:
                 user1_name = "?"
             else:
-                user1_name = (
-                    get_name(node.user1_id, users_map)
-                    if node.user1_id != node.user_winner_id
-                    else f"*{ get_name(node.user1_id, users_map)}*"
-                )
+                user1_name = get_name(node.user1_id, users_map)
+                if tournament.team_size > 1:
+                    if node.user1_id in leader_partners:
+                        teammates = leader_partners[node.user1_id]
+                        for teammate in teammates:
+                            user1_name += f" & {get_name(teammate, users_map)}"
+
             if node.user2_id is None:
                 user2_name = "?"
             else:
-                user2_name = (
-                    get_name(node.user2_id, users_map)
-                    if node.user2_id != node.user_winner_id
-                    else f"*{ get_name(node.user2_id, users_map)}*"
-                )
+                user2_name = get_name(node.user2_id, users_map)
+                if tournament.team_size > 1:
+                    if node.user2_id in leader_partners:
+                        teammates = leader_partners[node.user2_id]
+                        for teammate in teammates:
+                            user2_name += f" & {get_name(teammate, users_map)}"
 
-            label_names = f"{user1_name} vs {user2_name}"
+            skip_user_1 = node.user1_id is None
+            skip_user_2 = node.user2_id is None
+            label_names_team_1 = user1_name + " (win)" if node.user1_id == node.user_winner_id and not skip_user_1 else user1_name
+            label_names_team_2 = user2_name + " (win)" if node.user2_id == node.user_winner_id and not skip_user_2 else user2_name
             label_map = f"{node.map} - {node.score if node.score is not None else '0-0'}"
 
             # Add node to the graph
@@ -120,14 +130,22 @@ def plot_tournament_bracket(
             # Draw the current node with label
             draw.text(
                 (x_pos + node_padding, y_pos + node_padding),
-                label_names,
+                label_names_team_1,
                 fill="black",
                 anchor="la",
                 align="left",
                 font=font1,
             )
             draw.text(
-                (x_pos + node_padding, y_pos + node_padding + 20),
+                (x_pos + node_padding, y_pos + node_padding * 3),
+                label_names_team_2,
+                fill="black",
+                anchor="la",
+                align="left",
+                font=font1,
+            )
+            draw.text(
+                (x_pos + node_padding, y_pos + node_padding * 5),
                 label_map,
                 fill="black",
                 anchor="la",

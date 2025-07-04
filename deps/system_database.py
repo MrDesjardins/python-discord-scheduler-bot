@@ -55,6 +55,7 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS user_activity")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_info")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_weights")
+        self.get_cursor().execute("DROP TABLE IF EXISTS tournament_team_members")
         self.get_cursor().execute("DROP TABLE IF EXISTS tournament")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_tournament")
         self.get_cursor().execute("DROP TABLE IF EXISTS tournament_game")
@@ -138,7 +139,8 @@ class DatabaseManager:
             max_players INTEGER NOT NULL,
             maps TEXT NOT NULL,
             has_started INTEGER DEFAULT 0,
-            has_finished INTEGER DEFAULT 0
+            has_finished INTEGER DEFAULT 0,
+            team_size INTEGER NOT NULL DEFAULT 1
         );
         """
         )
@@ -234,6 +236,19 @@ class DatabaseManager:
             assists_per_round INTEGER NOT NULL,
             has_win BOOLEAN NOT NULL,
             FOREIGN KEY(user_id) REFERENCES user_info(id)
+        );
+        """
+        )
+        self.get_cursor().execute(
+            """
+        CREATE TABLE IF NOT EXISTS tournament_team_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            user_leader_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            FOREIGN KEY(user_leader_id) REFERENCES user_info(id),
+            FOREIGN KEY(user_id) REFERENCES user_info(id),
+            FOREIGN KEY(tournament_id) REFERENCES tournament(id)
         );
         """
         )

@@ -26,7 +26,17 @@ from deps.tournaments.tournament_functions import (
 )
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.tournaments.tournament_visualizer import plot_tournament_bracket
-from tests.mock_model import mock_user1, mock_user2, mock_user3, mock_user4, mock_user5, mock_user6
+from tests.mock_model import (
+    mock_user1,
+    mock_user2,
+    mock_user3,
+    mock_user4,
+    mock_user5,
+    mock_user6,
+    mock_user7,
+    mock_user8,
+    mock_user9,
+)
 
 CHANNEL1_ID = 100
 CHANNEL2_ID = 200
@@ -41,6 +51,9 @@ USER3_ID = 3
 USER4_ID = 4
 USER5_ID = 5
 USER6_ID = 6
+USER7_ID = 7
+USER8_ID = 8
+USER9_ID = 9
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +86,7 @@ async def test_full_registration_tournament() -> None:
         5,
         4,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
@@ -133,6 +147,7 @@ async def test_partial_one_registration_tournament() -> None:
         5,
         4,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
@@ -190,6 +205,7 @@ async def test_very_small_participation_reduce_tournament_size() -> None:
         5,
         16,  # Very large, 16 places but only 4 registrations
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
         mock_tournament_functions_datetime.now.return_value = after_register_date_start
@@ -248,6 +264,7 @@ async def test_partial_registration_tournament_report_not_in_tournament() -> Non
         5,
         8,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
@@ -287,6 +304,7 @@ async def test_reporting_if_already_lost() -> None:
         5,
         8,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
@@ -338,6 +356,7 @@ async def test_partial_registration_tournament_two_level_lost() -> None:
         5,
         8,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
@@ -428,6 +447,7 @@ async def test_daily_registration_message_no_tournament_available() -> None:
         9,
         2,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     data_access_insert_tournament(
@@ -439,6 +459,7 @@ async def test_daily_registration_message_no_tournament_available() -> None:
         9,
         2,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
     with patch("deps.tournaments.tournament_data_access.datetime") as mock_datetime:
         mock_datetime.now.return_value = before_all_registration
@@ -465,6 +486,7 @@ async def test_daily_registration_message_tournament_available() -> None:
         9,
         2,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     data_access_insert_tournament(
@@ -476,6 +498,7 @@ async def test_daily_registration_message_tournament_available() -> None:
         9,
         2,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
     with patch("deps.tournaments.tournament_data_access.datetime") as mock_datetime:
         mock_datetime.now.return_value = register_date_start
@@ -499,6 +522,7 @@ async def test_daily_registration_message_tournament_available_but_no_space() ->
         9,
         2,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_data_access.datetime") as mock_datetime:
@@ -538,6 +562,7 @@ async def test_full_tournament() -> None:
         3,
         16,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
@@ -678,6 +703,148 @@ async def test_full_tournament() -> None:
     assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 0
 
 
+async def test_full_team_tournament() -> None:
+    """
+    Create a tournament that is 2 v 2 with odd number (5 people), so  only 4 people out of 5 are registered
+    """
+    #              [53:U1=2, U2=3]  
+    #                /        \ 
+    #    [1:U1=1, U2=2] [2:U1=3, U2=4] 
+    tournament_id = data_access_insert_tournament(
+        GUILD_ID,
+        "My Team Tournament",
+        register_date_start,
+        date_start,
+        date_end,
+        3,
+        16,
+        "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        2,
+    )
+
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
+        mock_tournament_functions_datetime.now.return_value = after_register_date_start
+        register_result = register_for_tournament(tournament_id, USER1_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER2_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER3_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER4_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER5_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER6_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER7_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER8_ID)
+        assert register_result.is_successful is True, register_result.text
+        register_result = register_for_tournament(tournament_id, USER9_ID)
+        assert register_result.is_successful is True, register_result.text
+    with patch("random.sample") as mock_sample:
+        with patch("random.choice") as mock_choice:
+            with patch("random.shuffle") as mock_shuffle:
+                mock_shuffle.side_effect = lambda x: None  # No-op: does not shuffle the list
+                mock_sample.side_effect = lambda x, n: x[
+                    :n
+                ]  # No-op: does not sample the list, leader will be the first 2 users our of the 5
+                mock_choice.side_effect = lambda x: x[
+                    0
+                ]  # No-op: does not choose a random user, leader will be the first user out of the 5
+                tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+                if tournament is None:
+                    assert False, "Tournament is None"
+                people_in, people_out = await start_tournament(tournament)
+    assert len(people_in) == 8, f"Expected 8 people in the tournament, got {people_in}"
+    assert len(people_out) == 1, f"Expected 1 person out of the tournament, got {people_out}"
+    assert people_out[0].id == USER9_ID, f"Expected USER9_ID to be out of the tournament, got {people_out[0].id}"
+    # The tournament is started, we have 2 games (so we can only vote bet on the other game)
+    bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+    assert len(bet_games_to_assert) == 2  # There is 2 games (1 game with 2v2 and 1 game with 2v2, total 8 players)
+    tournament = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
+    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_tree = build_tournament_tree(tournament_games)
+    if tournament_tree is None:
+        assert False, "Tournament tree is None"
+    # The 4 leaders
+    u1 = tournament_tree.next_game1.user1_id if tournament_tree.next_game1 else None
+    u2 = tournament_tree.next_game1.user2_id if tournament_tree.next_game1 else None
+    u3 = tournament_tree.next_game2.user1_id if tournament_tree.next_game2 else None
+    u4 = tournament_tree.next_game2.user2_id if tournament_tree.next_game2 else None
+    if u1 is None or u2 is None or u3 is None or u4 is None:
+        assert False, "Some leaders are None"
+    with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:
+        with patch("deps.tournaments.tournament_visualizer.fetch_user_info") as mock_fetch_user_info:
+            mock_tournament_functions_datetime.now.return_value = date_start
+            mock_fetch_user_info.return_value = {
+                1: mock_user1,
+                2: mock_user2,
+                3: mock_user3,
+                4: mock_user4,
+                5: mock_user5,
+                6: mock_user6,
+                7: mock_user7,
+                8: mock_user8,
+                9: mock_user9,
+            }
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
+            plot_tournament_bracket(
+                tournament,
+                tournament_tree,
+                True,
+                "./tests/generated_contents/bracket_team_1.png",
+            )
+            report_result = await report_lost_tournament(tournament_id, u1, "7-5")
+            assert report_result.is_successful is True, report_result.text
+            bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+            assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 1
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
+            plot_tournament_bracket(
+                tournament,
+                tournament_tree,
+                True,
+                "./tests/generated_contents/bracket_team_2.png",
+            )
+            report_result = await report_lost_tournament(tournament_id, u4, "5-2")
+            assert report_result.is_successful is True, report_result.text
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
+            plot_tournament_bracket(
+                tournament,
+                tournament_tree,
+                True,
+                "./tests/generated_contents/bracket_team_3.png",
+            )
+            report_result = await report_lost_tournament(tournament_id, u2, "2-4")
+            assert report_result.is_successful is True, report_result.text
+            tournament_tree = build_tournament_tree(fetch_tournament_games_by_tournament_id(tournament_id))
+            if tournament_tree is None:
+                assert False, "Tournament tree is None"
+            plot_tournament_bracket(
+                tournament,
+                tournament_tree,
+                True,
+                "./tests/generated_contents/bracket_team_4.png",
+            )
+          
+    # The tournament is over, get the winner
+    tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
+    tournament_tree = build_tournament_tree(tournament_games)
+    if tournament_tree is None:
+        assert False, "Tournament tree is None"
+    assert tournament_tree.user_winner_id == u3
+    bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
+    assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 0
+
+
 async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
     """
     Create a tournament that is not full and perform the operations that user would do until
@@ -697,6 +864,7 @@ async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
         3,
         16,
         "villa,clubhouse,consulate,chalet,oregon,coastline,border",
+        1,
     )
 
     with patch("deps.tournaments.tournament_functions.datetime") as mock_tournament_functions_datetime:

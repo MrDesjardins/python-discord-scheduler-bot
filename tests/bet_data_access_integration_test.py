@@ -78,7 +78,7 @@ async def test_get_bet_game_ready_for_distribution_no_bet_placed() -> None:
     """Test that check if there is no game ready for distribution"""
     # Arrange
     tournament_id = data_access_insert_tournament(
-        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa"
+        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa", 1
     )
     register_user_for_tournament(tournament_id, 10, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
@@ -100,7 +100,7 @@ async def test_get_bet_game_ready_for_distribution_one_game_done_with_one_user_l
     # Arrange
     user_placing_the_bet_id = 1009
     tournament_id = data_access_insert_tournament(
-        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa"
+        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa", 1
     )
     register_user_for_tournament(tournament_id, 10, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
@@ -148,7 +148,7 @@ async def test_distribute_gain_on_recent_ended_game_winning_bet_scenario() -> No
     # Arrange
     user_placing_the_bet_id = 1009
     tournament_id = data_access_insert_tournament(
-        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa"
+        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa", 1
     )
     register_user_for_tournament(tournament_id, 10, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
@@ -197,7 +197,7 @@ async def test_distribute_gain_on_recent_ended_game_losing_bet_scenario() -> Non
     # Arrange
     user_placing_the_bet_id = 1009
     tournament_id = data_access_insert_tournament(
-        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa"
+        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa", 1
     )
     register_user_for_tournament(tournament_id, 10, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
@@ -246,7 +246,7 @@ async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet
     # Arrange
     user_placing_the_bet_id = 1009
     tournament_id = data_access_insert_tournament(
-        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa"
+        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa", 1
     )
     register_user_for_tournament(tournament_id, 10, datetime(2021, 1, 1))
     register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
