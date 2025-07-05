@@ -43,7 +43,7 @@ class TournamentMatchScoreReport(View):
 
         # Add dropdown for "round lost"
         self.round_lost_select: discord.ui.Select = Select(
-            placeholder="Round lost by you (should be higher than wins since you lost):",
+            placeholder="Round lost by you (should be higher than round won since you lost):",
             options=[discord.SelectOption(value=str(i), label=str(i)) for i in range(11)],
             custom_id="round_lost",
             min_values=1,
@@ -54,7 +54,7 @@ class TournamentMatchScoreReport(View):
 
         # Add dropdown for "round won"
         self.round_won_select: discord.ui.Select = Select(
-            placeholder="Round won (should be lower than losts):",
+            placeholder="Round won by you (should be lower than lost since you lost):",
             options=[discord.SelectOption(value=str(i), label=str(i)) for i in range(11)],
             custom_id="round_won",
             min_values=1,

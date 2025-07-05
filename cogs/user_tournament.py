@@ -54,10 +54,10 @@ class UserTournamentFeatures(commands.Cog):
             else:
                 tournament_names = ", ".join([t.name for t in list_tournaments_users])
                 print_warning_log(
-                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id}). You are these tournaments: {tournament_names}"
+                    f"No tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id}). You are in these tournaments: {tournament_names}"
                 )
                 await interaction.response.send_message(
-                    f"No new tournament available for you. You are these tournaments: {tournament_names}",
+                    f"No new tournament available for you. You are in these tournaments: {tournament_names}",
                     ephemeral=True,
                 )
             return

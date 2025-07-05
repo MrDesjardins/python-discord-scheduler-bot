@@ -1,4 +1,4 @@
--- Create a fake tournament data for testing purposes
+-- Create a fake 1v1 tournament data for testing purposes
 -- Delete Everything
 DELETE FROM user_tournament
 WHERE
@@ -28,7 +28,8 @@ INSERT INTO
     best_of,
     max_players,
     maps,
-    has_started
+    has_started,
+    team_size
   )
 VALUES
   (
@@ -41,7 +42,8 @@ VALUES
     3,
     8,
     'oregon,villa,clubhouse,kafe,consulate',
-    false
+    true,
+    1
   );
 
 -- Create fake tournament players

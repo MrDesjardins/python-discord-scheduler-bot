@@ -15,6 +15,8 @@ The project is a Python Discord bot that aim to perform repetitive tasks for a g
 7. The bot allows user to place fake bets on each match of a tournament.
 8. The bot has a daily stats shows the the user.
 9. The bot uses the Discord activity API to determine when a user in a stack is back in the menu, ready to play and send a LFG (looking for group) message if the user is not in a full stack automatically.
+10. The bot has AI generated summary of what happened in the last 24 hours in term of matches played, kills, deaths, etc. The summary is sent to a specific channel of the guild.
+11. Tournament support 1v1 but also team tournament. The bot can handle 1v1, 2v2, 3v3, 4v4 and 5v5 tournaments.
 
 # What does the Bot look like?
 
