@@ -5,9 +5,12 @@ Module to gather user activity data and calculate the time spent together
 from datetime import datetime, timezone
 import math
 from typing import List, Optional
+from cachetools import TTLCache, cached
+from deps.analytic_data_access import fetch_user_info
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.functions import get_name
 
 KEY_TOURNAMENT_GUILD = "tournament_guild"
 KEY_TOURNAMENT_GAMES = "tournament_games"
@@ -427,7 +430,8 @@ def save_tournament_games(games: List[TournamentGame]) -> None:
 
     database_manager.get_conn().commit()
 
-
+cache_tournament = TTLCache(maxsize=100, ttl=30) # 30 seconds
+@cached(cache_tournament)
 def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
     """
     Fetch a tournament by its ID.
@@ -482,6 +486,8 @@ def register_user_teammate_to_leader(tournament_id: int, leader_user_id: int, te
     )
     database_manager.get_conn().commit()
 
+cache_leader_teammates = TTLCache(maxsize=100, ttl=30) # 30 seconds
+@cached(cache_leader_teammates)
 def fetch_tournament_team_members_by_leader(tournament_id:int) -> dict[int, List[int]]:
     """
     Fetch all team members for a tournament by leader.
@@ -504,3 +510,29 @@ def fetch_tournament_team_members_by_leader(tournament_id:int) -> dict[int, List
         team_members[leader_id].append(member_id)
 
     return team_members
+
+cache_team_labels = TTLCache(maxsize=100, ttl=30) # 30 seconds
+@cached(cache_team_labels)
+def data_access_get_team_labels(tournament_id: int, user_info1: UserInfo, user_info2: UserInfo) -> tuple[str, str]:
+    """
+    Get the text to display for each user (or team) in the tournament.
+    """
+    tournament_obj = fetch_tournament_by_id(tournament_id)
+    if tournament_obj is None or tournament_obj.team_size > 1:
+        # Change the label to display the team members
+        leader_partners: dict[int, list[int]] = fetch_tournament_team_members_by_leader(tournament_id)
+        users_map = fetch_user_info()
+        label1 = user_info1.display_name
+        if user_info1.id in leader_partners:
+            teammates = leader_partners[user_info1.id]
+            for teammate in teammates:
+                label1 += f", {get_name(teammate, users_map)}"
+        label2 = user_info2.display_name
+        if user_info2.id in leader_partners:
+            teammates = leader_partners[user_info2.id]
+            for teammate in teammates:
+                label2 += f", {get_name(teammate, users_map)}"
+    else:
+        label1 = user_info1.display_name
+        label2 = user_info2.display_name
+    return (label1, label2)

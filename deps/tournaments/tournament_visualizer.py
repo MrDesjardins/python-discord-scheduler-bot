@@ -10,21 +10,12 @@ from deps.tournaments.tournament_data_class import Tournament
 from deps.values import COMMAND_TOURNAMENT_SEND_SCORE_TOURNAMENT
 from deps.tournaments.tournament_functions import get_node_by_levels
 from deps.tournaments.tournament_data_access import fetch_tournament_team_members_by_leader
+from deps.functions import get_name
 
 font_path = os.path.abspath("./fonts/Minecraft.ttf")
 font1 = ImageFont.truetype(font_path, 16)
 font2 = ImageFont.truetype(font_path, 20)
 font3 = ImageFont.truetype(font_path, 22)
-
-
-def get_name(user_id: int, users_map: dict) -> str:
-    """
-    Get the name of a user
-    """
-    if user_id in users_map:
-        return users_map[user_id].display_name[:16]
-    return str(user_id)
-
 
 def _image_return(im: Image.Image, show: bool = True, file_name: str = "bracket.png"):
     """
@@ -106,7 +97,7 @@ def plot_tournament_bracket(
                     if node.user1_id in leader_partners:
                         teammates = leader_partners[node.user1_id]
                         for teammate in teammates:
-                            user1_name += f" & {get_name(teammate, users_map)}"
+                            user1_name += f", {get_name(teammate, users_map)}"
 
             if node.user2_id is None:
                 user2_name = "?"
@@ -116,7 +107,7 @@ def plot_tournament_bracket(
                     if node.user2_id in leader_partners:
                         teammates = leader_partners[node.user2_id]
                         for teammate in teammates:
-                            user2_name += f" & {get_name(teammate, users_map)}"
+                            user2_name += f", {get_name(teammate, users_map)}"
 
             skip_user_1 = node.user1_id is None
             skip_user_2 = node.user2_id is None

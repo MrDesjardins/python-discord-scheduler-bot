@@ -13,9 +13,10 @@ from deps.bet.bet_functions import get_bet_user_wallet_for_tournament, place_bet
 from deps.bet.bet_data_class import BetGame, BetUserTournament
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.log import print_error_log, print_warning_log
-from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
-
-
+from deps.tournaments.tournament_data_access import (
+    data_access_get_team_labels,
+    fetch_tournament_games_by_tournament_id,
+)
 class BetTournamentSelectorForMarket(View):
     """
     A view that allows the user to select the tournament to see the wallet amount.
@@ -189,15 +190,18 @@ class BetTournamentSelectorForMarket(View):
                         "An unexpected error occurred. Please contact a moderator.", ephemeral=True
                     )
                     return
+
+                label1, label2 = data_access_get_team_labels(self.tournament_id, self.user_info1, self.user_info2)
+
                 options.append(
                     discord.SelectOption(
-                        label=f"{self.user_info1.display_name} ({self.bet_game_chosen.odd_user_1():.2f})",
+                        label=f"{label1} ({self.bet_game_chosen.odd_user_1():.2f})",
                         value=str(self.user_info1.id),
                     )
                 )
                 options.append(
                     discord.SelectOption(
-                        label=f"{self.user_info2.display_name} ({self.bet_game_chosen.odd_user_2():.2f})",
+                        label=f"{label2} ({self.bet_game_chosen.odd_user_2():.2f})",
                         value=str(self.user_info2.id),
                     )
                 )
@@ -216,7 +220,7 @@ class BetTournamentSelectorForMarket(View):
                 # Update the interaction message with the new view
                 amount = math.floor(self.wallet.amount * 100) / 100
                 await interaction.followup.send(
-                    content=f"Select one of two participants. You have ${amount:.2f}",
+                    content=f"Select one of two. You have ${amount:.2f}",
                     view=self,
                     ephemeral=True,
                 )
@@ -340,7 +344,9 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
             user_bet_on = user1 if self.view.user_info1.id == self.view.user_bet_on_id else user2
 
             tournament_name = next(t for t in self.view.list_tournaments if t.id == self.view.tournament_id).name
+            label1, label2 = data_access_get_team_labels(self.view.tournament_id, self.view.user_info1, self.view.user_info2)
             await interaction.followup.send(
-                f'''💰 {interaction.user.mention} bet **${amount:.2f}** on {user_bet_on} in the match {user1} ({user1_odd:.2f}) vs {user2} ({user2_odd:.2f}) in tournanent "{tournament_name}"''',
+                f'''💰 {interaction.user.mention} bet **${amount:.2f}** on {user_bet_on} in the match {label1} ({user1_odd:.2f}) vs {label2} ({user2_odd:.2f}) in tournanent "{tournament_name}"''',
                 ephemeral=False,
             )
+

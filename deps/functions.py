@@ -120,3 +120,12 @@ def get_url_api_user_info(ubisoft_user_name: str) -> str:
     Get the URL for the API to get the user info.
     """
     return URL_TRN_API_USER_INFO.format(account_name=ubisoft_user_name.strip())
+
+
+def get_name(user_id: int, users_map: dict) -> str:
+    """
+    Get the name of a user
+    """
+    if user_id in users_map:
+        return users_map[user_id].display_name[:16]
+    return str(user_id)

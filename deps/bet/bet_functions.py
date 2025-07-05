@@ -4,7 +4,11 @@ Function to calculate the gain and lost of bets
 
 from datetime import datetime, timezone
 from typing import List, Optional
-from deps.analytic_data_access import data_access_fetch_user_full_match_info, fetch_user_info_by_user_id
+from deps.analytic_data_access import (
+    data_access_fetch_user_full_match_info,
+    fetch_user_info_by_user_id,
+    data_access_fetch_users_full_match_info,
+)
 from deps.bet.bet_data_access import (
     data_access_create_bet_game,
     data_access_create_bet_user_game,
@@ -24,7 +28,11 @@ from deps.bet.bet_data_access import (
 )
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
-from deps.tournaments.tournament_data_access import fetch_tournament_games_by_tournament_id
+from deps.tournaments.tournament_data_access import (
+    fetch_tournament_by_id,
+    fetch_tournament_games_by_tournament_id,
+    fetch_tournament_team_members_by_leader,
+)
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.log import print_error_log, print_log
@@ -211,6 +219,11 @@ async def system_generate_game_odd(tournament_id: int) -> None:
 
     This function is idempotent
     """
+    # 0 Check if the tournament exists
+    tournament: Optional[Tournament] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        raise ValueError(f"Tournament with id {tournament_id} does not exist")
+
     # 1 Get the tournament games
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
 
@@ -241,7 +254,7 @@ async def system_generate_game_odd(tournament_id: int) -> None:
     for game in games_without_bet_game:
         if game.id is None:
             continue
-        # 4.1 Get the wallet of the two users
+        # 4.1 Get the wallet of the two users (these are the leaders in case of a team tournament)
         user_info1: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user1_id) if game.user1_id else None
         user_info2: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user2_id) if game.user2_id else None
         if user_info1 is None or user_info2 is None:
@@ -249,7 +262,17 @@ async def system_generate_game_odd(tournament_id: int) -> None:
             odd_user2 = 0.5
         else:
             # Here find a way like getting the user MMR
-            odd_user1, odd_user2 = define_odds_between_two_users(user_info1.id, user_info2.id)
+            if tournament.team_size > 1:
+                # If the tournament is a team tournament, we need to get the team members
+                team_members = fetch_tournament_team_members_by_leader(tournament_id)
+                team1_members = team_members.get(game.user1_id, [])
+                team2_members = team_members.get(game.user2_id, [])
+                odd_user1, odd_user2 = define_odds_between_two_teams(
+                    [user_info1.id] + team1_members, [user_info2.id] + team2_members
+                )
+            else:
+                # If the tournament is a single player tournament, we can use the user id directly
+                odd_user1, odd_user2 = define_odds_between_two_users(user_info1.id, user_info2.id)
         # 4.3 Insert the generated odd into the database
         data_access_create_bet_game(tournament_id, game.id, odd_user1, odd_user2)
 
@@ -290,7 +313,7 @@ def place_bet_for_game(
     bet_games_tournament: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     bet_games: List[BetGame] = [game for game in bet_games_tournament if game.id == bet_game_id]
     if len(bet_games) == 0:
-        raise ValueError("The Bet on this game does not exist")
+        raise ValueError("The bet on this game does not exist")
     bet_game: BetGame = bet_games[0]
     tournament_game_id = bet_game.tournament_game_id
     games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
@@ -300,14 +323,30 @@ def place_bet_for_game(
     single_game: TournamentGame = game[0]
     if single_game.user_winner_id is not None:
         raise ValueError("The game is already finished")
-    if single_game.user1_id == user_who_is_betting_id or single_game.user2_id == user_who_is_betting_id:
-        raise ValueError("The user cannot bet on a game where he/she is playing")
+
+    # 1.5 Check if the user is betting on a game where a member of their team is playing
+    tournament = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        raise ValueError("The tournament does not exist")
+    if tournament.team_size > 1:
+        leader_teammates = fetch_tournament_team_members_by_leader(tournament_id)
+        # Loop all key and then all values of each key
+        for leader, teammates in leader_teammates.items():
+            team_ids = [leader] + teammates
+            if user_who_is_betting_id in team_ids and user_id_bet_placed_on in team_ids:
+                raise ValueError("The user cannot bet on a game where a member of their team is playing")
+    else:
+        if single_game.user1_id == user_who_is_betting_id or single_game.user2_id == user_who_is_betting_id:
+            raise ValueError("The user cannot bet on a game where he/she is playing")
     if amount < MIN_BET_AMOUNT:
         raise ValueError(f"The minimum amount to bet is ${MIN_BET_AMOUNT}")
+
     # 2 Get the wallet of the user
     wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_who_is_betting_id)
     if wallet.amount < amount:
-        raise ValueError(f"The user does not have enough money. The bet amount is ${amount} but the user has only ${wallet.amount:.2f}")
+        raise ValueError(
+            f"The user does not have enough money. The bet amount is ${amount} but the user has only ${wallet.amount:.2f}"
+        )
 
     # 3 Calculate the probability when the bet is placed
     is_user_1 = user_id_bet_placed_on == single_game.user1_id
@@ -401,6 +440,39 @@ def define_odds_between_two_users(user1_id: int, user2_id: int) -> tuple[float, 
     odd_user2 = 1 - odd_user1
 
     return odd_user1, odd_user2
+
+
+def define_odds_between_two_teams(team_1_user_ids: list[int], team_2_user_ids: list[int]) -> tuple[float, float]:
+    """
+    Function to call when a user place a bet on a bet_game to calculate the odds between two teams
+
+    Logic:
+    1) Get the stats of the two list of users
+    2) Calculate the average kill count
+    3) Calculate the odd for each team by dividing the average kill count by the sum of the two average kill count
+    """
+    # Get all match info for the two teams
+    team_1_stats = data_access_fetch_users_full_match_info(team_1_user_ids)
+    team_2_stats = data_access_fetch_users_full_match_info(team_2_user_ids)
+
+    total_game_1 = len(team_1_stats)
+    total_game_2 = len(team_2_stats)
+
+    if total_game_1 == 0 or total_game_2 == 0:
+        return 0.5, 0.5
+
+    sum_kill_count_1 = sum([game.kill_count for game in team_1_stats])
+    sum_kill_count_2 = sum([game.kill_count for game in team_2_stats])
+
+    avg_kill_count_1 = sum_kill_count_1 / total_game_1 if total_game_1 > 0 else 0
+    avg_kill_count_2 = sum_kill_count_2 / total_game_2 if total_game_2 > 0 else 0
+
+    odd_team1 = (
+        avg_kill_count_1 / (avg_kill_count_1 + avg_kill_count_2) if avg_kill_count_1 + avg_kill_count_2 > 0 else 0.5
+    )
+    odd_team2 = 1 - odd_team1
+
+    return odd_team1, odd_team2
 
 
 async def generate_msg_bet_game(tournament_game: TournamentNode) -> str:

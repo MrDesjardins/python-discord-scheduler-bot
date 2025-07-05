@@ -784,6 +784,30 @@ def data_access_fetch_user_full_match_info(
     # Convert the result to a list of Stats
     return [UserFullMatchStats.from_db_row(row) for row in result]
 
+def data_access_fetch_users_full_match_info(user_ids: list[int], page_number_zero_index: int = 0, page_size: int = 50) -> list[UserFullMatchStats]:
+    """
+    Fetch all connect and disconnect events from the user_activity table for a list of user ids
+    """
+    if not user_ids:
+        return []
+
+    list_ids = ",".join("?" for _ in user_ids)
+    query = f"""
+        SELECT {SELECT_USER_FULL_MATCH_INFO}
+        FROM user_full_match_info
+        WHERE user_full_match_info.user_id IN ({list_ids})
+        ORDER BY match_timestamp DESC
+        LIMIT :page_size OFFSET :offset
+        """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            user_ids + [page_size, page_number_zero_index * page_size],
+        )
+    ).fetchall()
+    # Convert the result to a list of Stats
+    return [UserFullMatchStats.from_db_row(row) for row in result]
+
 
 def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: UserInformation) -> None:
     """
