@@ -200,16 +200,18 @@ def stats_user_time_voice_channel(
     data_user_id_name = fetch_user_info()
     auser_in_outs = computer_users_voice_in_out(data_user_activity)
     user_times = compute_users_voice_channel_time_sec(auser_in_outs)
-
+    top = 10
     # Convert seconds to hours for all users
     user_times_in_hours = {user: time_sec / 3600 for user, time_sec in user_times.items()}
 
     # Sort users by total time in descending order and select the top N
-    sorted_users = sorted(user_times_in_hours.items(), key=lambda x: x[1], reverse=True)[:10]
+    sorted_users = sorted(user_times_in_hours.items(), key=lambda x: x[1], reverse=True)[:top]
 
     # Get the display name of the user to create a list of tuple with id, username and time
     stats = [(user_id, data_user_id_name[user_id].display_name, round(time, 2)) for user_id, time in sorted_users]
-    msg = build_msg_stats_key_value_decimal("amount of hours in voice channels", f"in the last {day} days", stats)
+    msg = build_msg_stats_key_value_decimal(
+        "amount of hours in voice channels", f"in the last {day} days", stats, False, top
+    )
     return msg
 
 
@@ -356,9 +358,9 @@ def build_msg_stats_key_value_decimal(
     info_time_str: str,
     stats_tuple: Sequence[tuple[int, str, Union[int, float]]],
     decimal_precision: bool = True,
+    top: int = 30,
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 30
     col_width = 16
     col_width_data = 5
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
