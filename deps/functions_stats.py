@@ -11,12 +11,14 @@ from deps.analytic_visualizer import display_user_top_operators
 from deps.analytic_functions import compute_users_voice_channel_time_sec, computer_users_voice_in_out
 from deps.analytic_data_access import (
     data_access_fetch_ace_4k_3k,
+    data_access_fetch_attacker_fragger_count,
     data_access_fetch_avg_kill_match,
     data_access_fetch_best_duo,
     data_access_fetch_best_trio,
     data_access_fetch_best_worse_map,
     data_access_fetch_clutch_round_rate,
     data_access_fetch_clutch_win_rate,
+    data_access_fetch_count_total_wallbangs,
     data_access_fetch_first_death,
     data_access_fetch_first_kill,
     data_access_fetch_kd_by_user,
@@ -25,6 +27,12 @@ from deps.analytic_data_access import (
     data_access_fetch_rollback_negative_count_by_user,
     data_access_fetch_success_fragging,
     data_access_fetch_tk_count_by_user,
+    data_access_fetch_top_breacher,
+    data_access_fetch_top_kill_per_match_rank,
+    data_access_fetch_top_matches_played,
+    data_access_fetch_top_ranked_matches_played,
+    data_access_fetch_top_team_kill,
+    data_access_fetch_top_win_rateranked_matches_played,
     fetch_all_user_activities,
     fetch_user_info,
 )
@@ -65,11 +73,11 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     if stats_number is not None:
         function_number = stats_number
     else:
-        function_number = get_rotated_number_from_current_day(16)
+        function_number = get_rotated_number_from_current_day(24)
     if function_number == 0:
-        msg = stats_rank_match_count(day_14, last_14_days)
+        msg = stats_rank_match_count(day_30, last_30_days)
     elif function_number == 1:
-        msg = stats_kd(day_14, last_14_days)
+        msg = stats_kd(day_30, last_30_days)
         msg_intruction = """The K/D are for matches played in or not on that server. However, it might not contain all your matches if you are not active.
 The bot tracks on a daily basis the matches played by fetching the last 20 matches stats on days you visited this server. If you are playing actively elsewhere and not on this server, the stats might not be accurate.
 If you are joining a voice channel about every 20 ranks matches, the stats should be accurate."""
@@ -92,7 +100,7 @@ Above 0.5 means you are setting your team in a advantageous position (5v4)."""
     elif function_number == 5:
         msg = stats_user_best_trio(day_30, last_30_days)
     elif function_number == 6:
-        msg = stats_rollback_positive(day_14, last_14_days)
+        msg = stats_rollback_positive(day_30, last_30_days)
         msg_intruction = """The rollbacks stats contains only the number of rollbacks that gave you back points.
 Receiving points back means you played against a cheater.
 The rollbacks that removed points are not counted in this stats and will be shown another day."""
@@ -101,11 +109,11 @@ The rollbacks that removed points are not counted in this stats and will be show
     elif function_number == 8:
         msg = stats_tk_count(first_day_current_year)
     elif function_number == 9:
-        msg = stats_average_kill_match(day_14, last_14_days)
+        msg = stats_average_kill_match(day_30, last_30_days)
     elif function_number == 10:
-        msg = stats_user_time_voice_channel(day_14)
+        msg = stats_user_time_voice_channel(day_30)
     elif function_number == 11:
-        msg, file = await stats_ops_by_members(day_14, last_14_days)
+        msg, file = await stats_ops_by_members(day_30, last_30_days)
         if file is not None:
             await channel.send(file=file, content=msg)
             return  # Needed because we have a special case where we loop channel.send a file here
@@ -135,10 +143,27 @@ A rate around 0.1 is normal since Siege is a 5v5 game. A rate above 0.1 might me
         msg_intruction = """The rollbacks stats contains only the number of rollbacks that you lost point points.
 Losing points means you played with a cheater and the system removes the gained point from your account.
 The rollbacks that added points are not counted in this stats and will be shown another day."""
+    elif function_number == 17:
+        msg = stats_top_matches(day_30, last_30_days, 30)
+        msg_intruction = f"""The total count of matches includes Quick match, unranked, ranked match. Only people active in the last {day_30} days are in the stats."""
+    elif function_number == 18:
+        msg = stats_top_ranked_matches(day_30, last_30_days, 30)
+        msg_intruction = f"""Only people active in the last {day_30} days are in the stats."""
+    elif function_number == 19:
+        msg = stats_top_win_rate_ranked_matches(day_30, last_30_days, 30)
+    elif function_number == 20:
+        msg = stats_top_team_kill(day_30, last_30_days, 30)
+    elif function_number == 21:
+        msg = stats_average_kill_per_rank_match(day_30, last_30_days, 30)
+    elif function_number == 22:
+        msg = stats_count_breaching(day_30, last_30_days, 30)
+    elif function_number == 23:
+        msg = stats_total_wallbangs(day_30, last_30_days, 30)
+    elif function_number == 24:
+        msg = stats_total_attacker_fragger(day_30, last_30_days, 30)
     else:
         print_error_log(f"send_daily_stats_to_a_guild: No stats to show for random number {function_number}")
         return
-
     msg_len = len(msg)
     print_log(f"send_daily_stats_to_a_guild: Sending stats {function_number} to {guild.name} total size {msg_len}")
     await channel.send(content=msg[:1999])
@@ -146,9 +171,9 @@ The rollbacks that added points are not counted in this stats and will be shown 
         await channel.send(content=msg_intruction)
 
 
-def stats_rank_match_count(day: int, last_7_days: date) -> str:
+def stats_rank_match_count(day: int, last_x_days: date) -> str:
     """Create a message that show the total amount of rank match played"""
-    stats = data_access_fetch_match_played_count_by_user(last_7_days)
+    stats = data_access_fetch_match_played_count_by_user(last_x_days)
     msg = build_msg_stats_key_value_decimal("rank matches", f"in the last {day} days", stats, False)
     return msg
 
@@ -317,6 +342,115 @@ def stats_best_worse_map(day: int, last_x_day: date, index: int = 0) -> tuple[st
         ["User", "Most won map", "Wins", "Most lost map", "Losses"],
         stats,
         index,
+    )
+
+
+def stats_top_matches(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the top matches played by users
+    """
+    stats = data_access_fetch_top_matches_played(last_x_day, top)
+    return build_msg_2_columns(
+        "matches count since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
+    )
+
+
+def stats_top_ranked_matches(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the top rank matches played by users
+    """
+    stats = data_access_fetch_top_ranked_matches_played(last_x_day, top)
+    return build_msg_2_columns(
+        "ranked matches count since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
+    )
+
+
+def stats_top_win_rate_ranked_matches(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the top win rate
+    """
+    stats = data_access_fetch_top_win_rateranked_matches_played(last_x_day, top)
+    return build_msg_2_columns(
+        "ranked win rate since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
+    )
+
+
+def stats_top_team_kill(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the top team kill
+    """
+    stats = data_access_fetch_top_team_kill(last_x_day, top)
+    return build_msg_2_columns(
+        "team kill since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
+    )
+
+
+def stats_average_kill_per_rank_match(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the top team kill
+    """
+    stats = data_access_fetch_top_kill_per_match_rank(last_x_day, top)
+    return build_msg_2_columns(
+        "average kill per match since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
+    )
+
+
+def stats_count_breaching(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the top team kill
+    """
+    stats = data_access_fetch_top_breacher(last_x_day, top)
+    return build_msg_2_columns(
+        "breaching count since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
+    )
+
+def stats_total_wallbangs(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the total wall bangs
+    """
+    stats = data_access_fetch_count_total_wallbangs(last_x_day, top)
+    return build_msg_2_columns(
+        "wall bang since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
+    )
+def stats_total_attacker_fragger(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the total attacker fragger
+    """
+    stats = data_access_fetch_attacker_fragger_count(last_x_day, top)
+    return build_msg_2_columns(
+        "considered attacker fragger role since account created",
+        f"for people active in the last {day} days",
+        ["Name", "Count"],
+        stats,
+        top,
     )
 
 
@@ -613,3 +747,25 @@ def build_msg_2_stats_count(
 
     msg += "```"
     return (msg, None)
+
+
+def build_msg_2_columns(
+    stats_name: str,
+    info_time_str: str,
+    cols_name: list[str],
+    stats_tuple: list[tuple[str, int]],
+    top: int = 20,
+    start_index: int = 0,
+) -> str:
+    """Build a message that has the user name and stats count"""
+    col_name = 20
+    col_width_count = 6
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    msg += f"{columnize(cols_name[0], col_name)}" f"{columnize(cols_name[1], col_width_count)}\n"
+    for i in range(start_index, len(stats_tuple)):
+        stat = stats_tuple[i]
+        new_line = f"{columnize(stat[0], col_name)}" f"{columnize(f'{stat[1]}', col_width_count)}\n"
+        msg += new_line
+
+    msg += "```"
+    return msg

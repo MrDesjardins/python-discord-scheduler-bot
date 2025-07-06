@@ -126,7 +126,7 @@ SELECT_USER_FULL_STATS_INFO = """
     user_full_stats_info.defender_trapper_percentage,
     user_full_stats_info.defender_utility_denier_count,
     user_full_stats_info.defender_utility_denier_percentage,
-    user_full_stats_info.kd_radio,
+    user_full_stats_info.kd_ratio,
     user_full_stats_info.kill_per_match,
     user_full_stats_info.kill_per_minute,
     user_full_stats_info.win_percentage,
@@ -784,7 +784,10 @@ def data_access_fetch_user_full_match_info(
     # Convert the result to a list of Stats
     return [UserFullMatchStats.from_db_row(row) for row in result]
 
-def data_access_fetch_users_full_match_info(user_ids: list[int], page_number_zero_index: int = 0, page_size: int = 50) -> list[UserFullMatchStats]:
+
+def data_access_fetch_users_full_match_info(
+    user_ids: list[int], page_number_zero_index: int = 0, page_size: int = 50
+) -> list[UserFullMatchStats]:
     """
     Fetch all connect and disconnect events from the user_activity table for a list of user ids
     """
@@ -883,7 +886,7 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
                 defender_trapper_percentage,
                 defender_utility_denier_count,
                 defender_utility_denier_percentage,
-                kd_radio,
+                kd_ratio,
                 kill_per_match,
                 kill_per_minute,
                 win_percentage,
@@ -958,7 +961,7 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
                 :defender_trapper_percentage,
                 :defender_utility_denier_count,
                 :defender_utility_denier_percentage,
-                :kd_radio,
+                :kd_ratio,
                 :kill_per_match,
                 :kill_per_minute,
                 :win_percentage,
@@ -1034,7 +1037,7 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
                 "defender_trapper_percentage": user_information.defender_trapper_percentage,
                 "defender_utility_denier_count": user_information.defender_utility_denier_count,
                 "defender_utility_denier_percentage": user_information.defender_utility_denier_percentage,
-                "kd_radio": user_information.kd_radio,
+                "kd_ratio": user_information.kd_ratio,
                 "kill_per_match": user_information.kill_per_match,
                 "kill_per_minute": user_information.kill_per_minute,
                 "win_percentage": user_information.win_percentage,
@@ -2144,3 +2147,276 @@ def data_access_fetch_best_worse_map(from_data: date) -> list[tuple[str, str, in
         )
     ).fetchall()
     return [(row[0], row[1], row[2], row[3], row[4]) for row in result]
+
+
+def data_access_fetch_top_matches_played(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the count of match played
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.total_matches_played
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.total_matches_played DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    return [(row[0], row[1]) for row in result]
+
+
+def data_access_fetch_top_ranked_matches_played(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the count of match played
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.rank_match_played
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.rank_match_played DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    print(query)
+    print(from_data.isoformat())
+    return [(row[0], row[1]) for row in result]
+
+
+def data_access_fetch_top_win_rateranked_matches_played(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the count of match played
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.rank_win_percentage
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.rank_win_percentage DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    print(query)
+    print(from_data.isoformat())
+    return [(row[0], row[1]) for row in result]
+
+def data_access_fetch_top_team_kill(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the count of match played
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.total_team_kills
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.total_team_kills DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    print(query)
+    print(from_data.isoformat())
+    return [(row[0], row[1]) for row in result]
+
+def data_access_fetch_top_kill_per_match_rank(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the average kill per match in rank
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.rank_kill_per_match
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.rank_kill_per_match DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    print(query)
+    print(from_data.isoformat())
+    return [(row[0], row[1]) for row in result]
+
+def data_access_fetch_top_breacher(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the average kill per match in rank
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.attacked_breacher_count
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.attacked_breacher_count DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    print(query)
+    print(from_data.isoformat())
+    return [(row[0], row[1]) for row in result]
+
+def data_access_fetch_count_total_wallbangs(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the total count of wall bangs
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.total_wall_bang
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.total_wall_bang DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    print(query)
+    print(from_data.isoformat())
+    return [(row[0], row[1]) for row in result]
+
+def data_access_fetch_attacker_fragger_count(from_data: date, top: int) -> list[tuple[str, int]]:
+    """
+    Get the total count of fragger 
+    """
+    query = """
+    SELECT
+    user_info.display_name,
+    user_full_stats_info.attacked_fragger_count
+    FROM
+    user_full_stats_info
+    LEFT JOIN user_info ON 
+        user_info.id = user_full_stats_info.user_id
+    WHERE user_full_stats_info.user_id IN (
+            SELECT DISTINCT
+            user_id
+            from
+            user_activity
+            where
+            timestamp >= :from_data
+        )
+    ORDER BY
+        user_full_stats_info.attacked_fragger_count DESC
+    LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat(), "top_result": top},
+        )
+    ).fetchall()
+    print(query)
+    print(from_data.isoformat())
+    return [(row[0], row[1]) for row in result]

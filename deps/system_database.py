@@ -364,7 +364,7 @@ class DatabaseManager:
                 defender_trapper_percentage REAL DEFAULT 0.0,
                 defender_utility_denier_count INTEGER DEFAULT 0,
                 defender_utility_denier_percentage REAL DEFAULT 0.0,
-                kd_radio REAL DEFAULT 0.0,
+                kd_ratio REAL DEFAULT 0.0,
                 kill_per_match REAL DEFAULT 0.0,
                 kill_per_minute REAL DEFAULT 0.0,
                 win_percentage REAL DEFAULT 0.0,

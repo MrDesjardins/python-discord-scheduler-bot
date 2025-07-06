@@ -241,7 +241,7 @@ def test_insert_if_nonexistant_user_full_stats_info_then_fetch_back(mock_log):
     assert result.defender_trapper_percentage == user_full_1.defender_trapper_percentage
     assert result.defender_utility_denier_count == user_full_1.defender_utility_denier_count
     assert result.defender_utility_denier_percentage == user_full_1.defender_utility_denier_percentage
-    assert result.kd_radio == user_full_1.kd_radio
+    assert result.kd_ratio == user_full_1.kd_ratio
     assert result.kill_per_match == user_full_1.kill_per_match
     assert result.kill_per_minute == user_full_1.kill_per_minute
     assert result.win_percentage == user_full_1.win_percentage

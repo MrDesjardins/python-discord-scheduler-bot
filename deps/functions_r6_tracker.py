@@ -5,13 +5,9 @@ from typing import Any, Dict, List, Optional, Union
 import json
 from datetime import datetime
 from dateutil import parser
-import requests
-from bs4 import BeautifulSoup, Tag
 from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats, UserInformation, UserMatchInfoSessionAggregate
-from deps.siege import siege_ranks
 from deps.log import print_error_log
-from deps.functions import get_url_user_profile_overview
 
 TRN_API_KEY = os.getenv("TRN_API_KEY")
 
@@ -306,7 +302,7 @@ def parse_json_user_full_stats_info(user_id: int, json_content: dict) -> UserInf
         defender_utility_denier_count=get_stat_value(overview_segment, "playstyleDefenderUtilityDenier"),
         defender_utility_denier_percentage=get_percentage(overview_segment, "playstyleDefenderUtilityDenier"),
         # Overall stats
-        kd_radio=get_stat_value(overview_segment, "kdRatio", 0.0),
+        kd_ratio=get_stat_value(overview_segment, "kdRatio", 0.0),
         kill_per_match=get_stat_value(overview_segment, "killsPerMatch", 0.0),
         kill_per_minute=get_stat_value(overview_segment, "killsPerMin", 0.0),
         win_percentage=get_stat_value(overview_segment, "winPercentage", 0.0),
@@ -404,10 +400,10 @@ def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]])
     def get_percentage(segment, stat_name, default=0.0):
         if not segment:
             return default
-        value = segment.get("stats", {}).get(stat_name, {}).get("value", default)
+        value = segment.get("stats", {}).get(stat_name, {}).get("metadata", {}).get("usage", {}).get("value", default)
         # Convert to percentage if it's not already
-        if value and value > 0 and value <= 1:
-            return value * 100
+        # if value and value > 0 and value <= 1:
+        #     return value * 100
         return value or default
 
     # Create UserInformation object
@@ -458,7 +454,7 @@ def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]])
         defender_utility_denier_count=get_stat_value(overview_segment, "playstyleDefenderUtilityDenier"),
         defender_utility_denier_percentage=get_percentage(overview_segment, "playstyleDefenderUtilityDenier"),
         # Overall stats
-        kd_radio=get_stat_value(overview_segment, "kdRatio", 0.0),
+        kd_ratio=get_stat_value(overview_segment, "kdRatio", 0.0),
         kill_per_match=get_stat_value(overview_segment, "killsPerMatch", 0.0),
         kill_per_minute=get_stat_value(overview_segment, "killsPerMin", 0.0),
         win_percentage=get_stat_value(overview_segment, "winPercentage", 0.0),

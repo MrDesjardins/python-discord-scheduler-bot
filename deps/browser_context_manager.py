@@ -17,7 +17,6 @@ from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_m
 from deps.functions import (
     get_url_api_ranked_matches,
     get_url_user_ranked_matches,
-    get_url_user_profile_overview,
     get_url_api_user_info,
 )
 from deps.siege import siege_ranks

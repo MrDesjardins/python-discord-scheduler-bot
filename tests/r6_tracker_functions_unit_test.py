@@ -1391,7 +1391,7 @@ def test_get_r6tracker_user_info(test_data):
     assert user_info.total_team_kills == 127
 
     # Test performance ratios
-    assert user_info.kd_radio == 0.95
+    assert user_info.kd_ratio == 0.95
     assert user_info.kill_per_match == 3.65
     assert user_info.kill_per_minute == 0.17
     assert user_info.win_percentage == 50.38

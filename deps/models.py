@@ -416,7 +416,7 @@ class UserInformation:
         defender_trapper_percentage: float = 0.0,
         defender_utility_denier_count: int = 0,
         defender_utility_denier_percentage: float = 0.0,
-        kd_radio: float = 0.0,
+        kd_ratio: float = 0.0,
         kill_per_match: float = 0.0,
         kill_per_minute: float = 0.0,
         win_percentage: float = 0.0,
@@ -491,7 +491,7 @@ class UserInformation:
         self.defender_trapper_percentage = defender_trapper_percentage
         self.defender_utility_denier_count = defender_utility_denier_count
         self.defender_utility_denier_percentage = defender_utility_denier_percentage
-        self.kd_radio = kd_radio
+        self.kd_ratio = kd_ratio
         self.kill_per_match = kill_per_match
         self.kill_per_minute = kill_per_minute
         self.win_percentage = win_percentage
@@ -569,7 +569,7 @@ class UserInformation:
             defender_trapper_percentage=row[39],
             defender_utility_denier_count=row[40],
             defender_utility_denier_percentage=row[41],
-            kd_radio=row[42],
+            kd_ratio=row[42],
             kill_per_match=row[43],
             kill_per_minute=row[44],
             win_percentage=row[45],
