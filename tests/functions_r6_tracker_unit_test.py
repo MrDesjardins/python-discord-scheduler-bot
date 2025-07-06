@@ -15,7 +15,7 @@ from deps.models import UserInformation
 def get_test_data(dataset: int) -> Dict[str, Any]:
     """Pre-loaded real JSON file"""
     if dataset == 1:
-        with open("./tests/tests_assets/r6tracker_data_full_user_stats_fridge.json", "r", encoding="utf8") as file:
+        with open("./tests/tests_assets/full_user_stats_fridge.json.json", "r", encoding="utf8") as file:
             return json.loads(file.read())
     return ""
 
