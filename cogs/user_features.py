@@ -39,7 +39,7 @@ class UserFeatures(commands.Cog):
 
     @app_commands.command(name=COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL)
     async def get_users_time_zone_from_voice_channel(
-        self, interaction: discord.Interaction, voice_channel: discord.VoiceChannel
+        self, interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None
     ):
         """Get the timezone of all users in a voice channel"""
         await interaction.response.defer()
@@ -50,8 +50,20 @@ class UserFeatures(commands.Cog):
             )
             await interaction.followup.send("Guild not found for this user.", ephemeral=True)
             return
-        users_id = [members.id for members in voice_channel.members]
-        userid_member = {members.id: members for members in voice_channel.members}
+        user = interaction.user
+        all_members_voice_channel = []
+        voice_channel_name = ""
+
+        if voice_channel is None:  # It wasn't explicitly provided
+            if isinstance(user, discord.Member) and user.voice is not None and user.voice.channel is not None:
+                all_members_voice_channel = user.voice.channel.members
+                voice_channel_name = user.voice.channel.name
+        else:
+            all_members_voice_channel = voice_channel.members
+            voice_channel_name = voice_channel.name
+
+        users_id = [members.id for members in all_members_voice_channel]
+        userid_member = {members.id: members for members in all_members_voice_channel}
         if len(users_id) == 0:
             await interaction.followup.send("No users in the voice channel.")
             return
@@ -59,7 +71,7 @@ class UserFeatures(commands.Cog):
         user_infos = fetch_user_info_by_user_id_list(users_id)
 
         embed = discord.Embed(
-            title=f"{voice_channel.name} Channel Timezone",
+            title=f"{voice_channel_name} Channel Timezone",
             color=0x00FF00,
             timestamp=datetime.now(),
         )
