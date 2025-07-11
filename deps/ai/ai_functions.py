@@ -27,7 +27,7 @@ def ask_gemini(question: str) -> str:
     # Set up the API client
 
     client = genai.Client(api_key=KEY)
-    response = client.models.generate_content(model="gemini-2.0-flash-001", contents=question)
+    response = client.models.generate_content(model="gemini-2.5-flash", contents=question)
     return response.text
 
 
@@ -67,7 +67,7 @@ def generate_message_summary_matches(hours: int) -> str:
 
     context = "Your goal is to generate a summary of maximum 6000 characters (including white space and change line) of the matches played by the users"
     context += "I am providing you a list of users and a list of their matches. You need to use both."
-    context += "Your message must give one or three sentences about each user."
+    context += "Your message must give one to three sentences about each user."
     context += "You need to find something to say for every one if they have at least one match. If not match, say nothing, don't even say they did not play."
     context += "Please mention every user by their display_name, so you must match the user id with the display_name."
     context += "Provide an highlight of the matches played when something interesting happened. Try to find the best match of the user and the worst match."
@@ -86,6 +86,8 @@ def generate_message_summary_matches(hours: int) -> str:
     context += "Change line without empty line (do not add two new lines in a row)."
     context += "Format your text not in bullet point, but in a text like we would read in a sport news paper."
     context += "Be professional, sport and concise. Do not add any emoji or special character."
+    context += "If the display_name is 'Obey' prefix with the name with 'master'"
+    context += "If the display_name is 'Dom1nator.gov' prefix the name with 'legendary'"
     try:
         response = f"✨**AI summary generated of the last {hours} hours**✨\n" + ask_gemini(context)
     except Exception as e:
