@@ -151,3 +151,23 @@ WHERE user_full_stats_info.user_id IN (
 ORDER BY
   user_full_stats_info.attacked_fragger_count DESC
 LIMIT 30;
+
+
+SELECT
+  user_info.display_name,
+  user_full_stats_info.time_played_seconds/3600
+FROM
+  user_full_stats_info
+LEFT JOIN user_info ON 
+    user_info.id = user_full_stats_info.user_id
+WHERE user_full_stats_info.user_id IN (
+        SELECT DISTINCT
+        user_id
+        from
+        user_activity
+        where
+        timestamp >= '2025-06-06'
+    )
+ORDER BY
+  user_full_stats_info.time_played_seconds DESC
+LIMIT 30;

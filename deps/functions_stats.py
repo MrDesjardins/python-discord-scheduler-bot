@@ -26,6 +26,9 @@ from deps.analytic_data_access import (
     data_access_fetch_rollback_positive_count_by_user,
     data_access_fetch_rollback_negative_count_by_user,
     data_access_fetch_success_fragging,
+    data_access_fetch_time_duo_partners,
+    data_access_fetch_time_played_siege,
+    data_access_fetch_time_played_siege_on_server,
     data_access_fetch_tk_count_by_user,
     data_access_fetch_top_breacher,
     data_access_fetch_top_kill_per_match_rank,
@@ -69,21 +72,22 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     last_30_days = today - timedelta(days=day_30)
     last_60_days = today - timedelta(days=day_60)
     first_day_current_year = datetime(today.year, 1, 1, tzinfo=timezone.utc)
-    msg_intruction: Optional[str] = None
+    day_beginning = date(2024, 1, 1)
+    msg_instruction: Optional[str] = None
     if stats_number is not None:
         function_number = stats_number
     else:
-        function_number = get_rotated_number_from_current_day(24)
+        function_number = get_rotated_number_from_current_day(27)
     if function_number == 0:
         msg = stats_rank_match_count(day_30, last_30_days)
     elif function_number == 1:
         msg = stats_kd(day_30, last_30_days)
-        msg_intruction = """The K/D are for matches played in or not on that server. However, it might not contain all your matches if you are not active.
+        msg_instruction = """The K/D are for matches played in or not on that server. However, it might not contain all your matches if you are not active.
 The bot tracks on a daily basis the matches played by fetching the last 20 matches stats on days you visited this server. If you are playing actively elsewhere and not on this server, the stats might not be accurate.
 If you are joining a voice channel about every 20 ranks matches, the stats should be accurate."""
     elif function_number == 2:
         msg = stats_first_death(day_30, last_30_days)
-        msg_intruction = """The ratio means the rate of time you left your time into a 4v5 situation.
+        msg_instruction = """The ratio means the rate of time you left your time into a 4v5 situation.
 A number approachin 0.10 is normal since Siege is a 10 men game.
 Above 0.10 means you are dying more often than the 9 other players.
 A high number means you are taking more risk but this number should be balanced with the first kill ratio (stats we will provide another day).
@@ -92,7 +96,7 @@ As long as your first kill and first death ratio is above 0.5, you are doing a g
         msg = stats_first_kill(day_30, last_30_days)
     elif function_number == 4:
         msg = stats_ratio_first_kill_death(day_30, last_30_days)
-        msg_intruction = """The ratio of the stats means is the rate between first kill and first death. The formula is : first kill count/(first death count + first kill count). 
+        msg_instruction = """The ratio of the stats means is the rate between first kill and first death. The formula is : first kill count/(first death count + first kill count). 
 So, the maximum you can have is 1.0. For example, someone got 10 first kill, 0 first death.
 Someone with a ratio of 0.5 means you let your team in a 5v4 almost the same amount that you left your team in a 5v4. 
 Under 0.5 means you left your team more often in a numerical disadvantage (4v5). 
@@ -101,7 +105,7 @@ Above 0.5 means you are setting your team in a advantageous position (5v4)."""
         msg = stats_user_best_trio(day_30, last_30_days)
     elif function_number == 6:
         msg = stats_rollback_positive(day_30, last_30_days)
-        msg_intruction = """The rollbacks stats contains only the number of rollbacks that gave you back points.
+        msg_instruction = """The rollbacks stats contains only the number of rollbacks that gave you back points.
 Receiving points back means you played against a cheater.
 The rollbacks that removed points are not counted in this stats and will be shown another day."""
     elif function_number == 7:
@@ -136,19 +140,19 @@ The rollbacks that removed points are not counted in this stats and will be show
         return  # Needed because we have a special case where we loop channel.send
     elif function_number == 15:
         msg = stats_clutch_round_rate(day_60, last_60_days)
-        msg_intruction = """The clutch rate shows the number of time a user is in a 1vX situation.
+        msg_instruction = """The clutch rate shows the number of time a user is in a 1vX situation.
 A rate around 0.1 is normal since Siege is a 5v5 game. A rate above 0.1 might mean you are more passive and a rate lower than 0.1 might indicate you are more aggressive and taking more risk."""
     elif function_number == 16:
         msg = stats_rollback_negative(day_14, last_14_days)
-        msg_intruction = """The rollbacks stats contains only the number of rollbacks that you lost point points.
+        msg_instruction = """The rollbacks stats contains only the number of rollbacks that you lost point points.
 Losing points means you played with a cheater and the system removes the gained point from your account.
 The rollbacks that added points are not counted in this stats and will be shown another day."""
     elif function_number == 17:
         msg = stats_top_matches(day_30, last_30_days, 30)
-        msg_intruction = f"""The total count of matches includes Quick match, unranked, ranked match. Only people active in the last {day_30} days are in the stats."""
+        msg_instruction = f"""The total count of matches includes Quick match, unranked, ranked match. Only people active in the last {day_30} days are in the stats."""
     elif function_number == 18:
         msg = stats_top_ranked_matches(day_30, last_30_days, 30)
-        msg_intruction = f"""Only people active in the last {day_30} days are in the stats."""
+        msg_instruction = f"""Only people active in the last {day_30} days are in the stats."""
     elif function_number == 19:
         msg = stats_top_win_rate_ranked_matches(day_30, last_30_days, 30)
     elif function_number == 20:
@@ -157,18 +161,30 @@ The rollbacks that added points are not counted in this stats and will be shown 
         msg = stats_average_kill_per_rank_match(day_30, last_30_days, 30)
     elif function_number == 22:
         msg = stats_count_breaching(day_30, last_30_days, 30)
+        msg_instruction = (
+            "That stats is about using a breach entry operators, not the amount of time someone breached a wall."
+        )
     elif function_number == 23:
         msg = stats_total_wallbangs(day_30, last_30_days, 30)
     elif function_number == 24:
         msg = stats_total_attacker_fragger(day_30, last_30_days, 30)
+    elif function_number == 25:
+        msg = stats_total_time_playing_siege(day_30, last_30_days, 30)
+        msg_instruction = "The time includes only the time in Siege using the active account currently associated with the user (/setmyactiveaccount or /setupprofile to change)."
+    elif function_number == 26:
+        msg = stats_total_time_playing_server(day_30, day_beginning, 30)
+        msg_instruction = "The time includes all the time in voice channel regardless if in or not a match. The bot started collecting information since September 2024 (missing the first ~6 months of this server)."
+    elif function_number == 27:
+        msg = stats_total_time_with_partners(day_30, day_beginning, 30)
+        msg_instruction = "The time includes all the time in voice channel regardless if in or not a match. The bot started collecting information since September 2024 (missing the first ~6 months of this server)."
     else:
         print_error_log(f"send_daily_stats_to_a_guild: No stats to show for random number {function_number}")
         return
     msg_len = len(msg)
     print_log(f"send_daily_stats_to_a_guild: Sending stats {function_number} to {guild.name} total size {msg_len}")
     await channel.send(content=msg[:1999])
-    if msg_intruction is not None:
-        await channel.send(content=msg_intruction)
+    if msg_instruction is not None:
+        await channel.send(content=msg_instruction)
 
 
 def stats_rank_match_count(day: int, last_x_days: date) -> str:
@@ -428,6 +444,7 @@ def stats_count_breaching(day: int, last_x_day: date, top: int) -> str:
         top,
     )
 
+
 def stats_total_wallbangs(day: int, last_x_day: date, top: int) -> str:
     """
     Get the total wall bangs
@@ -440,6 +457,8 @@ def stats_total_wallbangs(day: int, last_x_day: date, top: int) -> str:
         stats,
         top,
     )
+
+
 def stats_total_attacker_fragger(day: int, last_x_day: date, top: int) -> str:
     """
     Get the total attacker fragger
@@ -449,6 +468,48 @@ def stats_total_attacker_fragger(day: int, last_x_day: date, top: int) -> str:
         "considered attacker fragger role since account created",
         f"for people active in the last {day} days",
         ["Name", "Count"],
+        stats,
+        top,
+    )
+
+
+def stats_total_time_playing_siege(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the total of time played siege
+    """
+    stats = data_access_fetch_time_played_siege(last_x_day, top)
+    return build_msg_2_columns(
+        "is the total amount of hours played Siege (rank, unranked, etc)",
+        f"for people active in the last {day} days",
+        ["Name", "Hours"],
+        stats,
+        top,
+    )
+
+
+def stats_total_time_playing_server(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the total of time played siege
+    """
+    stats = data_access_fetch_time_played_siege_on_server(last_x_day, top)
+    return build_msg_2_columns(
+        "is the total amount of hours played Siege (rank, unranked, etc) in this server",
+        "including every one who played at least once in this server",
+        ["Name", "Hours"],
+        stats,
+        top,
+    )
+
+
+def stats_total_time_with_partners(day: int, last_x_day: date, top: int) -> str:
+    """
+    Get the total of time played with a single partner
+    """
+    stats = data_access_fetch_time_duo_partners(last_x_day, top)
+    return build_msg_3_columns(
+        "is the total amount of hours played Siege (rank, unranked, etc) in this server with someone else",
+        "including every one who played at least once in this server",
+        ["Name", "Name", "Hours"],
         stats,
         top,
     )
@@ -765,6 +826,36 @@ def build_msg_2_columns(
     for i in range(start_index, len(stats_tuple)):
         stat = stats_tuple[i]
         new_line = f"{columnize(stat[0], col_name)}" f"{columnize(f'{stat[1]}', col_width_count)}\n"
+        msg += new_line
+
+    msg += "```"
+    return msg
+
+
+def build_msg_3_columns(
+    stats_name: str,
+    info_time_str: str,
+    cols_name: list[str],
+    stats_tuple: list[tuple[str, int]],
+    top: int = 20,
+    start_index: int = 0,
+) -> str:
+    """Build a message that has the user name and stats count"""
+    col_name = 15
+    col_width_count = 6
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    msg += (
+        f"{columnize(cols_name[0], col_name)}"
+        f"{columnize(cols_name[1], col_name)}"
+        f"{columnize(cols_name[2], col_width_count)}\n"
+    )
+    for i in range(start_index, len(stats_tuple)):
+        stat = stats_tuple[i]
+        new_line = (
+            f"{columnize(stat[0], col_name)}"
+            f"{columnize(stat[1], col_name)}"
+            f"{columnize(stat[2], col_width_count)}\n"
+        )
         msg += new_line
 
     msg += "```"
