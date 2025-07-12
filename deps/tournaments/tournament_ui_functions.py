@@ -2,7 +2,6 @@
 
 from typing import List, Optional
 import discord
-from deps.analytic_data_access import fetch_user_info
 from deps.data_access import data_access_get_member
 from deps.bet.bet_functions import (
     generate_msg_bet_leaderboard,
@@ -113,5 +112,5 @@ async def get_teammate_mentions(teammates: List[int], guild_id: int) -> str:
     mentions = []
     for teammate in teammates:
         member = await data_access_get_member(guild_id, teammate)
-        mentions.append(member.mention if member else str(teammate))
+        mentions.append(member.mention if member is not None else str(teammate))
     return ", ".join(mentions)

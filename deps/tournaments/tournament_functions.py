@@ -619,3 +619,24 @@ def clean_maps_input(raw_maps: str) -> str:
     Clean the input of maps by removing the spaces and making the string lowercase
     """
     return ",".join(map(lambda x: x.strip().lower(), raw_maps.split(",")))
+
+
+def get_leader_from_teammates(leader_teammates: dict[int, list[int]]) -> dict[int, int]:
+    """
+    From a dictionary of leader->teammates, return a dictionary of the inverse (teammate and their leader)
+    """
+    r = {}
+    for leader, teammates in leader_teammates.items():
+        for t in teammates:
+            r[t] = leader
+    return r
+
+
+def return_leader(leader_teammates: dict[int, list[int]], user_id: int) -> Optional[int]:
+    """
+    Return the leader of a user if the user is a teammate, otherwise return the user_id itself.
+    """
+    if user_id in leader_teammates:
+        return user_id
+    rev_index = get_leader_from_teammates(leader_teammates)
+    return rev_index.get(user_id, None)

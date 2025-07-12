@@ -12,6 +12,7 @@ from deps.bet.bet_data_access import (
     data_access_create_bet_user_wallet_for_tournament,
     data_access_fetch_bet_user_game_by_tournament_id,
     data_access_get_bet_ledger_entry_for_tournament,
+    data_access_get_bet_user_game_waiting_match_complete,
     data_access_get_bet_user_wallet_for_tournament,
     data_access_fetch_bet_games_by_tournament_id,
     data_access_get_bet_user_game_ready_for_distribution,
@@ -93,6 +94,31 @@ async def test_get_bet_game_ready_for_distribution_no_bet_placed() -> None:
     bet_user_games = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
     # Assert
     assert len(bet_user_games) == 0
+
+
+async def test_get_bet_game_ready_for_distribution_with_bet_placed() -> None:
+    """Test that check if there is no game ready for distribution"""
+    # Arrange
+    tournament_id = data_access_insert_tournament(
+        1, "Test Tournament", datetime(2021, 1, 1), datetime(2021, 1, 2), datetime(2021, 1, 3), 3, 4, "Villa", 1
+    )
+    register_user_for_tournament(tournament_id, 10, datetime(2021, 1, 1))
+    register_user_for_tournament(tournament_id, 11, datetime(2021, 1, 1))
+    register_user_for_tournament(tournament_id, 12, datetime(2021, 1, 1))
+    register_user_for_tournament(tournament_id, 13, datetime(2021, 1, 1))
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
+    await start_tournament(tournament)
+    # Tournament started but no bet by any user
+    games = fetch_tournament_games_by_tournament_id(tournament_id)
+    place_bet_for_game(
+        tournament_id, games[0].id, games[1].user1_id, 10, games[0].user1_id  # Bet user 1  # Bet amount
+    )  # Bet user 1
+    # Act
+    bet_user_games = data_access_get_bet_user_game_waiting_match_complete(tournament_id)
+    # Assert
+    assert len(bet_user_games) == 1
 
 
 async def test_get_bet_game_ready_for_distribution_one_game_done_with_one_user_lose_bet() -> None:

@@ -1,4 +1,11 @@
--- Create a fake tournament data for testing purposes
+-- Create a fake tournament data for testing bet
+-- Use cases:
+-- 1. Use the /bet command
+-- 2. Select a tournament
+-- 3. Select a game
+-- 4. Place a bet on the game (try <= 10$ and above 10$)
+-- 5. Check the bet wallet and leaderboard
+
 -- Delete Everything
 DELETE FROM user_tournament
 WHERE
@@ -40,7 +47,9 @@ INSERT INTO
     best_of,
     max_players,
     maps,
-    has_started
+    has_started,
+    has_finished,
+    team_size
   )
 VALUES
   (
@@ -49,11 +58,13 @@ VALUES
     'Fake Tournament #2',
     '2025-01-01 00:00:00',
     '2025-01-10 00:00:00',
-    '2025-01-31 00:00:00',
+    '2027-01-31 00:00:00',
     3,
     8,
     'oregon,villa,clubhouse,kafe,consulate',
-    false
+    true,
+    false,
+    1
   );
 
 -- Create fake tournament players

@@ -16,12 +16,14 @@ from deps.tournaments.tournament_functions import (
     build_tournament_tree,
     can_register_to_tournament,
     clean_maps_input,
+    get_leader_from_teammates,
     get_tournament_final_result_positions,
     has_node_without_user,
     next_power_of_two,
     register_for_tournament,
     report_lost_tournament,
     resize_tournament,
+    return_leader,
     start_tournament,
 )
 from deps.tournaments import tournament_functions
@@ -885,7 +887,7 @@ async def test_start_tournament_success_team_odd_participant(
 
     # Assert
     mock_get_people_registered_for_tournament.assert_called_once_with(tournament.id)
-    mock_resize.assert_called_once_with(4, 2) # 2 because we have team size of 2 (5/2 = 2.5, rounded to 4)
+    mock_resize.assert_called_once_with(4, 2)  # 2 because we have team size of 2 (5/2 = 2.5, rounded to 4)
     mock_create_bracket.assert_called_once_with(tournament.id, 4)
     mock_fetch_games.assert_called_once_with(tournament.id)
     mock_assign_people_to_games.assert_called_once()
@@ -930,14 +932,12 @@ async def test_start_tournament_fail_team_not_enough_participant(
     tournament = fake_tournament
     tournament.team_size = 2
     mock_datetime.now.return_value = t3
-    mock_get_people_registered_for_tournament.return_value = [
-        mock_user1,
-        mock_user2,
-        mock_user3
-    ]
+    mock_get_people_registered_for_tournament.return_value = [mock_user1, mock_user2, mock_user3]
 
     # Act
-    with pytest.raises(ValueError, match="Not enough players for a tournament. At least 2 teams are required or two people for 1v1."):
+    with pytest.raises(
+        ValueError, match="Not enough players for a tournament. At least 2 teams are required or two people for 1v1."
+    ):
         await start_tournament(tournament)
 
     # Assert
@@ -1090,3 +1090,37 @@ async def test_report_lost_tournament_no_games_in_tournament(
     # Assert
     assert result.is_successful is False
     assert result.text == "The tournament tree is empty."
+
+
+def test_get_leader_from_teammates() -> None:
+    """
+    Test the creation of the reverse index from the leader to teammates
+    """
+    leaders = {1: [10, 11, 12], 2: [20, 21]}
+    rev_index = get_leader_from_teammates(leaders)
+    assert rev_index[10] == 1
+    assert rev_index[11] == 1
+    assert rev_index[12] == 1
+    assert rev_index[20] == 2
+    assert rev_index[21] == 2
+
+
+def test_return_leader_user_leader() -> None:
+    """
+    Test the leader if the user is a leader
+    """
+    leaders = {1: [10, 11, 12], 2: [20, 21]}
+    assert return_leader(leaders, 1) == 1
+    assert return_leader(leaders, 2) == 2
+
+
+def test_return_leader_user_teammate() -> None:
+    """
+    Test to get the leader if the user is a teammate
+    """
+    leaders = {1: [10, 11, 12], 2: [20, 21]}
+    assert return_leader(leaders, 10) == 1
+    assert return_leader(leaders, 11) == 1
+    assert return_leader(leaders, 12) == 1
+    assert return_leader(leaders, 20) == 2
+    assert return_leader(leaders, 21) == 2

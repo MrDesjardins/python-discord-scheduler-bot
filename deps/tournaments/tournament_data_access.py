@@ -194,15 +194,24 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
                     {SELECT_TOURNAMENT},
                     0 as current_user_count
                 FROM tournament
-                INNER JOIN
-                    user_tournament
-                ON
-                    tournament.id = user_tournament.tournament_id
-                    AND user_tournament.user_id = :user_id
                 WHERE tournament.guild_id = :guild_id
-                    AND has_finished = 0
-                    AND date(tournament.end_date) >= date(:current_time)
-                    AND date(tournament.start_date) <= date(:current_time);
+                AND has_finished = 0
+                AND date(tournament.end_date) >= date(:current_time)
+                AND date(tournament.start_date) <= date(:current_time)
+                AND (
+                    EXISTS (
+                        SELECT 1
+                        FROM user_tournament
+                        WHERE user_tournament.tournament_id = tournament.id
+                        AND user_tournament.user_id = :user_id
+                    )
+                    OR EXISTS (
+                        SELECT 1
+                        FROM tournament_team_members
+                        WHERE tournament_team_members.tournament_id = tournament.id
+                        AND tournament_team_members.user_id = :user_id
+                    )
+                );
                 """
     result = (
         database_manager.get_cursor()

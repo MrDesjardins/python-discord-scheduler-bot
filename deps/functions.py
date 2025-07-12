@@ -1,10 +1,12 @@
 """Utility functions used by the bot."""
 
+import os
 from datetime import timedelta
 import subprocess
 from typing import Union, Optional, List
 import discord
 from discord import app_commands
+from dotenv import load_dotenv
 from deps.values import (
     MSG_UNIQUE_STRING,
     SUPPORTED_TIMES_ARR,
@@ -129,3 +131,12 @@ def get_name(user_id: int, users_map: dict) -> str:
     if user_id in users_map:
         return users_map[user_id].display_name[:16]
     return str(user_id)
+
+
+def is_production_env() -> bool:
+    """
+    Check if the environment is production.
+    """
+    load_dotenv()
+    env = os.getenv("ENV", "dev")
+    return env == "prod"

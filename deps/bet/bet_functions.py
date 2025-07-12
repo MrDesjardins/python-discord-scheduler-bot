@@ -19,6 +19,7 @@ from deps.bet.bet_data_access import (
     data_access_get_bet_ledger_entry_for_tournament,
     data_access_get_bet_user_game_for_tournament,
     data_access_get_bet_user_game_ready_for_distribution,
+    data_access_get_bet_user_game_waiting_match_complete,
     data_access_get_bet_user_wallet_for_tournament,
     data_access_update_bet_game_probability,
     data_access_update_bet_user_tournament,
@@ -388,9 +389,9 @@ async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
     if tournament.id is None:
         return ""
     wallets: List[BetUserTournament] = data_access_get_all_wallet_for_tournament(tournament_id=tournament.id)
-    open_bets: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(tournament.id)
+    open_bets_not_distributed: List[BetUserGame] = data_access_get_bet_user_game_waiting_match_complete(tournament.id)
     # Get all wallet amount by member
-    for bet in open_bets:
+    for bet in open_bets_not_distributed:
         # Find user wallet
         wallet = next((w for w in wallets if w.user_id == bet.user_id), None)
         amount_bet = bet.amount

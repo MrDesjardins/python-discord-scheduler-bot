@@ -1,14 +1,14 @@
 -- Create a fake 1v1 tournament data for testing purposes
 -- Delete Everything
-DELETE FROM user_tournament;
+DELETE FROM user_tournament WHERE tournament_id = 23564;
 
-DELETE FROM tournament_game;
+DELETE FROM tournament_game WHERE tournament_id = 23564;
 
-DELETE FROM tournament; 
+DELETE FROM tournament WHERE id = 23564;
 
-DELETE FROM bet_user_tournament;
+DELETE FROM bet_user_tournament WHERE tournament_id = 23564;
 
-DELETE FROM tournament_team_members;
+DELETE FROM tournament_team_members WHERE tournament_id = 23564;
 
 
 -- Create a fake tournament

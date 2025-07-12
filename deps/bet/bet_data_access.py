@@ -283,6 +283,31 @@ def data_access_get_bet_user_game_ready_for_distribution(tournament_id: int) -> 
     return [BetUserGame.from_db_row(row) for row in rows]
 
 
+def data_access_get_bet_user_game_waiting_match_complete(tournament_id: int) -> List[BetUserGame]:
+    """
+    Get all the bet games user that are waiting for match completion
+    """
+    query = f"""
+        SELECT 
+        {SELECT_BET_USER_GAME}
+        FROM bet_user_game
+        INNER JOIN bet_game 
+          ON bet_user_game.bet_game_id = bet_game.id
+        INNER JOIN tournament_game
+          ON bet_game.tournament_game_id = tournament_game.id
+          AND tournament_game.user_winner_id IS NULL -- HERE it must be NULL since the game is not completed
+        WHERE
+          bet_user_game.tournament_id = :tournament_id
+        AND 
+          bet_user_game.bet_distributed = false
+        """
+    database_manager.get_cursor().execute(
+        query,
+        {"tournament_id": tournament_id},
+    )
+    rows = database_manager.get_cursor().fetchall()
+    return [BetUserGame.from_db_row(row) for row in rows]
+
 def data_access_get_bet_game_ready_to_close(tournament_id: int) -> List[BetGame]:
     """
     Get all the bet games that are ready for distribution
