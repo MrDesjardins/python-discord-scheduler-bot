@@ -173,7 +173,7 @@ VALUES
     357551747146842124,
     232631945325051906,
     'skyscraper',
-    232631945325051906,
+    357551747146842124,
     '7-0'
   ),
   (
@@ -192,7 +192,7 @@ VALUES
     44311222,
     2007,
     2006,
-    232631945325051906,
+    357551747146842124,
     333109962861576202,
     'Coastline',
     NULL, 
@@ -256,18 +256,6 @@ INSERT INTO
   )
 VALUES
   (9002, 44311222, 2013, 0.40, 0.60, 0);
-
-INSERT INTO
-  bet_game (
-    id,
-    tournament_id,
-    tournament_game_id,
-    probability_user_1_win,
-    probability_user_2_win,
-    bet_distributed
-  )
-VALUES
-  (9003, 44311222, 2005, 0.51, 0.49, 0);
 
 INSERT INTO 
   bet_user_game (
