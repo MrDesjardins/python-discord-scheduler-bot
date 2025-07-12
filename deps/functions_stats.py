@@ -94,6 +94,9 @@ A high number means you are taking more risk but this number should be balanced 
 As long as your first kill and first death ratio is above 0.5, you are doing a good job."""
     elif function_number == 3:
         msg = stats_first_kill(day_30, last_30_days)
+        msg_instruction = (
+            """The rate represents how much time a person gets the first kill in a round among the 10 people."""
+        )
     elif function_number == 4:
         msg = stats_ratio_first_kill_death(day_30, last_30_days)
         msg_instruction = """The ratio of the stats means is the rate between first kill and first death. The formula is : first kill count/(first death count + first kill count). 
