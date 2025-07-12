@@ -1,5 +1,8 @@
 -- Create a fake 1v1 tournament data for testing purposes
--- Delete Everything
+
+-- Use cases:
+-- Report lost
+-- Report lost again (eliminated should not allow)
 DELETE FROM user_tournament WHERE tournament_id = 123123;
 
 DELETE FROM tournament_game WHERE tournament_id = 123123;

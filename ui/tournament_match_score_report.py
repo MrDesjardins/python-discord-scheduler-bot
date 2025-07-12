@@ -75,7 +75,7 @@ class TournamentMatchScoreReport(View):
 
     def create_button_callback(self, tournament_id: int):
         """
-        Create tournament button action. 
+        Create tournament button action.
         Each tournament as a different action using the tournament.id
         Only occurs if more than one tournament is available at the same time.
         """
@@ -147,7 +147,7 @@ class TournamentMatchScoreReport(View):
         # Get the participants of the tournament
         leader_partners: dict[int, list[int]] = fetch_tournament_team_members_by_leader(tournament.id)
 
-        score_string = f"{self.round_won}-{self.round_lost}"
+        score_string = f"{self.round_lost}-{self.round_won}"  # We flip because the round_win/lost were registered from the perspective of the loser
         # The user who is reporting OR the user passed by a moderator
         leader_id_loser_tournament: int = (
             self.user_id_lost_match if self.user_id_lost_match is not None else interaction.user.id
@@ -298,9 +298,13 @@ async def build_team_mentions(leader_partners: dict[int, list[int]], leader_id: 
     m = await data_access_get_member(guild_id, leader_id)
     if m is not None:
         mentions.append(m.mention)
+    else:
+        mentions.append(str(leader_id))
     teammates = leader_partners.get(leader_id, [])
     for teammate in teammates:
         m = await data_access_get_member(guild_id, teammate)
         if m is not None:
             mentions.append(m.mention)
+        else:
+            mentions.append(str(teammate))
     return ", ".join(mentions)

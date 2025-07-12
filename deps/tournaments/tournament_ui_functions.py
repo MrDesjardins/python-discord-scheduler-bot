@@ -56,26 +56,26 @@ async def post_end_tournament_messages(interaction: discord.Interaction, tournam
         try:
             leader_partners: dict[int, list[int]] = fetch_tournament_team_members_by_leader(tournament.id)
             m1 = await data_access_get_member(guild_id, final_score.first_place_user_id)
-            first_place = m1.mention if m1 else "Unknown"
+            first_place = m1.mention if m1 else str(final_score.first_place_user_id)
             m2 = await data_access_get_member(guild_id, final_score.second_place_user_id)
-            second_place = m2.mention if m2 else "Unknown"
+            second_place = m2.mention if m2 else str(final_score.second_place_user_id)
             m3_1 = await data_access_get_member(guild_id, final_score.third_place_user_id_1)
-            third_place1 = m3_1.mention if m3_1 else "Unknown"
+            third_place1 = m3_1.mention if m3_1 else str(final_score.third_place_user_id_1)
             m3_2 = await data_access_get_member(guild_id, final_score.third_place_user_id_2)
             third_place2 = m3_2.mention if m3_2 else "None"
             if tournament.team_size > 1:
                 if final_score.first_place_user_id in leader_partners:
                     teammates = leader_partners[final_score.first_place_user_id]
-                    first_place += await get_teammate_mentions(teammates, guild_id)
+                    first_place += "," + await get_teammate_mentions(teammates, guild_id)
                 if final_score.second_place_user_id in leader_partners:
                     teammates = leader_partners[final_score.second_place_user_id]
-                    second_place += await get_teammate_mentions(teammates, guild_id)
+                    second_place += "," + await get_teammate_mentions(teammates, guild_id)
                 if final_score.third_place_user_id_1 in leader_partners:
                     teammates = leader_partners[final_score.third_place_user_id_1]
-                    third_place1 += await get_teammate_mentions(teammates, guild_id)
+                    third_place1 += "," + await get_teammate_mentions(teammates, guild_id)
                 if final_score.third_place_user_id_2 in leader_partners:
                     teammates = leader_partners[final_score.third_place_user_id_2]
-                    third_place2 += await get_teammate_mentions(teammates, guild_id)
+                    third_place2 += "," + await get_teammate_mentions(teammates, guild_id)
         except Exception as e:
             # Might go in here in development since there is no member in the guild
             print_error_log(f"TournamentMatchScoreReport: process_tournament_result: Error while fetching member: {e}")

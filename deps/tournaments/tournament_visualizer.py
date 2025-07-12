@@ -111,8 +111,8 @@ def plot_tournament_bracket(
 
             skip_user_1 = node.user1_id is None
             skip_user_2 = node.user2_id is None
-            label_names_team_1 = user1_name + " (win)" if node.user1_id == node.user_winner_id and not skip_user_1 else user1_name
-            label_names_team_2 = user2_name + " (win)" if node.user2_id == node.user_winner_id and not skip_user_2 else user2_name
+            label_names_team_1 = user1_name + " (*win*)" if node.user1_id == node.user_winner_id and not skip_user_1 else user1_name
+            label_names_team_2 = user2_name + " (*win*)" if node.user2_id == node.user_winner_id and not skip_user_2 else user2_name
             label_map = f"{node.map} - {node.score if node.score is not None else '0-0'}"
 
             # Add node to the graph

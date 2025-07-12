@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 
-@dataclass(frozen=True)
+@dataclass
 class UserInfo:
     """Match an user id with a display name. SQL table user_info"""
 
