@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from discord.ext import commands
 import discord
+from deps.ai.ai_functions import generate_answer_when_mentioning_bot
 from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
@@ -309,6 +310,25 @@ class MyEventsCog(commands.Cog):
             self.bot, guild_id, channel_id
         )  # Send the actual command to see if we can send a message (depending of everyone state)
         self.last_task.pop(f"{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
+
+    @commands.Cog.listener()
+    async def on_message(self, message) -> None:
+        """
+        Make the bot aware if someone mentions it in a message
+        """
+        # Ignore messages from the bot itself
+        if message.author == self.bot.user:
+            return
+
+        # Check if the bot was mentioned
+        if self.bot.user in message.mentions:
+            # Fetch the last 8 messages in the same channel
+            messages: list[discord.Message] = [msg async for msg in message.channel.history(limit=10)]
+            context = "\n".join(f"{m.author.display_name} said: {m.content}" for m in messages)
+            response = generate_answer_when_mentioning_bot(context, message.content, message.author.display_name)
+            await message.channel.send(message.author.mention + " " + response)
+        # Make sure other commands still work
+        await self.bot.process_commands(message)
 
 
 async def setup(bot):

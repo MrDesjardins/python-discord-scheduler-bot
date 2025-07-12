@@ -86,10 +86,37 @@ def generate_message_summary_matches(hours: int) -> str:
     context += "Change line without empty line (do not add two new lines in a row)."
     context += "Format your text not in bullet point, but in a text like we would read in a sport news paper."
     context += "Be professional, sport and concise. Do not add any emoji or special character."
-    context += "If the display_name is 'Obey' prefix with the name with 'master'"
+    context += "If the display_name is 'Obey' prefix with the name with 'ultimate champion'"
+    context += "If the display_name is 'Funky' prefix with the name with 'champion-ish' between double quotes"
     context += "If the display_name is 'Dom1nator.gov' prefix the name with 'legendary'"
     try:
         response = f"✨**AI summary generated of the last {hours} hours**✨\n" + ask_gemini(context)
+    except Exception as e:
+        print_error_log(f"Error while asking Gemini: {e}")
+        return ""
+    return response
+
+
+def generate_answer_when_mentioning_bot(
+    context_previous_messages: str, message_user: str, user_display_name: str
+) -> str:
+    """
+    Generate an answer when the bot is mentioned.
+    """
+    context = "You are a bot that is mentioned in a Discord server. You need to answer to the user who mentioned you."
+    context += "You should not mention anything about your name or your purpose, just answer the question."
+    context += "Here is the context of some previous message that might help you crafting the best response:"
+    context += "Previous messages: " + context_previous_messages
+    context += "User question:" + message_user
+    u = user_display_name.lower()
+    if "obey" in u or "funky" in u:
+        context += "The user is called Obey but in your message call him 'champion'."
+        context += "The user like sarcasm, so answer in a sarcastic tone."
+    else:
+        context += "You are a bot that is friendly, helpful and professional. You should not be rude or sarcastic."
+        context += "You should answer in a way that is easy to read and understand under 800 characters."
+    try:
+        response = ask_gemini(context)
     except Exception as e:
         print_error_log(f"Error while asking Gemini: {e}")
         return ""
