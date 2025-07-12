@@ -27,7 +27,7 @@ async def post_end_tournament_messages(interaction: discord.Interaction, tournam
     tournament: Optional[Tournament] = fetch_tournament_by_id(tournament_id)
     if tournament is None:
         print_warning_log(f"send_end_tournament_by_mod: cannot find tournament {tournament_id}.")
-        await interaction.response.send_message("No active tournament available", ephemeral=True)
+        await interaction.followup.send("No active tournament available", ephemeral=True)
         return
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)

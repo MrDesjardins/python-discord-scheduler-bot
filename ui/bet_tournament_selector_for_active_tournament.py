@@ -105,10 +105,11 @@ class BetTournamentSelectorForActiveMarket(View):
                             member3 = await fetch_user_info_by_user_id(user_who_put_the_bed_id)
                             user3_display = member3.display_name if member3 else user_who_put_the_bed_id
 
-                            user_on_who_the_bed_is_on = (
-                                member1.display_name if bet.user_id_bet_placed == tournament_game.user1_id else member2.display_name
-                            )
                             label1, label2 = data_access_get_team_labels(tournament_id, member1, member2)
+
+                            user_on_who_the_bed_is_on = (
+                                label1 if bet.user_id_bet_placed == tournament_game.user1_id else label2
+                            )
                             msg += f"""💰 `{user3_display}` placed a bet of **${bet.amount:.2f}** on `{user_on_who_the_bed_is_on}` in the game of `{label1} ({user1_odd:.2f})` vs `{label2} ({user2_odd:.2f})`\n"""
 
                 if msg == "":
