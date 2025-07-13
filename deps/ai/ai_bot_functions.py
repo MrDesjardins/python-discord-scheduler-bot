@@ -25,7 +25,11 @@ async def send_daily_ai_summary_guild(guild: discord.Guild):
     if channel is None:
         print_error_log(f"\t⚠️ send_daily_ai_summary_guild: Channel not found for guild {guild.name}. Skipping.")
         return
-    msg = generate_message_summary_matches(24)
+    try:
+        msg = generate_message_summary_matches(24)
+    except Exception as e:
+        print_error_log(f"send_daily_ai_summary_guild>generate_message_summary_matches: {e}")
+        msg = ""
 
     if msg == "":
         print_warning_log(f"\t⚠️ send_daily_ai_summary_guild: No summary found for guild {guild.name}. Skipping.")
