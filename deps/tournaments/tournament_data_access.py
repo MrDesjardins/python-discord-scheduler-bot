@@ -138,7 +138,7 @@ def fetch_tournament_start_today(guild_id: int) -> List[Tournament]:
         0 as current_user_count
         FROM tournament
         WHERE tournament.guild_id = :guild_id
-        AND date(tournament.start_date) == date(:current_time);
+        AND date(tournament.start_date) == date(:current_time)
         and has_started = 0;
         """
     result = (
