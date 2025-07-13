@@ -87,7 +87,6 @@ def generate_message_summary_matches(hours: int) -> str:
     context += "Format your text not in bullet point, but in a text like we would read in a sport news paper."
     context += "Be professional, sport and concise. Do not add any emoji or special character."
     context += "If the display_name is 'Obey' prefix with the name with 'ultimate champion'"
-    context += "If the display_name is 'Funky' prefix with the name with 'champion-ish' between double quotes"
     context += "If the display_name is 'Dom1nator.gov' prefix the name with 'legendary'"
     try:
         response = f"✨**AI summary generated of the last {hours} hours**✨\n" + ask_gemini(context)
