@@ -1169,7 +1169,7 @@ async def test_generate_msg_bet_leaderboard_users(mock_bet_user, mock_fetch_user
 
 @patch.object(bet_functions, bet_functions.data_access_get_all_wallet_for_tournament.__name__)
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
-@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_ready_for_distribution.__name__)
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_waiting_match_complete.__name__)
 async def test_generate_msg_bet_leaderboard_users_with_active_bet(
     mock_bet_user, mock_fetch_user, mock_get_all_wallet
 ) -> None:
