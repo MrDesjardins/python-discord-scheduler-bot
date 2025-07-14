@@ -89,7 +89,15 @@ def generate_message_summary_matches(hours: int) -> str:
     context += "If the display_name is 'Obey' prefix with the name with 'ultimate champion'"
     context += "If the display_name is 'Dom1nator.gov' prefix the name with 'legendary'"
     try:
-        response = f"✨**AI summary generated of the last {hours} hours**✨\n" + ask_gemini(context)
+        gemini_response = ask_gemini(context)
+        if gemini_response is None:
+            print_error_log("Error: Gemini response is None.")
+            # Dump in a file the context
+            with open("gemini_context.txt", "w", encoding="utf-8") as f:
+                f.write(context)
+            print_error_log("Context dumped in gemini_context.txt")
+            return ""
+        response = f"✨**AI summary generated of the last {hours} hours**✨\n" + gemini_response
     except Exception as e:
         print_error_log(f"Error while asking Gemini: {e}")
         return ""
