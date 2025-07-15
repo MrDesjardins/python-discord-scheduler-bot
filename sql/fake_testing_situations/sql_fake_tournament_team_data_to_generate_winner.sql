@@ -1,5 +1,6 @@
 -- Create a fake 1v1 tournament data for testing purposes
--- Delete Everything
+-- Use case:
+-- 1. The reported is the leader of a team
 DELETE FROM user_tournament WHERE tournament_id = 23564;
 
 DELETE FROM tournament_game WHERE tournament_id = 23564;
@@ -88,7 +89,7 @@ INSERT INTO
   )
 VALUES
   (
-    2015,
+    332015,
     23564,
     NULL,
     NULL,
@@ -99,7 +100,7 @@ VALUES
     '5-3'
   ),
   (
-    2014,
+    332014,
     23564,
     NULL,
     NULL,
@@ -110,7 +111,7 @@ VALUES
     '3-0'
   ),
   (
-    2013,
+    332013,
     23564,
     NULL,
     NULL,
@@ -121,7 +122,7 @@ VALUES
     '5-4'
   ),
   (
-    2012,
+    332012,
     23564,
     NULL,
     NULL,
@@ -132,10 +133,10 @@ VALUES
     NULL
   ),
   (
-    2007,
+    332007,
     23564,
-    2014,
-    2015,
+    332014,
+    332015,
     357551747146842124,
     232631945325051906,
     'skyscraper',
@@ -143,10 +144,10 @@ VALUES
     '7-0'
   ),
   (
-    2006,
+    332006,
     23564,
-    2013,
-    2012,
+    332013,
+    332012,
     333109962861576202,
     NULL,
     NULL,
@@ -154,10 +155,10 @@ VALUES
     NULL
   ),
   (
-    2005,
+    332005,
     23564,
-    2007,
-    2006,
+    332007,
+    332006,
     357551747146842124,
     333109962861576202,
     'Coastline',

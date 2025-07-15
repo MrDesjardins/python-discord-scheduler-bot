@@ -1,4 +1,4 @@
--- Teamm lost in a tournament
+-- Team lost in a tournament
 -- Use case:
 -- 1. The reported is NOT a leader but a member of the team
 DELETE FROM user_tournament WHERE tournament_id = 62623;
@@ -89,7 +89,7 @@ INSERT INTO
   )
 VALUES
   (
-    2015,
+    78015,
     62623,
     NULL,
     NULL,
@@ -100,7 +100,7 @@ VALUES
     '5-3'
   ),
   (
-    2014,
+    78014,
     62623,
     NULL,
     NULL,
@@ -111,7 +111,7 @@ VALUES
     '3-0'
   ),
   (
-    2013,
+    78013,
     62623,
     NULL,
     NULL,
@@ -122,7 +122,7 @@ VALUES
     '5-4'
   ),
   (
-    2012,
+    78012,
     62623,
     NULL,
     NULL,
@@ -133,10 +133,10 @@ VALUES
     NULL
   ),
   (
-    2007,
+    78007,
     62623,
-    2014,
-    2015,
+    78014,
+    78015,
     557002311071694849,
     232631945325051906,
     'skyscraper',
@@ -144,10 +144,10 @@ VALUES
     '7-0'
   ),
   (
-    2006,
+    78006,
     62623,
-    2013,
-    2012,
+    78013,
+    78012,
     333109962861576202,
     NULL,
     NULL,
@@ -155,10 +155,10 @@ VALUES
     NULL
   ),
   (
-    2005,
+    78005,
     62623,
-    2007,
-    2006,
+    78007,
+    78006,
     557002311071694849,
     333109962861576202,
     'Coastline',
