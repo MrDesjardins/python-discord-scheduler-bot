@@ -326,7 +326,8 @@ class MyEventsCog(commands.Cog):
             messages: list[discord.Message] = [msg async for msg in message.channel.history(limit=10)]
             context = "\n".join(f"{m.author.display_name} said: {m.content}" for m in messages)
             response = await generate_answer_when_mentioning_bot(context, message.content, message.author.display_name)
-            await message.channel.send(message.author.mention + " " + response)
+            if response is not None:
+                await message.channel.send(message.author.mention + " " + response)
         # Make sure other commands still work
         await self.bot.process_commands(message)
 

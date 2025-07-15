@@ -383,7 +383,9 @@ def test_insert_if_nonexistant_with_no_duplicate(mock_log):
     mock_log.assert_has_calls(
         [
             call("insert_if_nonexistant_full_match_info: Found 1 new matches to insert out of 1 for DiscordName1"),
-            call("insert_if_nonexistant_full_match_info: Inserted match 1 for DiscordName1"),
+            call(
+                "insert_if_nonexistant_full_match_info: Inserted match 1 for DiscordName1. Match id 9681f59e-80db-4b2e-b54b-3631af76b074 and user id 1"
+            ),
         ]
     )
 

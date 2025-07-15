@@ -465,6 +465,18 @@ class DatabaseManager:
                 print_error_log(f"system_database:TransactionContext:__exit__: {exc_val}")
             return True  # Avoid the exception to bubble up
 
+    def close(self):
+        """Close the database connection and cursor."""
+        try:
+            if hasattr(self, "cursor") and self.cursor:
+                self.cursor.close()
+                self.cursor = None  # pylint: disable=attribute-defined-outside-init
+            if hasattr(self, "conn") and self.conn:
+                self.conn.close()
+                self.conn = None  # pylint: disable=attribute-defined-outside-init
+        except Exception as e:
+            print_error_log(f"DatabaseManager.close: {e}")
+
 
 database_manager = DatabaseManager(DATABASE_NAME)
 

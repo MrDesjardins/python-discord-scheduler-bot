@@ -91,7 +91,7 @@ class UserTournamentFeatures(commands.Cog):
             )
             await interaction.response.send_message("No active tournament available for you.", ephemeral=True)
             return
-        
+
         view = TournamentMatchScoreReport(list_tournaments)
 
         msg = "Click on the tournament and report the score" if len(list_tournaments) > 1 else "Report the score"

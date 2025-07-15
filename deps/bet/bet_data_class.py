@@ -88,8 +88,15 @@ class BetUserGame:
     The bet game id (NOT the tournament game id)
     """
     bet_game_id: int
+    """
+    The user id that placed the bet
+    This is the user that placed the bet, not the user that won/loss the bet
+    """
     user_id: int
     amount: float
+    """
+    The user id we are betting on
+    """
     user_id_bet_placed: int
     time_bet_placed: datetime
     """

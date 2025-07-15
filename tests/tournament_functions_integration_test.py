@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import List, Union
 from unittest.mock import patch
 import pytest
+import pytest_asyncio
 from deps.bet.bet_data_class import BetLedgerEntry, BetUserTournament
 from deps.bet.bet_functions import place_bet_for_game
 from deps.bet.bet_data_access import (
@@ -56,8 +57,8 @@ USER8_ID = 8
 USER9_ID = 9
 
 
-@pytest.fixture(autouse=True)
-def setup_and_teardown():
+@pytest_asyncio.fixture(autouse=True)
+async def setup_and_teardown():
     """Setup and Teardown for the test"""
     # Setup
     database_manager.set_database_name(DATABASE_NAME_TEST)
@@ -68,6 +69,7 @@ def setup_and_teardown():
     yield
 
     # Teardown
+    database_manager.close()
     database_manager.set_database_name(DATABASE_NAME)
 
 
@@ -707,9 +709,9 @@ async def test_full_team_tournament() -> None:
     """
     Create a tournament that is 2 v 2 with odd number (5 people), so  only 4 people out of 5 are registered
     """
-    #              [53:U1=2, U2=3]  
-    #                /        \ 
-    #    [1:U1=1, U2=2] [2:U1=3, U2=4] 
+    #              [53:U1=2, U2=3]
+    #                /        \
+    #    [1:U1=1, U2=2] [2:U1=3, U2=4]
     tournament_id = data_access_insert_tournament(
         GUILD_ID,
         "My Team Tournament",
@@ -834,7 +836,7 @@ async def test_full_team_tournament() -> None:
                 True,
                 "./tests/generated_contents/bracket_team_4.png",
             )
-          
+
     # The tournament is over, get the winner
     tournament_games = fetch_tournament_games_by_tournament_id(tournament_id)
     tournament_tree = build_tournament_tree(tournament_games)

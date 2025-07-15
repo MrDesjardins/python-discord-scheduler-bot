@@ -1,8 +1,9 @@
 -- Create a fake 1v1 tournament data for testing purposes
-
+-- The scenario is that upon reporting the lost the tournament is NOT over
 -- Use cases:
--- Report lost
+-- Report lost /reportlosttournament
 -- Report lost again (eliminated should not allow)
+-- Place a bet /bet (should not allow since completed)
 DELETE FROM user_tournament WHERE tournament_id = 123123;
 
 DELETE FROM tournament_game WHERE tournament_id = 123123;
@@ -28,7 +29,7 @@ VALUES
   (
     123123,
     1281020861591326803,
-    'Fake Tournament #2',
+    '1v1 Fake Tournament #2',
     '2025-01-01 00:00:00',
     '2025-01-10 00:00:00',
     '2026-05-31 00:00:00',

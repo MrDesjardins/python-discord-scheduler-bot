@@ -209,6 +209,19 @@ def get_bet_user_wallet_for_tournament(tournament_id: int, user_id: int) -> BetU
     return wallet
 
 
+def get_bet_user_amount_active_bet(tournament_id: int, user_id: int) -> float:
+    """
+    Get the amount of money a user has bet on active games
+    """
+
+    # Get all the active bet for the tournament (not efficient but always limited and allows reusability of the function)
+    bet_user_games: List[BetUserGame] = data_access_get_bet_user_game_waiting_match_complete(tournament_id)
+    # Filter for the user
+    bet_user_games_for_user = [bet for bet in bet_user_games if bet.user_id == user_id]
+    total_amount = sum(bet.amount for bet in bet_user_games_for_user)
+    return total_amount
+
+
 async def system_generate_game_odd(tournament_id: int) -> None:
     """
     Generate the odd for all available games of a tournament
@@ -256,8 +269,12 @@ async def system_generate_game_odd(tournament_id: int) -> None:
         if game.id is None:
             continue
         # 4.1 Get the wallet of the two users (these are the leaders in case of a team tournament)
-        user_info1: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user1_id) if game.user1_id else None
-        user_info2: Optional[UserInfo] = await fetch_user_info_by_user_id(game.user2_id) if game.user2_id else None
+        user_info1: Optional[UserInfo] = (
+            await fetch_user_info_by_user_id(game.user1_id) if game.user1_id is not None else None
+        )
+        user_info2: Optional[UserInfo] = (
+            await fetch_user_info_by_user_id(game.user2_id) if game.user2_id is not None else None
+        )
         if user_info1 is None or user_info2 is None:
             odd_user1 = 0.5
             odd_user2 = 0.5
@@ -266,8 +283,8 @@ async def system_generate_game_odd(tournament_id: int) -> None:
             if tournament.team_size > 1:
                 # If the tournament is a team tournament, we need to get the team members
                 team_members = fetch_tournament_team_members_by_leader(tournament_id)
-                team1_members = team_members.get(game.user1_id, [])
-                team2_members = team_members.get(game.user2_id, [])
+                team1_members: List[int] = team_members.get(game.user1_id, []) if game.user1_id is not None else []
+                team2_members: List[int] = team_members.get(game.user2_id, []) if game.user2_id is not None else []
                 odd_user1, odd_user2 = define_odds_between_two_teams(
                     [user_info1.id] + team1_members, [user_info2.id] + team2_members
                 )

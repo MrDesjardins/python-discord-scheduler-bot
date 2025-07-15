@@ -9,7 +9,7 @@ from discord.ext import commands
 from discord import app_commands
 
 from deps.bet.bet_data_class import BetUserTournament
-from deps.bet.bet_functions import get_bet_user_wallet_for_tournament
+from deps.bet.bet_functions import get_bet_user_amount_active_bet, get_bet_user_wallet_for_tournament
 from deps.tournaments.tournament_data_access import (
     fetch_active_tournament_by_guild,
 )
@@ -66,7 +66,9 @@ class UserBetFeatures(commands.Cog):
                 await interaction.response.send_message("Tournament not found for this guild.", ephemeral=True)
                 return
             wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament_id, user_id)
-            amount = math.floor(wallet.amount * 100) / 100
+            active_bet_amount: float = get_bet_user_amount_active_bet(tournament_id, user_id)
+
+            amount = math.floor((wallet.amount + active_bet_amount) * 100) / 100
             await interaction.response.send_message(f"You have ${amount:.2f}", ephemeral=True)
         else:
             # Combined message with all tournaments
@@ -79,7 +81,8 @@ class UserBetFeatures(commands.Cog):
                     await interaction.response.send_message("Tournament not found for this guild.", ephemeral=True)
                     return
                 one_wallet: BetUserTournament = get_bet_user_wallet_for_tournament(tournament.id, user_id)
-                amount = math.floor(one_wallet.amount * 100) / 100
+                one_wallet_bet: float = get_bet_user_amount_active_bet(tournament.id, user_id)
+                amount = math.floor((one_wallet.amount + one_wallet_bet) * 100) / 100
                 msg += f"➡️ {tournament.name}: ${amount:.2f}\n"
             await interaction.response.send_message(msg, ephemeral=True)
 

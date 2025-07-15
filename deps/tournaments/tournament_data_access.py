@@ -439,7 +439,10 @@ def save_tournament_games(games: List[TournamentGame]) -> None:
 
     database_manager.get_conn().commit()
 
-cache_tournament = TTLCache(maxsize=100, ttl=30) # 30 seconds
+
+cache_tournament: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+
+
 @cached(cache_tournament)
 def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
     """
@@ -495,9 +498,12 @@ def register_user_teammate_to_leader(tournament_id: int, leader_user_id: int, te
     )
     database_manager.get_conn().commit()
 
-cache_leader_teammates = TTLCache(maxsize=100, ttl=30) # 30 seconds
+
+cache_leader_teammates: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+
+
 @cached(cache_leader_teammates)
-def fetch_tournament_team_members_by_leader(tournament_id:int) -> dict[int, List[int]]:
+def fetch_tournament_team_members_by_leader(tournament_id: int) -> dict[int, List[int]]:
     """
     Fetch all team members for a tournament by leader.
     Returns a dictionary where the key is the leader's user ID and the value is a list of team member user IDs.
@@ -520,7 +526,10 @@ def fetch_tournament_team_members_by_leader(tournament_id:int) -> dict[int, List
 
     return team_members
 
-cache_team_labels = TTLCache(maxsize=100, ttl=30) # 30 seconds
+
+cache_team_labels: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+
+
 @cached(cache_team_labels)
 def data_access_get_team_labels(tournament_id: int, user_info1: UserInfo, user_info2: UserInfo) -> tuple[str, str]:
     """

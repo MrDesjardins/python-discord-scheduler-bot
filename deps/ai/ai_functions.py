@@ -21,7 +21,7 @@ ENV = os.getenv("ENV")
 KEY = os.getenv("GEMINI_API_KEY")
 
 
-def ask_gemini(question: str) -> str:
+def ask_gemini(question: str) -> Union[str, None]:
     """
     Ask Gemini a question and return the answer (blocking).
     """
@@ -121,7 +121,7 @@ async def generate_message_summary_matches_async(hours: int) -> str:
 
 async def generate_answer_when_mentioning_bot(
     context_previous_messages: str, message_user: str, user_display_name: str
-) -> str:
+) -> Union[str, None]:
     """
     Generate an answer when the bot is mentioned.
     """

@@ -17,6 +17,7 @@ from deps.bet.bet_functions import (
     distribute_gain_on_recent_ended_game,
     dynamically_adjust_bet_game_odd,
     generate_msg_bet_game,
+    get_bet_user_amount_active_bet,
     get_open_bet_games_for_tournament,
     get_total_pool_for_game,
     get_bet_user_wallet_for_tournament,
@@ -2364,3 +2365,34 @@ def test_calculate_gain_lost_for_open_bet_game_with_loss_at_zero_win_at_bet_amou
     assert len(result) == 2
     assert result[0].amount == pytest.approx(181.818, abs=0.3)  # 100 initial bet and the odd at 0.5 double
     assert result[1].amount == 0  # Nothing because loss
+
+
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_waiting_match_complete.__name__)
+async def test_get_bet_user_amount_active_bet_no_bet(
+    mock_data_access_get_bet_user_game_waiting_match_complete,
+) -> None:
+    """Test the user has not bet"""
+    # Arrange
+    mock_data_access_get_bet_user_game_waiting_match_complete.return_value = []
+    # Act
+    result = get_bet_user_amount_active_bet(1, 2)
+    # Assert
+    assert result == 0
+
+
+@patch.object(bet_functions, bet_functions.data_access_get_bet_user_game_waiting_match_complete.__name__)
+async def test_get_bet_user_amount_active_bet_many_ets(
+    mock_data_access_get_bet_user_game_waiting_match_complete,
+) -> None:
+    """Test whe more than one bet is made, should retun the sum"""
+    # Arrange
+    user_id = 2
+    mock_data_access_get_bet_user_game_waiting_match_complete.return_value = [
+        BetUserGame(10, 1, 3, user_id, 100, 40, fake_date, 0.5, False),
+        BetUserGame(20, 1, 3, user_id, 150, 50, fake_date, 0.5, False),
+        BetUserGame(20, 1, 3, 2000, 1000, 50, fake_date, 0.5, False),
+    ]
+    # Act
+    result = get_bet_user_amount_active_bet(1, user_id)
+    # Assert
+    assert result == 250

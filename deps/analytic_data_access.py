@@ -2536,7 +2536,7 @@ def data_access_fetch_time_played_siege_on_server(from_data: date, top: int) -> 
     return [(row[0], row[1]) for row in result]
 
 
-def data_access_fetch_time_duo_partners(from_data: date, top: int) -> list[tuple[str, int]]:
+def data_access_fetch_time_duo_partners(from_data: date, top: int) -> list[tuple[str, str, int]]:
     """
     Get the total hours played with someone else
     """

@@ -1,5 +1,12 @@
 -- Create a fake 1v1 tournament data for testing purposes
--- Delete Everything
+-- The scenario is that upon reporting the lost the tournament is NOT over
+-- Use cases:
+-- 1. Do the /seebrackettournament command
+-- 2. See your wallet with fake money using /betwallet 
+-- 3. See all wallets using the leaderboard command /betleaderboard
+-- 4. Do the /reportlosttournament command
+-- You should see the winner, the bracket and the bets winners
+
 DELETE FROM user_tournament
 WHERE
   tournament_id = 65564;
@@ -35,7 +42,7 @@ VALUES
   (
     65564,
     1281020861591326803,
-    'Fake Tournament #3',
+    '1v1 Fake Tournament #3',
     '2025-01-01 00:00:00',
     '2025-01-10 00:00:00',
     '2026-01-31 00:00:00',
@@ -243,7 +250,7 @@ VALUES
     NULL
   );
 
--- Add bets
+-- Add user wallet with fake money
 INSERT INTO
   bet_user_tournament (tournament_id, user_id, amount)
 VALUES

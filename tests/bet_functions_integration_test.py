@@ -69,6 +69,7 @@ async def test_generating_odd_for_tournament_that_does_not_exist(
         await system_generate_game_odd(10000)
     mock_define_odds_between_two_users.assert_not_called()
 
+
 @patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
 @patch.object(bet_functions, bet_functions.define_odds_between_two_teams.__name__)
 @patch.object(bet_functions, bet_functions.define_odds_between_two_users.__name__)
@@ -79,7 +80,7 @@ async def test_generating_odd_for_tournament_games_for_only_game_without_ones(
     mock_fetch_tournament,
     mock_define_odds_between_two_users,
     mock_define_odds_between_two_teams,
-    mock_fetch_user_info_by_user_id
+    mock_fetch_user_info_by_user_id,
 ) -> None:
     """Test that generate the odd for the tournament games"""
     # Arrange

@@ -54,6 +54,13 @@ async def post_end_tournament_messages(interaction: discord.Interaction, tournam
     else:
         # Tournament is over. We show the winners
         try:
+            if tournament.id is None:
+                print_error_log("TournamentMatchScoreReport: process_tournament_result: Tournament id is None.")
+                await interaction.followup.send(
+                    f"The tournament **{tournament.name}** cannot be completed. Moderation needs to check the logs.",
+                    ephemeral=False,
+                )
+                return
             leader_partners: dict[int, list[int]] = fetch_tournament_team_members_by_leader(tournament.id)
             m1 = await data_access_get_member(guild_id, final_score.first_place_user_id)
             first_place = m1.mention if m1 else str(final_score.first_place_user_id)

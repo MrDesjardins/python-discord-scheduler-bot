@@ -17,6 +17,8 @@ from deps.tournaments.tournament_data_access import (
     data_access_get_team_labels,
     fetch_tournament_games_by_tournament_id,
 )
+
+
 class BetTournamentSelectorForMarket(View):
     """
     A view that allows the user to select the tournament to see the wallet amount.
@@ -344,9 +346,10 @@ class AmountModal(discord.ui.Modal, title="Amount of money"):
             user_bet_on = user1 if self.view.user_info1.id == self.view.user_bet_on_id else user2
 
             tournament_name = next(t for t in self.view.list_tournaments if t.id == self.view.tournament_id).name
-            label1, label2 = data_access_get_team_labels(self.view.tournament_id, self.view.user_info1, self.view.user_info2)
+            label1, label2 = data_access_get_team_labels(
+                self.view.tournament_id, self.view.user_info1, self.view.user_info2
+            )
             await interaction.followup.send(
                 f'''💰 {interaction.user.mention} bet **${amount:.2f}** on {user_bet_on} in the match {label1} ({user1_odd:.2f}) vs {label2} ({user2_odd:.2f}) in tournanent "{tournament_name}"''',
                 ephemeral=False,
             )
-

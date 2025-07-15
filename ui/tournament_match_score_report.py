@@ -285,9 +285,11 @@ class TournamentMatchScoreReport(View):
                     ephemeral=True,
                 )
         else:
-            print_error_log(f"Error while reporting lost: {result.text}")
+            print_error_log(
+                f"TournamentMatchScoreReport: process_tournament_result: Error while reporting lost: {result.text}"
+            )
             await interaction.followup.send(
-                f"""TournamentMatchScoreReport: process_tournament_result: Cannot report lost match: {result.text} Please contact a moderator if you should have reported a match.""",
+                f"""Cannot report lost match: {result.text} Please contact a moderator if you should have reported a match.""",
                 ephemeral=True,
             )
 

@@ -21,6 +21,7 @@ class UserInfo:
     """ List of time zones: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones """
     time_zone: str
 
+
 @dataclass
 class UserActivity:
     """Match the SQL table user_activity"""

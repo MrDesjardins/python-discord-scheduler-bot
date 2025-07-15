@@ -839,7 +839,7 @@ def build_msg_3_columns(
     stats_name: str,
     info_time_str: str,
     cols_name: list[str],
-    stats_tuple: list[tuple[str, int]],
+    stats_tuple: list[tuple[str, str, int]],
     top: int = 20,
     start_index: int = 0,
 ) -> str:
