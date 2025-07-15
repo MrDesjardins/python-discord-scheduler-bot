@@ -117,9 +117,9 @@ class UserFullMatchStats:
         rank_previous: int,
         kd_ratio: float,
         head_shot_percentage: float,
-        kills_per_round: int,
-        deaths_per_round: int,
-        assists_per_round: int,
+        kills_per_round: float,
+        deaths_per_round: float,
+        assists_per_round: float,
         has_win: bool,
     ):
         self.id = id

@@ -1,7 +1,7 @@
 """Browser manipulation functions"""
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+import inspect
 import random
 from typing import List, Union
 from deps.browser_context_manager import BrowserContextManager
@@ -13,15 +13,6 @@ from deps.models import (
     UserWithUserMatchInfo,
 )
 from deps.log import print_error_log
-
-
-async def run_in_executor(func, *args):
-    """
-    Run in another thread the function to avoid blocking the main event loop.
-    """
-    loop = asyncio.get_event_loop()
-    with ThreadPoolExecutor() as pool:
-        return await loop.run_in_executor(pool, func, *args)
 
 
 async def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
@@ -63,8 +54,7 @@ async def download_full_matches_async(users_queue_stats: List[UserQueueForStats]
 
     try:
         # Offload the blocking task to a thread
-        loop = asyncio.get_event_loop()
-        list_users_and_matches: List[UserWithUserMatchInfo] = await loop.run_in_executor(None, blocking_task)
+        list_users_and_matches: List[UserWithUserMatchInfo] = await asyncio.to_thread(blocking_task)
     except Exception as e:
         print_error_log(f"download_full_matches_async: Error during match download: {e}")
         return []
@@ -72,7 +62,10 @@ async def download_full_matches_async(users_queue_stats: List[UserQueueForStats]
     try:
         if post_process_callback:
             # Schedule the callback back on the main thread
-            loop.call_soon(asyncio.create_task, post_process_callback(list_users_and_matches))
+            if inspect.iscoroutinefunction(post_process_callback):
+                await post_process_callback(list_users_and_matches)
+            else:
+                post_process_callback(list_users_and_matches)
 
         return list_users_and_matches
     except Exception as e:
@@ -124,8 +117,7 @@ async def download_full_user_information_async(users_queue_stats: List[UserQueue
 
     try:
         # Offload the blocking task to a thread
-        loop = asyncio.get_event_loop()
-        list_user: List[UserWithUserInformation] = await loop.run_in_executor(None, blocking_task)
+        list_user: List[UserWithUserInformation] = await asyncio.to_thread(blocking_task)
     except Exception as e:
         print_error_log(f"download_full_user_information_async: Error during match download: {e}")
         return []
@@ -133,7 +125,10 @@ async def download_full_user_information_async(users_queue_stats: List[UserQueue
     try:
         if post_process_callback:
             # Schedule the callback back on the main thread
-            loop.call_soon(asyncio.create_task, post_process_callback(list_user))
+            if inspect.iscoroutinefunction(post_process_callback):
+                await post_process_callback(list_user)
+            else:
+                post_process_callback(list_user)
 
         return list_user
     except Exception as e:
