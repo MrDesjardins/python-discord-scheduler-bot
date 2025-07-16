@@ -12,8 +12,11 @@ from deps.system_database import database_manager
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.functions import get_name
 
+KEY_TOURNAMENT = "tournament"
 KEY_TOURNAMENT_GUILD = "tournament_guild"
-KEY_TOURNAMENT_GAMES = "tournament_games"
+KEY_TOURNAMENT_GAME = "tournament_game"
+KEY_USER_TOURNAMENT = "user_tournament"
+KEY_TOURNAMENT_TEAM_MEMBERS = "tournament_team_members"
 
 SELECT_TOURNAMENT = """
     tournament.id,
@@ -29,6 +32,31 @@ SELECT_TOURNAMENT = """
     tournament.has_finished,
     tournament.team_size
     """
+SELECT_TOURNAMENT_GAME = """
+    tournament_game.id,
+    tournament_game.tournament_id,
+    tournament_game.user1_id,
+    tournament_game.user2_id,
+    tournament_game.user_winner_id,
+    tournament_game.score,
+    tournament_game.map,
+    tournament_game.timestamp,
+    tournament_game.next_game1_id,
+    tournament_game.next_game2_id
+"""
+SELECT_USER_TOURNAMENT = """
+    user_tournament.id,
+    user_tournament.user_id, 
+    user_tournament.tournament_id, 
+    user_tournament.registration_date
+"""
+
+SELECT_TOURNAMENT_TEAM_MEMBERS = """
+    tournament_team_members.id,
+    tournament_team_members.tournament_id,
+    tournament_team_members.user_leader_id,
+    tournament_team_members.user_id
+"""
 
 
 def data_access_insert_tournament(
@@ -317,17 +345,8 @@ def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[Tourname
     result = (
         database_manager.get_cursor()
         .execute(
-            """
-            SELECT  id,
-                    tournament_id,
-                    user1_id,
-                    user2_id,
-                    user_winner_id,
-                    score,
-                    map,
-                    timestamp,
-                    next_game1_id,
-                    next_game2_id
+            f"""
+            SELECT {SELECT_TOURNAMENT_GAME}
             FROM tournament_game WHERE tournament_id = :tournament_id
             """,
             {"tournament_id": tournament_id},
@@ -380,13 +399,8 @@ def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
     Get the list of people who registered for a tournament.
     """
     database_manager.get_cursor().execute(
-        """
-        SELECT user_id, 
-              display_name, 
-              ubisoft_username_max, 
-              ubisoft_username_active, 
-              r6_tracker_active_id,
-              time_zone
+        f"""
+        SELECT {SELECT_USER_TOURNAMENT}
         FROM user_tournament
         LEFT JOIN user_info ON user_tournament.user_id = user_info.id
         WHERE tournament_id = :tournament_id;

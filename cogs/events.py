@@ -322,12 +322,34 @@ class MyEventsCog(commands.Cog):
 
         # Check if the bot was mentioned
         if self.bot.user in message.mentions:
+            message_ref = await message.channel.send(
+                message.author.mention
+                + " Hi! I am here to help you. Please wait a moment while I process your request... I will edit this message with the response if I can figure it out."
+            )
             # Fetch the last 8 messages in the same channel
-            messages: list[discord.Message] = [msg async for msg in message.channel.history(limit=10)]
+            before_replied_msg = []
+            if message.reference is not None:
+                replied_message = await message.channel.fetch_message(message.reference.message_id)
+                # If the message is a reply, we can fetch the last x messages before the replied message
+                before_replied_msg = [
+                    msg async for msg in message.channel.history(limit=8, before=replied_message.created_at)
+                ]
+            current_replied_msg = [message]
+            last_messages_channel = [msg async for msg in message.channel.history(limit=8)]
+            messages: list[discord.Message] = before_replied_msg + current_replied_msg + last_messages_channel
+            # Remove duplicates and sort by creation time
+            messages = list({m.id: m for m in messages}.values())
+            messages.sort(key=lambda m: m.created_at)
             context = "\n".join(f"{m.author.display_name} said: {m.content}" for m in messages)
-            response = await generate_answer_when_mentioning_bot(context, message.content, message.author.display_name)
+            response = await generate_answer_when_mentioning_bot(
+                context, message.content, message.author.display_name, message.author.id
+            )
             if response is not None:
-                await message.channel.send(message.author.mention + " " + response)
+                await message_ref.edit(content=message.author.mention + " " + response)
+            else:
+                await message_ref.edit(
+                    content=message.author.mention + " I am sorry, I could not process your request."
+                )
         # Make sure other commands still work
         await self.bot.process_commands(message)
 

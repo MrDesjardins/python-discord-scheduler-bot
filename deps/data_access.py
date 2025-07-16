@@ -1,5 +1,6 @@
 """Access to the data is done throught this data access"""
 
+import pickle
 from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
@@ -20,6 +21,7 @@ from deps.cache import (
 from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueueForStats
 from deps.log import print_log
 from deps.functions_date import get_now_eastern
+from deps.system_database import database_manager
 
 KEY_DAILY_MSG = "DailyMessageSentInChannel"
 KEY_REACTION_USERS = "ReactionUsersV2"
@@ -425,3 +427,16 @@ def data_access_set_daily_message_id(guild_id: int, message_id: int) -> None:
     current_date = get_now_eastern().strftime("%Y-%m-%d")
     key = f"{KEY_DAILY_MSG}:{guild_id}:{current_date}"
     set_cache(False, key, message_id, THREE_DAY_TTL)
+
+
+def data_access_execute_sql_query_from_llm(sql_query: str) -> str:
+    """
+    Execute a SQL query from LLM
+    """
+    database_manager.get_cursor().execute(sql_query)
+    result = database_manager.get_cursor().fetchall()
+    # Convert to string the whole result
+    if not result:
+        return ""
+    result_string = "\n".join(str(row) for row in result)
+    return result_string

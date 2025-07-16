@@ -17,9 +17,10 @@ from deps.functions_date import ensure_utc
 from deps.models import UserFullMatchStats, UserInformation
 from deps.log import print_error_log, print_log
 
+KEY_USER_FULL_MATCH_INFO = "user_full_match_info"
+KEY_USER_FULL_MATCH_INFO = "user_full_stats_info"
 KEY_USER_INFO = "user_info"
-KEY_TOURNAMENT_GUILD = "tournament_guild"
-KEY_TOURNAMENT_GAMES = "tournament_games"
+KEY_USER_ACTIVITY = "user_activity"
 
 USER_ACTIVITY_SELECT_FIELD = "user_id, channel_id, event, timestamp, guild_id"
 USER_INFO_SELECT_FIELD = (

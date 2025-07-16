@@ -8,6 +8,11 @@ from typing import List, Union
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
 from deps.system_database import database_manager
 
+KEY_bet_user_game = "bet_user_game"
+KEY_bet_user_tournament = "bet_user_tournament"
+KEY_bet_game = "bet_game"
+KEY_bet_ledger_entry = "bet_ledger_entry"
+
 SELECT_BET_USER_GAME = """
     bet_user_game.id, 
     bet_user_game.tournament_id, 
