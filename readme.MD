@@ -100,6 +100,12 @@ The bot can generate a matrix of the most active day of the week for each user.
 
 ![Weekday Activity](readme_assets/week_day_activity.png)
 
+# Bot AI Conversation
+
+The bot can answer questions about the game, statistics, and other information related to the game. The bot uses the Gemini AI API to generate answers based on the context of the conversation and the user's question.
+
+![AI Conversation](readme_assets/ai_communication1.png)
+
 # Bot Commands
 
 ## User Commands
