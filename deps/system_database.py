@@ -40,7 +40,7 @@ class DatabaseManager:
         Set the database name
         """
         self.name = name
-        self.conn = sqlite3.connect(name)
+        self.conn = sqlite3.connect(name, check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL;")  # Performance gain on write
         self.cursor = self.conn.cursor()
         self.init_database()

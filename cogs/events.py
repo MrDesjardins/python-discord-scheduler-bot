@@ -341,14 +341,25 @@ class MyEventsCog(commands.Cog):
             messages = list({m.id: m for m in messages}.values())
             messages.sort(key=lambda m: m.created_at)
             context = "\n".join(f"{m.author.display_name} said: {m.content}" for m in messages)
-            response = await generate_answer_when_mentioning_bot(
-                context, message.content, message.author.display_name, message.author.id
-            )
-            if response is not None:
-                await message_ref.edit(content=message.author.mention + " " + response)
-            else:
+            try:
+                response = await asyncio.to_thread(
+                    lambda: asyncio.run(
+                        generate_answer_when_mentioning_bot(
+                            context, message.content, message.author.display_name, message.author.id
+                        )
+                    )
+                )
+                if response is not None:
+                    await message_ref.edit(content=message.author.mention + " " + response)
+                else:
+                    await message_ref.edit(
+                        content=message.author.mention + " I am sorry, I could not process your request."
+                    )
+            except Exception as e:
+                print_error_log(f"on_message: Error processing message: {e}")
                 await message_ref.edit(
-                    content=message.author.mention + " I am sorry, I could not process your request."
+                    content=message.author.mention
+                    + " I am sorry, I encountered an error while processing your request."
                 )
         # Make sure other commands still work
         await self.bot.process_commands(message)
