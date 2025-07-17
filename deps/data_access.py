@@ -44,6 +44,7 @@ KEY_GUILD_TOURNAMENT_TEXT_CHANNEL = "GuildAdminConfigTournamentTextChannel"
 KEY_GUILD_MAIN_TEXT_CHANNEL = "GuildMainSiegeTextChannel"
 KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
+KEY_AI_COUNT = "AI_daily_Count"
 
 
 async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
@@ -440,3 +441,13 @@ def data_access_execute_sql_query_from_llm(sql_query: str) -> str:
         return ""
     result_string = "\n".join(str(row) for row in result)
     return result_string
+
+
+async def data_access_get_ai_daily_count() -> Union[int, None]:
+    """Get the count of time the AI was called"""
+    return await get_cache(False, KEY_AI_COUNT)
+
+
+def data_access_set_ai_daily_count(count: int) -> None:
+    """Set the count of time the AI was called"""
+    set_cache(False, KEY_AI_COUNT, count, ONE_DAY_TTL)

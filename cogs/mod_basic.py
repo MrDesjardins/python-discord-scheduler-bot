@@ -31,7 +31,7 @@ from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
 from deps.siege import get_siege_activity
 from deps.functions_stats import send_daily_stats_to_a_guild
-from deps.ai.ai_functions import generate_message_summary_matches_async
+from deps.ai.ai_functions import BotAISingleton
 
 
 class ModBasic(commands.Cog):
@@ -207,7 +207,7 @@ class ModBasic(commands.Cog):
             print_error_log(f"\t⚠️ generate_ai_summary: Channel not found for guild {guild.name}. Skipping.")
             return
 
-        msg = await generate_message_summary_matches_async(hours)
+        msg = await BotAISingleton().generate_message_summary_matches_async(hours)
         if msg == "":
             await interaction.followup.send("Error while generating the summary", ephemeral=True)
             return

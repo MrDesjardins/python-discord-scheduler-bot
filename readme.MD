@@ -17,7 +17,7 @@ The project is a Python Discord bot that aim to perform repetitive tasks for a g
 9. The bot uses the Discord activity API to determine when a user in a stack is back in the menu, ready to play and send a LFG (looking for group) message if the user is not in a full stack automatically.
 10. The bot has AI generated summary of what happened in the last 24 hours in term of matches played, kills, deaths, etc. The summary is sent to a specific channel of the guild.
 11. Tournament support 1v1 but also team tournament. The bot can handle 1v1, 2v2, 3v3, 4v4 and 5v5 tournaments.
-12. User can communicate by at-mentioning the bot or replying to the bot's message. The bot will generate an answer based on the context of the conversation and the user's question. The bot can also answer questions about the game, statistics, and other information related to the game. This feature is powered by the Gemini AI API and uses the database to fetch statistics and information about the game.
+12. User can communicate by at-mentioning the bot or replying to the bot's message. The bot will generate an answer based on the context of the conversation and the user's question. The bot can also answer questions about the game, statistics, and other information related to the game. This feature is powered by the Gemini and Open AI API and uses the database to fetch statistics and information about the game.
 
 # What does the Bot look like?
 
@@ -344,6 +344,8 @@ environment variable for your private deployment.
 ENV=dev # or prod
 BOT_TOKEN=<bot token>
 BOT_TOKEN_DEV=<bot token>
+GEMINI_API_KEY=<gemini api token>
+OPENAI_API_KEY=<open ai api token>
 ```
 
 ## Running the bot in Dev:
@@ -406,6 +408,8 @@ deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi
 ENV=prod
 BOT_TOKEN=<bot token>
 TRN_API_KEY<TRN token>
+GEMINI_API_KEY=<api key>
+OPENAI_API_KEY=<api key>
 ```
 
 11. Install ffmpeg for the audio

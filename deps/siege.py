@@ -37,12 +37,12 @@ def get_color_for_rank(member: discord.Member) -> int:
     return color_map.get("Copper", 0x8B0000)
 
 
-def get_user_rank_siege(guild_emoji: dict[str, str], user: discord.Member) -> str:
+def get_user_rank_siege(user: discord.Member) -> str:
     """
     Check the user's roles to determine their rank
     """
     if user is None:
-        return get_guild_rank_emoji(guild_emoji, "Copper")
+        return "Copper"
 
     for role in user.roles:
         if role.name in siege_ranks:

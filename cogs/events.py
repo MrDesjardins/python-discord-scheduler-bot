@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from discord.ext import commands
 import discord
-from deps.ai.ai_functions import generate_answer_when_mentioning_bot
+from deps.ai.ai_functions import BotAISingleton
 from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
@@ -31,7 +31,7 @@ from deps.data_access import (
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.models import ActivityTransition
-from deps.siege import get_siege_activity
+from deps.siege import get_siege_activity, get_user_rank_siege
 
 load_dotenv()
 
@@ -56,6 +56,9 @@ class MyEventsCog(commands.Cog):
         print_log(f"{bot.user} has connected to Discord!")
         print_log(f"Bot latency: {bot.latency} seconds")
         tasks = []
+        # Load ai data
+        await BotAISingleton().bot.load_initial_value()
+        print_log("✅ AI Counted loaded")
         for guild in bot.guilds:
             print_log(f"Checking in guild: {guild.name} ({guild.id}) - Created the {guild.created_at}")
             print_log(f"\tGuild {guild.name} has {guild.member_count} members, setting the commands")
@@ -322,45 +325,51 @@ class MyEventsCog(commands.Cog):
 
         # Check if the bot was mentioned
         if self.bot.user in message.mentions:
-            message_ref = await message.channel.send(
-                message.author.mention
-                + " Hi! I am here to help you. Please wait a moment while I process your request... I will edit this message with the response if I can figure it out."
-            )
-            # Fetch the last 8 messages in the same channel
-            before_replied_msg = []
-            if message.reference is not None:
-                replied_message = await message.channel.fetch_message(message.reference.message_id)
-                # If the message is a reply, we can fetch the last x messages before the replied message
-                before_replied_msg = [
-                    msg async for msg in message.channel.history(limit=8, before=replied_message.created_at)
-                ]
-            current_replied_msg = [message]
-            last_messages_channel = [msg async for msg in message.channel.history(limit=8)]
-            messages: list[discord.Message] = before_replied_msg + current_replied_msg + last_messages_channel
-            # Remove duplicates and sort by creation time
-            messages = list({m.id: m for m in messages}.values())
-            messages.sort(key=lambda m: m.created_at)
-            context = "\n".join(f"{m.author.display_name} said: {m.content}" for m in messages)
-            try:
-                response = await asyncio.to_thread(
-                    lambda: asyncio.run(
-                        generate_answer_when_mentioning_bot(
-                            context, message.content, message.author.display_name, message.author.id
+            if BotAISingleton().bot.is_running():
+                await message.channel.send(
+                    message.author.mention + " I am already working on a inquiry. Give me more time and try later."
+                )
+            else:
+                message_ref = await message.channel.send(
+                    message.author.mention
+                    + " Hi! I am here to help you. Please wait a moment (might take a minute) while I process your request... I will edit this message with the response if I can figure it out."
+                )
+                # Fetch the last 8 messages in the same channel
+                before_replied_msg = []
+                if message.reference is not None:
+                    replied_message = await message.channel.fetch_message(message.reference.message_id)
+                    # If the message is a reply, we can fetch the last x messages before the replied message
+                    before_replied_msg = [
+                        msg async for msg in message.channel.history(limit=8, before=replied_message.created_at)
+                    ]
+                current_replied_msg = [message]
+                last_messages_channel = [msg async for msg in message.channel.history(limit=8)]
+                messages: list[discord.Message] = before_replied_msg + current_replied_msg + last_messages_channel
+                # Remove duplicates and sort by creation time
+                messages = list({m.id: m for m in messages}.values())
+                messages.sort(key=lambda m: m.created_at)
+                context = "\n".join(f"{m.author.display_name} said: {m.content}" for m in messages)
+                try:
+                    user_rank = get_user_rank_siege(message.author)
+                    response = await asyncio.to_thread(
+                        lambda: asyncio.run(
+                            BotAISingleton().bot.generate_answer_when_mentioning_bot(
+                                context, message.content, message.author.display_name, message.author.id, user_rank
+                            )
                         )
                     )
-                )
-                if response is not None:
-                    await message_ref.edit(content=message.author.mention + " " + response)
-                else:
+                    if response is not None:
+                        await message_ref.edit(content="✅ " + message.author.mention + " " + response)
+                    else:
+                        await message_ref.edit(
+                            content="⛔ " + message.author.mention + " I am sorry, I could not process your request."
+                        )
+                except Exception as e:
+                    print_error_log(f"on_message: Error processing message: {e}")
                     await message_ref.edit(
-                        content=message.author.mention + " I am sorry, I could not process your request."
+                        content=message.author.mention
+                        + " I am sorry, I encountered an error while processing your request."
                     )
-            except Exception as e:
-                print_error_log(f"on_message: Error processing message: {e}")
-                await message_ref.edit(
-                    content=message.author.mention
-                    + " I am sorry, I encountered an error while processing your request."
-                )
         # Make sure other commands still work
         await self.bot.process_commands(message)
 

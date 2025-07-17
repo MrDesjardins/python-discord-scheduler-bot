@@ -4,7 +4,7 @@ Function to interact with the AI bot and Discord bot
 
 import discord
 
-from deps.ai.ai_functions import generate_message_summary_matches_async
+from deps.ai.ai_functions import BotAISingleton
 from deps.data_access import data_access_get_channel, data_access_get_main_text_channel_id
 from deps.log import print_error_log, print_warning_log
 
@@ -26,7 +26,7 @@ async def send_daily_ai_summary_guild(guild: discord.Guild):
         print_error_log(f"\t⚠️ send_daily_ai_summary_guild: Channel not found for guild {guild.name}. Skipping.")
         return
     try:
-        msg = await generate_message_summary_matches_async(24)
+        msg = await BotAISingleton().generate_message_summary_matches_async(24)
     except Exception as e:
         print_error_log(f"send_daily_ai_summary_guild>generate_message_summary_matches_async: {e}")
         msg = ""
