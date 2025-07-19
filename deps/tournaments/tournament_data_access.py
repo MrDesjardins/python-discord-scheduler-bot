@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import math
 from typing import List, Optional
 from cachetools import TTLCache, cached
-from deps.analytic_data_access import fetch_user_info
+from deps.analytic_data_access import USER_INFO_SELECT_FIELD, fetch_user_info
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
@@ -400,7 +400,7 @@ def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
     """
     database_manager.get_cursor().execute(
         f"""
-        SELECT {SELECT_USER_TOURNAMENT}
+        SELECT {USER_INFO_SELECT_FIELD}
         FROM user_tournament
         LEFT JOIN user_info ON user_tournament.user_id = user_info.id
         WHERE tournament_id = :tournament_id;

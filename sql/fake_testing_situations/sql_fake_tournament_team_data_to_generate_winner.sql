@@ -1,4 +1,4 @@
--- Create a fake 1v1 tournament data for testing purposes
+-- Create a fake team tournament data for testing purposes
 -- Use case:
 -- 1. The reported is the leader of a team
 DELETE FROM user_tournament WHERE tournament_id = 23564;

@@ -22,10 +22,22 @@ KEY_USER_FULL_MATCH_INFO = "user_full_stats_info"
 KEY_USER_INFO = "user_info"
 KEY_USER_ACTIVITY = "user_activity"
 
-USER_ACTIVITY_SELECT_FIELD = "user_id, channel_id, event, timestamp, guild_id"
-USER_INFO_SELECT_FIELD = (
-    "id, display_name, ubisoft_username_max, ubisoft_username_active, r6_tracker_active_id, time_zone"
-)
+USER_ACTIVITY_SELECT_FIELD = """
+    user_activity.user_id,
+    user_activity.channel_id,
+    user_activity.event,
+    user_activity.timestamp,
+    user_activity.guild_id
+"""
+
+USER_INFO_SELECT_FIELD = """
+    user_info.id, 
+    user_info.display_name, 
+    user_info.ubisoft_username_max, 
+    user_info.ubisoft_username_active, 
+    user_info.r6_tracker_active_id, 
+    user_info.time_zone
+    """
 
 SELECT_USER_FULL_MATCH_INFO = """
     user_full_match_info.id,

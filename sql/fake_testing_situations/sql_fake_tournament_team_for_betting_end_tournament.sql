@@ -1,17 +1,15 @@
--- Create a fake tournament data for testing bet
--- Use cases:
+-- Create a fake 2v2 tournament data for testing bet
+-- Use case: Creating a new bet
 -- 1. Use the /bet command
 -- 2. Select a tournament
 -- 3. Select a game
 -- 4. Place a bet on the game (try <= 10$ and above 10$)
 -- 5. Check the bet wallet and leaderboard
--- Create a fake tournament data for testing bet
--- Use cases:
--- 1. Use the /bet command
--- 2. Select a tournament
--- 3. Select a game
--- 4. Place a bet on the game (try <= 10$ and above 10$)
--- 5. Check the bet wallet and leaderboard
+
+-- Use case: distributing the bet
+--1. Use the /modreportlosttournamentdebug
+--2. Set the number 333109962861576202
+
 
 -- Delete Everything
 DELETE FROM tournament_team_members
@@ -122,7 +120,7 @@ INSERT INTO
   )
 VALUES
   (
-    415,
+    3315,
     44311222,
     NULL,
     NULL,
@@ -133,7 +131,7 @@ VALUES
     '5-3'
   ),
   (
-    414,
+    3314,
     44311222,
     NULL,
     NULL,
@@ -144,7 +142,7 @@ VALUES
     '3-0'
   ),
   (
-    413,
+    3313,
     44311222,
     NULL,
     NULL,
@@ -155,7 +153,7 @@ VALUES
     '5-4'
   ),
   (
-    412,
+    3312,
     44311222,
     NULL,
     NULL,
@@ -166,21 +164,21 @@ VALUES
     NULL
   ),
   (
-    407,
+    3307,
     44311222,
-    414,
-    415,
+    3314,
+    3315,
     357551747146842124,
     232631945325051906,
     'skyscraper',
-    357551747146842124,
+    232631945325051906,
     '7-0'
   ),
   (
-    406,
+    3306,
     44311222,
-    413,
-    412,
+    3313,
+    3312,
     333109962861576202,
     NULL,
     NULL,
@@ -188,11 +186,11 @@ VALUES
     NULL
   ),
   (
-    405,
+    3305,
     44311222,
-    407,
-    406,
-    357551747146842124,
+    3307,
+    3306,
+    232631945325051906,
     333109962861576202,
     'Coastline',
     NULL, 
@@ -203,18 +201,18 @@ VALUES
 -- Add wallets
 INSERT INTO bet_user_tournament(id, tournament_id, user_id, amount)
 VALUES
-  (441, 44311222, 588915156608876557, 1000),
-  (442, 44311222, 357551747146842124, 1000),
-  (443, 44311222, 232631945325051906, 1000),
-  (444, 44311222, 488465866820812810, 1000),
-  (445, 44311222, 333109962861576202, 1000),
-  (446, 44311222, 261398260952858624, 1000),
-  (447, 44311222, 212669889012301824, 1000),
-  (448, 44311222, 557002311071694849, 1000),
-  (449, 44311222, 342114709425881089, 1000),
-  (4410, 44311222, 97116159958081536, 1000),
-  (4411, 44311222, 151068544484769793, 1000),
-  (4412, 44311222, 1012789763679465482, 1000);
+  (331, 44311222, 588915156608876557, 1000),
+  (332, 44311222, 357551747146842124, 1000),
+  (333, 44311222, 232631945325051906, 1000),
+  (334, 44311222, 488465866820812810, 1000),
+  (335, 44311222, 333109962861576202, 1000),
+  (336, 44311222, 261398260952858624, 1000),
+  (337, 44311222, 212669889012301824, 1000),
+  (338, 44311222, 557002311071694849, 1000),
+  (339, 44311222, 342114709425881089, 1000),
+  (3310, 44311222, 97116159958081536, 1000),
+  (3311, 44311222, 151068544484769793, 1000),
+  (3312, 44311222, 1012789763679465482, 1000);
 
 -- Add some bets
 
@@ -256,6 +254,18 @@ INSERT INTO
   )
 VALUES
   (9002, 44311222, 2013, 0.40, 0.60, 0);
+
+INSERT INTO
+  bet_game (
+    id,
+    tournament_id,
+    tournament_game_id,
+    probability_user_1_win,
+    probability_user_2_win,
+    bet_distributed
+  )
+VALUES
+  (9003, 44311222, 2005, 0.51, 0.49, 0);
 
 INSERT INTO 
   bet_user_game (

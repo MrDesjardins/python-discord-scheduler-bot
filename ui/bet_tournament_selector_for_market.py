@@ -35,7 +35,7 @@ class BetTournamentSelectorForMarket(View):
         self.bet_user_selection_ui: Union[discord.ui.Select, None] = None
         self.wallet: Union[BetUserTournament, None] = None
         self.message_id: Union[int, None] = None
-        self.game_by_bet_game_id: dict[int, BetGame] = {}
+        self.bet_game_by_tournament_game_id: dict[int, BetGame] = {}
         self.bet_game_by_bet_game_id: dict[int, BetGame] = {}
         self.bet_game_chosen: Optional[BetGame] = None
         self.game_chosen: Optional[TournamentGame] = None
@@ -68,29 +68,35 @@ class BetTournamentSelectorForMarket(View):
 
                     # 2 Get the current bet_game for the tournament
                     bet_games: List[BetGame] = data_access_fetch_bet_games_by_tournament_id(tournament_id)
-                    self.game_by_bet_game_id = {game.tournament_game_id: game for game in bet_games}
+                    self.bet_game_by_tournament_game_id = {game.tournament_game_id: game for game in bet_games}
                     self.bet_game_by_bet_game_id = {game.id: game for game in bet_games}
                     games_with_bet_game = [
                         game
                         for game in tournament_games
-                        if game.id in self.game_by_bet_game_id and game.user_winner_id is None
+                        if game.id in self.bet_game_by_tournament_game_id and game.user_winner_id is None
                     ]
                     options: List[discord.SelectOption] = []
-                    for game in games_with_bet_game:
-                        if game.id is None:
+                    for tournament_game in games_with_bet_game:
+                        if tournament_game.id is None:
                             continue
                         user_info1: Optional[UserInfo] = (
-                            await fetch_user_info_by_user_id(game.user1_id) if game.user1_id else None
+                            await fetch_user_info_by_user_id(tournament_game.user1_id)
+                            if tournament_game.user1_id
+                            else None
                         )
                         user_info2: Optional[UserInfo] = (
-                            await fetch_user_info_by_user_id(game.user2_id) if game.user2_id else None
+                            await fetch_user_info_by_user_id(tournament_game.user2_id)
+                            if tournament_game.user2_id
+                            else None
                         )
-                        bet_game_for_game: Optional[BetGame] = self.game_by_bet_game_id.get(game.id, None)
+                        bet_game_for_game: Optional[BetGame] = self.bet_game_by_tournament_game_id.get(
+                            tournament_game.id, None
+                        )
                         if bet_game_for_game is None:
-                            print_error_log(f"Bet game not found for game {game.id}")
+                            print_error_log(f"Bet game not found for game {tournament_game.id}")
                             continue
                         if user_info1 is None or user_info2 is None:
-                            print_error_log(f"User info not found for game {game.id}")
+                            print_error_log(f"User info not found for game {tournament_game.id}")
                             continue
                         text_display = f"""{user_info1.display_name} ({bet_game_for_game.odd_user_1():.2f}) vs {user_info2.display_name} ({bet_game_for_game.odd_user_2():.2f})"""
                         options.append(discord.SelectOption(label=text_display, value=str(bet_game_for_game.id)))

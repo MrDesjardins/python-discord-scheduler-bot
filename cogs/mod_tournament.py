@@ -22,6 +22,7 @@ from deps.values import (
     COMMAND_TOURNAMENT_CREATE_TOURNAMENT,
     COMMAND_TOURNAMENT_END_TOURNAMENT,
     COMMAND_TOURNAMENT_MOD_SEND_SCORE_TOURNAMENT,
+    COMMAND_TOURNAMENT_MOD_SEND_SCORE_TOURNAMENT_DEBUG,
     COMMAND_TOURNAMENT_START_TOURNAMENT,
 )
 from deps.mybot import MyBot
@@ -179,6 +180,35 @@ class ModTournament(commands.Cog):
             )
             await interaction.response.send_message(
                 f"No active tournament available for {member.display_name}.",
+                ephemeral=True,
+            )
+            return
+        view = TournamentMatchScoreReport(list_tournaments, user_id)
+        await interaction.response.send_message(
+            "Choose the tournament to report a match lost",
+            view=view,
+            ephemeral=True,
+        )
+
+    @app_commands.command(name=COMMAND_TOURNAMENT_MOD_SEND_SCORE_TOURNAMENT_DEBUG)
+    async def send_score_tournament_by_mod_debug(self, interaction: discord.Interaction, user_id_str: str):
+        """
+        Select a user id, then a tournament to make the user report a lost match
+        """
+        user_id = int(user_id_str)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
+        list_tournaments: List[Tournament] = fetch_tournament_active_to_interact_for_user(guild_id, user_id)
+
+        if len(list_tournaments) == 0:
+            print_warning_log(
+                f"""send_score_tournament_by_mod: No active tournament available for user {interaction.user.display_name}({interaction.user.id}) in guild {guild.name}({guild.id})."""
+            )
+            await interaction.response.send_message(
+                f"No active tournament available for {user_id}.",
                 ephemeral=True,
             )
             return
