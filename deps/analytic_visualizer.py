@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
+from matplotlib.dates import DateFormatter, AutoDateLocator
 import community as community_louvain  # type: ignore
 from deps.analytic_models import UserInfoWithCount
 from deps.data_access_data_class import UserActivity, UserInfo
@@ -25,6 +26,7 @@ from deps.analytic_functions import (
     users_by_weekday,
 )
 from deps.analytic_data_access import (
+    data_access_fetch_unique_user_per_day,
     data_access_fetch_users_operators,
     data_access_fetch_win_rate_server,
     fetch_all_user_activities,
@@ -926,4 +928,51 @@ def display_user_rank_match_win_rate_played_server(
     # Add legend
     ax.legend()
 
+    return _plot_return(plt, show)
+
+
+def display_unique_user_per_day(from_date: datetime, show: bool = True) -> Union[bytes, None]:
+    """
+    Graph that display the amount of time played per month using stacked bar. Each bar is a month. The stacked information if every user.
+    """
+    rows = data_access_fetch_unique_user_per_day(from_date)
+
+    # Parse data
+    dates_str = [row[0] for row in rows]
+    counts = [row[1] for row in rows]
+    dates = [datetime.strptime(d, "%Y-%m-%d").date() for d in dates_str]
+
+    # Identify quarter boundaries
+    quarter_starts: list[date] = []
+    for d in dates:
+        if d.month in [3, 6, 9, 12] and d.day == 1:
+            quarter_starts.append(d)
+    quarter_starts = sorted(quarter_starts)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(20, 10))
+    ax.bar(dates, counts, color="skyblue")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Unique Users Connected")
+    ax.set_title("Daily Unique Online Users")
+
+    # Format x-axis
+    ax.xaxis.set_major_locator(AutoDateLocator())
+    ax.xaxis.set_major_formatter(DateFormatter("%Y-%m-%d"))
+    plt.xticks(rotation=45)
+
+    # Add vertical lines for quarters
+    for q_date in quarter_starts:
+        ax.axvline(q_date, color="red", linestyle="--", linewidth=1)
+        ax.text(
+            q_date,
+            max(counts) * 0.90,
+            f"Y{q_date.year-2015}S{((q_date.month-1)//3)+1}",
+            rotation=90,
+            color="red",
+            verticalalignment="bottom",
+        )
+
+    plt.tight_layout()
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
     return _plot_return(plt, show)

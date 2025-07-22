@@ -17,6 +17,7 @@ from deps.analytic_visualizer import (
     display_time_relationship,
     display_time_voice_channel,
     display_inactive_user,
+    display_unique_user_per_day,
     display_user_day_week,
     display_user_line_graph_time,
     display_user_rank_match_played_server,
@@ -160,6 +161,7 @@ def show_visualization_menu(time_choice: Optional[int] = None):
         "[a] Time Line for Specific User",
         "[b] Rate Playing Match in Server",
         "[c] Win Rate Playing in Server vs Not Server",
+        "[d] User Unique per Day time graph",
         "[q] Back",
     ]
     if time_choice is None:
@@ -216,6 +218,8 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     elif menu_entry_index == 11:
         display_user_rank_match_win_rate_played_server(from_date=from_date, to_date=to_date)
     elif menu_entry_index == 12:
+        display_unique_user_per_day(from_date)
+    elif menu_entry_index == 13:
         local_menu()
         return
 

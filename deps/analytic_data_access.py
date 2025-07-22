@@ -2624,3 +2624,24 @@ def data_access_fetch_time_duo_partners(from_data: date, top: int) -> list[tuple
     print(query)
     print(from_data.isoformat())
     return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_unique_user_per_day(from_data: date) -> List[tuple[str, int]]:
+    """
+    Count the number of unique person who played per day
+    """
+    query = """
+    SELECT DATE(timestamp) AS day, COUNT(DISTINCT user_id) as unique_users
+    FROM user_activity
+    WHERE event = 'connect' 
+    AND timestamp > :from_data
+    GROUP BY day
+    ORDER BY day
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"from_data": from_data.isoformat()},
+        )
+    ).fetchall()
+    return [(row[0], row[1]) for row in result]
