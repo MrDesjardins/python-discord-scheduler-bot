@@ -788,7 +788,7 @@ def display_user_top_operators(
                 ax.text(
                     j,
                     i,
-                    str(matrix[i, j]),
+                    str(int(matrix[i, j])),
                     ha="center",
                     va="center",
                     fontsize=8,
