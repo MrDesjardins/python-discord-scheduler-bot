@@ -197,8 +197,9 @@ class BotAI:
         context += "Change line without empty line (do not add two new lines in a row)."
         context += "Format your text not in bullet point, but in a text like we would read in a sport news paper."
         context += "Be professional, sport and concise. Do not add any emoji or special character."
-        context += "If the display_name is 'Obey' prefix with the name with 'ultimate champion'"
-        context += "If the display_name is 'Dom1nator' prefix the name with 'legendary'"
+        context += "If the display_name is 'Obey' prefix with the name with 'ultimate head shot machine'"
+        context += "If the display_name is 'Dom1nator' prefix the name with 'upcoming champion'"
+        context += "If the display_name is 'fridge ' prefix the name with 'Obey worse nightmare AKA'"
         try:
             print_log(
                 f"generate_message_summary_matches_async: Asking AI for {hours} hours summary that contained a size of {len(context)} characters. The data contains {len(users)} users and {len(full_matches_info_by_user_id)} matches."
