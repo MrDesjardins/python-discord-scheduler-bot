@@ -125,7 +125,7 @@ class BotAI:
             response_open_ai = client_open_ai.responses.create(model="o4-mini", input=question)
             return response_open_ai.output_text
 
-    async def ask_ai_async(self, question: str, timeout: float = 300.0) -> Union[str, None]:
+    async def ask_ai_async(self, question: str, timeout: float = 600.0) -> Union[str, None]:
         """
         Ask AI a question and return the answer (non-blocking, async, with timeout).
         """
@@ -134,6 +134,9 @@ class BotAI:
             return await asyncio.wait_for(asyncio.to_thread(self.ask_ai, question), timeout=timeout)
         except asyncio.TimeoutError:
             print_error_log(f"AI API call timed out after {timeout} seconds.")
+            return None
+        except Exception as e:
+            print_error_log(f"Unknown error: {e}")
             return None
 
     def gather_information_for_generating_message_summary(
@@ -145,6 +148,10 @@ class BotAI:
         from_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         to_time = datetime.now(timezone.utc)
         users: List[UserInfo] = get_active_user_info(from_time, to_time)
+
+        # Only keep noSleep_rb6
+        # users = [u for u in users if u.ubisoft_username_max == "nosleep_rb6"]  # Temporary
+
         print_log(f"gather_information_for_generating_message_summary: Found {len(users)} users")
         full_matches_info_by_user_id = []
         r6_user_dict = {}
@@ -168,9 +175,13 @@ class BotAI:
         Async version: Generate a message summary of the matches played by the users without blocking the event loop.
         """
         users, full_matches_info_by_user_id = self.gather_information_for_generating_message_summary(hours)
-        user_info_serialized = json.dumps([u.__dict__ for u in users])
+
+        print_log(f"Users display name {map(lambda u: u.display_name, users)}")
+
+        user_info_serialized = self.summarize_users_list(users)
         match_info_serialized = "\n".join([self.summarize_full_match(m) for m in full_matches_info_by_user_id])
-        context = "Your goal is to generate a summary of maximum 6000 characters (including white space and change line) of the matches played by the users."
+
+        context = "Your goal is to generate a summary of maximum 8000 characters (including white space and change line) of the matches played by the users."
         context += "I am providing you a list of users and a list of their matches. You can use the match id and user id to make some relationship with the user and the match. You need to use both."
         context += "Your message must never have more than 100 words per user."
         context += "You need to find something to say for every one if they have at least one match. If not match, say nothing, don't even say they did not play."
@@ -205,11 +216,11 @@ class BotAI:
                 f"generate_message_summary_matches_async: Asking AI for {hours} hours summary that contained a size of {len(context)} characters. The data contains {len(users)} users and {len(full_matches_info_by_user_id)} matches."
             )
             ai_response = await self.ask_ai_async(context)
+            with open("ai_context.txt", "w", encoding="utf-8") as f:
+                f.write(context)
+                print_error_log("Context dumped in ai_context.txt")
             if ai_response is None:
                 print_error_log("Error: AI response is None.")
-                with open("ai_context.txt", "w", encoding="utf-8") as f:
-                    f.write(context)
-                print_error_log("Context dumped in ai_context.txt")
                 return ""
             response = f"✨**AI summary generated of the last {hours} hours**✨\n" + ai_response
         except Exception as e:
@@ -262,8 +273,7 @@ class BotAI:
             try_count += 1
 
         context += "User question:" + message_user
-        u = user_display_name.lower()
-        if user_rank == "Champion" in u:
+        if user_rank == "Champion":
             context += "In the message, call the user 'champion'."
             context += "The user like sarcasm, so answer in a sarcastic tone."
         else:
@@ -280,12 +290,31 @@ class BotAI:
             self.is_running_ai_query = False
         return response
 
+    def summarize_users_list(self, users: List[UserInfo]) -> str:
+        """
+        Summarize the list of user who have matches
+        """
+        summarize = ".".join(
+            [
+                "user_id = "
+                + str(u.id)
+                + ", display_name = "
+                + u.display_name
+                + ", ubisoft_name = "
+                + u.ubisoft_username_active
+                + ", r6_tracker_active_id = "
+                + u.r6_tracker_active_id
+                for u in users
+            ]
+        )
+        return summarize
+
     def summarize_full_match(self, match: UserFullMatchStats) -> str:
         """
         Summarize a full match in a string format.
         """
         summary = f"""
-    This the match information for match id {match.match_uuid} played on {match.match_timestamp.strftime('%Y-%m-%d %H:%M:%S')} for user id {match.user_id} who also share this r6_tracker_active_id: {match.r6_tracker_user_uuid}.
+    This the match information for match id {match.match_uuid} played on {match.match_timestamp.strftime('%Y-%m-%d %H:%M:%S')} for user_id {match.user_id} who also share this r6_tracker_active_id: {match.r6_tracker_user_uuid}.
     The user played on the map {match.map_name} with the following operators: {match.operators}.
     The match had {match.round_played_count} rounds. {match.round_won_count} rounds were won by the user and {match.round_lost_count} rounds were lost. 
     The final result was a {"win" if match.has_win else "loss"}.

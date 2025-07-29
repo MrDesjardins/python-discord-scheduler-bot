@@ -69,8 +69,8 @@ class UserFullMatchStats:
     def __init__(
         self,
         id: Union[int, None],
-        user_id: int,
         match_uuid: str,
+        user_id: int,
         match_timestamp: datetime,
         match_duration_ms: int,
         data_center: str,  # US East, US West
@@ -181,8 +181,8 @@ class UserFullMatchStats:
         """Create a Tournament object from a database row"""
         return UserFullMatchStats(
             id=row[0],
-            user_id=row[1],
-            match_uuid=row[2],
+            match_uuid=row[1],
+            user_id=row[2],
             match_timestamp=convert_to_datetime(row[3]),
             match_duration_ms=row[4],
             data_center=row[5],
