@@ -114,17 +114,21 @@ class BotAI:
         """
         Ask AI a question and return the answer (blocking).
         """
-        print_log(f"The number of AI count today is {self.today_count()}.")
-        if self.today_count() < THRESHOLD_GEMINI:
-            gemini_key = os.getenv("GEMINI_API_KEY")
-            client_gemini = genai.Client(api_key=gemini_key)
-            response_gemini = client_gemini.models.generate_content(model="gemini-2.5-flash", contents=question)
-            return response_gemini.text
-        else:
-            client_open_ai = OpenAI()
-            response_open_ai = client_open_ai.responses.create(model="o4-mini", input=question)
-            return response_open_ai.output_text
-
+        print_log(f"ask_ai: The number of AI count today is {self.today_count()}.")
+        try:
+            if self.today_count() < THRESHOLD_GEMINI:
+                gemini_key = os.getenv("GEMINI_API_KEY")
+                client_gemini = genai.Client(api_key=gemini_key)
+                response_gemini = client_gemini.models.generate_content(model="gemini-2.5-flash", contents=question)
+                return response_gemini.text
+            else:
+                client_open_ai = OpenAI()
+                response_open_ai = client_open_ai.responses.create(model="o4-mini", input=question)
+                return response_open_ai.output_text
+        except Exception as e:
+            print_error_log(f"ask_ai: Unknown error: {e}")
+            return None
+        
     async def ask_ai_async(self, question: str, timeout: float = 600.0) -> Union[str, None]:
         """
         Ask AI a question and return the answer (non-blocking, async, with timeout).
@@ -133,10 +137,10 @@ class BotAI:
         try:
             return await asyncio.wait_for(asyncio.to_thread(self.ask_ai, question), timeout=timeout)
         except asyncio.TimeoutError:
-            print_error_log(f"AI API call timed out after {timeout} seconds.")
+            print_error_log(f"ask_ai_async: AI API call timed out after {timeout} seconds.")
             return None
         except Exception as e:
-            print_error_log(f"Unknown error: {e}")
+            print_error_log(f"ask_ai_async: Unknown error: {e}")
             return None
 
     def gather_information_for_generating_message_summary(
