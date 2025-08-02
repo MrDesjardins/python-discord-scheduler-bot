@@ -1,6 +1,7 @@
 """Utility functions used by the bot."""
 
 import os
+import re
 from datetime import timedelta
 import subprocess
 from typing import Union, Optional, List
@@ -140,3 +141,10 @@ def is_production_env() -> bool:
     load_dotenv()
     env = os.getenv("ENV", "dev")
     return env == "prod"
+
+
+def escape_discord_styling(text) -> str:
+    """
+    Escape character for discord to avoid having formatting
+    """
+    return re.sub(r"([*_])", r"\\\1", text)
