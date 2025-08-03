@@ -329,10 +329,9 @@ class BotAI:
     The final result was a {"win" if match.has_win else "loss"}.
     {"rollback count:" if match.is_rollback else ""}
     {"The match was surrendered." if match.is_surrender else ""}
-    A k/d (kill/death ratio) of {match.kd_ratio} with {match.kill_count} kills and {match.death_count} deaths with {match.assist_count} assists.
-    Had {match.head_shot_count} head shots.
+    A k/d (kill/death ratio) of {match.kd_ratio:.2f} with {match.kill_count} kills and {match.death_count} deaths with {match.assist_count} assists.
     {"Disconnected" + f" {match.round_disconnected_count} times." if match.round_disconnected_count > 0 else ""}
-    {match.head_shot_count} head shots with a head shot percentage of {match.head_shot_percentage}.
+    {match.head_shot_count} head shots with a head shot percentage of {match.head_shot_percentage:.2f}.
     {"Team killed {match.tk_count} times." if match.tk_count > 0 else ""}
     {f"{match.ace_count} aces." if match.ace_count > 0 else ""}
     {"Killed the opponent first " + f"{match.first_kill_count} times." if match.first_kill_count > 0 else ""}
