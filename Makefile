@@ -59,3 +59,6 @@ install-reps:
 
 save-deps:
 	python3 -m pip freeze > requirements.txt
+
+download-ai-context:
+	scp pi@10.0.0.67:/home/pi/python-discord-scheduler-bot/ai_context.txt .
