@@ -517,12 +517,18 @@ def lint_code() -> None:
     """
     1) Run lint black to format the code
     2) Run PyLint to check for code quality
+    Run Black and PyLint in parallel
     """
-    lint_black()
-    # Run the linting in a separate thread to avoid the PyLint to close the script
-    thread = threading.Thread(target=lint_pylint)
-    thread.start()
-    thread.join()  # Wait for the thread to finish
+    black_thread = threading.Thread(target=lint_black)
+    pylint_thread = threading.Thread(target=lint_pylint)
+
+    # Start both
+    black_thread.start()
+    pylint_thread.start()
+
+    # Wait for both to finish
+    black_thread.join()
+    pylint_thread.join()
 
 
 def lint_black() -> None:

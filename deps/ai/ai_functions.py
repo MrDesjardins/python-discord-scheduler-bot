@@ -183,7 +183,7 @@ class BotAI:
         """
         Async version: Generate a message summary of the matches played by the users without blocking the event loop.
         """
-        try_model = 1 # GPT (in case suddently GPT is doing bad, like with gpt 5, turn this to zero).
+        try_model = 1  # GPT (in case suddently GPT is doing bad, like with gpt 5, turn this to zero).
         ai_response = None
         users, full_matches_info_by_user_id = self.gather_information_for_generating_message_summary(hours)
 

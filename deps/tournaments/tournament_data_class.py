@@ -40,7 +40,7 @@ class Tournament:
             has_started=bool(row[9]),  # Convert integer to boolean
             has_finished=bool(row[10]),  # Convert integer to boolean
             team_size=row[11],
-            registered_user_count=row[12], # Always last
+            registered_user_count=row[12],  # Always last
         )
 
 

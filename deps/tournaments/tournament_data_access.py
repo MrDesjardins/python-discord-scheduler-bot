@@ -570,6 +570,7 @@ def data_access_get_team_labels(tournament_id: int, user_info1: UserInfo, user_i
         label2 = user_info2.display_name
     return (label1, label2)
 
+
 async def get_teammate_mentions(teammates: List[int], guild_id: int) -> str:
     """
     Fetches the mentions of the teammates from the guild.

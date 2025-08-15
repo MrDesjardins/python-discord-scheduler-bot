@@ -313,6 +313,7 @@ def data_access_get_bet_user_game_waiting_match_complete(tournament_id: int) -> 
     rows = database_manager.get_cursor().fetchall()
     return [BetUserGame.from_db_row(row) for row in rows]
 
+
 def data_access_get_bet_game_ready_to_close(tournament_id: int) -> List[BetGame]:
     """
     Get all the bet games that are ready for distribution
