@@ -13,7 +13,7 @@ from deps.tournaments.tournament_functions import (
 from deps.log import print_error_log
 from deps.tournaments.tournament_models import TournamentNode
 from deps.tournaments.tournament_ui_functions import post_end_tournament_messages
-from deps.tournaments.tournament_data_access import fetch_tournament_team_members_by_leader
+from deps.tournaments.tournament_data_access import build_team_mentions, fetch_tournament_team_members_by_leader
 from deps.functions import is_production_env
 
 
@@ -292,21 +292,3 @@ class TournamentMatchScoreReport(View):
                 f"""Cannot report lost match: {result.text} Please contact a moderator if you should have reported a match.""",
                 ephemeral=True,
             )
-
-
-async def build_team_mentions(leader_partners: dict[int, list[int]], leader_id: int, guild_id: int) -> str:
-    """Build a string of mentions for the team members of the leader."""
-    mentions = []
-    m = await data_access_get_member(guild_id, leader_id)
-    if m is not None:
-        mentions.append(m.mention)
-    else:
-        mentions.append(str(leader_id))
-    teammates = leader_partners.get(leader_id, [])
-    for teammate in teammates:
-        m = await data_access_get_member(guild_id, teammate)
-        if m is not None:
-            mentions.append(m.mention)
-        else:
-            mentions.append(str(teammate))
-    return ", ".join(mentions)

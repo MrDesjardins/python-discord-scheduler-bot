@@ -1,5 +1,5 @@
 """
-Contains shareable Discord actions for the tournament bot. 
+Contains shareable Discord actions for the tournament bot.
 The function might be used by several different Discord interactions.
 """
 
@@ -15,6 +15,7 @@ from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.tournaments.tournament_functions import build_tournament_tree, start_tournament
 from deps.log import print_error_log, print_log
 from deps.tournaments.tournament_data_access import (
+    build_team_mentions,
     fetch_active_tournament_by_guild,
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
@@ -193,7 +194,9 @@ async def send_tournament_starting_to_a_guild(guild: discord.Guild) -> None:
                     for teammate_id in teammate_ids:
                         member_data = await data_access_get_member(guild_id, teammate_id)
                         if member_data is None:
-                            print_error_log(f"send_tournament_starting_to_a_guild: Member {teammate_id} not found. Skipping.")
+                            print_error_log(
+                                f"send_tournament_starting_to_a_guild: Member {teammate_id} not found. Skipping."
+                            )
                             continue
                         msg += f"\n➡️ {member_data.mention}"
                 await channel.send(content=msg)
@@ -237,11 +240,24 @@ async def send_tournament_match_reminder(guild: discord.Guild) -> None:
                                 f"send_tournament_match_reminder: User not found. See user1 {game.user1_id} and user2 {game.user2_id}"
                             )
                             continue
-                        user_1_display_name = u1_data.mention
-                        user_2_display_name = u2_data.mention
-                        msg += (
-                            f"\n➡️ {user_1_display_name} and {user_2_display_name} for tournament: `{tournament.name}`"
-                        )
+                        team1_str = u1_data.mention
+                        team2_str = u2_data.mention
+
+                        # Replace with leader + all partners if the tournament works with team (more than one participant)
+                        try:
+                            if tournament.team_size > 1:
+                                leader_partners: dict[int, list[int]] = fetch_tournament_team_members_by_leader(
+                                    tournament.id
+                                )
+                                team1_str = await build_team_mentions(leader_partners, game.user1_id, guild_id)
+                                team2_str = await build_team_mentions(leader_partners, game.user2_id, guild_id)
+                        except Exception as e:
+                            print_error_log(
+                                f"send_tournament_match_reminder: Error building team mentions: {e}. See user1 {game.user1_id} and user2 {game.user2_id}"
+                            )
+                            # No need to continue or break, will use only the leader name (u1_data.mention and u2_data.mention)
+
+                        msg += f"\n➡️ {team1_str} and {team2_str} for tournament: `{tournament.name}`"
                         need_reminder = True
                     except Exception as e:
                         print_error_log(

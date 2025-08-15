@@ -69,7 +69,10 @@ class UserBetFeatures(commands.Cog):
             active_bet_amount: float = get_bet_user_amount_active_bet(tournament_id, user_id)
 
             amount = math.floor((wallet.amount + active_bet_amount) * 100) / 100
-            await interaction.response.send_message(f"You have ${amount:.2f}", ephemeral=True)
+            amount_wallet = math.floor(wallet.amount * 100) / 100
+            await interaction.response.send_message(
+                f"You worth ${amount:.2f} and have ${amount_wallet:.2f} in your wallet.", ephemeral=True
+            )
         else:
             # Combined message with all tournaments
             msg = "You have many wallets (one per tournament). Here are the amounts:\n"

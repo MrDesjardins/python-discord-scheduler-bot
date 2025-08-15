@@ -11,6 +11,7 @@ from deps.tournaments.tournament_data_access import (
     fetch_tournament_by_id,
     fetch_tournament_games_by_tournament_id,
     fetch_tournament_team_members_by_leader,
+    get_teammate_mentions,
 )
 from deps.log import print_error_log, print_warning_log
 from deps.tournaments.tournament_discord_actions import generate_bracket_file
@@ -110,14 +111,3 @@ async def post_end_tournament_messages(interaction: discord.Interaction, tournam
                 f"Top Better Wallet Value for the tournament **{tournament.name}** are:\n{msg_better_list}",
                 ephemeral=False,
             )
-
-
-async def get_teammate_mentions(teammates: List[int], guild_id: int) -> str:
-    """
-    Fetches the mentions of the teammates from the guild.
-    """
-    mentions = []
-    for teammate in teammates:
-        member = await data_access_get_member(guild_id, teammate)
-        mentions.append(member.mention if member is not None else str(teammate))
-    return ", ".join(mentions)

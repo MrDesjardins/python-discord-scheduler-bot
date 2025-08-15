@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import math
 from typing import List, Optional
 from cachetools import TTLCache, cached
+from deps.data_access import data_access_get_member
 from deps.analytic_data_access import USER_INFO_SELECT_FIELD, fetch_user_info
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
@@ -568,3 +569,28 @@ def data_access_get_team_labels(tournament_id: int, user_info1: UserInfo, user_i
         label1 = user_info1.display_name
         label2 = user_info2.display_name
     return (label1, label2)
+
+async def get_teammate_mentions(teammates: List[int], guild_id: int) -> str:
+    """
+    Fetches the mentions of the teammates from the guild.
+    Return an empty string if not teammates
+    """
+    mentions = []
+    for teammate in teammates:
+        member = await data_access_get_member(guild_id, teammate)
+        mentions.append(member.mention if member is not None else str(teammate))
+    return ", ".join(mentions)
+
+
+async def build_team_mentions(leader_partners: dict[int, list[int]], leader_id: int, guild_id: int) -> str:
+    """Build a string of mentions for the team members of the leader."""
+    leader_mention = ""
+    # Leader mention
+    m = await data_access_get_member(guild_id, leader_id)
+    if m is not None:
+        leader_mention = m.mention
+    else:
+        leader_mention = str(leader_id)
+    # Get the teammate of the leader
+    str_teammates = await get_teammate_mentions(leader_partners.get(leader_id, []), guild_id)
+    return leader_mention + (", " + str_teammates if str_teammates != "" else "")
