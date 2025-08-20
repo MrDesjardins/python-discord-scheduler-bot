@@ -39,7 +39,7 @@ class BrowserContextManager:
     default_profile: str
     counter: int
     display: Display
-    environment_var: str | None
+    environment_var: Union[str, None]
 
     def __init__(self, default_profile: str = "noSleep_rb6") -> None:
         # Start a virtual display
