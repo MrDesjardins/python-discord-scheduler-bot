@@ -3,13 +3,13 @@
 import os
 from typing import List, Optional, Union
 import json
+from pyvirtualdisplay import Display
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc  # type: ignore
-from xvfbwrapper import Xvfb  # type: ignore
 from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserInformation, UserQueueForStats
 from deps.log import print_error_log, print_log
@@ -20,6 +20,7 @@ from deps.functions import (
     get_url_api_user_info,
 )
 from deps.siege import siege_ranks
+from deps.os_utility import kill_process_by_name
 
 
 class BrowserContextManager:
@@ -35,56 +36,62 @@ class BrowserContextManager:
     """
 
     driver: webdriver.Chrome
-    wrapped: Xvfb
     default_profile: str
     counter: int
+    display: Display
+    environment_var: str | None
 
     def __init__(self, default_profile: str = "noSleep_rb6") -> None:
-        self.wrapped = None
+        # Start a virtual display
+        self.display = Display(visible=False, size=(1920, 1080))
+        self.display.start()
+
         self.counter = 0
         self.profile_page_source = ""
         self.default_profile = default_profile
 
+        self.environment_var = os.getenv("ENV")
+
     def __enter__(self):
-        self.wrapped = Xvfb()
-        self.wrapped.__enter__()
         self._config_browser()
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.driver.quit()
-        # Kill any lingering chromium-browser processes
-        environment_var = os.getenv("ENV")
-        if environment_var == "prod":
-            os.system("pkill -f chromium-browser")
-        return self.wrapped.__exit__(exc_type, exc_value, traceback)
+        try:
+            self.driver.quit()
+        except Exception:
+            pass
+
+        if hasattr(self, "display"):
+            self.display.stop()
+        # Kill lingering processes
+        kill_process_by_name("chromium-browser")
+        kill_process_by_name("Xvfb")
 
     def _config_browser(self) -> None:
         """Configure the browser for headers and to receive a cookie to call future API endpoints"""
-        options = uc.ChromeOptions()
-        # options.add_argument("--headless=new")  # For Chromium versions 109+
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--start-maximized")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--disable-background-networking")
-        options.add_argument("--disable-sync")
-        options.add_argument(
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
-        )
 
-        environment_var = os.getenv("ENV")
-
-        if environment_var == "prod":
+        if self.environment_var == "prod":
+            options = uc.ChromeOptions()
+            # options.add_argument("--headless=new")  # For Chromium versions 109+
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+            options.add_argument("--disable-blink-features=AutomationControlled")
+            options.add_argument("--disable-gpu")
+            options.add_argument("--start-maximized")
+            options.add_argument("--disable-extensions")
+            options.add_argument("--disable-background-networking")
+            options.add_argument("--disable-sync")
+            options.add_argument(
+                "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
+            )
             options.binary_location = "/usr/bin/chromium-browser"
             driver_path = "/usr/bin/chromedriver"
             self.driver = uc.Chrome(options=options, driver_executable_path=driver_path)
         else:
             service = Service()
-            options.binary_location = "/usr/bin/google-chrome"
             options = webdriver.ChromeOptions()
+            options.binary_location = "/usr/bin/google-chrome"
             self.driver = webdriver.Chrome(service=service, options=options)
         print_log(f"_config_browser: Using binary location: {options.binary_location}")
         try:
@@ -133,7 +140,7 @@ class BrowserContextManager:
                 data = json.loads(json_data)
                 print_log(f"download_matches: JSON found for {ubisoft_user_name}")
                 # Save the JSON data to a file for debugging
-                if os.getenv("ENV") == "dev":
+                if self.environment_var == "dev":
                     with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
                         file.write(json.dumps(data, indent=4))
                 # Step 6: Parse the JSON data to extract the matches
@@ -187,7 +194,7 @@ class BrowserContextManager:
                     data = json.loads(json_data)
                     print_log(f"download_max_rank: JSON found for {ubisoft_user_name}")
                     # Save the JSON data to a file for debugging
-                    if os.getenv("ENV") == "dev":
+                    if self.environment_var == "dev":
                         with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
                             file.write(json.dumps(data, indent=4))
                     # Step 6: Parse the JSON data to extract the matches
@@ -244,7 +251,7 @@ class BrowserContextManager:
                 data = json.loads(json_data)
                 print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
                 # Save the JSON data to a file for debugging
-                if os.getenv("ENV") == "dev":
+                if self.environment_var == "dev":
                     with open(f"r6tracker_data_full_user_stats_{self.counter}.json", "w", encoding="utf8") as file:
                         file.write(json.dumps(data, indent=4))
                 # Step 6: Parse the JSON data to extract the matches

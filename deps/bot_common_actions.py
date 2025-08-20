@@ -419,11 +419,9 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
         return
 
     # Accumulate all the stats for all the users before posting them
-    await download_full_matches_async(users, post_process_callback=post_post_queued_user_stats)
+    all_users_matches = await download_full_matches_async(users)
 
-
-async def post_post_queued_user_stats(all_users_matches: List[UserWithUserMatchInfo]) -> None:
-    """Post to the channel the stats for the users who disconnected"""
+    # Post to the channel the stats for the users who disconnected
     try:
         # Persist the data into the database
         for user_stats in all_users_matches:
@@ -628,14 +626,11 @@ async def persist_siege_matches_cross_guilds(from_time: datetime, to_time: datet
     users_stats: List[UserQueueForStats] = [UserQueueForStats(user, 0, from_time) for user in users]
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API
-    await download_full_matches_async(users_stats, post_process_callback=post_persist_siege_matches_cross_guilds)
+    all_users_matches = await download_full_matches_async(users_stats)
 
+    # Persist the match info in the database
+    # Persist the r6 tracker UUID in the user profile table if available
 
-async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWithUserMatchInfo]) -> None:
-    """
-    Persist the match info in the database
-    Persist the r6 tracker UUID in the user profile table if available
-    """
     # Use the matches that we downloaded
     for user_and_matches in all_users_matches:
         # Save the matches in the database
@@ -644,7 +639,7 @@ async def post_persist_siege_matches_cross_guilds(all_users_matches: List[UserWi
         try:
             insert_if_nonexistant_full_match_info(user_info, match_stats)
         except Exception as e:
-            print_error_log(f"post_persist_siege_matches_cross_guilds: Error saving the match info: {e}")
+            print_error_log(f"persist_siege_matches_cross_guilds: Error saving the match info: {e}")
             continue
 
         # Add r6 tracker UUID to the user profile table if available
@@ -664,15 +659,9 @@ async def persist_user_full_information_cross_guilds(from_time: datetime, to_tim
     users_stats: List[UserQueueForStats] = [UserQueueForStats(user, 0, from_time) for user in users]
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API
-    await download_full_user_information_async(
-        users_stats, post_process_callback=post_persist_user_full_information_cross_guilds
-    )
+    all_users = await download_full_user_information_async(users_stats)
 
-
-async def post_persist_user_full_information_cross_guilds(all_users: List[UserWithUserInformation]) -> None:
-    """
-    Persist the full user information in the database
-    """
+    # Persist the full user information in the database
     for full_user_stats_info in all_users:
         # Save the matches in the database
         try:
@@ -680,7 +669,5 @@ async def post_persist_user_full_information_cross_guilds(all_users: List[UserWi
                 full_user_stats_info.user_request_stats.user_info, full_user_stats_info.full_stats
             )
         except Exception as e:
-            print_error_log(
-                f"post_persist_user_full_information_cross_guilds: Error saving the user full stats info: {e}"
-            )
+            print_error_log(f"persist_user_full_information_cross_guilds: Error saving the user full stats info: {e}")
             continue

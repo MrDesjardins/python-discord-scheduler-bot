@@ -1087,11 +1087,14 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
         # Commit the transaction
         database_manager.get_conn().commit()
     except Exception as e:
-        stringify_user_info = (
-            json.dumps(user_information.to_dict(), indent=4)
-            if hasattr(user_information, "to_dict")
-            else "No user stats data"
-        )
+        try:
+            stringify_user_info = (
+                json.dumps(user_information.to_dict(), indent=4)
+                if hasattr(user_information, "to_dict")
+                else "No user stats data"
+            )
+        except Exception:
+            stringify_user_info = f"user id: {user_info.id}"
         print_error_log(f"insert_if_nonexistant_full_user_info: Error inserting user stats: {e}\n{stringify_user_info}")
         raise e
 

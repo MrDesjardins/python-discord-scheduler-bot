@@ -1,8 +1,8 @@
 """Browser manipulation functions"""
 
 import asyncio
-import inspect
 import random
+import time
 from typing import List, Union
 from deps.browser_context_manager import BrowserContextManager
 from deps.models import (
@@ -15,7 +15,7 @@ from deps.models import (
 from deps.log import print_error_log
 
 
-async def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
+def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
     """
     Download the maximum information for matches with the goal to persist the data into the database
     """
@@ -30,7 +30,7 @@ async def download_full_matches(users_queued: List[UserQueueForStats]) -> List[U
                     all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
 
                     if len(users_queued) > 1:
-                        await asyncio.sleep(random.uniform(1, 5))  # Sleep few seconds between each request
+                        time.sleep(random.uniform(1, 5))  # Sleep few seconds between each request
 
                 except Exception as e:
                     print_error_log(
@@ -42,38 +42,20 @@ async def download_full_matches(users_queued: List[UserQueueForStats]) -> List[U
     return all_users_matches
 
 
-async def download_full_matches_async(users_queue_stats: List[UserQueueForStats], post_process_callback=None):
+async def download_full_matches_async(users_queue_stats: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
     """
     Run the blocking download_full_matches in another thread and perform a post-processing task
     in the main thread after completion.
     """
-
-    def blocking_task():
-        # Run the long-running function (must be made synchronous)
-        return asyncio.run(download_full_matches(users_queue_stats))
-
     try:
         # Offload the blocking task to a thread
-        list_users_and_matches: List[UserWithUserMatchInfo] = await asyncio.to_thread(blocking_task)
+        return await asyncio.to_thread(download_full_matches, users_queue_stats)
     except Exception as e:
         print_error_log(f"download_full_matches_async: Error during match download: {e}")
         return []
 
-    try:
-        if post_process_callback:
-            # Schedule the callback back on the main thread
-            if inspect.iscoroutinefunction(post_process_callback):
-                await post_process_callback(list_users_and_matches)
-            else:
-                post_process_callback(list_users_and_matches)
 
-        return list_users_and_matches
-    except Exception as e:
-        print_error_log(f"download_full_matches_async: callback: {e}")
-        return []
-
-
-async def download_full_user_information(users_queued: List[UserQueueForStats]) -> List[UserWithUserInformation]:
+def download_full_user_information(users_queued: List[UserQueueForStats]) -> List[UserWithUserInformation]:
     """
     Download the maximum information for user with the goal to persist the data into the database
     """
@@ -93,44 +75,28 @@ async def download_full_user_information(users_queued: List[UserQueueForStats]) 
                     all_user_stats.append(UserWithUserInformation(user_queue, user_info))
 
                     if len(users_queued) > 1:
-                        await asyncio.sleep(random.uniform(1, 5))  # Sleep few seconds between each request
+                        time.sleep(random.uniform(1, 5))  # Sleep few seconds between each request
 
                 except Exception as e:
                     print_error_log(
-                        f"post_queued_user_stats: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
+                        f"download_full_user_information: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
     except Exception as e:
-        print_error_log(f"post_queued_user_stats: Error opening the browser context: {e}")
+        print_error_log(f"download_full_user_information: Error opening the browser context: {e}")
     return all_user_stats
 
 
-async def download_full_user_information_async(users_queue_stats: List[UserQueueForStats], post_process_callback=None):
+async def download_full_user_information_async(
+    users_queue_stats: List[UserQueueForStats],
+) -> List[UserWithUserInformation]:
     """
     Run the blocking download_full_user_information in another thread and perform a post-processing task
     in the main thread after completion.
     """
-
-    def blocking_task():
-        # Run the long-running function (must be made synchronous)
-        return asyncio.run(download_full_user_information(users_queue_stats))
-
     try:
         # Offload the blocking task to a thread
-        list_user: List[UserWithUserInformation] = await asyncio.to_thread(blocking_task)
+        return await asyncio.to_thread(download_full_user_information, users_queue_stats)
     except Exception as e:
         print_error_log(f"download_full_user_information_async: Error during match download: {e}")
-        return []
-
-    try:
-        if post_process_callback:
-            # Schedule the callback back on the main thread
-            if inspect.iscoroutinefunction(post_process_callback):
-                await post_process_callback(list_user)
-            else:
-                post_process_callback(list_user)
-
-        return list_user
-    except Exception as e:
-        print_error_log(f"download_full_user_information_async: callback: {e}")
         return []
