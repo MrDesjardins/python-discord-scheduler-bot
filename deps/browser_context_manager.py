@@ -38,8 +38,10 @@ class BrowserContextManager:
     wrapped: Xvfb
     default_profile: str
     counter: int
+    environment: Union[str, None]
 
     def __init__(self, default_profile: str = "noSleep_rb6") -> None:
+        self.environment = os.getenv("ENV")
         self.wrapped = None
         self.counter = 0
         self.profile_page_source = ""
@@ -54,8 +56,7 @@ class BrowserContextManager:
     def __exit__(self, exc_type, exc_value, traceback):
         self.driver.quit()
         # Kill any lingering chromium-browser processes
-        environment_var = os.getenv("ENV")
-        if environment_var == "prod":
+        if self.environment == "prod":
             os.system("pkill -f chromium-browser")
         return self.wrapped.__exit__(exc_type, exc_value, traceback)
 
@@ -75,9 +76,7 @@ class BrowserContextManager:
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
         )
 
-        environment_var = os.getenv("ENV")
-
-        if environment_var == "prod":
+        if self.environment == "prod":
             options.binary_location = "/usr/bin/chromium-browser"
             driver_path = "/usr/bin/chromedriver"
             self.driver = uc.Chrome(options=options, driver_executable_path=driver_path)
