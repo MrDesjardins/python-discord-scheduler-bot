@@ -212,10 +212,11 @@ async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch
         with BrowserContextManager(ubisoft_user_name) as context:
             return context.download_max_rank(ubisoft_user_name)
 
-    if force_fetch:
-        remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
+    return await fetch()
+    # if force_fetch:
+    #     remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
 
-    return await get_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}", fetch, ttl_in_seconds=ONE_HOUR_TTL)
+    # return await get_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}", fetch, ttl_in_seconds=ONE_HOUR_TTL)
 
 
 async def data_access_get_guild_username_text_channel_id(
