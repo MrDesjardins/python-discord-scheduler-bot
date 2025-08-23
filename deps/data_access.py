@@ -1,9 +1,9 @@
 """Access to the data is done throught this data access"""
 
-import pickle
 from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import discord
 from deps.browser_context_manager import BrowserContextManager
 from deps.bot_singleton import BotSingleton
@@ -45,6 +45,8 @@ KEY_GUILD_MAIN_TEXT_CHANNEL = "GuildMainSiegeTextChannel"
 KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
 KEY_AI_COUNT = "AI_daily_Count"
+
+executor = ThreadPoolExecutor(max_workers=5)
 
 
 async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
@@ -203,16 +205,18 @@ def data_access_set_bot_voice_first_user(guild_id: int, enabled: bool) -> None:
     set_cache(False, f"{KEY_GUILD_BOT_VOICE_FIRST_USER}:{guild_id}", enabled, ALWAYS_TTL)
 
 
+def _download_max_rank_sync(ubisoft_user_name: str) -> str:
+    with BrowserContextManager(ubisoft_user_name) as context:
+        return context.download_max_rank(ubisoft_user_name)
+
+
 async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch: bool = False) -> str:
     """
     Get from R6 Tracker website the max rank for the user
     """
 
-    async def fetch():
-        with BrowserContextManager(ubisoft_user_name) as context:
-            return context.download_max_rank(ubisoft_user_name)
-
-    return await fetch()
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(executor, _download_max_rank_sync, ubisoft_user_name)
     # if force_fetch:
     #     remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
 
