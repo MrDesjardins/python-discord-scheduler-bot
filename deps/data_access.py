@@ -3,7 +3,6 @@
 from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 import discord
 from deps.browser_context_manager import BrowserContextManager
 from deps.bot_singleton import BotSingleton
@@ -45,8 +44,6 @@ KEY_GUILD_MAIN_TEXT_CHANNEL = "GuildMainSiegeTextChannel"
 KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
 KEY_AI_COUNT = "AI_daily_Count"
-
-executor = ThreadPoolExecutor(max_workers=5)
 
 
 async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
@@ -214,9 +211,7 @@ async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch
     """
     Get from R6 Tracker website the max rank for the user
     """
-
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(executor, _download_max_rank_sync, ubisoft_user_name)
+    return await asyncio.to_thread(_download_max_rank_sync, ubisoft_user_name)
     # if force_fetch:
     #     remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
 
