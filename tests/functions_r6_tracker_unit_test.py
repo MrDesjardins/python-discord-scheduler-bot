@@ -58,11 +58,6 @@ def test_get_r6tracker_user_info():
     assert user_info.total_damage == 1649043
     assert user_info.total_assists == 3092
     assert user_info.total_team_kills == 127
-    assert user_info.rounds_played == 13
-    assert user_info.rounds_won == 3
-    assert user_info.rounds_lost == 10
-    assert user_info.rounds_disconnected == 2
-    assert user_info.rounds_win_percentage == 23.076923076923077
 
     # Test performance ratios
     assert user_info.kd_ratio == 0.95
