@@ -21,7 +21,7 @@ from deps.analytic_data_access import (
 )
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.models import UserFullMatchStats
-from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_user_full_stats_info
+from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_user_full_stats_info, parse_json_user_info
 from deps import analytic_data_access
 
 fake_date = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
@@ -169,8 +169,8 @@ def test_insert_if_nonexistant_user_full_stats_info(mock_log):
         None,
         user_info2.time_zone,
     )
-    user_full_1 = parse_json_user_full_stats_info(user_info.id, data_1)
-    user_full_2 = parse_json_user_full_stats_info(user_info2.id, data_2)
+    user_full_1 = parse_json_user_info(user_info.id, data_1)
+    user_full_2 = parse_json_user_info(user_info2.id, data_2)
 
     insert_if_nonexistant_full_user_info(user_info, user_full_1)
     insert_if_nonexistant_full_user_info(user_info2, user_full_2)
@@ -194,7 +194,7 @@ def test_insert_if_nonexistant_user_full_stats_info_then_fetch_back(mock_log):
         user_info.time_zone,
     )
 
-    user_full_1 = parse_json_user_full_stats_info(user_info.id, data_1)
+    user_full_1 = parse_json_user_info(user_info.id, data_1)
 
     insert_if_nonexistant_full_user_info(user_info, user_full_1)
     result = data_access_fetch_user_full_user_info(user_info.id)

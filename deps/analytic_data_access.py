@@ -2263,19 +2263,19 @@ def data_access_fetch_top_win_rateranked_matches_played(from_data: date, top: in
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1]) for row in result]
 
 
-def data_access_fetch_top_team_kill(from_data: date, top: int) -> list[tuple[str, int]]:
+def data_access_fetch_top_team_kill(from_data: date, top: int) -> list[tuple[str, int, int, float]]:
     """
     Get the count of match played
     """
     query = """
     SELECT
     user_info.display_name,
-    user_full_stats_info.total_team_kills
+    user_full_stats_info.total_team_kills,
+    user_full_stats_info.total_matches_played,
+    user_full_stats_info.total_team_kills * 100.0 / user_full_stats_info.total_matches_played as pct
     FROM
     user_full_stats_info
     LEFT JOIN user_info ON 
@@ -2289,7 +2289,7 @@ def data_access_fetch_top_team_kill(from_data: date, top: int) -> list[tuple[str
             timestamp >= :from_data
         )
     ORDER BY
-        user_full_stats_info.total_team_kills DESC
+        pct DESC
     LIMIT :top_result;
     """
     result = (
@@ -2298,9 +2298,7 @@ def data_access_fetch_top_team_kill(from_data: date, top: int) -> list[tuple[str
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
-    return [(row[0], row[1]) for row in result]
+    return [(row[0], row[1], row[2], row[3]) for row in result]
 
 
 def data_access_fetch_top_kill_per_match_rank(from_data: date, top: int) -> list[tuple[str, int]]:
@@ -2333,8 +2331,6 @@ def data_access_fetch_top_kill_per_match_rank(from_data: date, top: int) -> list
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1]) for row in result]
 
 
@@ -2368,8 +2364,6 @@ def data_access_fetch_top_breacher(from_data: date, top: int) -> list[tuple[str,
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1]) for row in result]
 
 
@@ -2403,8 +2397,6 @@ def data_access_fetch_count_total_wallbangs(from_data: date, top: int) -> list[t
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1]) for row in result]
 
 
@@ -2438,8 +2430,6 @@ def data_access_fetch_attacker_fragger_count(from_data: date, top: int) -> list[
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1]) for row in result]
 
 
@@ -2473,8 +2463,6 @@ def data_access_fetch_time_played_siege(from_data: date, top: int) -> list[tuple
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1]) for row in result]
 
 
@@ -2547,8 +2535,6 @@ def data_access_fetch_time_played_siege_on_server(from_data: date, top: int) -> 
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1]) for row in result]
 
 
@@ -2624,8 +2610,6 @@ def data_access_fetch_time_duo_partners(from_data: date, top: int) -> list[tuple
             {"from_data": from_data.isoformat(), "top_result": top},
         )
     ).fetchall()
-    print(query)
-    print(from_data.isoformat())
     return [(row[0], row[1], row[2]) for row in result]
 
 

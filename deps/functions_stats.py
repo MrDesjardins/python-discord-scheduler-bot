@@ -160,6 +160,7 @@ The rollbacks that added points are not counted in this stats and will be shown 
         msg = stats_top_win_rate_ranked_matches(day_30, last_30_days, 30)
     elif function_number == 20:
         msg = stats_top_team_kill(day_30, last_30_days, 30)
+        msg_instruction = f"""The total count of team kills in order of percentage by players active in the last {day_30} days. The number includes stats for the lifetime of the account. The percentage means the percentage of TK per match. Some one with 10% means that 10% of matches TK their teammate."""
     elif function_number == 21:
         msg = stats_average_kill_per_rank_match(day_30, last_30_days, 30)
     elif function_number == 22:
@@ -411,10 +412,10 @@ def stats_top_team_kill(day: int, last_x_day: date, top: int) -> str:
     Get the top team kill
     """
     stats = data_access_fetch_top_team_kill(last_x_day, top)
-    return build_msg_2_columns(
+    return build_msg_4_columns(
         "team kill since account created",
         f"for people active in the last {day} days",
-        ["Name", "Count"],
+        ["Name", "TK", "Matches", "%TK/Match"],
         stats,
         top,
     )
@@ -839,7 +840,7 @@ def build_msg_3_columns(
     stats_name: str,
     info_time_str: str,
     cols_name: list[str],
-    stats_tuple: list[tuple[str, str, int]],
+    stats_tuple: list[tuple[str, str, Union[int, float]]],
     top: int = 20,
     start_index: int = 0,
 ) -> str:
@@ -858,6 +859,38 @@ def build_msg_3_columns(
             f"{columnize(stat[0], col_name)}"
             f"{columnize(stat[1], col_name)}"
             f"{columnize(stat[2], col_width_count)}\n"
+        )
+        msg += new_line
+
+    msg += "```"
+    return msg
+
+def build_msg_4_columns(
+    stats_name: str,
+    info_time_str: str,
+    cols_name: list[str],
+    stats_tuple: list[tuple[str, int, int, float]],
+    top: int = 20,
+    start_index: int = 0,
+) -> str:
+    """Build a message that has the user name and stats count"""
+    col_name = 15
+    col_width_count = 10
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    msg += (
+        f"{columnize(cols_name[0], col_name)}"
+        f"{columnize(cols_name[1], col_width_count)}"
+        f"{columnize(cols_name[2], col_width_count)}"
+        f"{columnize(cols_name[3], col_width_count)}\n"
+    )
+    for i in range(start_index, len(stats_tuple)):
+        stat = stats_tuple[i]
+        percentage = f"{stat[3]:.2f}"
+        new_line = (
+            f"{columnize(stat[0], col_name)}"
+            f"{columnize(stat[1], col_width_count)}"
+            f"{columnize(stat[2], col_width_count)}"
+            f"{columnize(percentage, col_width_count)}\n"
         )
         msg += new_line
 
