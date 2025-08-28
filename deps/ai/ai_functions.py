@@ -28,6 +28,7 @@ from deps.data_access import (
 from deps.analytic_data_access import (
     KEY_USER_ACTIVITY,
     KEY_USER_FULL_MATCH_INFO,
+    KEY_USER_FULL_STATS_INFO,
     KEY_USER_INFO,
     SELECT_USER_FULL_MATCH_INFO,
     SELECT_USER_FULL_STATS_INFO,
@@ -381,8 +382,8 @@ class BotAI:
         if any(keyword in msg for keyword in keywords_full_match_info):
             context += f"Table name: `{KEY_USER_FULL_MATCH_INFO}`. "
             context += f'The fields: {SELECT_USER_FULL_MATCH_INFO.replace(KEY_USER_FULL_MATCH_INFO + ".", "")}. '
-            context += f"Table name: {KEY_USER_FULL_MATCH_INFO}`. "
-            context += f'The fields: {SELECT_USER_FULL_STATS_INFO.replace(KEY_USER_FULL_MATCH_INFO + ".", "")}. '
+            context += f"Table name: `{KEY_USER_FULL_STATS_INFO}`. "
+            context += f'The fields: {SELECT_USER_FULL_STATS_INFO.replace(KEY_USER_FULL_STATS_INFO + ".", "")}. '
             need_sql = True
 
         keywords_tournament = ["tournament", "bet"]

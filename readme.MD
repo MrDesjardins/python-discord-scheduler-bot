@@ -312,6 +312,7 @@ Under "Bot Permissions", select the necessary permissions:
 1. Send Messages
 1. Manage Messages
 1. Read Message History
+1. Mention Everyone
 1. Add Reactions
 
 Copy the generated URL and open it in your browser to invite the bot to your desired server.

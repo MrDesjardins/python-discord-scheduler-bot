@@ -18,7 +18,7 @@ from deps.models import UserFullMatchStats, UserInformation
 from deps.log import print_error_log, print_log
 
 KEY_USER_FULL_MATCH_INFO = "user_full_match_info"
-KEY_USER_FULL_MATCH_INFO = "user_full_stats_info"
+KEY_USER_FULL_STATS_INFO = "user_full_stats_info"
 KEY_USER_INFO = "user_info"
 KEY_USER_ACTIVITY = "user_activity"
 
