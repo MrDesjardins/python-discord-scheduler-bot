@@ -378,7 +378,20 @@ class BotAI:
         context += "Do not mention anything about the request or database schema, only return the SQL query and only SELECT query is acceptable. "
 
         msg = message_user.lower()
-        keywords_full_match_info = ["stats", "match", "data", " kd ", "k/d", "kill", "death", "operator", "map"]
+        keywords_full_match_info = [
+            "stats",
+            "match",
+            "data",
+            " kd ",
+            "k/d",
+            "kill",
+            "death",
+            "operator",
+            "map",
+            "clutch",
+            "ratio",
+            "rank",
+        ]
         if any(keyword in msg for keyword in keywords_full_match_info):
             context += f"Table name: `{KEY_USER_FULL_MATCH_INFO}`. "
             context += f'The fields: {SELECT_USER_FULL_MATCH_INFO.replace(KEY_USER_FULL_MATCH_INFO + ".", "")}. '
@@ -386,7 +399,7 @@ class BotAI:
             context += f'The fields: {SELECT_USER_FULL_STATS_INFO.replace(KEY_USER_FULL_STATS_INFO + ".", "")}. '
             need_sql = True
 
-        keywords_tournament = ["tournament", "bet"]
+        keywords_tournament = ["tournament", "bet", "competition"]
         if any(keyword in msg for keyword in keywords_tournament):
             context += f"Table name: `{KEY_TOURNAMENT}`. "
             context += f'The fields: {SELECT_TOURNAMENT.replace(KEY_TOURNAMENT + ".", "")}. '
@@ -406,7 +419,7 @@ class BotAI:
             context += f'The fields: {SELECT_LEDGER.replace(KEY_bet_ledger_entry + ".", "")}. '
             need_sql = True
 
-        keywords_schedule = ["time", "date", "schedule"]
+        keywords_schedule = ["time", "date", "schedule", "hour", "day", "week", "month", "active"]
         if any(keyword in msg for keyword in keywords_schedule):
             context += f"Table name: `{KEY_USER_ACTIVITY}`."
             context += f'The fields: {USER_ACTIVITY_SELECT_FIELD.replace(KEY_USER_ACTIVITY + ".", "")}. '
