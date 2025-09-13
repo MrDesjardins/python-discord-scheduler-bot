@@ -220,9 +220,9 @@ class BotAI:
         context += "Change line without empty line (do not add two new lines in a row). "
         context += "Format your text not in bullet point, but in a text like we would read in a sport news paper. "
         context += "Be professional, sport and concise. Do not add any emoji or special character. "
-        context += "If the display_name is 'Obey' prefix with the name with 'ultimate head shot machine'. "
-        context += "If the display_name is 'Dom1nator' prefix the name with 'upcoming champion'. "
-        context += "If the display_name is 'fridge ' prefix the name with 'Obey worse nightmare AKA'. "
+        # context += "If the display_name is 'Obey' prefix with the name with 'ultimate head shot machine'. "
+        # context += "If the display_name is 'Dom1nator' prefix the name with 'upcoming champion'. "
+        # context += "If the display_name is 'fridge ' prefix the name with 'Obey worse nightmare AKA'. "
         try:
             while try_model <= 1:
                 model = "gemini" if try_model == 0 else "gpt"
