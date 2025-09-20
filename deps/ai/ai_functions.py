@@ -187,7 +187,8 @@ class BotAI:
         try_model = 1  # GPT (in case suddently GPT is doing bad, like with gpt 5, turn this to zero).
         ai_response = None
         users, full_matches_info_by_user_id = self.gather_information_for_generating_message_summary(hours)
-
+        if len(users) == 0 or len(full_matches_info_by_user_id) == 0:
+            return f"✨**AI summary generated of the last {hours} hours**✨\nNo user played any match in the last {hours} hours."
         print_log(f"Users display name {', '.join([u.display_name for u in users])}")
 
         user_info_serialized = self.summarize_users_list(users)
@@ -292,11 +293,11 @@ class BotAI:
             try_count += 1
 
         context += "User question:" + message_user
-        if user_rank == "Champion":
-            context += "In the message, call the user 'champion'. "
-            context += "The user like sarcasm, so answer in a sarcastic tone. "
-        else:
-            context += "You are a bot that is friendly, helpful and professional. You should not be rude or sarcastic. "
+        # if user_rank == "Champion":
+        #     context += "In the message, call the user 'champion'. "
+        #     context += "The user like sarcasm, so answer in a sarcastic tone. "
+        # else:
+        context += "You are a bot that is friendly, helpful and professional. You should not be rude or sarcastic. "
 
         context += "If someone ask about Patrick just know that he is your creator. "
         context += "You should answer in a way that is easy to read and understand under 800 characters. "
