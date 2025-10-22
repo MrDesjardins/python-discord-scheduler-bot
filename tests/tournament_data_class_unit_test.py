@@ -1,4 +1,4 @@
-""" Unit tests for the TournamentData class """
+"""Unit tests for the TournamentData class"""
 
 from datetime import datetime, timezone
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame

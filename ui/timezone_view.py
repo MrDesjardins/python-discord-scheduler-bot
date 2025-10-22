@@ -1,4 +1,4 @@
-""" UI for the user to pick a timezone """
+"""UI for the user to pick a timezone"""
 
 import discord
 from deps.analytic_data_access import data_access_set_usertimezone

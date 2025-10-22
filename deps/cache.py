@@ -1,4 +1,4 @@
-""" Cache value for the bot. It acts as the persistent storage for the bot to store the data that needs to be kept between restarts."""
+"""Cache value for the bot. It acts as the persistent storage for the bot to store the data that needs to be kept between restarts."""
 
 import dataclasses
 import asyncio

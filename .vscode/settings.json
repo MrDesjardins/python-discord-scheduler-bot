@@ -11,5 +11,6 @@
   "black-formatter.args": [
     "--verbose"
   ],
-  "makefile.configureOnOpen": false
+  "makefile.configureOnOpen": false,
+  "python-envs.pythonProjects": []
 }

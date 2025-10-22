@@ -865,6 +865,7 @@ def build_msg_3_columns(
     msg += "```"
     return msg
 
+
 def build_msg_4_columns(
     stats_name: str,
     info_time_str: str,

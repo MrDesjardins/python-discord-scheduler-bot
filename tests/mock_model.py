@@ -1,4 +1,4 @@
-""" Mocked data """
+"""Mocked data"""
 
 from deps.data_access_data_class import UserInfo
 

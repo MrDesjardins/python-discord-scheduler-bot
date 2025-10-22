@@ -1,4 +1,4 @@
-""" Integration tests about the cache """
+"""Integration tests about the cache"""
 
 import time
 import pytest

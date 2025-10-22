@@ -1,4 +1,4 @@
-""" User interface for the bot"""
+"""User interface for the bot"""
 
 from typing import Dict, Union
 import discord

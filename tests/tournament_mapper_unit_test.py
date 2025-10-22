@@ -1,4 +1,4 @@
-""" Unit test for mapping """
+"""Unit test for mapping"""
 
 from datetime import datetime
 from deps.tournaments.tournament_models import TournamentNode

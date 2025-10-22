@@ -33,7 +33,6 @@ def test_parsing_json_1():
     assert user_info.total_matches_played == 4439
 
 
-
 def test_get_r6tracker_user_info():
     """Test to parse JSON to find the user info from the JSON file."""
     data = get_test_data(8)

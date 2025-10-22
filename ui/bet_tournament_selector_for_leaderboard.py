@@ -1,4 +1,4 @@
-""" User interface for the bot"""
+"""User interface for the bot"""
 
 import traceback
 from typing import List

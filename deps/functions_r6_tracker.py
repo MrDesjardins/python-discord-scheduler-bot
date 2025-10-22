@@ -188,6 +188,7 @@ def parse_json_max_rank(data_dict: dict) -> str:
         print_error_log(f"parse_json_max_rank: TypeError: Unexpected data format - {e}")
         return "Copper"
 
+
 def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]]) -> UserInformation:
     """
     Parse the JSON content from the R6 Tracker API and create a UserInformation object

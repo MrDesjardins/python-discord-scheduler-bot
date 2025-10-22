@@ -6,11 +6,7 @@ import json
 from datetime import datetime, timezone
 import pytest
 from deps.data_access_data_class import UserInfo
-from deps.functions_r6_tracker import (
-    get_user_gaming_session_stats,
-    parse_json_from_full_matches,
-    parse_json_max_rank
-)
+from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_json_from_full_matches, parse_json_max_rank
 
 mock_user1 = UserInfo(1, "noSleep_rb6", "noSleep_rb6", "noSleep_rb6", "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC")
 mock_user2 = UserInfo(2, "joechod", "joechod", "joechod", None, "UTC")
@@ -1362,4 +1358,3 @@ def test_get_r6tracker_parse_max_rank(test_data):
     _, _, _, _, _, _, data_8 = test_data
     rank = parse_json_max_rank(data_8)
     assert rank == "Diamond"
-

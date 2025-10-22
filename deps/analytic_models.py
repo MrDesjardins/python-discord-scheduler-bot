@@ -1,4 +1,4 @@
-""" Contains the dataclasses for the analytic models """
+"""Contains the dataclasses for the analytic models"""
 
 from dataclasses import dataclass
 from deps.data_access_data_class import UserInfo

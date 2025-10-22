@@ -21,7 +21,10 @@ from deps.analytic_data_access import (
 )
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.models import UserFullMatchStats
-from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_user_full_stats_info, parse_json_user_info
+from deps.functions_r6_tracker import (
+    parse_json_from_full_matches,
+    parse_json_user_info,
+)
 from deps import analytic_data_access
 
 fake_date = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)

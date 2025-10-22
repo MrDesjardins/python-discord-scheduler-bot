@@ -1,4 +1,4 @@
-""" Custom bot class for Discord bot """
+"""Custom bot class for Discord bot"""
 
 import os
 import logging

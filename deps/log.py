@@ -1,4 +1,4 @@
-"""  Log into the console and the file. """
+"""Log into the console and the file."""
 
 import logging
 from logging.handlers import RotatingFileHandler

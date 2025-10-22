@@ -1,4 +1,4 @@
-""" View for the user to configure their profile """
+"""View for the user to configure their profile"""
 
 from typing import Union
 import discord
