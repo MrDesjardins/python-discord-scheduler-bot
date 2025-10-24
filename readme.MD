@@ -358,34 +358,6 @@ source .venv/bin/activate
 python3 bot.py # or ./bot.py
 ```
 
-## Python Environment and Dependencies
-
-Here are few commands to set up the environment and dependencies.
-
-```sh
-# Create Environment
-python3 -m venv .venv
-
-# Activate Environment
-source .venv/bin/activate
-
-# Update PIP
-python3 -m pip install --upgrade pip
-
-# Install Requirements
-python3 -m pip install -r requirements.txt
-
-# Save Requirements
-python3 -m pip freeze > requirements.txt
-```
-
-## SQLite3
-
-Add in your `~/.zshrc` or `~/.bashrc` the following line to have the SQLite3 headers and columns configuration from the root .sqliterc file.
-
-```sh
-alias sqlite3="sqlite3 --init .sqliterc"
-```
 
 # Installation on a Raspberry Pi
 
@@ -448,6 +420,98 @@ sudo apt install chromium-browser chromium-chromedriver
 sudo chown pi:pi /usr/bin/chromedriver
 ```
 
+## Python Environment and Dependencies
+
+Here are few commands to set up the environment and dependencies.
+
+### Only do this in the Raspberry PI:
+```sh
+sudo nano ~/.config/pip/pip.conf
+```
+Set the current index which focus on Raspberry PI supported packages with fallback to generic:
+```
+[global]
+index-url = https://www.piwheels.org/simple
+extra-index-url = https://pypi.org/simple
+```
+Then install Python by building:
+
+```sh
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  libffi-dev \
+  libbz2-dev \
+  liblzma-dev \
+  libsqlite3-dev \
+  libssl-dev \
+  zlib1g-dev \
+  libncurses5-dev \
+  libgdbm-dev \
+  libreadline-dev \
+  tk-dev \
+  uuid-dev
+
+cd /usr/src
+sudo wget https://www.python.org/ftp/python/3.10.14/Python-3.10.14.tgz
+sudo tar xzf Python-3.10.14.tgz
+
+cd /usr/src/Python-3.10.14
+sudo make clean
+
+CPPFLAGS="-I/usr/include/arm-linux-gnueabihf" \
+LDFLAGS="-L/usr/lib/arm-linux-gnueabihf" \
+./configure --enable-optimizations
+
+make -j4
+sudo make altinstall
+```
+
+### Everywhere:
+
+```sh
+# Create Environment
+python3 -m venv .venv
+
+# Activate Environment
+source .venv/bin/activate
+
+# Update PIP
+python3 -m pip install --upgrade pip
+
+# Install system dependencies
+sudo apt update
+sudo apt install -y \
+  build-essential \
+  libffi-dev \
+  libbz2-dev \
+  liblzma-dev \
+  libsqlite3-dev \
+  libssl-dev \
+  zlib1g-dev \
+  libncurses5-dev \
+  libgdbm-dev \
+  libreadline-dev \
+  tk-dev \
+  uuid-dev
+
+PIP_INDEX_URL=https://pypi.org/simple pip install cffi
+
+# Install Requirements
+python3 -m pip install -r requirements.txt
+
+# Save Requirements
+python3 -m pip freeze > requirements.txt
+```
+
+## SQLite3
+
+Add in your `~/.zshrc` or `~/.bashrc` the following line to have the SQLite3 headers and columns configuration from the root .sqliterc file.
+
+```sh
+alias sqlite3="sqlite3 --init .sqliterc"
+```
+
 ## Debugging
 
 If the service does not start, you can check the status of the service with the following command:
@@ -465,7 +529,7 @@ sudo journalctl -u gametimescheduler.service --reverse
 Real-time check:
 
 ```sh
-sudo journalctl -u gametimescheduler.service -f
+sudo journalctl -u gametimescheduler.service -n 500 -f
 ```
 
 Checking the log file (last 200 or real-time):
