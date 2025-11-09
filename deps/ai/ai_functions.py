@@ -194,7 +194,7 @@ class BotAI:
         user_info_serialized = self.summarize_users_list(users)
         match_info_serialized = "\n".join([self.summarize_full_match(m) for m in full_matches_info_by_user_id])
 
-        context = "Your goal is to generate a summary of the matches played by the users I will provide belows under 12000 characters. Provide data for each user."
+        context = "Your goal is to generate a summary of the ranked matches played by the users I will provide belows under 12000 characters. Provide data for each user."
         context += "I am providing you a list of users and a list of their matches. You can use the match_uuid and user id to make some relationship with the user and the match. You need to use both. "
         context += "Your message must never have more than 100 words per user and have a line break between user info. "
         context += "If no match, say nothing, don't say they did not play. "
