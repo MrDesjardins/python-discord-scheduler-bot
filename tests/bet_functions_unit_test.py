@@ -2069,7 +2069,7 @@ async def test_generate_msg_bet_game_many_bets_same_match(
     # Act
     msg = await generate_msg_bet_game(tournament_node)
     # Asert
-    assert msg == "📈 User 500 won $200.00\n📈 User 501 won $220.00"
+    assert msg == "📈 User 500 bet $110.00 and won $200.00 (+81.82%)\n📈 User 501 bet $110.00 and won $220.00 (+100.00%)"
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -2114,7 +2114,7 @@ async def test_generate_msg_bet_game_many_bets_win_loss_match(
     # Act
     msg = await generate_msg_bet_game(tournament_node)
     # Asert
-    assert msg == "📈 User 500 won $200.00\n📉 User 501 loss $110.00"
+    assert msg == "📈 User 500 bet $110.00 and won $200.00 (+81.82%)\n📉 User 501 bet $110.00 and loss it all"
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -2159,7 +2159,7 @@ async def test_generate_msg_bet_game_many_bets_win_loss_match_not_distributed(
     # Act
     msg = await generate_msg_bet_game(tournament_node)
     # Asert
-    assert msg == "📈 User 500 won $200.00\n📉 User 501 loss $110.00"
+    assert msg == "📈 User 500 bet $110.00 and won $200.00 (+81.82%)\n📉 User 501 bet $110.00 and loss it all"
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -2223,7 +2223,7 @@ async def test_generate_msg_bet_game_many_bets_inn_other_matches(
     # Act
     msg = await generate_msg_bet_game(tournament_node)
     # Asert
-    assert msg == "📈 User 500 won $200.00\n📉 User 501 loss $110.00"
+    assert msg == "📈 User 500 bet $110.00 and won $200.00 (+81.82%)\n📉 User 501 bet $110.00 and loss it all"
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -2283,7 +2283,7 @@ async def test_generate_msg_bet_game_many_bets_in_mismatch_ledget_user_bet(
     # Act
     await generate_msg_bet_game(tournament_node)
     # Asert
-    mock_print_error_log.assert_called_once()
+    assert mock_print_error_log.call_count == 2
 
 
 def test_calculate_gain_lost_for_open_bet_game_no_winner_id() -> None:

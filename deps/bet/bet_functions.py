@@ -522,14 +522,15 @@ async def generate_msg_bet_game(tournament_game: TournamentNode) -> str:
     for ledger_entry in ledger_for_bet_game:
         member1 = await fetch_user_info_by_user_id(ledger_entry.user_id)
         user1_display = member1.display_name if member1 else ledger_entry.user_id
+        bet_user_game = all_bet_user_game_dict.get(ledger_entry.bet_user_game_id, None)
+        if bet_user_game is None:
+            print_error_log(
+                f"generate_msg_bet_game: BetUserGame not found for ledger_entry {ledger_entry.id}. Skipping."
+            )
+            continue
         if ledger_entry.amount == 0:
-            bet_user_game = all_bet_user_game_dict.get(ledger_entry.bet_user_game_id, None)
-            if bet_user_game is None:
-                print_error_log(
-                    f"generate_msg_bet_game: BetUserGame not found for ledger_entry {ledger_entry.id}. Skipping."
-                )
-                continue
-            msg += f"📉 {user1_display} loss ${bet_user_game.amount:.2f}\n"
+            msg += f"📉 {user1_display} bet ${bet_user_game.amount:.2f} and loss it all\n"
         else:
-            msg += f"📈 {user1_display} won ${ledger_entry.amount:.2f}\n"
+            gain_in_percent = (ledger_entry.amount - bet_user_game.amount) / bet_user_game.amount * 100
+            msg += f"📈 {user1_display} bet ${bet_user_game.amount:.2f} and won ${ledger_entry.amount:.2f} (+{gain_in_percent:.2f}%)\n"
     return msg.strip()
