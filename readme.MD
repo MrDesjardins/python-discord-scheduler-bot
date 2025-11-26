@@ -630,3 +630,6 @@ sudo systemctl restart rsyslog
 sudo nano /etc/systemd/journald.conf
 SystemMaxUse=100M
 ```
+# Todos
+
+1. 
