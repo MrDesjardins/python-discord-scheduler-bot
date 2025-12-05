@@ -8,7 +8,7 @@ After=local-fs.target
 [Service]
 WorkingDirectory=/home/pi/python-discord-scheduler-bot
 EnvironmentFile=/etc/environment
-ExecStart=uv run /home/pi/python-discord-scheduler-bot/bot.py
+ExecStart=/home/pi/.local/bin/uv run /home/pi/python-discord-scheduler-bot/bot.py
 ExecStartPre=/bin/sleep 10
 Restart=on-failure
 RestartSec=10
