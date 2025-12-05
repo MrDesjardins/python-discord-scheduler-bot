@@ -29,5 +29,10 @@ Environment="PATH=/home/pi/python-discord-scheduler-bot/.venv/bin:/home/pi/.loca
 StandardOutput=journal
 StandardError=journal
 
+# Full access to filesystem / shm
+PrivateTmp=false
+ProtectSystem=off
+ProtectHome=false
+
 [Install]
 WantedBy=multi-user.target
