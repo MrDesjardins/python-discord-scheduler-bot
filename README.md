@@ -406,7 +406,9 @@ sudo apt-get install libjpeg-dev zlib1g-dev libtiff-dev libopenjp2-7-dev
 
 ```sh
 sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
+sudo systemctl daemon-reload
 sudo systemctl enable gametimescheduler.service
+sudo systemctl stop gametimescheduler.service
 sudo systemctl start gametimescheduler.service
 ```
 
