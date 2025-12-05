@@ -71,6 +71,7 @@ class BrowserContextManager:
         options.add_argument("--start-maximized")
         options.add_argument("--disable-extensions")
         options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-software-rasterizer")
         options.add_argument("--disable-sync")
         options.add_argument(
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"

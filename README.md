@@ -372,10 +372,8 @@ deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi
 4. `ssh pi@10.0.0.192`
 5. Clone the repository
 6. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
-7. Create the Python environment `python3 -m venv .venv`
-8. Activate the Python environment `source .venv/bin/activate`
-9. Install the dependencies `python3 -m pip install -r requirements.txt`
-10. Edit the environment variables file `/etc/environment` (require sudo)
+7. Install `uv`: `curl -LsSf https://astral.sh/uv/install.sh | sh` 
+8. Edit the environment variables file `/etc/environment` (require sudo)
 
 ```sh
 ENV=prod
@@ -470,15 +468,6 @@ sudo make altinstall
 ### Everywhere:
 
 ```sh
-# Create Environment
-python3 -m venv .venv
-
-# Activate Environment
-source .venv/bin/activate
-
-# Update PIP
-python3 -m pip install --upgrade pip
-
 # Install system dependencies
 sudo apt update
 sudo apt install -y \
@@ -497,11 +486,6 @@ sudo apt install -y \
 
 PIP_INDEX_URL=https://pypi.org/simple pip install cffi
 
-# Install Requirements
-python3 -m pip install -r requirements.txt
-
-# Save Requirements
-python3 -m pip freeze > requirements.txt
 ```
 
 ## SQLite3

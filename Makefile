@@ -19,24 +19,24 @@ test: unit-test integration-test
 test-coverage: unit-test-coverage integration-test-coverage
 
 unit-test:
-	pytest -v -s ./tests/*_unit_test.py
+	uv run pytest -v -s ./tests/*_unit_test.py
 
 unit-test-coverage-web:
-	coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py && coverage html
+	uv run coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py && uv run coverage html
 	explorer.exe `wslpath -w "./htmlcov"`
 	# xdg-open ./htmlcov/index.html
 
 unit-test-coverage:
-	pytest --cov=deps --cov-report=xml -s ./tests/*unit_test.py
+	uv run pytest --cov=deps --cov-report=xml -s ./tests/*unit_test.py
 
 integration-test:
-	pytest -v -s ./tests/*_integration_test.py
+	uv run pytest -v -s ./tests/*_integration_test.py
 
 integration-test-coverage-web:
-	coverage run --omit="./tests/*" -m pytest -v -s ./tests/*_integration_test.py && coverage html
+	uv run coverage run --omit="./tests/*" -m pytest -v -s ./tests/*_integration_test.py && uv run coverage html
 
 integration-test-coverage:
-	pytest --cov=deps --cov-report=xml -s ./tests/*_integration_test.py
+	uv run pytest --cov=deps --cov-report=xml -s ./tests/*_integration_test.py
 
 lint: lint-pylint lint-black lint-mypy
 
@@ -53,12 +53,6 @@ lint-mypy:
 	mypy deps
 	mypy cogs
 	mypy tests
-
-install-reps:
-	python3 -m pip install -r requirements.txt
-
-save-deps:
-	python3 -m pip freeze > requirements.txt
 
 download-ai-context:
 	scp pi@10.0.0.67:/home/pi/python-discord-scheduler-bot/ai_context.txt .
