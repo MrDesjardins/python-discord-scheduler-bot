@@ -79,8 +79,8 @@ class BrowserContextManager:
 
         if self.environment == "prod":
             options.binary_location = "/usr/bin/chromium-browser"
-            driver_path = "/usr/bin/chromedriver"
-            self.driver = uc.Chrome(options=options, driver_executable_path=driver_path)
+            #driver_path = "/usr/bin/chromedriver"
+            self.driver = uc.Chrome(options=options)
         else:
             service = Service()
             options.binary_location = "/usr/bin/google-chrome"

@@ -12,5 +12,25 @@
     "--verbose"
   ],
   "makefile.configureOnOpen": false,
-  "python-envs.pythonProjects": []
+  "python-envs.pythonProjects": [],
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#9fe2e0",
+    "activityBar.background": "#9fe2e0",
+    "activityBar.foreground": "#15202b",
+    "activityBar.inactiveForeground": "#15202b99",
+    "activityBarBadge.background": "#d06cd3",
+    "activityBarBadge.foreground": "#15202b",
+    "commandCenter.border": "#15202b99",
+    "sash.hoverBorder": "#9fe2e0",
+    "statusBar.background": "#78d6d3",
+    "statusBar.foreground": "#15202b",
+    "statusBarItem.hoverBackground": "#51cac6",
+    "statusBarItem.remoteBackground": "#78d6d3",
+    "statusBarItem.remoteForeground": "#15202b",
+    "titleBar.activeBackground": "#78d6d3",
+    "titleBar.activeForeground": "#15202b",
+    "titleBar.inactiveBackground": "#78d6d399",
+    "titleBar.inactiveForeground": "#15202b99"
+  },
+  "peacock.remoteColor": "#78d6d3"
 }
