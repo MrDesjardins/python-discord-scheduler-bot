@@ -25,6 +25,14 @@ Group=pi
 EnvironmentFile=/etc/environment
 Environment="PATH=/home/pi/python-discord-scheduler-bot/.venv/bin:/home/pi/.local/bin:/usr/local/bin:/usr/bin:/bin"
 
+# Fix Chromium/Chromedriver under systemd
+Environment="TMPDIR=/tmp"
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="CHROME_DEVEL_SANDBOX=/usr/bin/chromium-browser"
+
+# Extra browser flags
+Environment="CHROMIUM_FLAGS=--no-sandbox --disable-dev-shm-usage"
+
 # Optional: direct stdout/stderr to journal
 StandardOutput=journal
 StandardError=journal
