@@ -23,7 +23,7 @@ Group=pi
 
 # Include /etc/environment and add virtualenv + system binaries to PATH
 EnvironmentFile=/etc/environment
-Environment="PATH=/home/pi/python-discord-scheduler-bot/.venv/bin:/home/pi/.local/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/home/pi/.local/bin:/home/pi/python-discord-scheduler-bot/.venv/bin"
 
 # Fix Chromium/Chromedriver under systemd
 Environment="TMPDIR=/tmp"
