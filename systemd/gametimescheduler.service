@@ -5,10 +5,10 @@ Requires=network.target local-fs.target
 
 [Service]
 # Directory where your bot lives
-WorkingDirectory=/home/pi/python-discord-scheduler-bot
+WorkingDirectory= /home/pdesjardins/code/python-discord-scheduler-bot
 
 # Use your virtual environment Python binaries
-ExecStart=/home/pi/.local/bin/uv run /home/pi/python-discord-scheduler-bot/bot.py
+ExecStart=/home/pdesjardins/.local/bin/uv run  /home/pdesjardins/code/python-discord-scheduler-bot/bot.py
 
 # Optional: delay startup to let network come up
 ExecStartPre=/bin/sleep 10
@@ -17,13 +17,13 @@ ExecStartPre=/bin/sleep 10
 Restart=on-failure
 RestartSec=10
 
-# Run as pi user
-User=pi
-Group=pi
+# IAM
+User=pdesjardins
+Group=pdesjardins
 
 # Include /etc/environment and add virtualenv + system binaries to PATH
 EnvironmentFile=/etc/environment
-Environment="PATH=/usr/local/bin:/usr/bin:/bin:/home/pi/.local/bin:/home/pi/python-discord-scheduler-bot/.venv/bin"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin:/home/pdesjardins/.local/bin: /home/pdesjardins/code/python-discord-scheduler-bot/.venv/bin"
 
 # Fix Chromium/Chromedriver under systemd
 Environment="TMPDIR=/tmp"

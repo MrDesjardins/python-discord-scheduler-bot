@@ -405,7 +405,7 @@ sudo apt-get install libjpeg-dev zlib1g-dev libtiff-dev libopenjp2-7-dev
 14. Install the systemd that will run the bot at startup
 
 ```sh
-sudo cp /home/pi/python-discord-scheduler-bot/systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
+sudo cp systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
 sudo systemctl daemon-reload
 sudo systemctl enable gametimescheduler.service
 sudo systemctl stop gametimescheduler.service
