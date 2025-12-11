@@ -76,16 +76,13 @@ class BrowserContextManager:
         options.add_argument(
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
         )
-
+        service = Service()
         if self.environment == "prod":
             options.binary_location = "/usr/bin/chromium-browser"
-            driver_path = "/usr/bin/chromedriver"
-            self.driver = uc.Chrome(options=options, driver_executable_path=driver_path)
         else:
-            service = Service()
             options.binary_location = "/usr/bin/google-chrome"
-            options = webdriver.ChromeOptions()
-            self.driver = webdriver.Chrome(service=service, options=options)
+        options = webdriver.ChromeOptions()
+        self.driver = webdriver.Chrome(service=service, options=options)
         print_log(f"_config_browser: Using binary location: {options.binary_location}")
         try:
             # Step 2: Visit the public profile page to establish the session
