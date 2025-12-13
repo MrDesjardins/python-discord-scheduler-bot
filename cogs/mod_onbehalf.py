@@ -163,24 +163,24 @@ class ModeratorOnUserBehalf(commands.Cog):
 
     @app_commands.command(name=COMMAND_STATS_ACTIVE_USER)
     @commands.has_permissions(administrator=True)
-    async def mod_stats_active_users(self, interaction: discord.Interaction):
+    async def mod_stats_active_users(self, interaction: discord.Interaction, days: int = 1):
         """Compute the statistic for the active user"""
         await interaction.response.defer(ephemeral=True)
         print_log(f"mod_stats_active_users: Daily fetch stats and save in database, current time {datetime.now()}")
         now_utc = datetime.now(timezone.utc)
-        begin_time = now_utc - timedelta(days=1)
+        begin_time = now_utc - timedelta(days=days)
         end_time = now_utc
         await persist_siege_matches_cross_guilds(begin_time, end_time)
         await interaction.followup.send("Done", ephemeral=True)
 
     @app_commands.command(name=COMMAND_USER_INFORMATION_ACTIVE_USER)
     @commands.has_permissions(administrator=True)
-    async def mod_user_information_active_users(self, interaction: discord.Interaction):
+    async def mod_user_information_active_users(self, interaction: discord.Interaction, days: int = 1):
         """Compute the user information for the active user"""
         await interaction.response.defer(ephemeral=True)
         print_log(f"mod_user_information_active_users: Saving User Information, current time {datetime.now()}")
         now_utc = datetime.now(timezone.utc)
-        begin_time = now_utc - timedelta(days=1)
+        begin_time = now_utc - timedelta(days=days)
         end_time = now_utc
         await persist_user_full_information_cross_guilds(begin_time, end_time)
         await interaction.followup.send("Done", ephemeral=True)

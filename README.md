@@ -410,6 +410,8 @@ sudo systemctl daemon-reload
 sudo systemctl enable gametimescheduler.service
 sudo systemctl stop gametimescheduler.service
 sudo systemctl start gametimescheduler.service
+
+sudo journalctl -u gametimescheduler.service -n 1000 -f
 ```
 
 15. Install Chrome for the web scraping
