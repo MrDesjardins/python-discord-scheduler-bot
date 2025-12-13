@@ -359,7 +359,7 @@ python3 bot.py # or ./bot.py
 ```
 
 
-# Installation on a Raspberry Pi
+# Installation on a Ubuntu
 
 1. Update the sources list for apt packages (required in some Raspberry Pi to get Python3) by editing `/etc/apt/sources.list`
 
@@ -368,8 +368,8 @@ deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi
 ```
 
 2. Upgrade apt packages `sudo apt-get update` and upgrade `sudo apt-get upgrade`
-3. SSH into the Raspberry Pi
-4. `ssh pi@10.0.0.192`
+3. SSH into the machine
+4. `ssh pi@10.0.0.181`
 5. Clone the repository
 6. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
 7. Install `uv`: `curl -LsSf https://astral.sh/uv/install.sh | sh` 
@@ -415,9 +415,12 @@ sudo systemctl start gametimescheduler.service
 15. Install Chrome for the web scraping
 
 ```sh
-sudo apt install -y xvfb
-sudo apt install chromium-browser chromium-chromedriver
-sudo chown pi:pi /usr/bin/chromedriver
+wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /usr/share/keyrings/google.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+  | sudo tee /etc/apt/sources.list.d/google-chrome.list
+
+sudo apt update
+sudo apt install -y google-chrome-stable xvfb
 ```
 
 ## Python Environment and Dependencies
@@ -515,7 +518,7 @@ sudo journalctl -u gametimescheduler.service --reverse
 Real-time check:
 
 ```sh
-sudo journalctl -u gametimescheduler.service -n 500 -f
+sudo journalctl -u gametimescheduler.service -n 1000 -f
 ```
 
 Checking the log file (last 200 or real-time):
