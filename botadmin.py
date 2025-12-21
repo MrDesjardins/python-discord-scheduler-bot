@@ -316,7 +316,7 @@ def update_code() -> None:
 
         # Install dependencies using the virtual environment
         result = subprocess.run(
-            [f"{script_dir}/.venv/bin/python3", "-m", "pip", "install", "-r", f"{script_dir}/requirements.txt"],
+            ["uv", "sync"],
             text=True,
             capture_output=True,
             check=False,
