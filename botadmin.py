@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!uv run
 """Entry file for the Discord bot admin command"""
 from datetime import datetime, timedelta
 import subprocess

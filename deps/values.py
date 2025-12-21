@@ -80,6 +80,10 @@ COMMAND_LFG = "lfg"
 COMMAND_MAX_RANK_USER_ACCOUNT = "setmymaxrankaccount"  # For rank
 COMMAND_ACTIVE_RANK_USER_ACCOUNT = "setmyactiveaccount"  # For checking stats
 
+## Following
+COMMAND_FOLLOW_USER = "followuser"
+COMMAND_UNFOLLOW_USER = "unfollowuser"
+COMMAND_SEE_FOLLOWED_USERS = "seefollowedusers"
 
 # -----------------------
 # Moderator's commands

@@ -3,7 +3,7 @@ User command for anything related to the user like their max rank, active rank, 
 """
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -12,16 +12,21 @@ from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
 from deps.data_access import (
     data_access_get_member,
 )
+from deps.follow_data_access import fetch_all_followed_users_by_user_id, remove_following_user, save_following_user
 from deps.analytic_data_access import (
     data_access_set_ubisoft_username_active,
     data_access_set_ubisoft_username_max,
+    fetch_user_info_by_user_id,
     fetch_user_info_by_user_id_list,
 )
 from deps.values import (
     COMMAND_ACTIVE_RANK_USER_ACCOUNT,
+    COMMAND_FOLLOW_USER,
     COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL,
     COMMAND_LFG,
     COMMAND_MAX_RANK_USER_ACCOUNT,
+    COMMAND_SEE_FOLLOWED_USERS,
+    COMMAND_UNFOLLOW_USER,
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log
@@ -211,7 +216,111 @@ class UserFeatures(commands.Cog):
         else:
             await interaction.followup.send(f"To use the /{COMMAND_LFG} command you must be in a voice channel.")
 
+    @app_commands.command(name=COMMAND_FOLLOW_USER)
+    async def follow_user(self, interaction: discord.Interaction, user_to_follow: discord.User):
+        """Follow a user command"""
+        try:
+            await interaction.response.defer(ephemeral=True)
+        except discord.errors.NotFound:
+            print_error_log(f"follow_user: Interaction expired for user {interaction.user.id}.")
+            return
+        
+        user = interaction.user
+        if interaction.guild_id is None:
+            print_error_log(f"follow_user: No guild_id available for user {user.display_name}({user.id}).")
+            await interaction.followup.send("Guild not found for this user.", ephemeral=True)
+            return
+        
+        user_to_follow_info = await fetch_user_info_by_user_id(user_to_follow.id)
+        if user_to_follow_info is None:
+            print_error_log(f"follow_user: Cannot find user info for user id {user_to_follow.id}.")
+            await interaction.followup.send(
+                "The user you are trying to follow has not set up their profile yet.",
+                ephemeral=True,
+            )
+            return
+        now_utc = datetime.now(timezone.utc)
+        try:
+            save_following_user(user.id, user_to_follow.id, now_utc)
+            await interaction.followup.send(
+                f"You are now following {user_to_follow.mention}. You will be notified when they join a voice channel.",
+                ephemeral=True,
+            )
+        except Exception as e:
+            print_error_log(f"follow_user: Exception occurred while saving following user: {e}.")
+        
+            await interaction.followup.send(
+                "Something went wrong, please contact the moderator to check the issue.",
+                ephemeral=True,
+            )
 
+    @app_commands.command(name=COMMAND_UNFOLLOW_USER)
+    async def unfollow_user(self, interaction: discord.Interaction, user_to_unfollow: discord.User):
+        """Unfollow a user command"""
+        await interaction.response.defer(ephemeral=True)
+        user = interaction.user
+        if interaction.guild_id is None:
+            print_error_log(f"unfollow_user: No guild_id available for user {user.display_name}({user.id}).")
+            await interaction.followup.send("Guild not found for this user.", ephemeral=True)
+            return
+        
+        try:
+            remove_following_user(user.id, user_to_unfollow.id)
+            await interaction.followup.send(
+                f"You have unfollowed {user_to_unfollow.mention}. You will no longer receive notifications when they join a voice channel.",
+                ephemeral=True,
+            )
+        except Exception as e:
+            print_error_log(f"unfollow_user: Exception occurred while removing following user: {e}.")
+            await interaction.followup.send(
+                "Something went wrong, please contact the moderator to check the issue.",
+                ephemeral=True,
+            )
+
+    @app_commands.command(name=COMMAND_SEE_FOLLOWED_USERS)
+    async def see_followed_users(self, interaction: discord.Interaction):
+        """See all followed users command"""
+        await interaction.response.defer(ephemeral=True)
+        user = interaction.user
+        if interaction.guild_id is None:
+            print_error_log(f"see_followed_users: No guild_id available for user {user.display_name}({user.id}).")
+            await interaction.followup.send("Guild not found for this user.", ephemeral=True)
+            return
+        
+        try:
+            followed_user_ids = fetch_all_followed_users_by_user_id(user.id)
+            if not followed_user_ids:
+                await interaction.followup.send(
+                    "You are not following any users.",
+                    ephemeral=True,
+                )
+                return
+            
+            followed_user_infos = fetch_user_info_by_user_id_list(followed_user_ids)
+            followed_user_mentions = []
+            for user_info in followed_user_infos:
+                if user_info is not None:
+                    member = interaction.guild.get_member(user_info.id)
+                    if member is not None:
+                        followed_user_mentions.append(member.mention)
+            
+            if followed_user_mentions:
+                followed_users_str = "\n".join(followed_user_mentions)
+                await interaction.followup.send(
+                    f"You are following these users:\n{followed_users_str}",
+                    ephemeral=True,
+                )
+            else:
+                await interaction.followup.send(
+                    "You are not following any users.",
+                    ephemeral=True,
+                )
+        except Exception as e:
+            print_error_log(f"see_followed_users: Exception occurred while fetching followed users: {e}.")
+            await interaction.followup.send(
+                "Something went wrong, please contact the moderator to check the issue.",
+                ephemeral=True,
+            )
 async def setup(bot):
     """Setup function to add this cog to the bot"""
     await bot.add_cog(UserFeatures(bot))

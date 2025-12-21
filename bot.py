@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!uv run
 """Entry file for the Discord bot"""
 
 import os
@@ -6,8 +6,6 @@ from dotenv import load_dotenv
 from deps.bot_singleton import BotSingleton
 from deps.mybot import MyBot
 from deps.log import print_log
-from deps.os_utility import kill_process_by_name
-
 
 load_dotenv()
 
@@ -32,6 +30,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    for proc_name in ["chromium-browser", "Xvfb"]:
-        kill_process_by_name(proc_name)
     main()

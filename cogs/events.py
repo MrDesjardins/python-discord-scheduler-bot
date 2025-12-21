@@ -32,6 +32,7 @@ from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.models import ActivityTransition
 from deps.siege import get_siege_activity, get_user_rank_siege
+from deps.follow_functions import send_private_notification_following_user
 
 load_dotenv()
 
@@ -129,7 +130,7 @@ class MyEventsCog(commands.Cog):
                 continue
             schedule_text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
             if schedule_text_channel_id is None:
-                print_warning_log(f"Text channel not set for guild {guild.name}. Skipping.")
+                print_warning_log(f"Schedule text channel not set for guild {guild.name}. Skipping.")
                 continue
 
             # Log user activity
@@ -155,6 +156,12 @@ class MyEventsCog(commands.Cog):
                         member.id,
                         user_activity.details if user_activity else None,
                     )
+                    
+                    # When a user joins a voice channel, we see if someone is following that new user to send a private message
+                    try:
+                        await send_private_notification_following_user(self.bot, member.id, guild_id, channel_id)
+                    except Exception as e:
+                        print_error_log(f"on_voice_state_update: Error sending follow notification: {e}")
 
                 elif before.channel is not None and after.channel is None:
                     # User left a voice channel
