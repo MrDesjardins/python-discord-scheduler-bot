@@ -51,6 +51,7 @@ class DatabaseManager:
 
     def drop_all_tables(self):
         """Drop all tables"""
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_following")
         self.get_cursor().execute("DROP TABLE IF EXISTS cache")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_activity")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_info")
@@ -398,6 +399,19 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
             """
+        )
+        
+        self.get_cursor().execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_following (
+                user_id_who_want_follow_id INTEGER NOT NULL,
+                user_to_follow_id INTEGER NOT NULL,
+                follow_datetime DATETIME NOT NULL,
+                PRIMARY KEY (user_id_who_want_follow_id, user_to_follow_id),
+                FOREIGN KEY (user_id_who_want_follow_id) REFERENCES user_info(user_id),
+                FOREIGN KEY (user_to_follow_id) REFERENCES user_info(user_id)
+            );
+        """
         )
 
         self.get_cursor().execute(

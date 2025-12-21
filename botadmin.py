@@ -139,6 +139,11 @@ def get_from_to_days(menu_entry_index2: int) -> tuple[int, int]:
         to_day = 0
         return (from_day, to_day)
     elif menu_entry_index2 == 4:
+        # Since beginning of the year
+        from_day = (datetime.now() - datetime(datetime.now().year, 1, 1)).days
+        to_day = 0
+        return (from_day, to_day)
+    elif menu_entry_index2 == 5:
         # Since September 21th, 2024
         from_day = (datetime.now() - datetime(2024, 9, 21)).days
         to_day = 0
@@ -170,8 +175,9 @@ def show_visualization_menu(time_choice: Optional[int] = None):
                 "[1] Last 30 days",
                 "[2] Current month",
                 "[3] Last Month",
-                "[3] Last 3 months",
-                "[5] Since September 21th, 2024",
+                "[4] Last 3 months",
+                "[5] Since beginning of the year",
+                "[6] Since September 21th, 2024",
             ],
             title="Days",
             show_shortcut_hints=True,

@@ -158,12 +158,12 @@ def data_access_set_guild_schedule_text_channel_id(guild_id: int, channel_id: in
 
 async def data_access_get_guild_voice_channel_ids(
     guild_id: int,
-) -> Union[List, None]:
+) -> Union[List[int], None]:
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}")
 
 
-def data_access_set_guild_voice_channel_ids(guild_id: int, channel_ids: Union[List, None]) -> None:
+def data_access_set_guild_voice_channel_ids(guild_id: int, channel_ids: Union[List[int], None]) -> None:
     """Set the voice channels (many) that the bot will send voice and watch"""
     if channel_ids is None:
         remove_cache(False, f"{KEY_GUILD_VOICE_CHANNELS}:{guild_id}")
