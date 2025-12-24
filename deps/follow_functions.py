@@ -12,15 +12,16 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
     if not followed_user_ids:
         return  # No one is following this user, nothing to do
 
-    # Filter down the list for only users who are not currently in the same voice channel
-    guild_voice_channels = await data_access_get_guild_voice_channel_ids(guild_id)
-    if guild_voice_channels is None:
-        guild_voice_channels = guild_voice_channels = await data_access_get_voice_user_list(guild_id, channel_id)
-    filtered_followed_user_ids = [user_id for user_id in followed_user_ids if user_id not in guild_voice_channels]
+    # # Filter down the list for only users who are not currently in the same voice channel
+    # guild_voice_channels = await data_access_get_guild_voice_channel_ids(guild_id)
+    # if guild_voice_channels is None:
+    #     guild_voice_channels = guild_voice_channels = await data_access_get_voice_user_list(guild_id, channel_id)
+    # filtered_followed_user_ids = [user_id for user_id in followed_user_ids if user_id not in guild_voice_channels]
 
     # Filter using Discord bot API to ensure is not in a voice channel
+    print_log(f"Filtering followers of user {joined_user_id} for guild {guild_id} to exclude those in voice channels. Founds {len(followed_user_ids)} followers.")
     filtered2 = []
-    for user_id in filtered_followed_user_ids:
+    for user_id in followed_user_ids:
         member = await data_access_get_member(guild, user_id)
         if member and not member.voice:
             filtered2.append(user_id)
