@@ -23,10 +23,17 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
     filtered2 = []
     for user_id in followed_user_ids:
         member = await data_access_get_member(guild, user_id)
-        if member and not member.voice:
-            filtered2.append(user_id)
-        else:
-            print_log(f"User {user_id} is currently in a voice channel; skipping notification for {joined_user_id}.")
+        if member is None:
+            print_log(f"User {user_id} not found in guild {guild_id}; skipping notification for {joined_user_id}.")
+            continue
+
+        # If member.voice and member.voice.channel are truthy, the user is currently in a voice channel.
+        if member.voice and member.voice.channel:
+            print_log(f"User {user_id} is currently in voice channel {member.voice.channel.name}; skipping notification for {joined_user_id}.")
+            continue
+
+        # Member exists and is not in a voice channel — notify them.
+        filtered2.append(user_id)
 
     for discord_user_id in filtered2:
         user = bot.get_user(discord_user_id)
