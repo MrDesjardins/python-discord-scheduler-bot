@@ -11,17 +11,9 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Activate the virtual environment
-echo "Activating virtual environment..."
-source .venv/bin/activate
-if [ $? -ne 0 ]; then
-    echo "Failed to activate virtual environment."
-    exit 1
-fi
-
 # Install dependencies
 echo "Installing dependencies..."
-python3 -m pip install -r requirements.txt
+uv sync
 if [ $? -ne 0 ]; then
     echo "Failed to install dependencies."
     exit 1
