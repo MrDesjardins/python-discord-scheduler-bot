@@ -1,6 +1,6 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 
-from asyncio import subprocess
+import subprocess
 import os
 from typing import List, Optional, Union
 import json
