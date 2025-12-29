@@ -1,5 +1,6 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 
+from asyncio import subprocess
 import os
 from typing import List, Optional, Union
 import json
@@ -53,10 +54,15 @@ class BrowserContextManager:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.driver.quit()
+        try:
+            if hasattr(self, "driver"):
+                self.driver.quit()
+        finally:
+            if hasattr(self, "wrapped"):
+                self.wrapped.stop()
         # Kill any lingering chromium-browser processes
         if self.environment == "prod":
-            os.system("pkill -f chromium-browser")
+            subprocess.run(["pkill", "-TERM", "-P", str(os.getpid())], check=False)
         return self.wrapped.__exit__(exc_type, exc_value, traceback)
 
     def _config_browser(self) -> None:
@@ -76,18 +82,18 @@ class BrowserContextManager:
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
         )
         options.binary_location = "/usr/bin/google-chrome"
-        self.driver = uc.Chrome(options=options)
-
-        print_log(f"_config_browser: Using binary location: {options.binary_location}")
         try:
+            self.driver = uc.Chrome(options=options)
+            print_log(f"_config_browser: Using binary location: {options.binary_location}")
             # Step 2: Visit the public profile page to establish the session
             profile_url = get_url_user_ranked_matches(self.default_profile)
             self.driver.get(profile_url)
             WebDriverWait(self.driver, 45).until(EC.visibility_of_element_located((By.ID, "app-container")))
         except Exception as e:
             print_error_log(f"_config_browser: Error visiting the profile page ({profile_url}): {e}")
-            # Throw the exception to __exit__
-            raise e
+            if hasattr(self, "driver"):
+                self.driver.quit()
+            raise
 
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
         """
