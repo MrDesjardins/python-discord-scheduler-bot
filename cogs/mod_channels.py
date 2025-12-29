@@ -13,6 +13,7 @@ from deps.data_access import (
     data_access_get_guild_voice_channel_ids,
     data_access_get_main_text_channel_id,
     data_access_get_new_user_text_channel_id,
+    data_access_set_custom_game_voice_channels,
     data_access_set_gaming_session_text_channel_id,
     data_access_set_guild_username_text_channel_id,
     data_access_set_main_text_channel_id,
@@ -30,7 +31,9 @@ from deps.values import (
     COMMAND_SCHEDULE_CHANNEL_SET_USER_NAME_GAME_CHANNEL,
     COMMAND_SCHEDULE_CHANNEL_GET_USER_NAME_GAME_CHANNEL,
     COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL,
+    COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS,
     COMMAND_SEE_GAMING_SESSION_CHANNEL,
+    COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS,
     COMMAND_SET_GAMING_SESSION_CHANNEL,
     COMMAND_SEE_NEW_USER_CHANNEL,
     COMMAND_SET_NEW_USER_CHANNEL,
@@ -302,6 +305,42 @@ class ModChannels(commands.Cog):
 
         await interaction.followup.send(f"The main text channel is <#{channel_id}>", ephemeral=True)
 
+    @app_commands.command(name=COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS)
+    @commands.has_permissions(administrator=True)
+    async def set_custom_game_voice_channels(self, interaction: discord.Interaction, lobby: discord.VoiceChannel, team1: discord.VoiceChannel, team2: discord.VoiceChannel):
+        """
+        An administrator can set the channel where custom game happen
+        """
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("set_custom_game_voice_channels: Guild is None.")
+            return
+        guild_id = guild.id
+        data_access_set_custom_game_voice_channels(guild_id, lobby.id, team1.id, team2.id)
+
+        await interaction.followup.send(
+            f"Confirmed that the lobby voice channel is #{lobby.name} and team channels are #{team1.name} and #{team2.name}.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name=COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS)
+    @commands.has_permissions(administrator=True)
+    async def see_custom_game_voice_channels(self, interaction: discord.Interaction):
+        """Display the text channel configured"""
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("send_score_tournament_by_mod: Guild is None.")
+            return
+        guild_id = guild.id
+        channel_id = await data_access_get_new_user_text_channel_id(guild_id)
+        if channel_id is None:
+            print_warning_log(f"No new user channel in guild {guild.name}. Skipping.")
+            await interaction.followup.send("New User Text channel not set.", ephemeral=True)
+            return
+
+        await interaction.followup.send(f"The new user text channel is <#{channel_id}>", ephemeral=True)
 
 async def setup(bot):
     """Setup function to add this cog to the bot"""

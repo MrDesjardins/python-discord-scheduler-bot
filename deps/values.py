@@ -115,6 +115,8 @@ COMMAND_SEE_NEW_USER_CHANNEL = "modseesnewuserchannel"
 COMMAND_CHANNEL_SET_MAIN_CHANNEL = "modtextmainchannel"
 COMMAND_CHANNEL_GET_MAIN_CHANNEL = "modseemainchannel"
 COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY = "modvoicecurrentactivity"
+COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS = "modvoicecustomgamechannels"
+COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS = "modseesvoicecustomgamechannels"
 
 ## Analytics
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"
@@ -154,3 +156,10 @@ COMMAND_BET_LEADERBOARD = "betleaderboard"
 COMMAND_BET_ACTIVE_TOURNAMENT = "betactivetournament"
 COMMAND_BET = "bet"
 COMMAND_BET_WALLET = "betwallet"
+
+# Custom Game
+COMMAND_CUSTOM_GAME_SUBSCRIBE = "subscribecustomgame"
+COMMAND_CUSTOM_GAME_UNSUBSCRIBE = "unsubscribecustomgame"
+COMMAND_CUSTOM_GAME_SEE_SUBSCRIPTIONS = "seecustomgamesubscriptions"
+COMMAND_CUSTOM_GAME_LFG = "customgamelfg"
+COMMAND_CUSTOM_GAME_MAKE_TEAM = "customgamemaketeam"

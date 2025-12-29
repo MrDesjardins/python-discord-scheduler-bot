@@ -66,6 +66,7 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_game")
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_user_game")
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_ledger_entry")
+        self.get_cursor().execute("DROP TABLE IF EXISTS custom_game_user_subscription")
 
     def init_database(self):
         """Ensure that database has all the tables"""
@@ -410,6 +411,17 @@ class DatabaseManager:
                 PRIMARY KEY (user_id_who_want_follow_id, user_to_follow_id),
                 FOREIGN KEY (user_id_who_want_follow_id) REFERENCES user_info(user_id),
                 FOREIGN KEY (user_to_follow_id) REFERENCES user_info(user_id)
+            );
+        """
+        )
+        
+        self.get_cursor().execute(
+            """
+            CREATE TABLE IF NOT EXISTS custom_game_user_subscription (
+                user_id INTEGER NOT NULL,
+                guild_id INTEGER NOT NULL,
+                follow_datetime DATETIME NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES user_info(user_id)
             );
         """
         )

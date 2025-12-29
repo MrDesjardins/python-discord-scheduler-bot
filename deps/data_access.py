@@ -44,7 +44,9 @@ KEY_GUILD_MAIN_TEXT_CHANNEL = "GuildMainSiegeTextChannel"
 KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
 KEY_AI_COUNT = "AI_daily_Count"
-
+KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY = "GuildCustomGameVoiceChannelLobby"
+KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1 = "GuildCustomGameVoiceChannelTeam1"
+KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2 = "GuildCustomGameVoiceChannelTeam2"
 
 async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
     """Get the guild by the given guild"""
@@ -188,6 +190,9 @@ def data_access_reset_guild_cache(guild_id: int) -> None:
         f"{KEY_USER}:{guild_id}",
         f"{KEY_GUILD}:{guild_id}",
         f"{KEY_MEMBER}:{guild_id}",
+        f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY}:{guild_id}",
+        f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1}:{guild_id}",
+        f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2}:{guild_id}",
     ]
     reset_cache_by_prefixes(prefixes)
 
@@ -451,3 +456,17 @@ async def data_access_get_ai_daily_count() -> Union[int, None]:
 def data_access_set_ai_daily_count(count: int) -> None:
     """Set the count of time the AI was called"""
     set_cache(False, KEY_AI_COUNT, count, ONE_DAY_TTL)
+
+
+def data_access_set_custom_game_voice_channels(guild_id: int, lobby_channel_id: int, team1_channel_id: int, team2_channel_id: int) -> None:
+    """Set the voice channels used for custom games"""
+    set_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY}:{guild_id}", lobby_channel_id, ALWAYS_TTL)
+    set_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1}:{guild_id}", team1_channel_id, ALWAYS_TTL)
+    set_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2}:{guild_id}", team2_channel_id, ALWAYS_TTL)
+    
+def data_access_get_custom_game_voice_channels(guild_id: int) -> tuple[Optional[int], Optional[int], Optional[int]]:
+    """Get the voice channels used for custom games"""
+    lobby_channel_id = get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY}:{guild_id}")
+    team1_channel_id = get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1}:{guild_id}")
+    team2_channel_id = get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2}:{guild_id}")
+    return (lobby_channel_id, team1_channel_id, team2_channel_id)
