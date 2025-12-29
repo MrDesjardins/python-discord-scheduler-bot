@@ -1,6 +1,7 @@
 """
 Data classes for custom match data access
 """
+
 from dataclasses import dataclass
 
 

@@ -3,9 +3,10 @@ from deps.follow_data_access import fetch_all_followers_of_user_id
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
 
+
 async def send_private_notification_following_user(bot: MyBot, joined_user_id: int, guild_id: int, channel_id: int):
     """Sends a private notification to users who are following the joined user."""
-    
+
     # Get all the users who is following the user who joined a voice channel
     followed_user_ids: list[int] = fetch_all_followers_of_user_id(joined_user_id)
     if not followed_user_ids:
@@ -18,7 +19,9 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
     # filtered_followed_user_ids = [user_id for user_id in followed_user_ids if user_id not in guild_voice_channels]
 
     # Filter using Discord bot API to ensure is not in a voice channel
-    print_log(f"Filtering followers of user {joined_user_id} for guild {guild_id} to exclude those in voice channels. Founds {len(followed_user_ids)} followers.")
+    print_log(
+        f"Filtering followers of user {joined_user_id} for guild {guild_id} to exclude those in voice channels. Founds {len(followed_user_ids)} followers."
+    )
     filtered2 = []
     for user_id in followed_user_ids:
         member = await data_access_get_member(guild_id, user_id)
@@ -28,7 +31,9 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
 
         # If member.voice and member.voice.channel are truthy, the user is currently in a voice channel.
         if member.voice and member.voice.channel:
-            print_log(f"User {user_id} is currently in voice channel {member.voice.channel.name}; skipping notification for {joined_user_id}.")
+            print_log(
+                f"User {user_id} is currently in voice channel {member.voice.channel.name}; skipping notification for {joined_user_id}."
+            )
             continue
 
         # Member exists and is not in a voice channel — notify them.
@@ -38,8 +43,6 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
         user = bot.get_user(discord_user_id)
         if user:
             try:
-                await user.send(
-                    f"User <@{joined_user_id}> has joined <#{channel_id}>."
-                )
+                await user.send(f"User <@{joined_user_id}> has joined <#{channel_id}>.")
             except Exception as e:
                 print_error_log(f"Failed to send DM to user {discord_user_id} for user {joined_user_id}: {e}")

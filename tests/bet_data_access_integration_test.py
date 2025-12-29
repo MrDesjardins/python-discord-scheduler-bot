@@ -1,6 +1,6 @@
 """Test that touch the bet and the database"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Union
 from unittest.mock import patch
 import pytest
@@ -27,6 +27,7 @@ from deps.tournaments.tournament_data_access import (
 from deps.tournaments.tournament_functions import report_lost_tournament, start_tournament
 from deps.bet import bet_functions
 from deps.tournaments.tournament_data_class import Tournament
+from tests.utils.utils_load_data import init_users_database
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +37,7 @@ def setup_and_teardown():
     database_manager.set_database_name(DATABASE_NAME_TEST)
     database_manager.drop_all_tables()
     database_manager.init_database()
+    init_users_database()
 
     # Yield control to the test functions
     yield

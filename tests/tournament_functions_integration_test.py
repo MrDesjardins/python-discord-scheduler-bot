@@ -38,6 +38,7 @@ from tests.mock_model import (
     mock_user8,
     mock_user9,
 )
+from tests.utils.utils_load_data import init_users_database
 
 CHANNEL1_ID = 100
 CHANNEL2_ID = 200
@@ -64,6 +65,7 @@ async def setup_and_teardown():
     database_manager.set_database_name(DATABASE_NAME_TEST)
     database_manager.drop_all_tables()
     database_manager.init_database()
+    init_users_database()
 
     # Yield control to the test functions
     yield

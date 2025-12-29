@@ -2069,7 +2069,9 @@ async def test_generate_msg_bet_game_many_bets_same_match(
     # Act
     msg = await generate_msg_bet_game(tournament_node)
     # Asert
-    assert msg == "📈 User 500 bet $110.00 and won $200.00 (+81.82%)\n📈 User 501 bet $110.00 and won $220.00 (+100.00%)"
+    assert (
+        msg == "📈 User 500 bet $110.00 and won $200.00 (+81.82%)\n📈 User 501 bet $110.00 and won $220.00 (+100.00%)"
+    )
 
 
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)

@@ -4,9 +4,19 @@ from typing import List, Union
 import discord
 
 from deps.custom_match.custom_match_data_class import MapSuggestion
-from deps.custom_match.custom_match_data_access import data_access_fetch_all_maps, data_access_fetch_all_maps, data_access_fetch_best_maps_first, data_access_fetch_less_played_maps_first, data_access_fetch_worse_maps_first
+from deps.custom_match.custom_match_data_access import (
+    data_access_fetch_all_maps,
+    data_access_fetch_all_maps,
+    data_access_fetch_best_maps_first,
+    data_access_fetch_less_played_maps_first,
+    data_access_fetch_worse_maps_first,
+)
 from deps.custom_match.custom_match_values import MapAlgo, TeamAlgo
-from deps.analytic_data_access import data_access_fetch_user_full_user_info, data_access_fetch_user_max_current_mmr, data_access_fetch_user_max_mmr
+from deps.analytic_data_access import (
+    data_access_fetch_user_full_user_info,
+    data_access_fetch_user_max_current_mmr,
+    data_access_fetch_user_max_mmr,
+)
 from deps.custom_match.custom_match_models import TeamSuggestion
 from deps.models import UserInformation
 
@@ -22,7 +32,7 @@ async def _create_team_by_metric(
     users_metric: List[tuple[discord.Member, float]] = []
     for discord_member in user_ids:
         if metric_attr == "mmr":
-                value = data_access_fetch_user_max_current_mmr(discord_member.id)
+            value = data_access_fetch_user_max_current_mmr(discord_member.id)
         elif metric_attr == "max_mmr":
             value = data_access_fetch_user_max_mmr(discord_member.id)
         else:
@@ -65,20 +75,24 @@ async def create_team_by_win_percentage(user_ids: List[discord.Member]) -> TeamS
         user_ids, metric_attr="win_percentage", logic="Balanced by Rank win %", label="Win %", fmt=".2f"
     )
 
+
 async def create_team_by_kd(user_ids: List[discord.Member]) -> TeamSuggestion:
     return await _create_team_by_metric(
         user_ids, metric_attr="rank_kd_ratio", logic="Balanced by Rank K/D", label="KD", fmt=".2f"
     )
 
+
 async def create_team_by_current_mmr(user_ids: List[discord.Member]) -> TeamSuggestion:
     return await _create_team_by_metric(
         user_ids, metric_attr="mmr", logic="Balanced by Current MMR", label="MMR", fmt=".0f"
     )
-    
+
+
 async def create_team_by_max_mmr(user_ids: List[discord.Member]) -> TeamSuggestion:
     return await _create_team_by_metric(
         user_ids, metric_attr="max_mmr", logic="Balanced by Max MMR", label="Max MMR", fmt=".0f"
     )
+
 
 async def select_team_by_algorithm(team_algo: TeamAlgo, user_ids: List[discord.Member]) -> TeamSuggestion:
     if team_algo == TeamAlgo.WIN_RATIO:
@@ -89,6 +103,7 @@ async def select_team_by_algorithm(team_algo: TeamAlgo, user_ids: List[discord.M
         return await create_team_by_current_mmr(user_ids)
     elif team_algo == TeamAlgo.MAX_MMR:
         return await create_team_by_max_mmr(user_ids)
+
 
 async def select_map_based_on_algorithm(map_algo: MapAlgo, user_ids: List[int]) -> List[MapSuggestion]:
     if map_algo == MapAlgo.WORSE_MAPS_FIRST:
@@ -101,4 +116,3 @@ async def select_map_based_on_algorithm(map_algo: MapAlgo, user_ids: List[int]) 
         maps = data_access_fetch_all_maps(user_ids)
         map = maps[random.randint(0, len(maps) - 1)]
         return [map]
-    

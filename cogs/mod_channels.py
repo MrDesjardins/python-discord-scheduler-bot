@@ -307,7 +307,13 @@ class ModChannels(commands.Cog):
 
     @app_commands.command(name=COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS)
     @commands.has_permissions(administrator=True)
-    async def set_custom_game_voice_channels(self, interaction: discord.Interaction, lobby: discord.VoiceChannel, team1: discord.VoiceChannel, team2: discord.VoiceChannel):
+    async def set_custom_game_voice_channels(
+        self,
+        interaction: discord.Interaction,
+        lobby: discord.VoiceChannel,
+        team1: discord.VoiceChannel,
+        team2: discord.VoiceChannel,
+    ):
         """
         An administrator can set the channel where custom game happen
         """
@@ -341,6 +347,7 @@ class ModChannels(commands.Cog):
             return
 
         await interaction.followup.send(f"The new user text channel is <#{channel_id}>", ephemeral=True)
+
 
 async def setup(bot):
     """Setup function to add this cog to the bot"""

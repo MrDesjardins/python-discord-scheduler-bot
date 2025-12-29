@@ -585,7 +585,7 @@ def columnize(ssss: Union[str, int, float], width: int) -> str:
 
 
 def build_msg_stats_duo(
-    stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, str, int, int, float]]
+    stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
     top = 15
@@ -613,7 +613,7 @@ def build_msg_stats_duo(
 
 
 def build_msg_stats_trio(
-    stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, str, str, int, int, float]]
+    stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, str, str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
     top = 15
@@ -643,7 +643,7 @@ def build_msg_stats_trio(
 
 
 def build_msg_stats_two_counts_rate(
-    stats_name: str, rate_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, float]]
+    stats_name: str, rate_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
     top = 30
@@ -670,7 +670,9 @@ def build_msg_stats_two_counts_rate(
     return msg
 
 
-def build_msg_stats_name_percentage(stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, float]]) -> str:
+def build_msg_stats_name_percentage(
+    stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, float]]
+) -> str:
     """Build a message that can be resused between the stats msg"""
     top = 30
     col_width = 16
@@ -690,7 +692,7 @@ def build_msg_stats_name_percentage(stats_name: str, info_time_str: str, stats_t
 
 
 def build_msg_count_ratio_stats(
-    stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, float]]
+    stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
     top = 30
@@ -717,7 +719,9 @@ def build_msg_count_ratio_stats(
     return msg
 
 
-def build_msg_4_counts(stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, int, int]]) -> str:
+def build_msg_4_counts(
+    stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, int, int]]
+) -> str:
     """Build a message that can be resused between the stats msg"""
     top = 30
     col_width = 16
@@ -745,7 +749,7 @@ def build_msg_4_counts(stats_name: str, info_time_str: str, stats_tuple: list[tu
 
 
 def build_msg_4_counts_2(
-    stats_name: str, info_time_str: str, stats_tuple: list[tuple[str, int, int, int, float]]
+    stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
     top = 30
@@ -776,8 +780,8 @@ def build_msg_4_counts_2(
 def build_msg_2_stats_count(
     stats_name: str,
     info_time_str: str,
-    cols_name: list[str],
-    stats_tuple: list[tuple[str, str, int, str, int]],
+    cols_name: Sequence[str],
+    stats_tuple: Sequence[tuple[str, str, int, str, int]],
     start_index: int = 0,
 ) -> tuple[str, Union[int, None]]:
     """Build a message that has the user name, stats name, stats count, stats name, stats count"""
@@ -817,8 +821,8 @@ def build_msg_2_stats_count(
 def build_msg_2_columns(
     stats_name: str,
     info_time_str: str,
-    cols_name: list[str],
-    stats_tuple: list[tuple[str, int]],
+    cols_name: Sequence[str],
+    stats_tuple: Sequence[tuple[str, int]],
     top: int = 20,
     start_index: int = 0,
 ) -> str:
@@ -839,8 +843,8 @@ def build_msg_2_columns(
 def build_msg_3_columns(
     stats_name: str,
     info_time_str: str,
-    cols_name: list[str],
-    stats_tuple: list[tuple[str, str, Union[int, float]]],
+    cols_name: Sequence[str],
+    stats_tuple: Sequence[tuple[str, str, Union[int, float]]],
     top: int = 20,
     start_index: int = 0,
 ) -> str:
@@ -869,8 +873,8 @@ def build_msg_3_columns(
 def build_msg_4_columns(
     stats_name: str,
     info_time_str: str,
-    cols_name: list[str],
-    stats_tuple: list[tuple[str, int, int, float]],
+    cols_name: Sequence[str],
+    stats_tuple: Sequence[tuple[str, int, int, float]],
     top: int = 20,
     start_index: int = 0,
 ) -> str:

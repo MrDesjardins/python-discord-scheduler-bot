@@ -42,7 +42,7 @@ class BrowserContextManager:
 
     def __init__(self, default_profile: str = "noSleep_rb6") -> None:
         self.environment = os.getenv("ENV")
-        #self.wrapped = None
+        # self.wrapped = None
         self.counter = 0
         self.profile_page_source = ""
         self.default_profile = default_profile

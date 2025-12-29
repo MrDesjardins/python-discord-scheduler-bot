@@ -401,7 +401,7 @@ class DatabaseManager:
             );
             """
         )
-        
+
         self.get_cursor().execute(
             """
             CREATE TABLE IF NOT EXISTS user_following (
@@ -414,7 +414,7 @@ class DatabaseManager:
             );
         """
         )
-        
+
         self.get_cursor().execute(
             """
             CREATE TABLE IF NOT EXISTS custom_game_user_subscription (

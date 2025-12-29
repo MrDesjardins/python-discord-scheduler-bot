@@ -1088,7 +1088,11 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
         database_manager.get_conn().commit()
     except Exception as e:
         try:
-            stringify_user_info = json.dumps(asdict(user_information), indent=4) if user_information is not None else f"No user_information for user id: {user_info.id}"
+            stringify_user_info = (
+                json.dumps(asdict(user_information), indent=4)
+                if user_information is not None
+                else f"No user_information for user id: {user_info.id}"
+            )
         except Exception:
             stringify_user_info = f"user id: {user_info.id}"
         print_error_log(f"insert_if_nonexistant_full_user_info: Error inserting user stats: {e}\n{stringify_user_info}")
@@ -2630,7 +2634,7 @@ def data_access_fetch_unique_user_per_day(from_data: date) -> List[tuple[str, in
     return [(row[0], row[1]) for row in result]
 
 
-def data_access_fetch_user_max_current_mmr(user_id:int) -> int | None:
+def data_access_fetch_user_max_current_mmr(user_id: int) -> int | None:
     """
     Get the max mmr for a user
     """
@@ -2655,7 +2659,8 @@ def data_access_fetch_user_max_current_mmr(user_id:int) -> int | None:
         return int(result[0])
     return None
 
-def data_access_fetch_user_max_mmr(user_id:int) -> int | None:
+
+def data_access_fetch_user_max_mmr(user_id: int) -> int | None:
     """
     Get the max mmr for a user
     """

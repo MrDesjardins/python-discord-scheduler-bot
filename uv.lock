@@ -1998,6 +1998,7 @@ dependencies = [
     { name = "types-cachetools" },
     { name = "types-html5lib" },
     { name = "types-networkx" },
+    { name = "types-psutil" },
     { name = "types-python-dateutil" },
     { name = "types-pytz" },
     { name = "types-requests" },
@@ -2127,6 +2128,7 @@ requires-dist = [
     { name = "types-cachetools", specifier = "==6.0.0.20250525" },
     { name = "types-html5lib", specifier = "==1.1.11.20241018" },
     { name = "types-networkx", specifier = "==3.4.2.20241227" },
+    { name = "types-psutil", specifier = ">=7.2.0.20251228" },
     { name = "types-python-dateutil", specifier = "==2.9.0.20241206" },
     { name = "types-pytz", specifier = "==2025.1.0.20250204" },
     { name = "types-requests", specifier = "==2.32.0.20241016" },
@@ -2420,6 +2422,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/54/93/35baaeadf0b6d34de9c78b34f67843e48e9a7a244b9f04f8d4dd97d680f2/types_networkx-3.4.2.20241227.tar.gz", hash = "sha256:6c3be0ed31a7828d713d374017cee91bc23df1d90d81ed434d1952c9a653cfd7", size = 53497, upload-time = "2024-12-27T02:42:05.023Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/31/c1/d73ff5900c6b462879039ac92f89424ad1eb544b1f6bd77f12f9c3013e20/types_networkx-3.4.2.20241227-py3-none-any.whl", hash = "sha256:adb0e3f0a16c1481a2cfa97772a0b925b220dcf857f0def1c5ab4c4f349e309d", size = 130194, upload-time = "2024-12-27T02:42:03.773Z" },
+]
+
+[[package]]
+name = "types-psutil"
+version = "7.2.0.20251228"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/46/b1/4a1b95bf267c32abffc7feadb8160a7d8639e2185f7ff2125e217556e8e2/types_psutil-7.2.0.20251228.tar.gz", hash = "sha256:dde992ac5b22512724a82ed21a43b03971592dff6cd271e2bd42a8750b30929b", size = 25400, upload-time = "2025-12-28T03:28:20.162Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e2/cb/ffb612d5f744da7861bce043b25aa567fd0cd8e726f465a09be1826dd76a/types_psutil-7.2.0.20251228-py3-none-any.whl", hash = "sha256:fbef94469c5067449ce3330acfe3f525b91f2762f8351a84266ac9b745a3290d", size = 32426, upload-time = "2025-12-28T03:28:18.963Z" },
 ]
 
 [[package]]

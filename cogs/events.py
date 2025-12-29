@@ -156,7 +156,7 @@ class MyEventsCog(commands.Cog):
                         member.id,
                         user_activity.details if user_activity else None,
                     )
-                    
+
                     # When a user joins a voice channel, we see if someone is following that new user to send a private message
                     try:
                         await send_private_notification_following_user(self.bot, member.id, guild_id, channel_id)

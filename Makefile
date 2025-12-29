@@ -41,18 +41,18 @@ integration-test-coverage:
 lint: lint-pylint lint-black lint-mypy
 
 lint-pylint:
-	pylint --rcfile=.pylintrc deps/ || true
-	pylint --rcfile=.pylintrc cogs/ || true
-	pylint --rcfile=.pylintrc ui/ || true
-	pylint --rcfile=tests/.pylintrc tests/ || true
+	uv run pylint --rcfile=.pylintrc deps/ || true
+	uv run pylint --rcfile=.pylintrc cogs/ || true
+	uv run pylint --rcfile=.pylintrc ui/ || true
+	uv run pylint --rcfile=tests/.pylintrc tests/ || true
 
 lint-black:
-	black **/*.py
+	uv run black **/*.py
 
 lint-mypy:
-	mypy deps
-	mypy cogs
-	mypy tests
+	uv run mypy deps
+	uv run mypy cogs
+	uv run mypy tests
 
 download-ai-context:
 	scp pi@10.0.0.67:/home/pi/python-discord-scheduler-bot/ai_context.txt .
