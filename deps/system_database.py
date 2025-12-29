@@ -421,6 +421,7 @@ class DatabaseManager:
                 user_id INTEGER NOT NULL,
                 guild_id INTEGER NOT NULL,
                 follow_datetime DATETIME NOT NULL,
+                PRIMARY KEY (user_id, guild_id),
                 FOREIGN KEY (user_id) REFERENCES user_info(user_id)
             );
         """

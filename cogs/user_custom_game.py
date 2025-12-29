@@ -4,9 +4,12 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from deps.custom_match.custom_match_functions import create_team_by_win_percentage
-from deps.data_access import data_access_get_custom_game_voice_channels, data_access_get_member
-from deps.custom_match.custom_match_data_access import fetch_user_subscription_for_guild, subscribe_custom_game
+from deps.custom_match.custom_match_data_class import MapSuggestion
+from deps.custom_match.custom_match_ui_functions import CompleteCommandView
+from deps.custom_match.custom_match_values import MapAlgo, TeamAlgo
+from deps.custom_match.custom_match_functions import create_team_by_win_percentage, select_map_based_on_algorithm, select_team_by_algorithm
+from deps.data_access import data_access_get_channel, data_access_get_channel, data_access_get_custom_game_voice_channels, data_access_get_member
+from deps.custom_match.custom_match_data_access import data_access_fetch_user_subscription_for_guild, data_access_subscribe_custom_game, data_access_unsubscribe_custom_game
 
 from deps.values import (
     COMMAND_CUSTOM_GAME_LFG,
@@ -42,7 +45,7 @@ class UserCustomGameFeatures(commands.Cog):
         guild = interaction.guild
         guild_id = guild.id
         current_datetime = datetime.now(timezone.utc)
-        subscribe_custom_game(user_id, guild_id, current_datetime)
+        data_access_subscribe_custom_game(user_id, guild_id, current_datetime)
         await interaction.followup.send(content=f"{display_name} subscribed to future 10-man notifications using the /{COMMAND_CUSTOM_GAME_SUBSCRIBE}. To unsubscribe use /{COMMAND_CUSTOM_GAME_UNSUBSCRIBE}", ephemeral=False)
 
     @app_commands.command(name=COMMAND_CUSTOM_GAME_UNSUBSCRIBE)
@@ -61,10 +64,12 @@ class UserCustomGameFeatures(commands.Cog):
             return
         guild = interaction.guild
         guild_id = guild.id
-        user_ids: List[int] = fetch_user_subscription_for_guild(guild_id)
+        user_ids: List[int] = data_access_fetch_user_subscription_for_guild(guild_id)
         if not user_ids:
             await interaction.followup.send(content="You are not currently subscribed to custom game notifications in this server.", ephemeral=True)
             return
+        
+        data_access_unsubscribe_custom_game(user_id, guild_id)
 
         await interaction.followup.send(content=f"{display_name} unsubscribed to 10-man notifications", ephemeral=False)
 
@@ -82,14 +87,14 @@ class UserCustomGameFeatures(commands.Cog):
             return
         guild = interaction.guild
         guild_id = guild.id
-        user_ids: List[int] = fetch_user_subscription_for_guild(guild_id)
+        user_ids: List[int] = data_access_fetch_user_subscription_for_guild(guild_id)
         if not user_ids:
             await interaction.followup.send(content="No users are currently subscribed to custom game notifications in this server.", ephemeral=True)
             return
 
         member_mentions = []
         for user_id in user_ids:
-            member: Union[discord.Member, None] = await data_access_get_member(user_id)
+            member: Union[discord.Member, None] = await data_access_get_member(guild_id, user_id)
             if member:
                 member_mentions.append(member.display_name)
             else:
@@ -114,14 +119,14 @@ class UserCustomGameFeatures(commands.Cog):
             return
         guild = interaction.guild
         guild_id = guild.id
-        user_ids: List[int] = fetch_user_subscription_for_guild(guild_id)
+        user_ids: List[int] = data_access_fetch_user_subscription_for_guild(guild_id)
         if not user_ids:
             await interaction.followup.send(content="No users are currently subscribed to custom game notifications in this server.", ephemeral=True)
             return
 
         member_mentions = []
         for user_id in user_ids:
-            member: Union[discord.Member, None] = await data_access_get_member(user_id)
+            member: Union[discord.Member, None] = await data_access_get_member(guild_id, user_id)
             if member:
                 member_mentions.append(member.mention)
             else:
@@ -131,7 +136,7 @@ class UserCustomGameFeatures(commands.Cog):
         await interaction.followup.send(content=f"{mentions_text} are you available for a 10-man?", ephemeral=True)
     
     @app_commands.command(name=COMMAND_CUSTOM_GAME_MAKE_TEAM)
-    async def custom_game_make_team(self, interaction: discord.Interaction):
+    async def custom_game_make_team(self, interaction: discord.Interaction, team_algo: TeamAlgo):
         """
         Get all the users from the custom game voice channels and make two teams depending of a selected algorithm
         """
@@ -145,16 +150,62 @@ class UserCustomGameFeatures(commands.Cog):
         guild = interaction.guild
         guild_id = guild.id
 
-        lobby_channel_id, team1_channel_id, team2_channel_id = data_access_get_custom_game_voice_channels(guild_id)
+        lobby_channel_id, team1_channel_id, team2_channel_id = await data_access_get_custom_game_voice_channels(guild_id)
         if not lobby_channel_id or not team1_channel_id or not team2_channel_id:
             await interaction.followup.send(content="Custom game voice channels are not properly configured. Please contact an administrator.", ephemeral=True)
             return
-        users_lobby_voice_channel: List[discord.Member] = []
-        lobby_channel = guild.get_channel(lobby_channel_id)
+        
+        lobby_channel = await data_access_get_channel(lobby_channel_id)
+        users_lobby_voice_channel: List[discord.Member] = lobby_channel.members
+        if len(users_lobby_voice_channel) == 0:
+            await interaction.followup.send(content=f"No users are currently in the <#{lobby_channel_id}>.", ephemeral=True)
+            return
+        user_ids = [m.id for m in users_lobby_voice_channel]
+        # Map Suggestions
+        map_name_1 = await select_map_based_on_algorithm(MapAlgo.WORSE_MAPS_FIRST, user_ids)
+        map_name_2 = await select_map_based_on_algorithm(MapAlgo.BEST_MAPS_FIRST, user_ids)
+        map_name_3 = await select_map_based_on_algorithm(MapAlgo.LEAST_PLAYED, user_ids)
+        map_name_4 = await select_map_based_on_algorithm(MapAlgo.RANDOM, user_ids)
+
+        await interaction.followup.send(content=f"""# Map suggestions\n
+## By worse maps first:\n {format_map(map_name_1)}\n
+## By best maps first:\n {format_map(map_name_2)}\n
+## By least played maps first:\n {format_map(map_name_3)}\n
+## Randomly selected map:\n {format_map(map_name_4)}\n
+                                        """, ephemeral=False)
+        
         if isinstance(lobby_channel, discord.VoiceChannel):
-            users_lobby_voice_channel = lobby_channel.members
-            create_team_by_win_percentage_result = await create_team_by_win_percentage(users_lobby_voice_channel)
-            await interaction.followup.send(content=f"Teams created using logic: {create_team_by_win_percentage_result.logic}\n\n{create_team_by_win_percentage_result.explanation}", ephemeral=False)
+            users_lobby_voice_channel: List[discord.Member] = lobby_channel.members
+            teams = await select_team_by_algorithm(team_algo, users_lobby_voice_channel)
+            await interaction.followup.send(content=f"Teams created using logic: {teams.logic}\n\n{teams.explanation}", ephemeral=False)
+            # Show a button to move the users to their respective channels
+            
+            async def on_complete():
+                # Move users to their respective channels
+                team1_channel = await data_access_get_channel(team1_channel_id)
+                team2_channel = await data_access_get_channel(team2_channel_id)
+                if not isinstance(team1_channel, discord.VoiceChannel) or not isinstance(team2_channel, discord.VoiceChannel):
+                    print_warning_log(f"custom_game_make_team: Team channels are not voice channels.")
+                    return
+
+                for member in teams.team1.members:
+                    try:
+                        await member.move_to(team1_channel)
+                    except Exception as e:
+                        print_error_log(f"custom_game_make_team: Failed to move member {member.display_name} to Team 1 channel: {e}")
+
+                for member in teams.team2.members:
+                    try:
+                        await member.move_to(team2_channel)
+                    except Exception as e:
+                        print_error_log(f"custom_game_make_team: Failed to move member {member.display_name} to Team 2 channel: {e}")
+            view = CompleteCommandView(author_id=interaction.user.id, on_complete=on_complete)
+
+            await interaction.followup.send(
+                content="Click the button below to auto-assign people their teams voice channels.",
+                view=view
+            )
+
         else:
             print_warning_log(f"custom_game_make_team: Lobby channel ID {lobby_channel_id} is not a voice channel.")
             await interaction.followup.send(content="Lobby voice channel is not found or not a voice channel. Please contact an administrator.", ephemeral=True)
@@ -164,3 +215,10 @@ class UserCustomGameFeatures(commands.Cog):
 async def setup(bot):
     """Setup function to add this cog to the bot"""
     await bot.add_cog(UserCustomGameFeatures(bot))
+
+
+def format_map(map_suggestions: List[MapSuggestion]) -> str:
+    formatted_maps = []
+    for suggestion in map_suggestions:
+        formatted_maps.append(f"- {suggestion.map_name} ({suggestion.count})")
+    return "\n".join(formatted_maps)

@@ -2628,3 +2628,51 @@ def data_access_fetch_unique_user_per_day(from_data: date) -> List[tuple[str, in
         )
     ).fetchall()
     return [(row[0], row[1]) for row in result]
+
+
+def data_access_fetch_user_max_current_mmr(user_id:int) -> int | None:
+    """
+    Get the max mmr for a user
+    """
+    query = """
+    SELECT
+        rank_points AS max_mmr
+    FROM
+        user_full_match_info
+    WHERE
+        user_id = :user_id
+    ORDER BY
+        match_timestamp DESC
+    LIMIT 1;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"user_id": user_id},
+        )
+    ).fetchone()
+    if result and result[0] is not None:
+        return int(result[0])
+    return None
+
+def data_access_fetch_user_max_mmr(user_id:int) -> int | None:
+    """
+    Get the max mmr for a user
+    """
+    query = """
+    SELECT
+        MAX(rank_points) AS max_mmr
+    FROM
+        user_full_match_info
+    WHERE
+        user_id = :user_id;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {"user_id": user_id},
+        )
+    ).fetchone()
+    if result and result[0] is not None:
+        return int(result[0])
+    return None

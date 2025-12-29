@@ -18,6 +18,8 @@ The project is a Python Discord bot that aim to perform repetitive tasks for a g
 10. The bot has AI generated summary of what happened in the last 24 hours in term of matches played, kills, deaths, etc. The summary is sent to a specific channel of the guild.
 11. Tournament support 1v1 but also team tournament. The bot can handle 1v1, 2v2, 3v3, 4v4 and 5v5 tournaments.
 12. User can communicate by at-mentioning the bot or replying to the bot's message. The bot will generate an answer based on the context of the conversation and the user's question. The bot can also answer questions about the game, statistics, and other information related to the game. This feature is powered by the Gemini and Open AI API and uses the database to fetch statistics and information about the game.
+13. Allows user to follow any user and get nmotified when one of their follower join a voice channel
+14. Has a custom game mode (10-man) that propose maps by using stats to find the worse maps of the 10-man and organize team using stats (KD, % win, etc)
 
 # What does the Bot look like?
 
@@ -168,6 +170,42 @@ Allows to see the current bracket. The bracket is automatically updated to the t
 
 ![Tournament](readme_assets/TournamentSeeBracketCommand.png)
 
+### Following Commands
+
+#### followuser
+
+Add a member of the guild to follow.
+
+#### unfollowuser
+
+Remove a followed member
+
+### seefollower
+
+See the list of members you follow
+
+### Custom Game (10-man)
+
+#### subscribecustomgame
+
+Add to the list that will get ping if a custom game is looking for people
+
+#### unsubscribecustomgame
+
+Remove yourself of the list. You won't be ping in the future if a custom game stats
+
+#### seecustomgamesubscriptions
+
+See the list of people subscribed to custom game
+
+#### customgamelfg
+
+Send a ping to all subscribed people who are in the `/subscribecustomgame` group
+
+#### customgamemaketeam
+
+Once you have your full amount of people (10-man) you can start the process to select the map and creating the two teams
+
 ## Moderators/Administrator Commands
 
 ### Schedule Commands
@@ -314,15 +352,16 @@ Under "Bot Permissions", select the necessary permissions:
 1. Read Message History
 1. Mention Everyone
 1. Add Reactions
+1. Move Members
 
 Copy the generated URL and open it in your browser to invite the bot to your desired server.
 
 ```sh
 # Production Bot
-https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=268641488&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=285420752&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 
 # Dev Bot
-https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=268641488&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=285420752&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 ```
 
 You also need the `Presence Intent` to be checked (located above the bot permission, same page). This will allows the bot to see who is playing the game and what is the status of the user (menu, playing, etc).

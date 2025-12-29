@@ -464,9 +464,9 @@ def data_access_set_custom_game_voice_channels(guild_id: int, lobby_channel_id: 
     set_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1}:{guild_id}", team1_channel_id, ALWAYS_TTL)
     set_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2}:{guild_id}", team2_channel_id, ALWAYS_TTL)
     
-def data_access_get_custom_game_voice_channels(guild_id: int) -> tuple[Optional[int], Optional[int], Optional[int]]:
+async def data_access_get_custom_game_voice_channels(guild_id: int) -> tuple[Optional[int], Optional[int], Optional[int]]:
     """Get the voice channels used for custom games"""
-    lobby_channel_id = get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY}:{guild_id}")
-    team1_channel_id = get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1}:{guild_id}")
-    team2_channel_id = get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2}:{guild_id}")
+    lobby_channel_id = await get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY}:{guild_id}")
+    team1_channel_id = await get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1}:{guild_id}")
+    team2_channel_id = await get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2}:{guild_id}")
     return (lobby_channel_id, team1_channel_id, team2_channel_id)
