@@ -1,11 +1,10 @@
-from deps.data_access import data_access_get_member
+from deps.data_access import data_access_get_guild, data_access_get_member
 from deps.follow_data_access import fetch_all_followers_of_user_id
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
 
 async def send_private_notification_following_user(bot: MyBot, joined_user_id: int, guild_id: int, channel_id: int):
     """Sends a private notification to users who are following the joined user."""
-    guild = bot.get_guild(guild_id)
     
     # Get all the users who is following the user who joined a voice channel
     followed_user_ids: list[int] = fetch_all_followers_of_user_id(joined_user_id)
@@ -22,7 +21,7 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
     print_log(f"Filtering followers of user {joined_user_id} for guild {guild_id} to exclude those in voice channels. Founds {len(followed_user_ids)} followers.")
     filtered2 = []
     for user_id in followed_user_ids:
-        member = await data_access_get_member(guild, user_id)
+        member = await data_access_get_member(guild_id, user_id)
         if member is None:
             print_log(f"User {user_id} not found in guild {guild_id}; skipping notification for {joined_user_id}.")
             continue
@@ -40,7 +39,7 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
         if user:
             try:
                 await user.send(
-                    f"User <@{joined_user_id}> has joined <#{channel_id}> in **{guild.name}**."
+                    f"User <@{joined_user_id}> has joined <#{channel_id}>."
                 )
             except Exception as e:
                 print_error_log(f"Failed to send DM to user {discord_user_id} for user {joined_user_id}: {e}")
