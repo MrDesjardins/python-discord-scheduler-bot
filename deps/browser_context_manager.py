@@ -1,4 +1,5 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
+import signal 
 from filelock import FileLock
 import subprocess
 import uuid
@@ -91,7 +92,7 @@ class BrowserContextManager:
             ["Xvfb", target_display, "-screen", "0", "1920x1080x24", "-ac"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            preexec_fn=os.setpgrp # Create a process group for easier cleanup
+            preexec_fn=os.setsid # This creates a new process group
         )
         
         os.environ["DISPLAY"] = target_display
@@ -106,41 +107,39 @@ class BrowserContextManager:
         raise RuntimeError(f"Xvfb failed to start on {target_display}")
 
     def _cleanup(self) -> None:
-        try:
-            if self.driver:
-                try:
-                    self.driver.close() # Close window first
-                    self.driver.quit()
-                except:
-                    pass 
-                self.driver = None
-        finally:
-            # Kill the Xvfb process group to ensure no hanging children
-            if self._xvfb_proc:
-                try:
-                    self._xvfb_proc.terminate()
-                    # If it doesn't close in 2 seconds, kill it
-                    try:
-                        self._xvfb_proc.wait(timeout=2)
-                    except subprocess.TimeoutExpired:
-                        self._xvfb_proc.kill()
-                except:
-                    pass
-                self._xvfb_proc = None
+        print_log("Cleaning up browser and Xvfb...")
+        
+        # 1. Try to quit the driver gracefully
+        if self.driver:
+            try:
+                # Get the PID before quitting
+                browser_pid = self.driver.browser_pid
+                self.driver.quit()
+                # Force kill the specific browser PID just in case
+                os.kill(browser_pid, signal.SIGKILL)
+            except:
+                pass
+            self.driver = None
 
-            # Clean up the specific profile directory
-            if self._profile_dir and os.path.exists(self._profile_dir):
-                try:
-                    shutil.rmtree(self._profile_dir, ignore_errors=True)
-                except:
-                    pass
-                
-            if self._lock_acquired:
-                try:
-                    self._lock.release()
-                except:
-                    pass
-                self._lock_acquired = False
+        # 2. Kill the Xvfb process group (the nuclear option)
+        if self._xvfb_proc:
+            try:
+                # This kills the Xvfb AND any children it spawned
+                os.killpg(os.getpgid(self._xvfb_proc.pid), signal.SIGKILL)
+            except:
+                pass
+            self._xvfb_proc = None
+
+        # 3. Final Wipe of the specific profile directory
+        if self._profile_dir and os.path.exists(self._profile_dir):
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+            
+        if self._lock_acquired:
+            try:
+                self._lock.release()
+            except:
+                pass
+            self._lock_acquired = False
 
 
     def _config_browser(self) -> None:
