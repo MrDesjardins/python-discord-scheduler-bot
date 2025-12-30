@@ -162,11 +162,12 @@ class BrowserContextManager:
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
         )
         # options.binary_location = "/usr/bin/google-chrome"
+        profile_url=""
         try:
-            print_log("PID:", os.getpid())
-            print_log("TID:", threading.get_ident())
-            print_log("DISPLAY:", os.environ.get("DISPLAY"))
-            print_log("TIME:", time.time())
+            print_log("PID:" + str(os.getpid()))
+            print_log("TID:" + str(threading.get_ident()))
+            print_log("DISPLAY:" + str(os.environ.get("DISPLAY")))
+            print_log("TIME:" + str(time.time()))
             self.driver = uc.Chrome(options=options)
             print_log(f"_config_browser: Using binary location: {options.binary_location}")
             # Step 2: Visit the public profile page to establish the session
@@ -175,7 +176,7 @@ class BrowserContextManager:
             WebDriverWait(self.driver, 45).until(EC.visibility_of_element_located((By.ID, "app-container")))
         except Exception as e:
             print_error_log(f"_config_browser: Error visiting the profile page ({profile_url}): {e}")
-            if hasattr(self, "driver"):
+            if hasattr(self, "driver") and self.driver:
                 self.driver.quit()
             raise
 
