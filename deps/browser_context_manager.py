@@ -1,5 +1,4 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
-
 import subprocess
 import os
 from typing import List, Optional, Union
@@ -43,21 +42,16 @@ class BrowserContextManager:
 
     def __init__(self, default_profile: str = "noSleep_rb6") -> None:
         self.environment = os.getenv("ENV")
-        # self.wrapped = None
+        #self.wrapped = None
         self.counter = 0
         self.profile_page_source = ""
         self.default_profile = default_profile
 
     def __enter__(self):
-        self.wrapped = Xvfb(width=1920, height=1080)
-        self.wrapped.start()
-
-        if "DISPLAY" not in os.environ:
-            raise RuntimeError("DISPLAY was not set by Xvfb")
-
+        self.wrapped = Xvfb()
+        self.wrapped.__enter__()
         self._config_browser()
         return self
-
 
     def __exit__(self, exc_type, exc_value, traceback):
         try:
@@ -66,7 +60,6 @@ class BrowserContextManager:
         finally:
             if hasattr(self, "wrapped"):
                 self.wrapped.stop()
-
         # Kill any lingering chromium-browser processes
         if self.environment == "prod":
             subprocess.run(["pkill", "-TERM", "-P", str(os.getpid())], check=False)
@@ -75,8 +68,6 @@ class BrowserContextManager:
     def _config_browser(self) -> None:
         """Configure the browser for headers and to receive a cookie to call future API endpoints"""
         options = uc.ChromeOptions()
-        # REQUIRED for Snap
-        options.add_argument(f"--user-data-dir={tempfile.mkdtemp(prefix='chromium-profile-')}")
         # options.add_argument("--headless=new")  # For Chromium versions 109+
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
@@ -90,10 +81,11 @@ class BrowserContextManager:
         options.add_argument(
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
         )
-        # options.binary_location = "/usr/bin/google-chrome"
+        options.add_argument(f"--user-data-dir={tempfile.mkdtemp(prefix='chromium-profile-')}")
+        # options.binary_location = "/usr/bin/chromium-browser"
+        self.driver = uc.Chrome(options=options)
+
         try:
-            self.driver = uc.Chrome(options=options)
-            print_log(f"_config_browser: Using binary location: {options.binary_location}")
             # Step 2: Visit the public profile page to establish the session
             profile_url = get_url_user_ranked_matches(self.default_profile)
             self.driver.get(profile_url)
