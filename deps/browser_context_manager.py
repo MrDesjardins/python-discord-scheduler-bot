@@ -1,15 +1,15 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
+from filelock import FileLock
 import subprocess
-import os
+import uuid
+import shutil
+import os, threading, multiprocessing, time
 from typing import List, Optional, Union
 import json
-import tempfile
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc  # type: ignore
-from xvfbwrapper import Xvfb  # type: ignore
 from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserInformation, UserQueueForStats
 from deps.log import print_error_log, print_log
@@ -21,6 +21,9 @@ from deps.functions import (
 )
 from deps.siege import siege_ranks
 
+CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
+XVFB_DISPLAY = ":99"
+
 
 class BrowserContextManager:
     """
@@ -31,44 +34,121 @@ class BrowserContextManager:
 
     Pre-requisite:
     sudo apt install -y xvfb
-    sudo apt install chromium-browser
+    Have /usr/bin/google-chrome (not /usr/bin/chromium-browser) installed
     """
 
-    driver: uc.Chrome
-    wrapped: Xvfb
+    driver: Optional[uc.Chrome] = None
     default_profile: str
     counter: int
     environment: Union[str, None]
 
     def __init__(self, default_profile: str = "noSleep_rb6") -> None:
-        self.environment = os.getenv("ENV")
-        #self.wrapped = None
-        self.counter = 0
-        self.profile_page_source = ""
+        self.environment = (os.getenv("ENV") or "").lower()
         self.default_profile = default_profile
+        self.counter = 0
+        self.driver = None
+        self._lock = CHROMIUM_LOCK
+        self._xvfb_proc: Optional[subprocess.Popen] = None
+        self._profile_dir: Optional[str] = None
+        self._lock_acquired = False
+
 
     def __enter__(self):
-        self.wrapped = Xvfb()
-        self.wrapped.__enter__()
-        self._config_browser()
-        return self
+        self._lock.acquire(timeout=120)
+        self._lock_acquired = True
+
+        try:
+            self._start_xvfb()
+
+            if "DISPLAY" not in os.environ:
+                raise RuntimeError("DISPLAY was not set by Xvfb")
+
+            self._config_browser()
+            return self
+        except Exception:
+            self._cleanup()
+            raise
 
     def __exit__(self, exc_type, exc_value, traceback):
+        self._cleanup()
+            
+    def _start_xvfb(self) -> None:
+        # If a DISPLAY is already inherited (e.g., from a shell), use it
+        if "DISPLAY" in os.environ and not self._xvfb_proc:
+            return
+
+        # Attempt to find an available display starting from 99
+        display_num = 99
+        while display_num < 150:
+            lock_file = f"/tmp/.X{display_num}-lock"
+            if not os.path.exists(lock_file):
+                break
+            display_num += 1
+        
+        target_display = f":{display_num}"
+        
+        self._xvfb_proc = subprocess.Popen(
+            ["Xvfb", target_display, "-screen", "0", "1920x1080x24", "-ac"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            preexec_fn=os.setpgrp # Create a process group for easier cleanup
+        )
+        
+        os.environ["DISPLAY"] = target_display
+        print_log(f"Xvfb started on {target_display}")
+
+        # Wait for the display to be ready
+        for _ in range(60):
+            if os.path.exists(f"/tmp/.X11-unix/X{display_num}"):
+                return
+            time.sleep(0.1)
+        
+        raise RuntimeError(f"Xvfb failed to start on {target_display}")
+
+    def _cleanup(self) -> None:
         try:
-            if hasattr(self, "driver"):
-                self.driver.quit()
+            if self.driver:
+                try:
+                    self.driver.close() # Close window first
+                    self.driver.quit()
+                except:
+                    pass 
+                self.driver = None
         finally:
-            if hasattr(self, "wrapped"):
-                self.wrapped.stop()
-        # Kill any lingering chromium-browser processes
-        if self.environment == "prod":
-            subprocess.run(["pkill", "-TERM", "-P", str(os.getpid())], check=False)
-        return self.wrapped.__exit__(exc_type, exc_value, traceback)
+            # Kill the Xvfb process group to ensure no hanging children
+            if self._xvfb_proc:
+                try:
+                    self._xvfb_proc.terminate()
+                    # If it doesn't close in 2 seconds, kill it
+                    try:
+                        self._xvfb_proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        self._xvfb_proc.kill()
+                except:
+                    pass
+                self._xvfb_proc = None
+
+            # Clean up the specific profile directory
+            if self._profile_dir and os.path.exists(self._profile_dir):
+                try:
+                    shutil.rmtree(self._profile_dir, ignore_errors=True)
+                except:
+                    pass
+                
+            if self._lock_acquired:
+                try:
+                    self._lock.release()
+                except:
+                    pass
+                self._lock_acquired = False
+
 
     def _config_browser(self) -> None:
         """Configure the browser for headers and to receive a cookie to call future API endpoints"""
         options = uc.ChromeOptions()
-        # options.add_argument("--headless=new")  # For Chromium versions 109+
+        options.binary_location = "/usr/bin/google-chrome"
+        self._profile_dir = f"/tmp/chromium-profile-{uuid.uuid4()}"
+        options.add_argument(f"--user-data-dir={self._profile_dir}")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
@@ -81,11 +161,14 @@ class BrowserContextManager:
         options.add_argument(
             "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
         )
-        options.add_argument(f"--user-data-dir={tempfile.mkdtemp(prefix='chromium-profile-')}")
-        # options.binary_location = "/usr/bin/chromium-browser"
-        self.driver = uc.Chrome(options=options)
-
+        # options.binary_location = "/usr/bin/google-chrome"
         try:
+            print_log("PID:", os.getpid())
+            print_log("TID:", threading.get_ident())
+            print_log("DISPLAY:", os.environ.get("DISPLAY"))
+            print_log("TIME:", time.time())
+            self.driver = uc.Chrome(options=options)
+            print_log(f"_config_browser: Using binary location: {options.binary_location}")
             # Step 2: Visit the public profile page to establish the session
             profile_url = get_url_user_ranked_matches(self.default_profile)
             self.driver.get(profile_url)
@@ -99,7 +182,7 @@ class BrowserContextManager:
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
         """
         Download the matches for the given Ubisoft username
-        This is version 2 of download_matches. It contains a lost more fields.
+        This is version 2 of download_matches. It contains a lot more fields.
         The future goal is to replace download_matches with this function.
         """
         # # Step 1: Download the page content
