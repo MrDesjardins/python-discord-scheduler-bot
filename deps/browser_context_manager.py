@@ -173,15 +173,9 @@ class BrowserContextManager:
             print_log(f"Launching Chrome ({self.environment}) on {display}")
 
             if self.environment == "prod":
-                import subprocess
-                import socket
                 port = 45455
+                log_path = "/tmp/chrome_debug.log"
                 
-                # 1. Prepare a clean environment for the subprocess
-                env = os.environ.copy()
-                env["DISPLAY"] = os.environ.get("DISPLAY", ":99")
-                
-                # 2. Manual Launch with FULL paths and explicit logging
                 chrome_cmd = [
                     "/usr/bin/google-chrome",
                     f"--remote-debugging-port={port}",
@@ -192,43 +186,32 @@ class BrowserContextManager:
                     "--disable-gpu",
                     "--use-gl=swiftshader",
                     "--disable-dev-shm-usage",
+                    "--disable-breakpad",      # Prevents crash reporting from hanging
+                    "--disable-software-rasterizer", 
                     "about:blank"
                 ]
                 
-                print_log(f"Manual Launch Command: {' '.join(chrome_cmd)}")
+                print_log(f"Launching Chrome. Real-time logs at: {log_path}")
                 
-                # We capture stderr to see WHY Chrome might be dying
-                self._chrome_msg = subprocess.Popen(
-                    chrome_cmd, 
-                    env=env,
-                    stdout=subprocess.PIPE, 
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
+                # We open a file handle to capture every single error line
+                with open(log_path, "w") as f:
+                    self._chrome_msg = subprocess.Popen(
+                        chrome_cmd,
+                        stdout=f,
+                        stderr=f,
+                        preexec_fn=os.setsid 
+                    )
                 
-                # 3. VERIFICATION LOOP: Don't let UC try until the port is OPEN
-                print_log(f"Waiting for port {port} to open...")
-                port_ready = False
-                for i in range(20): # Try for 10 seconds
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        if s.connect_ex(('127.0.0.1', port)) == 0:
-                            print_log(f"Port {port} is officially OPEN and listening.")
-                            port_ready = True
-                            break
-                    time.sleep(0.5)
+                # Use the function you defined!
+                print_log(f"Waiting for Chrome to open port {port}...")
+                if not wait_for_port(port, timeout=15.0):
+                    # If it didn't open, it likely crashed
+                    with open(log_path, "r") as f:
+                        errors = f.read()
+                    raise RuntimeError(f"Chrome port {port} never opened! Log: {errors}")
 
-                if not port_ready:
-                    # If it failed, grab the error from Chrome's stderr
-                    stdout, stderr = self._chrome_msg.communicate(timeout=1)
-                    raise RuntimeError(f"Chrome failed to bind port. Stderr: {stderr}")
-
-                # 4. Attach the driver
-                print_log("Attaching driver to the live process...")
-                self.driver = uc.Chrome(
-                    options=options,
-                    use_subprocess=False,
-                    port=port
-                )
+                print_log("Port is open. Attaching driver...")
+                self.driver = uc.Chrome(options=options, use_subprocess=False, port=port)
             else:
                 # --- WSL (DEV) ---
                 self.driver = uc.Chrome(

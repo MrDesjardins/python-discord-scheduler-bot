@@ -25,14 +25,13 @@ Group=pdesjardins
 EnvironmentFile=/etc/environment
 Environment="PATH=/usr/local/bin:/usr/bin:/bin:/home/pdesjardins/.local/bin: /home/pdesjardins/code/python-discord-scheduler-bot/.venv/bin"
 
-# Fix Chromium/Chromedriver under systemd
-Environment="TMPDIR=/tmp"
-Environment="XDG_RUNTIME_DIR=/run/user/1000"
-Environment="CHROME_DEVEL_SANDBOX=/usr/bin/chromium-browser"
+Environment=DISPLAY=:99
+Environment=PYTHONUNBUFFERED=1
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 
-# Extra browser flags
-Environment="CHROMIUM_FLAGS=--no-sandbox --disable-dev-shm-usage"
-Environment="DISPLAY=:99"
+# Optional: Ensure the bot can't be killed by the OOM killer
+OOMScoreAdjust=-1000
 
 # Optional: direct stdout/stderr to journal
 StandardOutput=journal
@@ -42,8 +41,6 @@ StandardError=journal
 PrivateTmp=false
 ProtectSystem=off
 ProtectHome=false
-
-DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
 
 [Install]
 WantedBy=multi-user.target
