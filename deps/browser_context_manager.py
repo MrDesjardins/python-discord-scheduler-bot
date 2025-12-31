@@ -72,7 +72,12 @@ class BrowserContextManager:
             try:
                 self._lock.acquire(timeout=120)
                 self._lock_acquired = True
-                self._start_xvfb()
+                
+                # ONLY start manual Xvfb if we are NOT in production.
+                # In prod, our new chrome_cmd handles the display via xvfb-run.
+                if self.environment != "prod":
+                    self._start_xvfb()
+                    
                 self._config_browser()
                 return self
             except Exception as e:
@@ -180,46 +185,45 @@ class BrowserContextManager:
                 port = 45455
                 log_path = "/tmp/chrome_debug.log"
                 
-                # 1. EXPLICITLY capture the environment including the new DISPLAY
-                current_env = os.environ.copy()
-                current_display = current_env.get("DISPLAY")
-                print_log(f"Confirming DISPLAY for Chrome: {current_display}")
-
+                # We wrap everything in dbus-run-session and xvfb-run.
+                # This creates a perfect "mini-desktop" environment for Chrome.
                 chrome_cmd = [
+                    "dbus-run-session", "--", 
+                    "xvfb-run", "-a", 
+                    "--server-args=-screen 0 1920x1080x24",
                     "/usr/bin/google-chrome",
                     f"--remote-debugging-port={port}",
                     f"--user-data-dir={self._profile_dir}",
                     "--no-sandbox",
-                    "--disable-setuid-sandbox",  # CRITICAL: Fixes "Missing X Server" in services
-                    "--remote-allow-origins=*",  # Ensures the driver can talk to the port
+                    "--disable-setuid-sandbox",
                     "--no-zygote",
                     "--single-process",
                     "--disable-gpu",
-                    "--use-gl=swiftshader",
                     "--disable-dev-shm-usage",
-                    "--disable-breakpad",
-                    "--disable-software-rasterizer",
+                    "--remote-allow-origins=*",
                     "--ozone-platform=x11",
                     "about:blank"
                 ]
                 
-                # 2. Pass 'env=current_env' to the Popen call
+                print_log(f"Launching Chrome in DBus/Xvfb bubble. Logs: {log_path}")
+                
                 with open(log_path, "w") as f:
                     self._chrome_msg = subprocess.Popen(
                         chrome_cmd,
                         stdout=f,
                         stderr=f,
-                        env=current_env, # THIS IS CRITICAL
+                        # No need to pass env here; xvfb-run and dbus-run-session 
+                        # create the environment variables themselves!
                         preexec_fn=os.setsid
                     )
                 
                 print_log(f"Waiting for Chrome to open port {port}...")
-                if not wait_for_port(port, timeout=15.0):
+                if not wait_for_port(port, timeout=25.0): # Increased timeout for bubble setup
                     with open(log_path, "r") as f:
                         errors = f.read()
-                    raise RuntimeError(f"Chrome port {port} never opened! Log: {errors}")
+                    raise RuntimeError(f"Chrome bubble failed! Log: {errors}")
 
-                print_log("Port is open. Attaching driver...")
+                print_log("Bubble is stable. Attaching driver...")
                 self.driver = uc.Chrome(options=options, use_subprocess=False, port=port)
             else:
                 # --- WSL (DEV) ---
