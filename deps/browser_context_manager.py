@@ -1,6 +1,7 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 import signal 
 import socket
+import subprocess
 from filelock import FileLock
 import subprocess
 import uuid
@@ -173,22 +174,34 @@ class BrowserContextManager:
 
             if self.environment == "prod":
                 port = 45455
-                # Force the port in options
-                options.add_argument(f"--remote-debugging-port={port}")
-                options.add_argument("--no-zygote")
-                options.add_argument("--single-process")
-                options.add_argument("--use-gl=swiftshader")
                 
-                print_log(f"Pre-verifying port {port} on {os.environ.get('DISPLAY')}...")
+                # 1. Manually launch the Chrome Process
+                chrome_cmd = [
+                    "/usr/bin/google-chrome",
+                    f"--remote-debugging-port={port}",
+                    f"--user-data-dir={self._profile_dir}",
+                    "--no-sandbox",
+                    "--no-zygote",
+                    "--single-process",
+                    "--disable-gpu",
+                    "--use-gl=swiftshader",
+                    "--disable-dev-shm-usage",
+                    "--window-size=1920,1080",
+                    "about:blank" # Start on a blank page
+                ]
                 
-                # We initialize with use_subprocess=True but we add a 
-                # slight delay to let the binary actually bind to the socket.
+                print_log(f"Starting Chrome process manually on port {port}...")
+                subprocess.Popen(chrome_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                
+                # 2. Give it plenty of time to warm up
+                time.sleep(5) 
+                
+                # 3. Attach the driver to the ALREADY RUNNING browser
+                print_log("Attaching undetected-chromedriver to running process...")
                 self.driver = uc.Chrome(
                     options=options,
-                    headless=False,
-                    use_subprocess=True,
-                    port=port,
-                    delay_ms=2000
+                    use_subprocess=False, # Crucial: Don't start a new one
+                    port=port
                 )
             else:
                 # --- WSL (DEV) ---
