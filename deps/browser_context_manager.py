@@ -163,17 +163,16 @@ class BrowserContextManager:
             print_log(f"Starting Chrome ({self.environment}) on {os.environ.get('DISPLAY')}...")
             
             if self.environment == "prod":
-                # --- MINI-PC (PROD) ---
-                # NATIVE UBUNTU (Mini-PC) PROD LOGIC
-                # We use remote-debugging-port=0 to let the OS pick any free port
-                # and remove the fixed port 45455 which is likely blocked
-                # options.add_argument("--remote-debugging-port=0")
-                # We RE-ENABLE the pipe because it prevents the 127.0.0.1 errors.
+                # MINI-PC (PROD) - Software Rendering Mode
                 options.add_argument("--remote-debugging-pipe")
-                # These three flags are the 'magic' for Ubuntu Server stability
                 options.add_argument("--no-zygote")
-                options.add_argument("--disable-setuid-sandbox")
                 options.add_argument("--single-process")
+                
+                # These flags force Chrome to use SwiftShader (software) instead of GPU hardware
+                options.add_argument("--disable-software-rasterizer")
+                options.add_argument("--disable-extensions")
+                options.add_argument("--disable-dev-shm-usage")
+                options.add_argument("--use-gl=swiftshader") # Force software GL
                 self.driver = uc.Chrome(
                     options=options, 
                     headless=False,
