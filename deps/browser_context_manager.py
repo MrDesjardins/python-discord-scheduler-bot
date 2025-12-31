@@ -176,6 +176,11 @@ class BrowserContextManager:
                 port = 45455
                 log_path = "/tmp/chrome_debug.log"
                 
+                # 1. EXPLICITLY capture the environment including the new DISPLAY
+                current_env = os.environ.copy()
+                current_display = current_env.get("DISPLAY")
+                print_log(f"Confirming DISPLAY for Chrome: {current_display}")
+
                 chrome_cmd = [
                     "/usr/bin/google-chrome",
                     f"--remote-debugging-port={port}",
@@ -186,26 +191,24 @@ class BrowserContextManager:
                     "--disable-gpu",
                     "--use-gl=swiftshader",
                     "--disable-dev-shm-usage",
-                    "--disable-breakpad",      # Prevents crash reporting from hanging
-                    "--disable-software-rasterizer", 
+                    "--disable-breakpad",
+                    "--disable-software-rasterizer",
+                    "--ozone-platform=x11",  # Force X11 mode for Xvfb
                     "about:blank"
                 ]
                 
-                print_log(f"Launching Chrome. Real-time logs at: {log_path}")
-                
-                # We open a file handle to capture every single error line
+                # 2. Pass 'env=current_env' to the Popen call
                 with open(log_path, "w") as f:
                     self._chrome_msg = subprocess.Popen(
                         chrome_cmd,
                         stdout=f,
                         stderr=f,
-                        preexec_fn=os.setsid 
+                        env=current_env, # THIS IS CRITICAL
+                        preexec_fn=os.setsid
                     )
                 
-                # Use the function you defined!
                 print_log(f"Waiting for Chrome to open port {port}...")
                 if not wait_for_port(port, timeout=15.0):
-                    # If it didn't open, it likely crashed
                     with open(log_path, "r") as f:
                         errors = f.read()
                     raise RuntimeError(f"Chrome port {port} never opened! Log: {errors}")
