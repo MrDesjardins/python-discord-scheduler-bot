@@ -147,58 +147,50 @@ class BrowserContextManager:
     def _config_browser(self) -> None:
         options = uc.ChromeOptions()
         options.binary_location = "/usr/bin/google-chrome"
-        
-        profile_url = get_url_user_ranked_matches(self.default_profile)
         self._profile_dir = f"/tmp/chromium-profile-{uuid.uuid4()}"
         
-        # 1. CORE FLAGS (Work for both)
+        # 1. CORE STABILITY
         options.add_argument(f"--user-data-dir={self._profile_dir}")
         options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
-        options.add_argument("--disable-extensions")
-        options.add_argument("--disable-background-networking")
-        options.add_argument("--disable-sync")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--window-size=1920,1080")
+
         try:
-            print_log(f"Starting Chrome ({self.environment}) on {os.environ.get('DISPLAY')}...")
-            
+            display = os.environ.get("DISPLAY")
+            print_log(f"Launching Chrome ({self.environment}) on {display}")
+
             if self.environment == "prod":
-                # MINI-PC (PROD) - Software Rendering Mode
-                options.add_argument("--remote-debugging-pipe")
+                # --- MINI-PC (PROD) ---
+                # We use a fixed port to match the driver's expectation
+                # and add the flags that stopped the crash in your manual test.
                 options.add_argument("--no-zygote")
                 options.add_argument("--single-process")
+                options.add_argument("--use-gl=swiftshader")
                 
-                # These flags force Chrome to use SwiftShader (software) instead of GPU hardware
-                options.add_argument("--disable-software-rasterizer")
-                options.add_argument("--disable-extensions")
-                options.add_argument("--disable-dev-shm-usage")
-                options.add_argument("--use-gl=swiftshader") # Force software GL
                 self.driver = uc.Chrome(
-                    options=options, 
+                    options=options,
                     headless=False,
                     use_subprocess=True,
-                    # Setting port=0 or leaving it out lets UC pick a free one
+                    port=45455  # Use the same port that worked in WSL
                 )
             else:
                 # --- WSL (DEV) ---
-                # WSL fails with debugging-pipe. It needs the simplest possible handshake.
-                # We do NOT add extra sandbox/zygote flags here.
                 self.driver = uc.Chrome(
-                    options=options, 
+                    options=options,
                     headless=False,
                     use_subprocess=True,
-                    port=45455  # Fixed port is often more stable for WSL networking
+                    port=45455
                 )
             
             self.driver.set_page_load_timeout(60)
-            print_log(f"Visiting profile: {profile_url}")
-            self.driver.get(profile_url)
+            self.driver.get(get_url_user_ranked_matches(self.default_profile))
             
             WebDriverWait(self.driver, 45).until(
                 EC.visibility_of_element_located((By.ID, "app-container"))
             )
         except Exception as e:
-            print_error_log(f"_config_browser: Error in {self.environment}: {e}")
+            print_error_log(f"_config_browser: {e}")
             raise
 
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
