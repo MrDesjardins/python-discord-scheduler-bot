@@ -98,13 +98,17 @@ class BrowserContextManager:
                 display_num += 1
             
             target_display = f":{display_num}"
-            print_log(f"Attempting to start Xvfb on {target_display}...")
 
-            self._xvfb_proc = subprocess.Popen(
-                ["Xvfb", target_display, "-ac", "-screen", "0", "1920x1080x24", "-nolisten", "tcp"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
+            xvfb_log = "/tmp/xvfb_debug.log"
+            print_log(f"Attempting to start Xvfb on {target_display}. Logs: {xvfb_log}")
+
+            with open(xvfb_log, "w") as f:
+                self._xvfb_proc = subprocess.Popen(
+                    ["Xvfb", target_display, "-ac", "-screen", "0", "1920x1080x24", "-nolisten", "tcp"],
+                    stdout=f,
+                    stderr=f,
+                    preexec_fn=os.setsid # Ensure Xvfb gets its own group
+                )
             
             # Export to the environment so Chrome can see it
             os.environ["DISPLAY"] = target_display
@@ -186,6 +190,8 @@ class BrowserContextManager:
                     f"--remote-debugging-port={port}",
                     f"--user-data-dir={self._profile_dir}",
                     "--no-sandbox",
+                    "--disable-setuid-sandbox",  # CRITICAL: Fixes "Missing X Server" in services
+                    "--remote-allow-origins=*",  # Ensures the driver can talk to the port
                     "--no-zygote",
                     "--single-process",
                     "--disable-gpu",
@@ -193,7 +199,7 @@ class BrowserContextManager:
                     "--disable-dev-shm-usage",
                     "--disable-breakpad",
                     "--disable-software-rasterizer",
-                    "--ozone-platform=x11",  # Force X11 mode for Xvfb
+                    "--ozone-platform=x11",
                     "about:blank"
                 ]
                 
