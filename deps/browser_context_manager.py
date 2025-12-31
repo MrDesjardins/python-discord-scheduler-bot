@@ -1,5 +1,6 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 import signal 
+import socket
 from filelock import FileLock
 import subprocess
 import uuid
@@ -25,7 +26,17 @@ from deps.siege import siege_ranks
 CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
 XVFB_DISPLAY = ":99"
 
-
+def wait_for_port(port, host='127.0.0.1', timeout=10.0):
+    """Wait until a port starts accepting TCP connections."""
+    start_time = time.time()
+    while True:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return True
+        except (ConnectionRefusedError, socket.timeout):
+            if time.time() - start_time > timeout:
+                return False
+            time.sleep(0.5)
 class BrowserContextManager:
     """
     Context manager to handle the browser
@@ -161,18 +172,23 @@ class BrowserContextManager:
             print_log(f"Launching Chrome ({self.environment}) on {display}")
 
             if self.environment == "prod":
-                # --- MINI-PC (PROD) ---
-                # We use a fixed port to match the driver's expectation
-                # and add the flags that stopped the crash in your manual test.
+                port = 45455
+                # Force the port in options
+                options.add_argument(f"--remote-debugging-port={port}")
                 options.add_argument("--no-zygote")
                 options.add_argument("--single-process")
                 options.add_argument("--use-gl=swiftshader")
                 
+                print_log(f"Pre-verifying port {port} on {os.environ.get('DISPLAY')}...")
+                
+                # We initialize with use_subprocess=True but we add a 
+                # slight delay to let the binary actually bind to the socket.
                 self.driver = uc.Chrome(
                     options=options,
                     headless=False,
                     use_subprocess=True,
-                    port=45455  # Use the same port that worked in WSL
+                    port=port,
+                    delay_ms=2000
                 )
             else:
                 # --- WSL (DEV) ---
