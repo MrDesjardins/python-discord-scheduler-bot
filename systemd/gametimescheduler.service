@@ -32,6 +32,7 @@ Environment="CHROME_DEVEL_SANDBOX=/usr/bin/chromium-browser"
 
 # Extra browser flags
 Environment="CHROMIUM_FLAGS=--no-sandbox --disable-dev-shm-usage"
+Environment="DISPLAY=:99"
 
 # Optional: direct stdout/stderr to journal
 StandardOutput=journal

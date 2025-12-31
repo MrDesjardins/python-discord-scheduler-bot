@@ -143,41 +143,55 @@ class BrowserContextManager:
     def _config_browser(self) -> None:
         options = uc.ChromeOptions()
         options.binary_location = "/usr/bin/google-chrome"
+        
         profile_url = get_url_user_ranked_matches(self.default_profile)
         self._profile_dir = f"/tmp/chromium-profile-{uuid.uuid4()}"
         
-        # BASIC WSL STABILITY
+        # 1. CORE FLAGS (Work for both)
         options.add_argument(f"--user-data-dir={self._profile_dir}")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
-        
-        # WSL SPECIFIC CRASH PREVENTERS
         options.add_argument("--disable-extensions")
-        options.add_argument("--disable-component-update")
-        options.add_argument("--no-zygote")
-        options.add_argument("--disable-setuid-sandbox")
-
+        options.add_argument("--disable-background-networking")
+        options.add_argument("--disable-sync")
         try:
-            print_log(f"Starting Chrome on {os.environ.get('DISPLAY')}...")
+            print_log(f"Starting Chrome ({self.environment}) on {os.environ.get('DISPLAY')}...")
             
-            # Use a fixed, known-clean port for WSL
-            # and use_subprocess=True to keep the process tree flat
-            self.driver = uc.Chrome(
-                options=options, 
-                headless=False,
-                port=45455,  
-                use_subprocess=True
-            )
+            if self.environment == "prod":
+                # --- MINI-PC (PROD) ---
+                # NATIVE UBUNTU (Mini-PC) PROD LOGIC
+                # We use remote-debugging-port=0 to let the OS pick any free port
+                # and remove the fixed port 45455 which is likely blocked
+                # options.add_argument("--remote-debugging-port=0")
+                # We RE-ENABLE the pipe because it prevents the 127.0.0.1 errors.
+                options.add_argument("--remote-debugging-pipe")
+                self.driver = uc.Chrome(
+                    options=options, 
+                    headless=False,
+                    use_subprocess=True,
+                    # Setting port=0 or leaving it out lets UC pick a free one
+                )
+            else:
+                # --- WSL (DEV) ---
+                # WSL fails with debugging-pipe. It needs the simplest possible handshake.
+                # We do NOT add extra sandbox/zygote flags here.
+                self.driver = uc.Chrome(
+                    options=options, 
+                    headless=False,
+                    use_subprocess=True,
+                    port=45455  # Fixed port is often more stable for WSL networking
+                )
             
             self.driver.set_page_load_timeout(60)
+            print_log(f"Visiting profile: {profile_url}")
             self.driver.get(profile_url)
             
             WebDriverWait(self.driver, 45).until(
                 EC.visibility_of_element_located((By.ID, "app-container"))
             )
         except Exception as e:
-            print_error_log(f"_config_browser: {e}")
+            print_error_log(f"_config_browser: Error in {self.environment}: {e}")
             raise
 
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
