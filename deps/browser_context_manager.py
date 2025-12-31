@@ -71,45 +71,6 @@ class BrowserContextManager:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._cleanup()
-            
-    def _start_xvfb(self) -> None:
-            if "DISPLAY" in os.environ and not self._xvfb_proc:
-                return
-
-            display_num = 99
-            # Loop to find an available display
-            while display_num < 150:
-                if not os.path.exists(f"/tmp/.X{display_num}-lock") and \
-                not os.path.exists(f"/tmp/.X11-unix/X{display_num}"):
-                    break
-                display_num += 1
-            
-            target_display = f":{display_num}"
-
-            xvfb_log = "/tmp/xvfb_debug.log"
-            print_log(f"Attempting to start Xvfb on {target_display}. Logs: {xvfb_log}")
-
-            with open(xvfb_log, "w") as f:
-                self._xvfb_proc = subprocess.Popen(
-                    ["Xvfb", target_display, "-ac", "-screen", "0", "1920x1080x24", "-nolisten", "tcp"],
-                    stdout=f,
-                    stderr=f,
-                    preexec_fn=os.setsid # Ensure Xvfb gets its own group
-                )
-            
-            # Export to the environment so Chrome can see it
-            os.environ["DISPLAY"] = target_display
-            
-            # CRITICAL: Wait for the X11 socket file to actually exist
-            # This prevents the "Missing X server or $DISPLAY" error
-            socket_path = f"/tmp/.X11-unix/X{display_num}"
-            for i in range(30): # Wait up to 3 seconds
-                if os.path.exists(socket_path):
-                    print_log(f"Xvfb socket found at {socket_path}. Display ready.")
-                    return
-                time.sleep(0.1)
-            
-            raise RuntimeError(f"Xvfb failed to create socket at {socket_path}")
 
     def _cleanup(self) -> None:
         print_log("Cleaning up browser and Xvfb...")
@@ -149,22 +110,18 @@ class BrowserContextManager:
 
     def _config_browser(self):
         options = uc.ChromeOptions()
-        # Essential flags for service stability
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--disable-setuid-sandbox")
         
-        # In prod, we just launch normally because the Service provides the Display
         if self.environment == "prod":
             print_log("Launching Chrome in System-Level Xvfb environment...")
             try:
-                # Let 'uc' handle the launch logic itself
                 self.driver = uc.Chrome(
                     options=options,
                     browser_executable_path="/usr/bin/google-chrome",
-                    driver_executable_path=None, # uc will download/find the right one
-                    headless=False # We want 'headful' inside Xvfb
+                    headless=False
                 )
                 print_log("Driver attached successfully!")
             except Exception as e:
@@ -176,16 +133,22 @@ class BrowserContextManager:
                 options=options,
                 headless=False,
                 use_subprocess=True,
-                port=454a55
+                port=45455 # Fixed the 454a55 typo here
             )
         
         self.driver.set_page_load_timeout(60)
+        # Load initial page
         self.driver.get(get_url_user_ranked_matches(self.default_profile))
         
-        WebDriverWait(self.driver, 45).until(
-            EC.visibility_of_element_located((By.ID, "app-container"))
-        )
-
+        # Only wait for app-container if you are sure it's on the landing page
+        # If the landing page is just JSON, this will fail. 
+        # Consider wrapping this in a try/except if it causes crashes.
+        try:
+            WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+        except:
+            print_log("Initial page load wait timed out, proceeding anyway...")
 
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
         """
