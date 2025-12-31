@@ -523,7 +523,7 @@ def build_msg_stats_rollback(
     stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[int, str, int, int]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 30
+    top = 20
     col_width = 16
     col_width_data = 5
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
@@ -646,7 +646,7 @@ def build_msg_stats_two_counts_rate(
     stats_name: str, rate_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 30
+    top = 20
     col_width = 16
     col_width_data = 8
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
@@ -674,7 +674,7 @@ def build_msg_stats_name_percentage(
     stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 30
+    top = 20
     col_width = 16
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
     rank = 0
@@ -695,7 +695,7 @@ def build_msg_count_ratio_stats(
     stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 30
+    top = 20
     col_width = 16
     col_width_data = 7
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
@@ -723,7 +723,7 @@ def build_msg_4_counts(
     stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, int, int]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 30
+    top = 20
     col_width = 16
     col_width_data = 5
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
@@ -752,7 +752,7 @@ def build_msg_4_counts_2(
     stats_name: str, info_time_str: str, stats_tuple: Sequence[tuple[str, int, int, int, float]]
 ) -> str:
     """Build a message that can be resused between the stats msg"""
-    top = 30
+    top = 20
     col_width = 16
     col_width_data = 6
     msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"

@@ -1,12 +1,10 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
 import signal 
-import socket
 import subprocess
 from filelock import FileLock
 import subprocess
-import uuid
 import shutil
-import os, threading, multiprocessing, time
+import os, time
 from typing import List, Optional, Union
 import json
 from selenium.webdriver.common.by import By
