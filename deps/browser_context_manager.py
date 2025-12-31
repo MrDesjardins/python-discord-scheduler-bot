@@ -74,35 +74,39 @@ class BrowserContextManager:
         self._cleanup()
             
     def _start_xvfb(self) -> None:
-        if "DISPLAY" in os.environ and not self._xvfb_proc:
-            return
-
-        display_num = 99
-        while display_num < 150:
-            if not os.path.exists(f"/tmp/.X{display_num}-lock"):
-                break
-            display_num += 1
-        
-        target_display = f":{display_num}"
-        
-        # Start Xvfb with -ac to prevent "Connection Refused" errors
-        self._xvfb_proc = subprocess.Popen(
-            ["Xvfb", target_display, "-ac", "-screen", "0", "1920x1080x24", "-nolisten", "tcp"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True 
-        )
-        
-        os.environ["DISPLAY"] = target_display
-        
-        # Wait until the X11 socket actually exists
-        for _ in range(50):
-            if os.path.exists(f"/tmp/.X11-unix/X{display_num}"):
-                print_log(f"Xvfb ready on {target_display}")
+            if "DISPLAY" in os.environ and not self._xvfb_proc:
                 return
-            time.sleep(0.1)
-        
-        raise RuntimeError(f"Xvfb failed to start on {target_display}")
+
+            display_num = 99
+            # Loop to find an available display
+            while display_num < 150:
+                if not os.path.exists(f"/tmp/.X{display_num}-lock") and \
+                not os.path.exists(f"/tmp/.X11-unix/X{display_num}"):
+                    break
+                display_num += 1
+            
+            target_display = f":{display_num}"
+            print_log(f"Attempting to start Xvfb on {target_display}...")
+
+            self._xvfb_proc = subprocess.Popen(
+                ["Xvfb", target_display, "-ac", "-screen", "0", "1920x1080x24", "-nolisten", "tcp"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            
+            # Export to the environment so Chrome can see it
+            os.environ["DISPLAY"] = target_display
+            
+            # CRITICAL: Wait for the X11 socket file to actually exist
+            # This prevents the "Missing X server or $DISPLAY" error
+            socket_path = f"/tmp/.X11-unix/X{display_num}"
+            for i in range(30): # Wait up to 3 seconds
+                if os.path.exists(socket_path):
+                    print_log(f"Xvfb socket found at {socket_path}. Display ready.")
+                    return
+                time.sleep(0.1)
+            
+            raise RuntimeError(f"Xvfb failed to create socket at {socket_path}")
 
     def _cleanup(self) -> None:
         print_log("Cleaning up browser and Xvfb...")
@@ -166,6 +170,10 @@ class BrowserContextManager:
                 # options.add_argument("--remote-debugging-port=0")
                 # We RE-ENABLE the pipe because it prevents the 127.0.0.1 errors.
                 options.add_argument("--remote-debugging-pipe")
+                # These three flags are the 'magic' for Ubuntu Server stability
+                options.add_argument("--no-zygote")
+                options.add_argument("--disable-setuid-sandbox")
+                options.add_argument("--single-process")
                 self.driver = uc.Chrome(
                     options=options, 
                     headless=False,
