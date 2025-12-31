@@ -173,9 +173,15 @@ class BrowserContextManager:
             print_log(f"Launching Chrome ({self.environment}) on {display}")
 
             if self.environment == "prod":
+                import subprocess
+                import socket
                 port = 45455
                 
-                # 1. Manually launch the Chrome Process
+                # 1. Prepare a clean environment for the subprocess
+                env = os.environ.copy()
+                env["DISPLAY"] = os.environ.get("DISPLAY", ":99")
+                
+                # 2. Manual Launch with FULL paths and explicit logging
                 chrome_cmd = [
                     "/usr/bin/google-chrome",
                     f"--remote-debugging-port={port}",
@@ -186,21 +192,41 @@ class BrowserContextManager:
                     "--disable-gpu",
                     "--use-gl=swiftshader",
                     "--disable-dev-shm-usage",
-                    "--window-size=1920,1080",
-                    "about:blank" # Start on a blank page
+                    "about:blank"
                 ]
                 
-                print_log(f"Starting Chrome process manually on port {port}...")
-                subprocess.Popen(chrome_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print_log(f"Manual Launch Command: {' '.join(chrome_cmd)}")
                 
-                # 2. Give it plenty of time to warm up
-                time.sleep(5) 
+                # We capture stderr to see WHY Chrome might be dying
+                self._chrome_msg = subprocess.Popen(
+                    chrome_cmd, 
+                    env=env,
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
                 
-                # 3. Attach the driver to the ALREADY RUNNING browser
-                print_log("Attaching undetected-chromedriver to running process...")
+                # 3. VERIFICATION LOOP: Don't let UC try until the port is OPEN
+                print_log(f"Waiting for port {port} to open...")
+                port_ready = False
+                for i in range(20): # Try for 10 seconds
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        if s.connect_ex(('127.0.0.1', port)) == 0:
+                            print_log(f"Port {port} is officially OPEN and listening.")
+                            port_ready = True
+                            break
+                    time.sleep(0.5)
+
+                if not port_ready:
+                    # If it failed, grab the error from Chrome's stderr
+                    stdout, stderr = self._chrome_msg.communicate(timeout=1)
+                    raise RuntimeError(f"Chrome failed to bind port. Stderr: {stderr}")
+
+                # 4. Attach the driver
+                print_log("Attaching driver to the live process...")
                 self.driver = uc.Chrome(
                     options=options,
-                    use_subprocess=False, # Crucial: Don't start a new one
+                    use_subprocess=False,
                     port=port
                 )
             else:
