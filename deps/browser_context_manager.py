@@ -25,19 +25,7 @@ from deps.functions import (
 from deps.siege import siege_ranks
 
 CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
-XVFB_DISPLAY = ":99"
 
-def wait_for_port(port, host='127.0.0.1', timeout=10.0):
-    """Wait until a port starts accepting TCP connections."""
-    start_time = time.time()
-    while True:
-        try:
-            with socket.create_connection((host, port), timeout=1):
-                return True
-        except (ConnectionRefusedError, socket.timeout):
-            if time.time() - start_time > timeout:
-                return False
-            time.sleep(0.5)
 class BrowserContextManager:
     """
     Context manager to handle the browser
@@ -72,12 +60,6 @@ class BrowserContextManager:
             try:
                 self._lock.acquire(timeout=120)
                 self._lock_acquired = True
-                
-                # ONLY start manual Xvfb if we are NOT in production.
-                # In prod, our new chrome_cmd handles the display via xvfb-run.
-                if self.environment != "prod":
-                    self._start_xvfb()
-                    
                 self._config_browser()
                 return self
             except Exception as e:
@@ -165,84 +147,45 @@ class BrowserContextManager:
             self._lock_acquired = False
 
 
-    def _config_browser(self) -> None:
+    def _config_browser(self):
         options = uc.ChromeOptions()
-        options.binary_location = "/usr/bin/google-chrome"
-        self._profile_dir = f"/tmp/chromium-profile-{uuid.uuid4()}"
-        
-        # 1. CORE STABILITY
-        options.add_argument(f"--user-data-dir={self._profile_dir}")
+        # Essential flags for service stability
         options.add_argument("--no-sandbox")
-        options.add_argument("--disable-gpu")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--window-size=1920,1080")
-
-        try:
-            display = os.environ.get("DISPLAY")
-            print_log(f"Launching Chrome ({self.environment}) on {display}")
-
-            if self.environment == "prod":
-                port = 45455
-                log_path = "/tmp/chrome_debug.log"
-                
-                # We wrap everything in dbus-run-session and xvfb-run.
-                # This creates a perfect "mini-desktop" environment for Chrome.
-                chrome_cmd = [
-                    "dbus-run-session", "--", 
-                    "xvfb-run", "-a", 
-                    "--server-args=-screen 0 1920x1080x24",
-                    "/usr/bin/google-chrome",
-                    f"--remote-debugging-port={port}",
-                    f"--user-data-dir={self._profile_dir}",
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--no-zygote",
-                    "--single-process",
-                    "--disable-gpu",
-                    "--disable-dev-shm-usage",
-                    "--remote-allow-origins=*",
-                    "--ozone-platform=x11",
-                    "about:blank"
-                ]
-                
-                print_log(f"Launching Chrome in DBus/Xvfb bubble. Logs: {log_path}")
-                
-                with open(log_path, "w") as f:
-                    self._chrome_msg = subprocess.Popen(
-                        chrome_cmd,
-                        stdout=f,
-                        stderr=f,
-                        # No need to pass env here; xvfb-run and dbus-run-session 
-                        # create the environment variables themselves!
-                        preexec_fn=os.setsid
-                    )
-                
-                print_log(f"Waiting for Chrome to open port {port}...")
-                if not wait_for_port(port, timeout=25.0): # Increased timeout for bubble setup
-                    with open(log_path, "r") as f:
-                        errors = f.read()
-                    raise RuntimeError(f"Chrome bubble failed! Log: {errors}")
-
-                print_log("Bubble is stable. Attaching driver...")
-                self.driver = uc.Chrome(options=options, use_subprocess=False, port=port)
-            else:
-                # --- WSL (DEV) ---
+        options.add_argument("--disable-setuid-sandbox")
+        
+        # In prod, we just launch normally because the Service provides the Display
+        if self.environment == "prod":
+            print_log("Launching Chrome in System-Level Xvfb environment...")
+            try:
+                # Let 'uc' handle the launch logic itself
                 self.driver = uc.Chrome(
                     options=options,
-                    headless=False,
-                    use_subprocess=True,
-                    port=45455
+                    browser_executable_path="/usr/bin/google-chrome",
+                    driver_executable_path=None, # uc will download/find the right one
+                    headless=False # We want 'headful' inside Xvfb
                 )
-            
-            self.driver.set_page_load_timeout(60)
-            self.driver.get(get_url_user_ranked_matches(self.default_profile))
-            
-            WebDriverWait(self.driver, 45).until(
-                EC.visibility_of_element_located((By.ID, "app-container"))
+                print_log("Driver attached successfully!")
+            except Exception as e:
+                print_log(f"Failed to attach driver: {e}")
+                raise
+        else:
+            # --- WSL (DEV) ---
+            self.driver = uc.Chrome(
+                options=options,
+                headless=False,
+                use_subprocess=True,
+                port=454a55
             )
-        except Exception as e:
-            print_error_log(f"_config_browser: {e}")
-            raise
+        
+        self.driver.set_page_load_timeout(60)
+        self.driver.get(get_url_user_ranked_matches(self.default_profile))
+        
+        WebDriverWait(self.driver, 45).until(
+            EC.visibility_of_element_located((By.ID, "app-container"))
+        )
+
 
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
         """

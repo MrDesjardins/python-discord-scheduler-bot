@@ -5,8 +5,8 @@ Requires=network.target local-fs.target
 
 [Service]
 WorkingDirectory=/home/pdesjardins/code/python-discord-scheduler-bot
-ExecStart=/home/pdesjardins/.local/bin/uv run /home/pdesjardins/code/python-discord-scheduler-bot/bot.py
-ExecStartPre=/bin/sleep 10
+ExecStart=/usr/bin/xvfb-run -a --server-args="-screen 0 1920x1080x24" /home/pdesjardins/.local/bin/uv run /home/pdesjardins/code/python-discord-scheduler-bot/bot.py
+ExecStartPre=/bin/sleep 5
 Restart=on-failure
 RestartSec=10
 User=pdesjardins
@@ -19,6 +19,7 @@ Environment="PATH=/home/pdesjardins/.local/bin:/usr/local/bin:/usr/bin:/bin:/hom
 # Environment sync
 Environment=PYTHONUNBUFFERED=1
 Environment=ENV=prod
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 
 # Optional: Ensure the bot can't be killed by the OOM killer
 OOMScoreAdjust=-1000
