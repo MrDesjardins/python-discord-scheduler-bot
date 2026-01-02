@@ -32,11 +32,11 @@ SERVICE_NAME = "gametimescheduler.service"
 
 def main():
     """First menu"""
-    options = ["[1] Raspberry PI", "[2] Local", "[q] Exit"]
+    options = ["[1] Server", "[2] Local", "[q] Exit"]
     terminal_menu = TerminalMenu(options, title="Environment", show_shortcut_hints=True)
     menu_entry_index = terminal_menu.show()
     if menu_entry_index == 0:
-        raspberry_pi_menu()
+        server_menu()
     elif menu_entry_index == 1:
         local_menu()
     elif menu_entry_index == 2:
@@ -44,8 +44,8 @@ def main():
     main()
 
 
-def raspberry_pi_menu():
-    """Menu for actions on the Raspberry PI"""
+def server_menu():
+    """Menu for actions on the server"""
     options = [
         "[1] Service Status",
         "[2] Restart Service",
