@@ -252,10 +252,9 @@ class ModBasic(commands.Cog):
         lobby_channel = await data_access_get_channel(lobby_channel_id)
         team1_channel = await data_access_get_channel(team1_channel_id)
         team2_channel = await data_access_get_channel(team2_channel_id)
-        member = interaction.user
-        permissions_lobby = lobby_channel.permissions_for(member)
-        permissions_team1 = team1_channel.permissions_for(member)
-        permissions_team2 = team2_channel.permissions_for(member)
+        permissions_lobby = lobby_channel.permissions_for(bot_member)
+        permissions_team1 = team1_channel.permissions_for(bot_member)
+        permissions_team2 = team2_channel.permissions_for(bot_member)
         perm_list_lobby = [perm for perm, value in permissions_lobby if value]
         perm_list_team1 = [perm for perm, value in permissions_team1 if value]
         perm_list_team2 = [perm for perm, value in permissions_team2 if value]
