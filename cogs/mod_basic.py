@@ -12,6 +12,7 @@ from deps.values import (
     COMMAND_FORCE_SEND,
     COMMAND_GENERATE_AI_SUMMARY,
     COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY,
+    COMMAND_MOD_BOT_PERMISSION,
     COMMAND_TEST_JOIN,
     COMMAND_VERSION,
     COMMAND_RESET_CACHE,
@@ -22,6 +23,7 @@ from deps.functions import (
 )
 from deps.data_access import (
     data_access_get_channel,
+    data_access_get_custom_game_voice_channels,
     data_access_get_guild_voice_channel_ids,
     data_access_get_main_text_channel_id,
     data_access_reset_guild_cache,
@@ -217,7 +219,54 @@ class ModBasic(commands.Cog):
         for chunk in chunks:
             await channel.send(content=chunk)
         await interaction.followup.send("Done", ephemeral=True)
-
+        
+    @app_commands.command(name=COMMAND_MOD_BOT_PERMISSION)
+    @commands.has_permissions(administrator=True)
+    async def mod_bot_permission(self, interaction: discord.Interaction):
+        """
+        Check the bot permissions in the server.
+        """
+        if interaction.guild is None:
+            print_error_log(
+                f"""mod_bot_permission: No guild available for user {interaction.user.display_name}({interaction.user.id})."""
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        guild = interaction.guild
+        await interaction.response.defer(ephemeral=True)
+        bot_member = guild.me
+        if bot_member is None:
+            print_error_log(f"mod_bot_permission: Bot member not found in guild {guild.name}.")
+            await interaction.followup.send("Bot member not found in this guild.", ephemeral=True)
+            return
+        permissions = bot_member.guild_permissions
+        perm_list = [perm for perm, value in permissions if value]
+        perm_str = "\n".join(perm_list)
+        await interaction.followup.send(f"Bot permissions in this guild:\n{perm_str}", ephemeral=True)
+        # Check for the 10-man custom game required permissions
+        guild = interaction.guild
+        guild_id = guild.id
+        lobby_channel_id, team1_channel_id, team2_channel_id = await data_access_get_custom_game_voice_channels(
+            guild_id
+        )
+        lobby_channel = await data_access_get_channel(lobby_channel_id)
+        team1_channel = await data_access_get_channel(team1_channel_id)
+        team2_channel = await data_access_get_channel(team2_channel_id)
+        member = interaction.user
+        permissions_lobby = lobby_channel.permissions_for(member)
+        permissions_team1 = team1_channel.permissions_for(member)
+        permissions_team2 = team2_channel.permissions_for(member)
+        perm_list_lobby = [perm for perm, value in permissions_lobby if value]
+        perm_list_team1 = [perm for perm, value in permissions_team1 if value]
+        perm_list_team2 = [perm for perm, value in permissions_team2 if value]
+        key = "move_members"
+        await interaction.followup.send(
+            f"Bot permissions to move members voice channels:\n"
+            f"Lobby: {key in perm_list_lobby}\n"
+            f"Team 1: {key in perm_list_team1}\n"
+            f"Team 2: {key in perm_list_team2}",
+            ephemeral=True
+        )
 
 async def setup(bot):
     """Setup function to add this cog to the bot"""

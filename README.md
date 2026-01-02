@@ -65,7 +65,7 @@ The auto-lfg feature is a feature that allows the bot to send a message to the g
 
 ## Admin Console
 
-The admin console allows recurrent task in development (local) or in production (Raspberry Pi). The admin can execute tests or run visualizations of the user activity.
+The admin console allows recurrent task in development (local) or in production (Linux Machine). The admin can execute tests or run visualizations of the user activity.
 ![Admin Menu](readme_assets/botadmin.gif)
 
 ## Visualization of User Relationship
@@ -402,19 +402,13 @@ python3 bot.py # or ./bot.py
 
 # Installation on a Ubuntu
 
-1. Update the sources list for apt packages (required in some Raspberry Pi to get Python3) by editing `/etc/apt/sources.list`
-
-```
-deb http://raspbian.raspberrypi.org/raspbian/ buster main contrib non-free rpi
-```
-
-2. Upgrade apt packages `sudo apt-get update` and upgrade `sudo apt-get upgrade`
-3. SSH into the machine
-4. `ssh pi@10.0.0.181`
-5. Clone the repository
-6. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
-7. Install `uv`: `curl -LsSf https://astral.sh/uv/install.sh | sh` 
-8. Edit the environment variables file `/etc/environment` (require sudo)
+1. Upgrade apt packages `sudo apt-get update` and upgrade `sudo apt-get upgrade`
+2. SSH into the machine
+3. `ssh pi@10.0.0.181`
+4. Clone the repository
+5. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
+6. Install `uv`: `curl -LsSf https://astral.sh/uv/install.sh | sh` 
+7. Edit the environment variables file `/etc/environment` (require sudo)
 
 ```sh
 ENV=prod
@@ -624,9 +618,9 @@ coverage run --omit="./tests/*" -m pytest -v -s ./tests/*unit_test.py && coverag
 
 # Space Issue
 
-Logs can accumulate and make the Raspberri Pi run out of space. You can remove the logs by running the following command:
+Logs can accumulate and make the server run out of space. You can remove the logs by running the following command:
 
-Check the size of large files on the Raspberry Pi:
+Check the size of large files:
 
 ```sh
 sudo find / -type f -size +50M -exec ls -lh {} \; | awk '{ print $9 ": " $5 }'

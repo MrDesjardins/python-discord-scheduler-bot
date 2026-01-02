@@ -225,7 +225,7 @@ class UserCustomGameFeatures(commands.Cog):
                 for member in teams.team1.members:
                     try:
                         await member.move_to(team1_channel)
-                    except discord.Forbidden:
+                    except discord.Forbidden as e:
                         print_error_log(
                             f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Alpha channel: {e}"
                         )
@@ -257,7 +257,7 @@ class UserCustomGameFeatures(commands.Cog):
                 for member in team1_channel.members:
                     try:
                         await member.move_to(lobby_channel)
-                    except discord.Forbidden:
+                    except discord.Forbidden as e:
                         print_error_log(
                             f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
                         )
@@ -268,7 +268,7 @@ class UserCustomGameFeatures(commands.Cog):
                 for member in team2_channel.members:
                     try:
                         await member.move_to(lobby_channel)
-                    except discord.Forbidden:
+                    except discord.Forbidden as e:
                         print_error_log(
                             f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
                         )
