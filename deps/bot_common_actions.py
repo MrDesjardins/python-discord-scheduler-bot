@@ -1,5 +1,6 @@
 """Common Actions that the bots Cogs or Bots can invoke"""
 
+import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Union
@@ -58,6 +59,7 @@ from deps.functions import (
     set_member_role_from_rank,
 )
 from deps.values import (
+    DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS,
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
@@ -671,3 +673,18 @@ async def persist_user_full_information_cross_guilds(from_time: datetime, to_tim
         except Exception as e:
             print_error_log(f"persist_user_full_information_cross_guilds: Error saving the user full stats info: {e}")
             continue
+
+async def move_members_between_voice_channel(
+    source_voice_channel: Union[discord.VoiceChannel, discord.StageChannel],
+    target_voice_channel: Union[discord.VoiceChannel, discord.StageChannel],
+) -> None:
+    """
+    Move all members from one voice channel to another
+    """
+    for member in source_voice_channel.members:
+        try:
+            await member.move_to(target_voice_channel)
+            print_log(f"Moved member {member.display_name} from {source_voice_channel.name} to channel {target_voice_channel.name}")
+            await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
+        except Exception as e:
+            print_error_log(f"Error moving member {member.display_name}: {e}")

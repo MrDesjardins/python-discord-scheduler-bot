@@ -58,6 +58,10 @@ SUPPORTED_TIMES_ARR = [
 SUPPORTED_TIMES_STR = set(SUPPORTED_TIMES_ARR)
 MSG_UNIQUE_STRING = "What time will you play"
 
+# Small delay between Discord actions to avoid hitting rate limits
+# Used in moving people between voice channels
+DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS = 0.1
+
 # -----------------------
 # User's commands
 ## Initialization, Setup

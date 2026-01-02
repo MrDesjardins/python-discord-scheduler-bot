@@ -14,6 +14,7 @@ from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.bot_common_actions import (
+    move_members_between_voice_channel,
     send_daily_question_to_a_guild,
     send_automatic_lfg_message,
     send_notification_voice_channel,
@@ -21,6 +22,7 @@ from deps.bot_common_actions import (
 )
 from deps.data_access import (
     data_access_get_channel,
+    data_access_get_custom_game_voice_channels,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_main_text_channel_id,
@@ -294,15 +296,18 @@ class MyEventsCog(commands.Cog):
             after.id,
             ActivityTransition(before_details, after_details),
         )
-        # await send_automatic_lfg_message(self.bot, after.guild, after.voice.channel)
+
+        # Automatic send in the Siege text message a "looking for game" message
         await self.send_automatic_lfg_message_debounced(guild_id, after.voice.channel.id)
+        if "CUSTOM GAME match" in before_details and "MENU" in after_details and after.voice.channel is not None:
+            await self.auto_move_custom_game_debounced(guild_id, after.voice.channel.id)
 
     async def send_automatic_lfg_message_debounced(self, guild_id: int, channel_id: int) -> None:
         """
         Handle the request for a automatic message but if there is already a request, cancel it and wait again.
         The goal is to debounce and only act on the last operation
         """
-        key = f"{guild_id}-{channel_id}"
+        key = f"lfg-{guild_id}-{channel_id}"
         if key in self.last_task:
             task = self.last_task.get(key)
             if task is not None:
@@ -319,7 +324,50 @@ class MyEventsCog(commands.Cog):
         await send_automatic_lfg_message(
             self.bot, guild_id, channel_id
         )  # Send the actual command to see if we can send a message (depending of everyone state)
-        self.last_task.pop(f"{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
+        self.last_task.pop(f"lfg-{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
+
+    async def auto_move_custom_game_debounced(self, guild_id: int, channel_id: int) -> None:
+        """
+        Handle the request for auto move custom game but if there is already a request, cancel it and wait again.
+        The goal is to debounce and only act on the last operation
+        """
+        key = f"customgame-{guild_id}-{channel_id}"
+        if key in self.last_task:
+            task = self.last_task.get(key)
+            if task is not None:
+                task.cancel()  # Cancel any pending execution
+        self.last_task[key] = asyncio.create_task(
+            self.auto_move_custom_game_debounced_cancellable_task(guild_id, channel_id)
+        )
+
+    async def auto_move_custom_game_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
+        """
+        A task that can be cancelled and will wait for X seconds before sending the automatic message
+        """
+        try:
+            lobby_channel_id, team1_channel_id, team2_channel_id = await data_access_get_custom_game_voice_channels(
+                guild_id
+            )
+            lobby_channel = await data_access_get_channel(lobby_channel_id)
+            team1_channel = await data_access_get_channel(team1_channel_id)
+            team2_channel = await data_access_get_channel(team2_channel_id)
+            if lobby_channel is None or team1_channel is None or team2_channel is None:
+                print_warning_log(
+                    f"auto_move_custom_game_debounced_cancellable_task: One of the custom game channels not found for guild {guild_id}. Skipping."
+                )
+                return
+            if channel_id not in [team1_channel.id, team2_channel.id]:
+                print_warning_log(
+                    f"auto_move_custom_game_debounced_cancellable_task: Channel {channel_id} is not a custom game team channel for guild {guild_id}. Skipping."
+                )
+                return
+            await asyncio.sleep(2)  # Wait since many people might have the same update (10 people playing the custom game)
+            await move_members_between_voice_channel(team1_channel, lobby_channel)
+            await move_members_between_voice_channel(team2_channel, lobby_channel)
+        except Exception as e:
+            print_error_log(f"auto_move_custom_game_debounced_cancellable_task: Error moving custom game users: {e}")
+        finally:
+            self.last_task.pop(f"customgame-{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
 
     @commands.Cog.listener()
     async def on_message(self, message) -> None:

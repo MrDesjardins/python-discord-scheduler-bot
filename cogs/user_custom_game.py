@@ -1,14 +1,14 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import List, Union
 import discord
 from discord.ext import commands
 from discord import app_commands
-
+from deps.values import DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS
 from deps.custom_match.custom_match_data_class import MapSuggestion
 from deps.custom_match.custom_match_ui_functions import CompleteCommandView
 from deps.custom_match.custom_match_values import MapAlgo, TeamAlgo
 from deps.custom_match.custom_match_functions import (
-    create_team_by_win_percentage,
     select_map_based_on_algorithm,
     select_team_by_algorithm,
 )
@@ -225,6 +225,8 @@ class UserCustomGameFeatures(commands.Cog):
                 for member in teams.team1.members:
                     try:
                         await member.move_to(team1_channel)
+                        # Small delay to avoid hitting rate limits
+                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
                     except discord.Forbidden as e:
                         print_error_log(
                             f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Alpha channel: {e}"
@@ -237,6 +239,7 @@ class UserCustomGameFeatures(commands.Cog):
                 for member in teams.team2.members:
                     try:
                         await member.move_to(team2_channel)
+                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
                     except discord.Forbidden:
                         print_error_log(
                             f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Beta channel: {e}"
@@ -256,6 +259,7 @@ class UserCustomGameFeatures(commands.Cog):
                     return
                 for member in team1_channel.members:
                     try:
+                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
                         await member.move_to(lobby_channel)
                     except discord.Forbidden as e:
                         print_error_log(
@@ -267,6 +271,7 @@ class UserCustomGameFeatures(commands.Cog):
                         )
                 for member in team2_channel.members:
                     try:
+                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
                         await member.move_to(lobby_channel)
                     except discord.Forbidden as e:
                         print_error_log(
