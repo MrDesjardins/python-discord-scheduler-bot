@@ -97,10 +97,10 @@ def test_get_only_user_active():
     Return unique user
     Return max account if no active defined
     """
-    upsert_user_info(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
-    upsert_user_info(2, "DiscordName2", "ubi_2_max", "ubi_2_active", None, "US/Eastern")
-    upsert_user_info(3, "DiscordName2", "ubi_3_max", None, None, "US/Eastern")
-    upsert_user_info(4, "DiscordName4", None, None, None, "US/Eastern")
+    upsert_user_info(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 1000)
+    upsert_user_info(2, "DiscordName2", "ubi_2_max", "ubi_2_active", None, "US/Eastern", 1500)
+    upsert_user_info(3, "DiscordName2", "ubi_3_max", None, None, "US/Eastern", 1200)
+    upsert_user_info(4, "DiscordName4", None, None, None, "US/Eastern", 800)
     insert_user_activity(
         1,
         "user_1",
@@ -154,8 +154,8 @@ def test_insert_if_nonexistant_user_full_stats_info(mock_log):
     """
     data_1, data_2 = get_user_full_info_test_data()
     mock_log.side_effect = None
-    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
-    user_info2 = UserInfo(2, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
+    user_info2 = UserInfo(2, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
     upsert_user_info(
         user_info.id,
         user_info.display_name,
@@ -163,6 +163,7 @@ def test_insert_if_nonexistant_user_full_stats_info(mock_log):
         user_info.ubisoft_username_active,
         None,
         user_info.time_zone,
+        user_info.max_mmr,
     )
     upsert_user_info(
         user_info2.id,
@@ -171,6 +172,7 @@ def test_insert_if_nonexistant_user_full_stats_info(mock_log):
         user_info.ubisoft_username_active,
         None,
         user_info2.time_zone,
+        user_info2.max_mmr,
     )
     user_full_1 = parse_json_user_info(user_info.id, data_1)
     user_full_2 = parse_json_user_info(user_info2.id, data_2)
@@ -186,7 +188,7 @@ def test_insert_if_nonexistant_user_full_stats_info_then_fetch_back(mock_log):
     """
     data_1, _ = get_user_full_info_test_data()
     mock_log.side_effect = None
-    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
 
     upsert_user_info(
         user_info.id,
@@ -195,6 +197,7 @@ def test_insert_if_nonexistant_user_full_stats_info_then_fetch_back(mock_log):
         user_info.ubisoft_username_active,
         None,
         user_info.time_zone,
+        user_info.max_mmr,
     )
 
     user_full_1 = parse_json_user_info(user_info.id, data_1)
@@ -284,7 +287,7 @@ def test_insert_if_nonexistant_full_match_info(mock_log):
     """
     data_1, data_3, data_4, data_5, data_6 = get_test_data()
     mock_log.side_effect = None
-    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
     upsert_user_info(
         user_info.id,
         user_info.display_name,
@@ -292,6 +295,7 @@ def test_insert_if_nonexistant_full_match_info(mock_log):
         user_info.ubisoft_username_active,
         None,
         user_info.time_zone,
+        user_info.max_mmr,
     )
     matches_1 = parse_json_from_full_matches(data_1, user_info)
     matches_3 = parse_json_from_full_matches(data_3, user_info)
@@ -311,7 +315,7 @@ def test_insert_if_nonexistant_no_match():
     Test if there isn't any match to insert
     """
 
-    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
     upsert_user_info(
         user_info.id,
         user_info.display_name,
@@ -319,6 +323,7 @@ def test_insert_if_nonexistant_no_match():
         user_info.ubisoft_username_active,
         None,
         user_info.time_zone,
+        user_info.max_mmr,
     )
 
     insert_if_nonexistant_full_match_info(user_info, [])
@@ -334,7 +339,7 @@ def test_insert_if_nonexistant_with_duplicate(mock_log):
     data_1["data"]["matches"] = data_1["data"]["matches"][:1]
     mock_log.side_effect = None
 
-    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
     upsert_user_info(
         user_info.id,
         user_info.display_name,
@@ -342,6 +347,7 @@ def test_insert_if_nonexistant_with_duplicate(mock_log):
         user_info.ubisoft_username_active,
         None,
         user_info.time_zone,
+        user_info.max_mmr,
     )
 
     matches_1 = parse_json_from_full_matches(data_1, user_info)
@@ -365,7 +371,7 @@ def test_insert_if_nonexistant_with_no_duplicate(mock_log):
     data_1["data"]["matches"] = all_matches[:1]
     mock_log.side_effect = None
 
-    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
     upsert_user_info(
         user_info.id,
         user_info.display_name,
@@ -373,6 +379,7 @@ def test_insert_if_nonexistant_with_no_duplicate(mock_log):
         user_info.ubisoft_username_active,
         None,
         user_info.time_zone,
+        user_info.max_mmr,
     )
     mock_log.reset_mock()
     matches_1 = parse_json_from_full_matches(data_1, user_info)
@@ -403,7 +410,7 @@ def test_insert_if_nonexistant_with_no_match(mock_log):
     data_1["data"]["matches"] = []
     mock_log.side_effect = None
 
-    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern")
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
     upsert_user_info(
         user_info.id,
         user_info.display_name,
@@ -411,6 +418,7 @@ def test_insert_if_nonexistant_with_no_match(mock_log):
         user_info.ubisoft_username_active,
         None,
         user_info.time_zone,
+        user_info.max_mmr,
     )
 
     matches_1 = parse_json_from_full_matches(data_1, user_info)
@@ -526,7 +534,7 @@ def test_analytic_insert_and_fetch_full_match_info_for_user() -> None:
     """
     Create a stats and fetch it
     """
-    user_info: UserInfo = UserInfo(1, "user1", "user1#1234", "user1", None, "US/Pacific")
+    user_info: UserInfo = UserInfo(1, "user1", "user1#1234", "user1", None, "US/Pacific", 0)
     list_matches: list[UserFullMatchStats] = [
         UserFullMatchStats(
             id=None,
@@ -593,7 +601,7 @@ def test_analytic_insert_and_fetch_full_match_info_for_user() -> None:
 def test_fetch_tk() -> None:
     """Test that we can fetch the tk"""
     # Arrange
-    user_info: UserInfo = UserInfo(1, "user1", "user1#1234", "user1", None, "US/Pacific")
+    user_info: UserInfo = UserInfo(1, "user1", "user1#1234", "user1", None, "US/Pacific", 0)
     list_matches: list[UserFullMatchStats] = [
         UserFullMatchStats(
             id=None,

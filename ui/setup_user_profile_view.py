@@ -8,6 +8,7 @@ from deps.analytic_data_access import upsert_user_info
 from deps.values import valid_time_zone_options
 from deps.mybot import MyBot
 from deps.siege import get_guild_rank_emoji
+from deps.log import print_error_log
 
 timezones_options = [discord.SelectOption(label=timezone, value=timezone) for timezone in valid_time_zone_options]
 
@@ -82,23 +83,33 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
 
         # Acknowledge the submission and close the modal
         await interaction.response.defer()  # This closes the modal after the submission
-        # Perform the profile save actions
-        upsert_user_info(
-            self.view.member.id,
-            self.view.member.display_name,
-            self.view.max_rank_account,
-            self.view.active_account,
-            None,
-            self.view.user_timezone,
-        )
 
         # Adjust user roles based on the max rank
-        # max_rank = "Diamond"
-        max_rank = await adjust_role_from_ubisoft_max_account(
+        max_rank, max_mmr = await adjust_role_from_ubisoft_max_account(
             self.view.guild, self.view.member, self.view.max_rank_account, self.view.active_account
         )
+        
+        # Perform the profile save actions
+        try:
+            upsert_user_info(
+                self.view.member.id,
+                self.view.member.display_name,
+                self.view.max_rank_account,
+                self.view.active_account,
+                None, #Todo R6Tracker ID is part of the payload when fetching the rank. Add it here?
+                self.view.user_timezone,
+                max_mmr
+            )
+        except Exception as e:
+            print_error_log(f"Failed to save user profile for {self.view.member.id}: {str(e)}")
+            await interaction.followup.send(
+                f"❌ Failed to save profile",
+                ephemeral=True,
+            )
+            return
         # Get stats channel
         channel_id = await data_access_get_gaming_session_text_channel_id(self.view.guild.id)
+        
         # Send the follow-up message
         await interaction.followup.send(
             f"✅ Profile saved, role adjusted to {get_guild_rank_emoji(self.view.bot.guild_emoji.get(self.view.guild.id, {}), max_rank)} {max_rank} and after completing a voice session you will get your stats for `{self.view.active_account}` in <#{channel_id}>.",

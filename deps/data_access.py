@@ -208,12 +208,12 @@ def data_access_set_bot_voice_first_user(guild_id: int, enabled: bool) -> None:
     set_cache(False, f"{KEY_GUILD_BOT_VOICE_FIRST_USER}:{guild_id}", enabled, ALWAYS_TTL)
 
 
-def _download_max_rank_sync(ubisoft_user_name: str) -> str:
+def _download_max_rank_sync(ubisoft_user_name: str) -> tuple[str, int]:
     with BrowserContextManager(ubisoft_user_name) as context:
         return context.download_max_rank(ubisoft_user_name)
 
 
-async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch: bool = False) -> str:
+async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch: bool = False) -> tuple[str, int]:
     """
     Get from R6 Tracker website the max rank for the user
     """

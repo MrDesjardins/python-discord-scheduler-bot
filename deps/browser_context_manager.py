@@ -201,7 +201,7 @@ class BrowserContextManager:
         WebDriverWait(self.driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
         print_log("refresh_browser: Browser refreshed")
 
-    def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> str:
+    def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> tuple[str, int]:
         """Download the web page, and extract the max rank"""
         rank = "Copper"
         # Step 1: Check if the Ubisoft username is provided, otherwise use the default profile

@@ -352,16 +352,18 @@ Under "Bot Permissions", select the necessary permissions:
 1. Read Message History
 1. Mention Everyone
 1. Add Reactions
+1. Connect
 1. Move Members
+1. Set Voice Channel Status
 
 Copy the generated URL and open it in your browser to invite the bot to your desired server.
 
 ```sh
 # Production Bot
-https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=285420752&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=281475263179984&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 
 # Dev Bot
-https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=285420752&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=281475263179984&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 ```
 
 You also need the `Presence Intent` to be checked (located above the bot permission, same page). This will allows the bot to see who is playing the game and what is the status of the user (menu, playing, etc).

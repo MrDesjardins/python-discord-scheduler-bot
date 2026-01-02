@@ -51,16 +51,21 @@ def data_access_fetch_best_maps_first(user_ids: List[int]) -> List[MapSuggestion
 
     placeholders = ",".join(["?"] * len(user_ids))
     query = f"""
-        SELECT
-            map_name,
-            COUNT(*) AS loss_count
-        FROM user_full_match_info
-        WHERE user_id IN ({placeholders})
-        AND has_win = 1
-        GROUP BY map_name
-        ORDER BY loss_count DESC
-        LIMIT 5;
-
+SELECT
+    map_name,
+    ROUND(
+        SUM(CASE WHEN has_win = 1 THEN 1 ELSE 0 END) * 1.0
+        / COUNT(*),
+        3
+    ) AS win_rate
+FROM user_full_match_info
+WHERE map_name <> 'Unknown'
+AND user_id IN ({placeholders})
+GROUP BY map_name
+HAVING COUNT(*) >= 20
+ORDER BY win_rate DESC
+LIMIT 5
+;
         """
     result = (
         database_manager.get_cursor().execute(
@@ -80,16 +85,21 @@ def data_access_fetch_worse_maps_first(user_ids: List[int]) -> List[MapSuggestio
 
     placeholders = ",".join(["?"] * len(user_ids))
     query = f"""
-        SELECT
-            map_name,
-            COUNT(*) AS loss_count
-        FROM user_full_match_info
-        WHERE user_id IN ({placeholders})
-        AND has_win = 0
-        GROUP BY map_name
-        ORDER BY loss_count DESC
-        LIMIT 5;
-
+SELECT
+    map_name,
+    ROUND(
+        SUM(CASE WHEN has_win = 0 THEN 1 ELSE 0 END) * 1.0
+        / COUNT(*),
+        3
+    ) AS loss_rate
+FROM user_full_match_info
+WHERE map_name <> 'Unknown'
+AND user_id IN ({placeholders})
+GROUP BY map_name
+HAVING COUNT(*) >= 20
+ORDER BY loss_rate DESC
+LIMIT 5
+;
         """
     result = (
         database_manager.get_cursor().execute(
@@ -113,6 +123,7 @@ def data_access_fetch_less_played_maps_first(user_ids: List[int]) -> List[MapSug
             COUNT(*) AS play_count
         FROM user_full_match_info
         WHERE user_id IN ({placeholders})
+        AND map_name <> 'Unknown'
         GROUP BY map_name
         ORDER BY play_count ASC
         LIMIT 5;
@@ -140,6 +151,7 @@ def data_access_fetch_all_maps(user_ids: List[int]) -> List[MapSuggestion]:
             COUNT(*) AS play_count
         FROM user_full_match_info
         WHERE user_id IN ({placeholders})
+        AND map_name <> 'Unknown'
         GROUP BY map_name
         ORDER BY play_count ASC
         LIMIT 50;

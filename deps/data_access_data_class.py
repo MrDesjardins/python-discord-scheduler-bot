@@ -20,6 +20,8 @@ class UserInfo:
     r6_tracker_active_id: Optional[str]  # UUID
     """ List of time zones: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones """
     time_zone: str
+    """ User's best MMR recorded """
+    max_mmr: int
 
 
 @dataclass

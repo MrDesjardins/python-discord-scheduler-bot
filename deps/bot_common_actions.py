@@ -7,6 +7,7 @@ from gtts import gTTS  # type: ignore
 import discord
 from deps.browser import download_full_matches_async, download_full_user_information_async
 from deps.analytic_data_access import (
+    data_access_set_max_mmr,
     data_access_set_r6_tracker_id,
     fetch_user_info_by_user_id,
     get_active_user_info,
@@ -304,10 +305,9 @@ async def adjust_role_from_ubisoft_max_account(
     member: discord.Member,
     ubisoft_connect_name: str,
     ubisoft_active_account: Union[str, None] = None,
-) -> str:
+) -> tuple[str, int]:
     """Adjust the server's role of a user based on their max rank in R6 Tracker"""
-    max_rank = await data_access_get_r6tracker_max_rank(ubisoft_connect_name, True)
-
+    max_rank, max_mmr = await data_access_get_r6tracker_max_rank(ubisoft_connect_name, True)
     print_log(
         f"""adjust_role_from_ubisoft_max_account: R6 Tracker Downloaded Info for user {member.display_name} and found for user name {ubisoft_connect_name} the max role: {max_rank}"""
     )
@@ -315,32 +315,32 @@ async def adjust_role_from_ubisoft_max_account(
         await set_member_role_from_rank(guild, member, max_rank)
     except Exception as e:
         print_error_log(f"adjust_role_from_ubisoft_max_account: Error setting the role: {e}")
-        return ""
+        return ("", 0)
 
     text_channel_id = await data_access_get_guild_username_text_channel_id(guild.id)
     if text_channel_id is None:
         print_warning_log(
             f"adjust_role_from_ubisoft_max_account: Text channel not set for guild {guild.name}. Skipping."
         )
-        return max_rank
+        return max_rank, max_mmr
 
     # Retrieve the moderator role by name
     mod_role = discord.utils.get(guild.roles, name="Mod")
 
     if mod_role is None:
         print_warning_log(f"adjust_role_from_ubisoft_max_account: Mod role not found in guild {guild.name}. Skipping.")
-        return ""
+        return ("", 0)
     channel = await data_access_get_channel(text_channel_id)
     if ubisoft_active_account is None or channel is None:
         active_msg = ""
-        return ""
+        return ("", 0)
     else:
         active_msg = f"""\nCurrently playing on the [{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."""
 
     await channel.send(
         content=f"""{member.mention} main account is [{ubisoft_connect_name}]({get_url_user_profile_overview(ubisoft_connect_name)}) with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.""",
     )
-    return max_rank
+    return max_rank, max_mmr
 
 
 async def send_session_stats_directly(member: discord.Member, guild_id: int) -> None:

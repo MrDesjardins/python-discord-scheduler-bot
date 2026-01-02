@@ -8,8 +8,8 @@ import pytest
 from deps.data_access_data_class import UserInfo
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_json_from_full_matches, parse_json_max_rank
 
-mock_user1 = UserInfo(1, "noSleep_rb6", "noSleep_rb6", "noSleep_rb6", "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC")
-mock_user2 = UserInfo(2, "joechod", "joechod", "joechod", None, "UTC")
+mock_user1 = UserInfo(1, "noSleep_rb6", "noSleep_rb6", "noSleep_rb6", "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC", 1200)
+mock_user2 = UserInfo(2, "joechod", "joechod", "joechod", None, "UTC", 1300)
 
 
 @pytest.fixture(scope="module")
@@ -1357,4 +1357,5 @@ def test_get_r6tracker_parse_max_rank(test_data):
     """Test to parse JSON to find the highest rank from the JSON file."""
     _, _, _, _, _, _, data_8 = test_data
     rank = parse_json_max_rank(data_8)
-    assert rank == "Diamond"
+    assert rank[0] == "Diamond"
+    assert rank[1] == 4343

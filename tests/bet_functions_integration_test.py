@@ -19,12 +19,12 @@ tournament_team = Tournament(
     1, 100, "Tournament 1", fake_date, fake_date, fake_date, 5, 16, "villa", False, False, 0, 2
 )
 dict_user_info = {
-    1: UserInfo(1, "User1", "", "", "", ""),
-    2: UserInfo(2, "User2", "", "", "", ""),
-    3: UserInfo(3, "User3", "", "", "", ""),
-    4: UserInfo(4, "User4", "", "", "", ""),
-    5: UserInfo(5, "User5", "", "", "", ""),
-    6: UserInfo(6, "User6", "", "", "", ""),
+    1: UserInfo(1, "User1", "", "", "", "", 0),
+    2: UserInfo(2, "User2", "", "", "", "", 0),
+    3: UserInfo(3, "User3", "", "", "", "", 0),
+    4: UserInfo(4, "User4", "", "", "", "", 0),
+    5: UserInfo(5, "User5", "", "", "", "", 0),
+    6: UserInfo(6, "User6", "", "", "", "", 0),
 }
 
 

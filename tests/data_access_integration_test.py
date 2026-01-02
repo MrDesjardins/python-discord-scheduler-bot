@@ -19,7 +19,7 @@ from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_man
 from tests.mock_model import mock_user1, mock_user2
 
 lock = asyncio.Lock()
-
+DELAY_SECOND = 5 # Delay to avoid rate limiting
 
 @pytest.fixture(autouse=True)
 def setup_and_teardown():
@@ -115,8 +115,8 @@ async def test_data_access_get_r6tracker_max_rank_test_diamond() -> None:
 
     result = await data_access_get_r6tracker_max_rank("noSleep_rb6", True)
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
-    await asyncio.sleep(5)
-    assert result == "Diamond"
+    await asyncio.sleep(DELAY_SECOND)
+    assert result == ("Diamond", 4343)
 
 
 async def test_data_access_get_r6tracker_max_rank_test_platinum() -> None:
@@ -126,8 +126,8 @@ async def test_data_access_get_r6tracker_max_rank_test_platinum() -> None:
 
     result = await data_access_get_r6tracker_max_rank("LebronsCock", True)
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
-    await asyncio.sleep(5)
-    assert result == "Platinum"
+    await asyncio.sleep(DELAY_SECOND)
+    assert result == ("Platinum", 3211)
 
 
 async def test_data_access_get_r6tracker_max_rank_test_does_not_exist() -> None:
@@ -137,8 +137,8 @@ async def test_data_access_get_r6tracker_max_rank_test_does_not_exist() -> None:
 
     result = await data_access_get_r6tracker_max_rank("DoesNotExist123000Name", True)
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
-    await asyncio.sleep(5)
-    assert result == "Copper"
+    await asyncio.sleep(DELAY_SECOND)
+    assert result == ("Copper", 0)
 
 
 async def test_data_access_get_r6tracker_max_rank_test_champion() -> None:
@@ -148,8 +148,8 @@ async def test_data_access_get_r6tracker_max_rank_test_champion() -> None:
 
     result = await data_access_get_r6tracker_max_rank("Funkyshmug", True)
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
-    await asyncio.sleep(5)
-    assert result == "Champion"
+    await asyncio.sleep(DELAY_SECOND)
+    assert result == ("Champion", 4561)
 
 
 async def test_data_access_get_r6tracker_max_rank_test_emerald_period() -> None:
@@ -159,8 +159,8 @@ async def test_data_access_get_r6tracker_max_rank_test_emerald_period() -> None:
 
     result = await data_access_get_r6tracker_max_rank("Adahdf.", True)
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
-    await asyncio.sleep(5)
-    assert result == "Emerald"
+    await asyncio.sleep(DELAY_SECOND)
+    assert result == ("Emerald", 3787)
 
 
 async def test_data_access_get_r6tracker_max_rank_test_gold() -> None:
@@ -170,5 +170,5 @@ async def test_data_access_get_r6tracker_max_rank_test_gold() -> None:
 
     result = await data_access_get_r6tracker_max_rank("J0hn_Th1cc", True)
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
-    await asyncio.sleep(5)
-    assert result == "Gold"
+    await asyncio.sleep(DELAY_SECOND)
+    assert result == ("Gold", 0)

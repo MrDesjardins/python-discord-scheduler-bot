@@ -14,6 +14,7 @@ from deps.data_access import (
 )
 from deps.follow_data_access import fetch_all_followed_users_by_user_id, remove_following_user, save_following_user
 from deps.analytic_data_access import (
+    data_access_set_max_mmr,
     data_access_set_ubisoft_username_active,
     data_access_set_ubisoft_username_max,
     fetch_user_info_by_user_id,
@@ -29,7 +30,7 @@ from deps.values import (
     COMMAND_UNFOLLOW_USER,
 )
 from deps.mybot import MyBot
-from deps.log import print_error_log
+from deps.log import print_error_log, print_log
 from deps.siege import get_list_users_with_rank, get_user_rank_emoji
 from deps.functions import (
     most_common,
@@ -148,19 +149,24 @@ class UserFeatures(commands.Cog):
 
             guild_id = interaction.guild.id
             member = await data_access_get_member(guild_id, interaction.user.id)
-            # member: discord.Member = interaction.guild.get_member(interaction.user.id)
             if member is None:
                 print_error_log(f"adjust_rank: Cannot find a member from user id {interaction.user.id}.")
                 await interaction.followup.send("Cannot find the member", ephemeral=True)
                 return
             data_access_set_ubisoft_username_max(interaction.user.id, ubisoft_connect_name)
-            max_rank = await adjust_role_from_ubisoft_max_account(interaction.guild, member, ubisoft_connect_name)
+
+            max_rank, max_mmr = await adjust_role_from_ubisoft_max_account(interaction.guild, member, ubisoft_connect_name)
             if max_rank is None:
                 await interaction.followup.send(
                     """Sorry, we cannot change your role for the moment. Please contact a moderator to manually change it.""",
                     ephemeral=True,
                 )
                 return
+            try:
+                await data_access_set_max_mmr(member.id, max_mmr)
+            except Exception as e:
+                print_error_log(f"set_max_user_account: Error setting max mmr: {e}")
+
             await interaction.followup.send(f"Found max rank {max_rank}, role adjusted", ephemeral=True)
         # Add code to perform the actual action here
         else:

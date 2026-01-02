@@ -196,10 +196,10 @@ class UserCustomGameFeatures(commands.Cog):
 
         await interaction.followup.send(
             content=f"""# Map suggestions\n
-## By worse maps first:\n {format_map(map_name_1)}\n
-## By best maps first:\n {format_map(map_name_2)}\n
-## By least played maps first:\n {format_map(map_name_3)}\n
-## Randomly selected map:\n {format_map(map_name_4)}\n
+## By worse maps first (losing rate)\n {format_map(map_name_1)}
+## By best maps first (winning rate)\n {format_map(map_name_2)}
+## By least played maps first (count)\n {format_map(map_name_3)}
+## Randomly selected map\n {format_map(map_name_4)}
                                         """,
             ephemeral=False,
         )
@@ -212,7 +212,7 @@ class UserCustomGameFeatures(commands.Cog):
             )
             # Show a button to move the users to their respective channels
 
-            async def on_complete():
+            async def on_move_into_team_channels() -> None:
                 # Move users to their respective channels
                 team1_channel = await data_access_get_channel(team1_channel_id)
                 team2_channel = await data_access_get_channel(team2_channel_id)
@@ -225,20 +225,59 @@ class UserCustomGameFeatures(commands.Cog):
                 for member in teams.team1.members:
                     try:
                         await member.move_to(team1_channel)
+                    except discord.Forbidden:
+                        print_error_log(
+                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Alpha channel: {e}"
+                        )
                     except Exception as e:
                         print_error_log(
-                            f"custom_game_make_team: Failed to move member {member.display_name} to Team 1 channel: {e}"
+                            f"custom_game_make_team: Failed to move member {member.display_name} to Team Alpha channel: {e}"
                         )
 
                 for member in teams.team2.members:
                     try:
                         await member.move_to(team2_channel)
+                    except discord.Forbidden:
+                        print_error_log(
+                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Beta channel: {e}"
+                        )
                     except Exception as e:
                         print_error_log(
-                            f"custom_game_make_team: Failed to move member {member.display_name} to Team 2 channel: {e}"
+                            f"custom_game_make_team: Failed to move member {member.display_name} to Team Beta channel: {e}"
                         )
-
-            view = CompleteCommandView(author_id=interaction.user.id, on_complete=on_complete)
+                        
+            async def on_move_back_lobby() -> None:
+                # Move all users back to the lobby channel
+                lobby_channel = await data_access_get_channel(lobby_channel_id)
+                team1_channel = await data_access_get_channel(team1_channel_id)
+                team2_channel = await data_access_get_channel(team2_channel_id)
+                if not isinstance(lobby_channel, discord.VoiceChannel):
+                    print_warning_log(f"custom_game_make_team: Lobby channel is not a voice channel.")
+                    return
+                for member in team1_channel.members:
+                    try:
+                        await member.move_to(lobby_channel)
+                    except discord.Forbidden:
+                        print_error_log(
+                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                        )
+                    except Exception as e:
+                        print_error_log(
+                            f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                        )
+                for member in team2_channel.members:
+                    try:
+                        await member.move_to(lobby_channel)
+                    except discord.Forbidden:
+                        print_error_log(
+                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                        )
+                    except Exception as e:
+                        print_error_log(
+                            f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                        )
+                
+            view = CompleteCommandView(author_id=interaction.user.id, on_move_into_team_channels=on_move_into_team_channels, on_move_back_lobby=on_move_back_lobby)
 
             await interaction.followup.send(
                 content="Click the button below to auto-assign people their teams voice channels.", view=view

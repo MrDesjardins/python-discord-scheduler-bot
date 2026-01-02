@@ -64,8 +64,8 @@ async def _create_team_by_metric(
     team1_avg = team1_total / len(team_suggestion.team1.members) if team_suggestion.team1.members else 0
     team2_avg = team2_total / len(team_suggestion.team2.members) if team_suggestion.team2.members else 0
     team_suggestion.explanation = (
-        f"Team 1 Average {label}: {format(team1_avg, fmt)}\n{team1_text}\n"
-        f"Team 2 Average {label}: {format(team2_avg, fmt)}\n{team2_text}"
+        f"Team Alpha Average {label}: {format(team1_avg, fmt)}\n{team1_text}\n"
+        f"Team Beta Average {label}: {format(team2_avg, fmt)}\n{team2_text}"
     )
     return team_suggestion
 

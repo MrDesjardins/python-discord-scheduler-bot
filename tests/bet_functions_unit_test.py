@@ -293,7 +293,7 @@ async def test_generating_odd_for_tournament_games_for_only_game_without_ones_an
     mock_fetch_tournament.return_value = tournament
     list_existing_bet_games: List[BetGame] = []
     mock_fetch_bet_games.return_value = list_existing_bet_games
-    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
+    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst", 0)
     mock_define_odds.return_value = (0.5, 0.5)
     mock_create_bet_game.return_value = None
     # Act
@@ -1160,7 +1160,7 @@ async def test_generate_msg_bet_leaderboard_users(mock_bet_user, mock_fetch_user
         BetUserTournament(2, 2, 200, 20.99),
         BetUserTournament(3, 2, 300, 30.99),
     ]
-    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
+    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst", 0)
     mock_bet_user.return_value = []
     # Act
     msg = await bet_functions.generate_msg_bet_leaderboard(tournament)
@@ -1183,7 +1183,7 @@ async def test_generate_msg_bet_leaderboard_users_with_active_bet(
         BetUserTournament(2, 2, 200, 20.99),
         BetUserTournament(3, 2, 300, 30.99),
     ]
-    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst")
+    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst", 0)
     mock_bet_user.return_value = [
         BetUserGame(1, 1, 33, 100, 1000, 10, fake_date, 0.5, False),
     ]
@@ -1980,7 +1980,7 @@ async def test_generate_msg_bet_game_no_bet(
     mock_mock_data_access_get_bet_user_game_for_tournament.return_value = []  # No bet
     mock_data_access_get_bet_ledger_entry_for_tournament.return_value = []  # No entry because no bet
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
-        user_id, f"User {user_id}", None, None, None, "pst"
+        user_id, f"User {user_id}", None, None, None, "pst", 0
     )
     # Act
     msg = await generate_msg_bet_game(tournament_node)
@@ -2019,7 +2019,7 @@ async def test_generate_msg_bet_game_no_betgame(
     mock_mock_data_access_get_bet_user_game_for_tournament.return_value = []  # No bet
     mock_data_access_get_bet_ledger_entry_for_tournament.return_value = []  # No entry because no bet
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
-        user_id, f"User {user_id}", None, None, None, "pst"
+        user_id, f"User {user_id}", None, None, None, "pst", 0
     )
     # Act
     await generate_msg_bet_game(tournament_node)
@@ -2064,7 +2064,7 @@ async def test_generate_msg_bet_game_many_bets_same_match(
         ledger_entry2,
     ]  # No entry because no bet
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
-        user_id, f"User {user_id}", None, None, None, "pst"
+        user_id, f"User {user_id}", None, None, None, "pst", 0
     )
     # Act
     msg = await generate_msg_bet_game(tournament_node)
@@ -2111,7 +2111,7 @@ async def test_generate_msg_bet_game_many_bets_win_loss_match(
         ledger_entry2,
     ]
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
-        user_id, f"User {user_id}", None, None, None, "pst"
+        user_id, f"User {user_id}", None, None, None, "pst", 0
     )
     # Act
     msg = await generate_msg_bet_game(tournament_node)
@@ -2156,7 +2156,7 @@ async def test_generate_msg_bet_game_many_bets_win_loss_match_not_distributed(
         ledger_entry2,
     ]
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
-        user_id, f"User {user_id}", None, None, None, "pst"
+        user_id, f"User {user_id}", None, None, None, "pst", 0
     )
     # Act
     msg = await generate_msg_bet_game(tournament_node)
@@ -2220,7 +2220,7 @@ async def test_generate_msg_bet_game_many_bets_inn_other_matches(
         ledger_entry4,
     ]
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
-        user_id, f"User {user_id}", None, None, None, "pst"
+        user_id, f"User {user_id}", None, None, None, "pst", 0
     )
     # Act
     msg = await generate_msg_bet_game(tournament_node)
@@ -2280,7 +2280,7 @@ async def test_generate_msg_bet_game_many_bets_in_mismatch_ledget_user_bet(
         ledger_entry2,
     ]
     mock_fetch_user_info_by_user_id.side_effect = lambda user_id: UserInfo(
-        user_id, f"User {user_id}", None, None, None, "pst"
+        user_id, f"User {user_id}", None, None, None, "pst", 0
     )
     # Act
     await generate_msg_bet_game(tournament_node)

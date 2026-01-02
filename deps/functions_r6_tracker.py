@@ -155,9 +155,10 @@ def get_user_gaming_session_stats(
     )
 
 
-def parse_json_max_rank(data_dict: dict) -> str:
+def parse_json_max_rank(data_dict: dict) -> tuple[str, int]:
     """
     Parse the JSON data to extract the max rank.
+    Returns a tuple of (max rank_name, max rank_points)
     """
     try:
         # Extract the rank from the JSON data
@@ -177,16 +178,16 @@ def parse_json_max_rank(data_dict: dict) -> str:
         # Find the highest rank
         for value, rank in sorted(match_infos, key=lambda x: x[0], reverse=True):
             if isinstance(rank, str):
-                return rank.split(" ")[0].lower().capitalize()
+                return (rank.split(" ")[0].lower().capitalize(), value)
 
         print_error_log("parse_json_max_rank: Rank not found")
-        return "Copper"
+        return ("Copper", 0)
     except KeyError as e:
         print_error_log(f"parse_json_max_rank: KeyError: {e} not found in the JSON data.")
-        return "Copper"
+        return ("Copper", 0)
     except TypeError as e:
         print_error_log(f"parse_json_max_rank: TypeError: Unexpected data format - {e}")
-        return "Copper"
+        return ("Copper", 0)
 
 
 def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]]) -> UserInformation:

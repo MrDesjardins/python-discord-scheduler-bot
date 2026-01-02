@@ -36,7 +36,8 @@ USER_INFO_SELECT_FIELD = """
     user_info.ubisoft_username_max, 
     user_info.ubisoft_username_active, 
     user_info.r6_tracker_active_id, 
-    user_info.time_zone
+    user_info.time_zone,
+    user_info.max_mmr
     """
 
 SELECT_USER_FULL_MATCH_INFO = """
@@ -493,6 +494,20 @@ def data_access_set_r6_tracker_id(user_id: int, r6_tracker_active_id: str) -> No
     )
     database_manager.get_conn().commit()
 
+def data_access_set_max_mmr(user_id: int, max_mmr:int) -> None:
+    """
+    Set the max mmr
+    """
+    database_manager.get_cursor().execute(
+        """
+    UPDATE user_info
+      SET max_mmr = :max_mmr
+      WHERE id = :user_id
+    """,
+        {"user_id": user_id, "max_mmr": max_mmr},
+    )
+    database_manager.get_conn().commit()
+
 
 def upsert_user_info(
     user_id: int,
@@ -501,20 +516,22 @@ def upsert_user_info(
     user_active_account: str,
     r6_tracker_active_id: Union[str, None],
     user_timezone: str,
+    max_mmr: int,
 ) -> None:
     """
     Insert or Update the user info
     """
     database_manager.get_cursor().execute(
         """
-    INSERT INTO user_info(id, display_name, ubisoft_username_max, ubisoft_username_active, r6_tracker_active_id, time_zone)
-      VALUES(:user_id, :user_display_name, :user_max_account_name, :user_active_account, :r6_tracker_active_id, :user_timezone)
+    INSERT INTO user_info(id, display_name, ubisoft_username_max, ubisoft_username_active, r6_tracker_active_id, time_zone, max_mmr)
+      VALUES(:user_id, :user_display_name, :user_max_account_name, :user_active_account, :r6_tracker_active_id, :user_timezone, :max_mmr)
       ON CONFLICT(id) DO UPDATE SET
         display_name = :user_display_name,
         ubisoft_username_max = :user_max_account_name,
         ubisoft_username_active = :user_active_account,
         r6_tracker_active_id = :r6_tracker_active_id,
-        time_zone = :user_timezone
+        time_zone = :user_timezone,
+        max_mmr = :max_mmr
       WHERE id = :user_id;
     """,
         {
@@ -524,6 +541,7 @@ def upsert_user_info(
             "user_active_account": user_active_account,
             "r6_tracker_active_id": r6_tracker_active_id,
             "user_timezone": user_timezone,
+            "max_mmr": max_mmr,
         },
     )
 
@@ -2666,11 +2684,11 @@ def data_access_fetch_user_max_mmr(user_id: int) -> int | None:
     """
     query = """
     SELECT
-        MAX(rank_points) AS max_mmr
+        max_mmr
     FROM
-        user_full_match_info
+        user_info
     WHERE
-        user_id = :user_id;
+        id = :user_id;
     """
     result = (
         database_manager.get_cursor().execute(
