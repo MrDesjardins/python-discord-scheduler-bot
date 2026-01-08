@@ -301,9 +301,9 @@ class MyEventsCog(commands.Cog):
         await self.send_automatic_lfg_message_debounced(guild_id, after.voice.channel.id)
         
         # Check that the detail variables exist BEFORE checking their contents
-        if before_details and after_details and after.voice and after.voice.channel:
-            if "CUSTOM GAME match" in before_details and "MENU" in after_details:
-                await self.auto_move_custom_game_debounced(guild_id, after.voice.channel.id)
+        # if before_details and after_details and after.voice and after.voice.channel:
+        #     if "CUSTOM GAME match" in before_details and "MENU" in after_details:
+        #         await self.auto_move_custom_game_debounced(guild_id, after.voice.channel.id)
 
     async def send_automatic_lfg_message_debounced(self, guild_id: int, channel_id: int) -> None:
         """
