@@ -478,6 +478,20 @@ def data_access_set_ubisoft_username_active(user_id: int, username: str) -> None
         {"user_id": user_id, "name": username},
     )
     database_manager.get_conn().commit()
+    
+def data_access_set_max_mmr(user_id: int, max_mmr: int) -> None:
+    """
+    Set the max mmr for a user
+    """
+    database_manager.get_cursor().execute(
+        """
+    UPDATE user_info
+      SET max_mmr = :max_mm
+      WHERE id = :user_id
+    """,
+        {"user_id": user_id, "max_mmr": max_mmr},
+    )
+    database_manager.get_conn().commit()
 
 
 def data_access_set_r6_tracker_id(user_id: int, r6_tracker_active_id: str) -> None:

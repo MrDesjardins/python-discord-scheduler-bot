@@ -19,11 +19,13 @@ from deps.data_access import (
     data_access_set_reaction_message,
 )
 from deps.analytic_data_access import (
+    data_access_set_max_mmr,
     data_access_set_ubisoft_username_active,
     data_access_set_ubisoft_username_max,
 )
 from deps.values import (
     COMMAND_SCHEDULE_ADD_USER,
+    COMMAND_SET_MAX_MMR,
     COMMAND_SET_USER_TIME_ZONE_OTHER_USER,
     COMMAND_SET_USER_MAX_RANK_ACCOUNT_OTHER_USER,
     COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER,
@@ -185,6 +187,22 @@ class ModeratorOnUserBehalf(commands.Cog):
         await persist_user_full_information_cross_guilds(begin_time, end_time)
         await interaction.followup.send("Done", ephemeral=True)
 
+    @commands.has_permissions(administrator=True)
+    @app_commands.command(name=COMMAND_SET_MAX_MMR)
+    async def set_max_mmr(
+        self,
+        interaction: discord.Interaction,
+        member: discord.Member,
+        max_mmr: int,
+    ):
+        """Command to set the user Ubisoft username"""
+        await interaction.response.defer(ephemeral=True)
+
+        data_access_set_max_mmr(member.id, max_mmr)
+        await interaction.followup.send(
+            f"Max MMR for {member.mention} -> `{max_mmr}`",
+            ephemeral=True,
+        )
 
 async def setup(bot):
     """Setup function to add this cog to the bot"""

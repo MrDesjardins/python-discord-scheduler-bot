@@ -104,6 +104,9 @@ COMMAND_SET_USER_TIME_ZONE_OTHER_USER = "modsetusertimezone"
 COMMAND_SET_USER_MAX_RANK_ACCOUNT_OTHER_USER = "modsetusermaxrankaccount"
 COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER = "modsetuseractiveaccount"
 
+## User account
+COMMAND_SET_MAX_MMR = "modsetmaxmmr"
+
 ## Channels
 COMMAND_SCHEDULE_CHANNEL_SET_SCHEDULE_CHANNEL = "modtextschedulechannel"
 COMMAND_SCHEDULE_CHANNEL_GET_SCHEDULE_CHANNEL = "modseeschedulechannel"
@@ -124,6 +127,8 @@ COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS = "modseesvoicecustomgamechannels"
 
 ## Analytics
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"
+
+
 
 # -----------------------
 # Basic commands
