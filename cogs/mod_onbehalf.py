@@ -204,6 +204,7 @@ class ModeratorOnUserBehalf(commands.Cog):
             ephemeral=True,
         )
 
+
 async def setup(bot):
     """Setup function to add this cog to the bot"""
     await bot.add_cog(ModeratorOnUserBehalf(bot))

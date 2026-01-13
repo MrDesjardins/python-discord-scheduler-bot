@@ -88,7 +88,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
         max_rank, max_mmr = await adjust_role_from_ubisoft_max_account(
             self.view.guild, self.view.member, self.view.max_rank_account, self.view.active_account
         )
-        
+
         # Perform the profile save actions
         try:
             upsert_user_info(
@@ -96,9 +96,9 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
                 self.view.member.display_name,
                 self.view.max_rank_account,
                 self.view.active_account,
-                None, #Todo R6Tracker ID is part of the payload when fetching the rank. Add it here?
+                None,  # Todo R6Tracker ID is part of the payload when fetching the rank. Add it here?
                 self.view.user_timezone,
-                max_mmr
+                max_mmr,
             )
         except Exception as e:
             print_error_log(f"Failed to save user profile for {self.view.member.id}: {str(e)}")
@@ -109,7 +109,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
             return
         # Get stats channel
         channel_id = await data_access_get_gaming_session_text_channel_id(self.view.guild.id)
-        
+
         # Send the follow-up message
         await interaction.followup.send(
             f"✅ Profile saved, role adjusted to {get_guild_rank_emoji(self.view.bot.guild_emoji.get(self.view.guild.id, {}), max_rank)} {max_rank} and after completing a voice session you will get your stats for `{self.view.active_account}` in <#{channel_id}>.",

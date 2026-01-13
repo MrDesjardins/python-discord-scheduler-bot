@@ -1,5 +1,6 @@
 """Browser Context Manager to handle the browser and download the matches from the Ubisoft API"""
-import signal 
+
+import signal
 import subprocess
 from filelock import FileLock
 import subprocess
@@ -23,6 +24,7 @@ from deps.functions import (
 from deps.siege import siege_ranks
 
 CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
+
 
 class BrowserContextManager:
     """
@@ -51,7 +53,6 @@ class BrowserContextManager:
         self._profile_dir: Optional[str] = None
         self._lock_acquired = False
 
-
     def __enter__(self):
         retries = 2
         for i in range(retries):
@@ -62,17 +63,17 @@ class BrowserContextManager:
                 return self
             except Exception as e:
                 print_error_log(f"Startup attempt {i+1} failed: {e}")
-                self._cleanup() # Full wipe before retry
+                self._cleanup()  # Full wipe before retry
                 if i == retries - 1:
                     raise
-                time.sleep(2) # Breath before retry
+                time.sleep(2)  # Breath before retry
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._cleanup()
 
     def _cleanup(self) -> None:
         print_log("Cleaning up browser and Xvfb...")
-        
+
         # 1. Try to quit the driver gracefully
         if self.driver:
             try:
@@ -97,7 +98,7 @@ class BrowserContextManager:
         # 3. Final Wipe of the specific profile directory
         if self._profile_dir and os.path.exists(self._profile_dir):
             shutil.rmtree(self._profile_dir, ignore_errors=True)
-            
+
         if self._lock_acquired:
             try:
                 self._lock.release()
@@ -105,21 +106,18 @@ class BrowserContextManager:
                 pass
             self._lock_acquired = False
 
-
     def _config_browser(self):
         options = uc.ChromeOptions()
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--disable-setuid-sandbox")
-        
+
         if self.environment == "prod":
             print_log("Launching Chrome in System-Level Xvfb environment...")
             try:
                 self.driver = uc.Chrome(
-                    options=options,
-                    browser_executable_path="/usr/bin/google-chrome",
-                    headless=False
+                    options=options, browser_executable_path="/usr/bin/google-chrome", headless=False
                 )
                 print_log("Driver attached successfully!")
             except Exception as e:
@@ -128,23 +126,18 @@ class BrowserContextManager:
         else:
             # --- WSL (DEV) ---
             self.driver = uc.Chrome(
-                options=options,
-                headless=False,
-                use_subprocess=True,
-                port=45455 # Fixed the 454a55 typo here
+                options=options, headless=False, use_subprocess=True, port=45455  # Fixed the 454a55 typo here
             )
-        
+
         self.driver.set_page_load_timeout(60)
         # Load initial page
         self.driver.get(get_url_user_ranked_matches(self.default_profile))
-        
+
         # Only wait for app-container if you are sure it's on the landing page
-        # If the landing page is just JSON, this will fail. 
+        # If the landing page is just JSON, this will fail.
         # Consider wrapping this in a try/except if it causes crashes.
         try:
-            WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.TAG_NAME, "body"))
-            )
+            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         except:
             print_log("Initial page load wait timed out, proceeding anyway...")
 

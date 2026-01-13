@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
+from deps.functions_date import convert_to_eastern_date_time
 from ui.confirmation_rank_view import ConfirmCancelView
 from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
 from deps.data_access import (
@@ -14,11 +15,17 @@ from deps.data_access import (
 )
 from deps.follow_data_access import fetch_all_followed_users_by_user_id, remove_following_user, save_following_user
 from deps.analytic_data_access import (
+    data_access_fetch_first_activity,
+    data_access_fetch_last_activity,
+    data_access_fetch_top_game_played_for_user,
+    data_access_fetch_top_winning_partners_for_user,
+    data_access_fetch_user_full_user_info,
     data_access_set_max_mmr,
     data_access_set_ubisoft_username_active,
     data_access_set_ubisoft_username_max,
     fetch_user_info_by_user_id,
     fetch_user_info_by_user_id_list,
+    data_access_fetch_total_hours,
 )
 from deps.values import (
     COMMAND_ACTIVE_RANK_USER_ACCOUNT,
@@ -31,8 +38,9 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
-from deps.siege import get_list_users_with_rank, get_user_rank_emoji
+from deps.siege import get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions import (
+    get_url_user_profile_main,
     most_common,
 )
 
@@ -42,6 +50,22 @@ class UserFeatures(commands.Cog):
 
     def __init__(self, bot: MyBot):
         self.bot = bot
+        self.user_info_menu = app_commands.ContextMenu(
+            name="User Info",
+            callback=self.get_user_info,
+        )
+        self.user_follow = app_commands.ContextMenu(
+            name="Follow User",
+            callback=self.set_user_follow,
+        )
+        self.user_unfollow = app_commands.ContextMenu(
+            name="Unfollow User",
+            callback=self.set_user_unfollow,
+        )
+        # Add the command to the bot's command tree
+        self.bot.tree.add_command(self.user_info_menu)
+        self.bot.tree.add_command(self.user_follow)
+        self.bot.tree.add_command(self.user_unfollow)
 
     @app_commands.command(name=COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL)
     async def get_users_time_zone_from_voice_channel(
@@ -155,7 +179,9 @@ class UserFeatures(commands.Cog):
                 return
             data_access_set_ubisoft_username_max(interaction.user.id, ubisoft_connect_name)
 
-            max_rank, max_mmr = await adjust_role_from_ubisoft_max_account(interaction.guild, member, ubisoft_connect_name)
+            max_rank, max_mmr = await adjust_role_from_ubisoft_max_account(
+                interaction.guild, member, ubisoft_connect_name
+            )
             if max_rank is None:
                 await interaction.followup.send(
                     """Sorry, we cannot change your role for the moment. Please contact a moderator to manually change it.""",
@@ -327,6 +353,143 @@ class UserFeatures(commands.Cog):
                 "Something went wrong, please contact the moderator to check the issue.",
                 ephemeral=True,
             )
+
+    async def get_user_info(self, interaction: discord.Interaction, user: discord.User) -> None:
+        """Callback for the 'User Info' context menu."""
+        print_log(
+            f"get_user_info: Fetching user info for user {user.display_name}({user.id}) by {interaction.user.display_name}({interaction.user.id})."
+        )
+        user_info = await fetch_user_info_by_user_id(user.id)
+
+        if user_info is None:
+            print_error_log(f"get_user_info: Cannot find user info for user id {user.id}.")
+            await interaction.response.send_message(
+                "The user has not set up their profile yet.",
+                ephemeral=True,
+            )
+            return
+        first_activity = data_access_fetch_first_activity(user.id)
+        last_activity = data_access_fetch_last_activity(user.id)
+        display_name = user_info.ubisoft_username_max if user_info.ubisoft_username_max is not None else "Not set"
+        embed = discord.Embed(
+            title=f"{user.display_name} Info",
+            description=f"""Top User Information""",
+            color=get_color_for_rank(user),
+            timestamp=datetime.now(),
+            url=get_url_user_profile_main(user_info.ubisoft_username_active),
+        )
+        if user.avatar is not None:
+            embed.set_thumbnail(url=user.avatar.url)
+        embed.add_field(name="User display name", value=f"{user_info.display_name}", inline=True)
+        embed.add_field(
+            name="Ubisoft Connect Max Account",
+            value=f"{user_info.ubisoft_username_max if user_info.ubisoft_username_max is not None else 'Not set'}",
+            inline=True,
+        )
+        embed.add_field(
+            name="Ubisoft Connect Active Account",
+            value=f"{user_info.ubisoft_username_active if user_info.ubisoft_username_active is not None else display_name}",
+            inline=True,
+        )
+        embed.add_field(name="Max MMR Recorded", value=f"{user_info.max_mmr}", inline=True)
+        embed.add_field(
+            name="Time Zone",
+            value=f"{user_info.time_zone if user_info.time_zone is not None else 'Not set'}",
+            inline=True,
+        )
+        embed.add_field(
+            name="Joined the server on",
+            value=f"{convert_to_eastern_date_time(user.joined_at) if user.joined_at is not None else 'Unknown'}",
+            inline=True,
+        )
+        embed.add_field(
+            name="First Activity Recorded",
+            value=f"{convert_to_eastern_date_time(first_activity) if first_activity is not None else 'No activity recorded'}",
+            inline=True,
+        )
+        embed.add_field(
+            name="Last Activity Recorded",
+            value=f"{convert_to_eastern_date_time(last_activity) if last_activity is not None else 'No activity recorded'}",
+            inline=True,
+        )
+
+        user_full_info = data_access_fetch_user_full_user_info(user.id)
+        if user_full_info is not None:
+            embed.add_field(
+                name="Total Ranked Matches Played",
+                value=f"{user_full_info.rank_match_played if user_full_info.rank_match_played is not None else 0}",
+                inline=True,
+            )
+            embed.add_field(
+                name="Rank K/D",
+                value=f"{user_full_info.rank_kd_ratio if user_full_info.rank_kd_ratio is not None else 0:.2f}",
+                inline=True,
+            )
+            embed.add_field(
+                name="Win Rate",
+                value=f"{user_full_info.rank_win_percentage if user_full_info.rank_win_percentage is not None else 0:.2f}%",
+                inline=True,
+            )
+
+        hours = data_access_fetch_total_hours(user.id)
+        if hours is not None:
+            embed.add_field(name="Hours played on this server", value=f"{hours} hours", inline=True)
+
+        top_game_partners = data_access_fetch_top_game_played_for_user(user.id)
+        if top_game_partners is not None and len(top_game_partners) > 0:
+            partners_str = "\n".join(
+                [f"{idx + 1}. {partner[0]} - {partner[1]} matches" for idx, partner in enumerate(top_game_partners)]
+            )
+            embed.add_field(name="Top Rank Partners", value=partners_str, inline=False)
+        top_winning_partners = data_access_fetch_top_winning_partners_for_user(user.id)
+        if top_winning_partners is not None and len(top_winning_partners) > 0:
+            winning_partners_str = "\n".join(
+                [
+                    f"{idx + 1}. {partner[0]} - {partner[1]} match with {partner[2]*100:.1f}% win"
+                    for idx, partner in enumerate(top_winning_partners)
+                ]
+            )
+            embed.add_field(name="Top Winning Partners", value=winning_partners_str, inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    async def set_user_follow(self, interaction: discord.Interaction, user_to_follow: discord.User) -> None:
+        """Callback for the 'Follow User' context menu."""
+        user = interaction.user
+        now_utc = datetime.now(timezone.utc)
+        try:
+            save_following_user(user.id, user_to_follow.id, now_utc)
+            await interaction.response.send_message(
+                f"You are now following {user_to_follow.mention}. You will be notified when they join a voice channel.",
+                ephemeral=True,
+            )
+        except Exception as e:
+            print_error_log(f"follow_user: Exception occurred while saving following user: {e}.")
+
+            await interaction.response.send_message(
+                "Something went wrong, please contact the moderator to check the issue.",
+                ephemeral=True,
+            )
+
+    async def set_user_unfollow(self, interaction: discord.Interaction, user_to_unfollow: discord.User) -> None:
+        """Callback for the 'Unfollow User' context menu."""
+        user = interaction.user
+        try:
+            remove_following_user(user.id, user_to_unfollow.id)
+            await interaction.response.send_message(
+                f"You have unfollowed {user_to_unfollow.mention}. You will no longer receive notifications when they join a voice channel.",
+                ephemeral=True,
+            )
+        except Exception as e:
+            print_error_log(f"unfollow_user: Exception occurred while removing following user: {e}.")
+            await interaction.response.send_message(
+                "Something went wrong, please contact the moderator to check the issue.",
+                ephemeral=True,
+            )
+
+    async def cog_unload(self) -> None:
+        self.bot.tree.remove_command(self.user_info_menu.name, type=self.user_info_menu.type)
+        self.bot.tree.remove_command(self.user_follow.name, type=self.user_follow.type)
+        self.bot.tree.remove_command(self.user_unfollow.name, type=self.user_unfollow.type)
 
 
 async def setup(bot):

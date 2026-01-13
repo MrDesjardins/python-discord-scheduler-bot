@@ -19,7 +19,8 @@ from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_man
 from tests.mock_model import mock_user1, mock_user2
 
 lock = asyncio.Lock()
-DELAY_SECOND = 5 # Delay to avoid rate limiting
+DELAY_SECOND = 5  # Delay to avoid rate limiting
+
 
 @pytest.fixture(autouse=True)
 def setup_and_teardown():

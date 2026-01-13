@@ -83,3 +83,10 @@ def iso_to_gregorian(year: int, week: int) -> datetime:
     """Convert ISO year and week to the starting date of that ISO week (Monday) in UTC."""
     dt = datetime.strptime(f"{year}-W{week}-1", "%G-W%V-%u")
     return dt.replace(tzinfo=timezone.utc)
+
+
+def convert_to_eastern_date_time(dt: datetime) -> str:
+    """Convert a UTC datetime to Eastern Time."""
+    eastern_tz = pytz.timezone("US/Eastern")
+    eastern = dt.astimezone(eastern_tz)
+    return eastern.strftime("%Y-%m-%d %H:%M %Z")

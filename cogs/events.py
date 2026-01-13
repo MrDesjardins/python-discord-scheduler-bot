@@ -299,7 +299,7 @@ class MyEventsCog(commands.Cog):
 
         # Automatic send in the Siege text message a "looking for game" message
         await self.send_automatic_lfg_message_debounced(guild_id, after.voice.channel.id)
-        
+
         # Check that the detail variables exist BEFORE checking their contents
         # if before_details and after_details and after.voice and after.voice.channel:
         #     if "CUSTOM GAME match" in before_details and "MENU" in after_details:
@@ -364,13 +364,17 @@ class MyEventsCog(commands.Cog):
                     f"auto_move_custom_game_debounced_cancellable_task: Channel {channel_id} is not a custom game team channel for guild {guild_id}. Skipping."
                 )
                 return
-            await asyncio.sleep(2)  # Wait since many people might have the same update (10 people playing the custom game)
+            await asyncio.sleep(
+                2
+            )  # Wait since many people might have the same update (10 people playing the custom game)
             await move_members_between_voice_channel(team1_channel, lobby_channel)
             await move_members_between_voice_channel(team2_channel, lobby_channel)
         except Exception as e:
             print_error_log(f"auto_move_custom_game_debounced_cancellable_task: Error moving custom game users: {e}")
         finally:
-            self.last_task.pop(f"customgame-{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
+            self.last_task.pop(
+                f"customgame-{guild_id}-{channel_id}", None
+            )  # Remove the last task for the guild/channel
 
     @commands.Cog.listener()
     async def on_message(self, message) -> None:

@@ -248,7 +248,7 @@ class UserCustomGameFeatures(commands.Cog):
                         print_error_log(
                             f"custom_game_make_team: Failed to move member {member.display_name} to Team Beta channel: {e}"
                         )
-                        
+
             async def on_move_back_lobby() -> None:
                 # Move all users back to the lobby channel
                 lobby_channel = await data_access_get_channel(lobby_channel_id)
@@ -281,8 +281,12 @@ class UserCustomGameFeatures(commands.Cog):
                         print_error_log(
                             f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
                         )
-                
-            view = CompleteCommandView(author_id=interaction.user.id, on_move_into_team_channels=on_move_into_team_channels, on_move_back_lobby=on_move_back_lobby)
+
+            view = CompleteCommandView(
+                author_id=interaction.user.id,
+                on_move_into_team_channels=on_move_into_team_channels,
+                on_move_back_lobby=on_move_back_lobby,
+            )
 
             await interaction.followup.send(
                 content="Click the button below to auto-assign people their teams voice channels.", view=view

@@ -209,3 +209,81 @@ HAVING
   games_played >= 10
 ORDER BY
   win_rate_percentage DESC;
+
+-- Stats for a specific user to find best partner
+
+WITH
+  MatchPairs AS (
+    SELECT
+      m1.match_uuid,
+      m2.match_uuid,
+      m1.user_id AS user1,
+      m2.user_id AS user2,
+      m1.has_win AS has_win
+    FROM
+      user_full_match_info m1
+      JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
+      AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
+    WHERE
+      m1.match_timestamp >= '2025-01-15'
+  )
+SELECT
+  UI_1.display_name AS user1_name,
+  UI_2.display_name AS user2_name,
+  COUNT(*) AS games_played,
+  SUM(has_win) AS has_win_sum,
+  SUM(has_win) * 1.0 / COUNT(*) AS win_rate_percentage
+FROM
+  MatchPairs
+  LEFT JOIN user_info AS UI_1 ON UI_1.id = user1
+  LEFT JOIN user_info AS UI_2 ON UI_2.id = user2
+WHERE
+  user1 IS NOT NULL
+  AND user2 IS NOT NULL
+  AND (user1 = 318126349648920577 OR user2 = 318126349648920577)
+GROUP BY
+  user1,
+  user2
+HAVING
+  games_played >= 10
+ORDER BY
+  win_rate_percentage DESC
+LIMIT 5;
+
+
+-- Stats most played for specific user
+
+WITH
+  MatchPairs AS (
+    SELECT
+      m1.match_uuid,
+      m2.match_uuid,
+      m1.user_id AS user1,
+      m2.user_id AS user2
+    FROM
+      user_full_match_info m1
+      JOIN user_full_match_info m2 ON m1.match_uuid = m2.match_uuid
+      AND m1.user_id < m2.user_id -- Avoid duplicate pairs and self-joins
+    WHERE
+      m1.match_timestamp >= '2025-01-15'
+  )
+SELECT
+  UI_1.display_name AS user1_name,
+  UI_2.display_name AS user2_name,
+  COUNT(*) AS games_played
+FROM
+  MatchPairs
+  LEFT JOIN user_info AS UI_1 ON UI_1.id = user1
+  LEFT JOIN user_info AS UI_2 ON UI_2.id = user2
+WHERE
+  user1 IS NOT NULL
+  AND user2 IS NOT NULL
+  AND (user1 = 318126349648920577 OR user2 = 318126349648920577)
+GROUP BY
+  user1,
+  user2
+HAVING
+  games_played >= 10
+ORDER BY
+  games_played DESC
+LIMIT 5;

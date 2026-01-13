@@ -12,7 +12,9 @@ from deps.data_access_data_class import UserInfo
 from deps.browser_context_manager import BrowserContextManager
 from deps.models import UserQueueForStats
 import deps.log
-DELAY_SECOND = 5 # Delay to avoid rate limiting
+
+DELAY_SECOND = 5  # Delay to avoid rate limiting
+
 
 @patch.object(deps.log, deps.log.print_error_log.__name__)
 async def test_matches(mock_error_log):

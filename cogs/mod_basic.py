@@ -219,7 +219,7 @@ class ModBasic(commands.Cog):
         for chunk in chunks:
             await channel.send(content=chunk)
         await interaction.followup.send("Done", ephemeral=True)
-        
+
     @app_commands.command(name=COMMAND_MOD_BOT_PERMISSION)
     @commands.has_permissions(administrator=True)
     async def mod_bot_permission(self, interaction: discord.Interaction):
@@ -264,8 +264,9 @@ class ModBasic(commands.Cog):
             f"Lobby: {key in perm_list_lobby}\n"
             f"Team 1: {key in perm_list_team1}\n"
             f"Team 2: {key in perm_list_team2}",
-            ephemeral=True
+            ephemeral=True,
         )
+
 
 async def setup(bot):
     """Setup function to add this cog to the bot"""

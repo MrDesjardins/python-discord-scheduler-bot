@@ -129,7 +129,6 @@ COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS = "modseesvoicecustomgamechannels"
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"
 
 
-
 # -----------------------
 # Basic commands
 COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"  # Acts like a feature flag
@@ -172,4 +171,4 @@ COMMAND_CUSTOM_GAME_UNSUBSCRIBE = "unsubscribecustomgame"
 COMMAND_CUSTOM_GAME_SEE_SUBSCRIPTIONS = "seecustomgamesubscriptions"
 COMMAND_CUSTOM_GAME_LFG = "customgamelfg"
 COMMAND_CUSTOM_GAME_MAKE_TEAM = "customgamemaketeam"
-COMMAND_MOD_BOT_PERMISSION="modbotpermission"
+COMMAND_MOD_BOT_PERMISSION = "modbotpermission"

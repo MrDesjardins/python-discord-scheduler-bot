@@ -674,6 +674,7 @@ async def persist_user_full_information_cross_guilds(from_time: datetime, to_tim
             print_error_log(f"persist_user_full_information_cross_guilds: Error saving the user full stats info: {e}")
             continue
 
+
 async def move_members_between_voice_channel(
     source_voice_channel: Union[discord.VoiceChannel, discord.StageChannel],
     target_voice_channel: Union[discord.VoiceChannel, discord.StageChannel],
@@ -684,7 +685,9 @@ async def move_members_between_voice_channel(
     for member in source_voice_channel.members:
         try:
             await member.move_to(target_voice_channel)
-            print_log(f"Moved member {member.display_name} from {source_voice_channel.name} to channel {target_voice_channel.name}")
+            print_log(
+                f"Moved member {member.display_name} from {source_voice_channel.name} to channel {target_voice_channel.name}"
+            )
             await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
         except Exception as e:
             print_error_log(f"Error moving member {member.display_name}: {e}")
