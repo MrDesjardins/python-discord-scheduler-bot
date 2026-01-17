@@ -1,5 +1,4 @@
 {
-  "python.analysis.extraPaths": ["./deps"],
   "python.testing.unittestArgs": ["-v", "-s", "./tests", "-p", "*test.py"],
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
