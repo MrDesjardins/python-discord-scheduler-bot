@@ -40,6 +40,7 @@ from deps.analytic_data_access import (
     fetch_user_info,
 )
 from deps.data_access import (
+    data_access_get_ai_text_channel_id,
     data_access_get_channel,
     data_access_get_main_text_channel_id,
 )
@@ -57,10 +58,10 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     day_14 = 14
     day_30 = 30
     day_60 = 60
-    channel_id = await data_access_get_main_text_channel_id(guild_id)
+    channel_id = await data_access_get_ai_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
-            f"\t⚠️ send_daily_stats_to_a_guild: Channel id (main text) not found for guild {guild.name}. Skipping."
+            f"\t⚠️ send_daily_stats_to_a_guild: Channel id (AI text) not found for guild {guild.name}. Skipping."
         )
         return
     channel = await data_access_get_channel(channel_id)

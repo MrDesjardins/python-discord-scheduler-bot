@@ -41,6 +41,7 @@ KEY_GAMING_SESSION_LAST_ACTIVITY = "GamingSessionLastActivity"
 KEY_QUEUE_USER_STATS = "QueueUserStats"
 KEY_GUILD_TOURNAMENT_TEXT_CHANNEL = "GuildAdminConfigTournamentTextChannel"
 KEY_GUILD_MAIN_TEXT_CHANNEL = "GuildMainSiegeTextChannel"
+KEY_GUILD_AI_TEXT_CHANNEL = "GuildAITextChannel"
 KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
 KEY_AI_COUNT = "AI_daily_Count"
@@ -343,11 +344,19 @@ async def data_access_get_main_text_channel_id(
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_MAIN_TEXT_CHANNEL}:{guild_id}")
 
-
 def data_access_set_main_text_channel_id(guild_id: int, channel_id: int) -> None:
     """Set the channel that the bot will send text related to Siege"""
     set_cache(False, f"{KEY_GUILD_MAIN_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
 
+async def data_access_get_ai_text_channel_id(
+    guild_id: int,
+) -> Union[int, None]:
+    """Get the channel by the given channel id"""
+    return await get_cache(False, f"{KEY_GUILD_AI_TEXT_CHANNEL}:{guild_id}")
+
+def data_access_set_ai_text_channel_id(guild_id: int, channel_id: int) -> None:
+    """Set the channel that the bot will send text related to AI"""
+    set_cache(False, f"{KEY_GUILD_AI_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
 
 def data_access_set_voice_user_list(guild_id: int, channel_id: int, user_map: dict[int, ActivityTransition]) -> None:
     """Set the list of user for a voice channel and their activity"""

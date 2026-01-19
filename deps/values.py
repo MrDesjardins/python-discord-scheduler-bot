@@ -124,6 +124,8 @@ COMMAND_CHANNEL_GET_MAIN_CHANNEL = "modseemainchannel"
 COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY = "modvoicecurrentactivity"
 COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS = "modvoicecustomgamechannels"
 COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS = "modseesvoicecustomgamechannels"
+COMMAND_CHANNEL_SET_AI_CHANNEL = "modtextaichannel"
+COMMAND_CHANNEL_GET_AI_CHANNEL = "modseeaichannel"
 
 ## Analytics
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"

@@ -5,7 +5,7 @@ Function to interact with the AI bot and Discord bot
 import discord
 
 from deps.ai.ai_functions import BotAISingleton
-from deps.data_access import data_access_get_channel, data_access_get_main_text_channel_id
+from deps.data_access import data_access_get_ai_text_channel_id, data_access_get_channel, data_access_get_main_text_channel_id
 from deps.log import print_error_log, print_warning_log
 
 
@@ -15,10 +15,10 @@ async def send_daily_ai_summary_guild(guild: discord.Guild):
     """
     guild_id = guild.id
 
-    channel_id = await data_access_get_main_text_channel_id(guild_id)
+    channel_id = await data_access_get_ai_text_channel_id(guild_id)
     if channel_id is None:
         print_error_log(
-            f"\t⚠️ send_daily_ai_summary_guild: Channel id (main text) not found for guild {guild.name}. Skipping."
+            f"\t⚠️ send_daily_ai_summary_guild: Channel id (AI text) not found for guild {guild.name}. Skipping."
         )
         return
     channel = await data_access_get_channel(channel_id)

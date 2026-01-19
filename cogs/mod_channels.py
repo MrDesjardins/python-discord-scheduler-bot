@@ -7,12 +7,14 @@ from discord.ext import commands
 from discord import app_commands
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.data_access import (
+    data_access_get_ai_text_channel_id,
     data_access_get_gaming_session_text_channel_id,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_main_text_channel_id,
     data_access_get_new_user_text_channel_id,
+    data_access_set_ai_text_channel_id,
     data_access_set_custom_game_voice_channels,
     data_access_set_gaming_session_text_channel_id,
     data_access_set_guild_username_text_channel_id,
@@ -37,6 +39,8 @@ from deps.values import (
     COMMAND_SET_GAMING_SESSION_CHANNEL,
     COMMAND_SEE_NEW_USER_CHANNEL,
     COMMAND_SET_NEW_USER_CHANNEL,
+    COMMAND_CHANNEL_SET_AI_CHANNEL,
+    COMMAND_CHANNEL_GET_AI_CHANNEL,
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
@@ -305,6 +309,45 @@ class ModChannels(commands.Cog):
 
         await interaction.followup.send(f"The main text channel is <#{channel_id}>", ephemeral=True)
 
+    @app_commands.command(name=COMMAND_CHANNEL_SET_AI_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def set_ai_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """
+        An administrator can set the channel where the daily schedule message will be sent
+        """
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("set_ai_text_channel: Guild is None.")
+            return
+        guild_id = guild.id
+        data_access_set_ai_text_channel_id(guild_id, channel.id)
+
+        await interaction.followup.send(
+            f"Confirmed to send main interaction message into #{channel.name}.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name=COMMAND_CHANNEL_GET_AI_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def see_ai_text_channel(self, interaction: discord.Interaction):
+        """
+        Display the text channel configured
+        """
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("see_ai_text_channel: Guild is None.")
+            return
+        guild_id = guild.id
+        channel_id = await data_access_get_ai_text_channel_id(guild_id)
+        if channel_id is None:
+            print_warning_log(f"No AI text channel in guild {guild.name}. Skipping.")
+            await interaction.followup.send("AI text channel not set.", ephemeral=True)
+            return
+
+        await interaction.followup.send(f"The AI text channel is <#{channel_id}>", ephemeral=True)
+        
     @app_commands.command(name=COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS)
     @commands.has_permissions(administrator=True)
     async def set_custom_game_voice_channels(
