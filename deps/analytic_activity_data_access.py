@@ -256,17 +256,15 @@ def fetch_user_infos_with_activity(from_utc: datetime, to_utc: datetime) -> list
 
     database_manager.get_cursor().execute(
         f"""
-        SELECT {USER_ACTIVITY_SELECT_FIELD}
+        SELECT user_id
         FROM user_activity
-        WHERE timestamp >= ? AND timestamp <= ?
-        ORDER BY timestamp ASC
+        WHERE timestamp >= ?
+        AND timestamp <= ?
+        GROUP BY user_id
         """,
         (from_utc.isoformat(), to_utc.isoformat()),
     )
-    # Convert the result to a list of UserActivity objects
-    activities = [UserActivity(*row) for row in database_manager.get_cursor().fetchall()]
-    # Extract unique user ids
-    return list(set([activity.user_id for activity in activities]))
+    return [row[0] for row in database_manager.get_cursor().fetchall()]
 
 
 def calculate_time_spent_from_db(from_day: int, to_day: int) -> None:

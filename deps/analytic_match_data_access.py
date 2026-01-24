@@ -13,6 +13,7 @@ Functions:
 """
 
 from dataclasses import asdict
+from datetime import datetime
 import json
 from typing import Union, List
 
@@ -303,6 +304,63 @@ def data_access_fetch_users_full_match_info(
     ).fetchall()
     # Convert the result to a list of Stats
     return [UserFullMatchStats.from_db_row(row) for row in result]
+
+
+def data_access_fetch_user_matches_in_time_range(
+    user_ids: list[int],
+    from_timestamp: Union[datetime, None],
+    to_timestamp: Union[datetime, None] = None
+) -> dict[int, list[UserFullMatchStats]]:
+    """
+    Fetch matches for multiple users within a specific time range.
+
+    Args:
+        user_ids: List of Discord user IDs
+        from_timestamp: Start of time range (inclusive), None for unbounded
+        to_timestamp: End of time range (inclusive), None for unbounded
+
+    Returns:
+        Dictionary mapping user_id to list of matches
+    """
+    if not user_ids:
+        return {}
+
+    # Build query with proper parameter binding
+    placeholders = ','.join(['?'] * len(user_ids))
+
+    # Build WHERE clause components
+    where_clauses = [f"user_id IN ({placeholders})"]
+    params = list(user_ids)
+
+    if from_timestamp is not None:
+        where_clauses.append("match_timestamp >= ?")
+        params.append(from_timestamp)
+
+    if to_timestamp is not None:
+        where_clauses.append("match_timestamp <= ?")
+        params.append(to_timestamp)
+
+    where_clause = " AND ".join(where_clauses)
+
+    query = f"""
+        SELECT {SELECT_USER_FULL_MATCH_INFO}
+        FROM user_full_match_info
+        WHERE {where_clause}
+        ORDER BY match_timestamp DESC
+    """
+
+    # Execute query
+    result = database_manager.get_cursor().execute(query, params).fetchall()
+
+    # Group by user_id
+    matches_by_user = {}
+    for row in result:
+        match = UserFullMatchStats.from_db_row(row)
+        if match.user_id not in matches_by_user:
+            matches_by_user[match.user_id] = []
+        matches_by_user[match.user_id].append(match)
+
+    return matches_by_user
 
 
 def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: UserInformation) -> None:

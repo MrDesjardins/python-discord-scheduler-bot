@@ -5,7 +5,7 @@ Common code for the gatherer and analyse
 import datetime
 import sqlite3
 
-from deps.log import print_error_log
+from deps.log import print_error_log, print_log
 
 EVENT_CONNECT = "connect"
 EVENT_DISCONNECT = "disconnect"
@@ -460,6 +460,19 @@ class DatabaseManager:
             CREATE UNIQUE INDEX IF NOT EXISTS idx_user_full_stats_info_r6_tracker_user_uuid ON user_full_stats_info(r6_tracker_user_uuid);
             """
         )
+
+        # Add composite index for time-based match queries
+        self._migrate_add_match_timestamp_index()
+
+    def _migrate_add_match_timestamp_index(self):
+        """Add composite index for time-based match queries (user_id, match_timestamp)."""
+        print_log("Running migration: Add index on user_full_match_info(user_id, match_timestamp)")
+        self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_user_match_timestamp
+            ON user_full_match_info(user_id, match_timestamp DESC)
+        """)
+        self.conn.commit()
+        print_log("Migration complete: idx_user_match_timestamp created")
 
     def get_conn(self):
         """Access to the database connection"""

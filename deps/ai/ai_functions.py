@@ -35,6 +35,7 @@ from deps.analytic_data_access import (
     USER_ACTIVITY_SELECT_FIELD,
     USER_INFO_SELECT_FIELD,
     data_access_fetch_user_full_match_info,
+    data_access_fetch_user_matches_in_time_range,
     get_active_user_info,
 )
 from deps.data_access_data_class import UserInfo
@@ -157,28 +158,57 @@ class BotAI:
         """
         from_time = datetime.now(timezone.utc) - timedelta(hours=hours)
         to_time = datetime.now(timezone.utc)
-        users: List[UserInfo] = get_active_user_info(from_time, to_time)
 
-        # Only keep noSleep_rb6
-        # users = [u for u in users if u.ubisoft_username_max == "nosleep_rb6"]  # Temporary
-
-        print_log(f"gather_information_for_generating_message_summary: Found {len(users)} users")
-        full_matches_info_by_user_id = []
-        r6_user_dict = {}
-        for user in users:
-            # Keep only the data for matched in the last hours
-            data_from_last_hours = data_access_fetch_user_full_match_info(user.id)
-            for match in data_from_last_hours:
-                if from_time <= match.match_timestamp and match.match_timestamp <= to_time:
-                    r6_user_dict[match.r6_tracker_user_uuid] = match.r6_tracker_user_uuid
-                    full_matches_info_by_user_id.append(match)
         print_log(
-            f"gather_information_for_generating_message_summary: full_matches_info_by_user_id {len(full_matches_info_by_user_id)} matches"
+            f"gather_information_for_generating_message_summary: "
+            f"Gathering information from {from_time} to {to_time} UTC"
         )
-        # Remove users who have not match in the full_matches_info_by_user_id (by looking at the r6_tracker_active_id)
-        users = [user for user in users if r6_user_dict.get(str(user.r6_tracker_active_id)) is not None]
-        print_log(f"gather_information_for_generating_message_summary: Found {len(users)} users with matches")
-        return users, full_matches_info_by_user_id
+
+        # Get users active in voice channels during time period
+        users: List[UserInfo] = get_active_user_info(from_time, to_time)
+        print_log(f"gather_information_for_generating_message_summary: Found {len(users)} active users")
+
+        if not users:
+            return [], []
+
+        # Batch fetch all matches for all users in time range (FIXED: no pagination limit)
+        user_ids = [user.id for user in users]
+        matches_by_user_id = data_access_fetch_user_matches_in_time_range(
+            user_ids=user_ids,
+            from_timestamp=from_time,
+            to_timestamp=to_time
+        )
+
+        # Flatten matches and track which users have matches
+        full_matches_info_by_user_id = []
+        users_with_matches = set()
+
+        for user_id, matches in matches_by_user_id.items():
+            full_matches_info_by_user_id.extend(matches)
+            users_with_matches.add(user_id)
+
+        print_log(
+            f"gather_information_for_generating_message_summary: "
+            f"Found {len(full_matches_info_by_user_id)} matches for {len(users_with_matches)} users"
+        )
+
+        # Filter users to only those with matches (FIXED: use user.id directly)
+        users_filtered = []
+        for user in users:
+            if user.id in users_with_matches:
+                users_filtered.append(user)
+            else:
+                print_log(
+                    f"gather_information_for_generating_message_summary: "
+                    f"User {user.display_name} (ID: {user.id}) has no matches in time range"
+                )
+
+        print_log(
+            f"gather_information_for_generating_message_summary: "
+            f"Returning {len(users_filtered)} users with matches"
+        )
+
+        return users_filtered, full_matches_info_by_user_id
 
     async def generate_message_summary_matches_async(self, hours: int) -> str:
         """

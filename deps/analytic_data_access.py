@@ -65,6 +65,7 @@ from deps.analytic_match_data_access import (
     insert_if_nonexistant_full_match_info,
     data_access_fetch_user_full_match_info,
     data_access_fetch_users_full_match_info,
+    data_access_fetch_user_matches_in_time_range,
     insert_if_nonexistant_full_user_info,
     data_access_fetch_user_full_user_info,
 )
@@ -154,6 +155,7 @@ __all__ = [
     "insert_if_nonexistant_full_match_info",
     "data_access_fetch_user_full_match_info",
     "data_access_fetch_users_full_match_info",
+    "data_access_fetch_user_matches_in_time_range",
     "insert_if_nonexistant_full_user_info",
     "data_access_fetch_user_full_user_info",
     # Leaderboard functions
