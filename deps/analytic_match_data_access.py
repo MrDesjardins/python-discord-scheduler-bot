@@ -307,9 +307,7 @@ def data_access_fetch_users_full_match_info(
 
 
 def data_access_fetch_user_matches_in_time_range(
-    user_ids: list[int],
-    from_timestamp: Union[datetime, None],
-    to_timestamp: Union[datetime, None] = None
+    user_ids: list[int], from_timestamp: Union[datetime, None], to_timestamp: Union[datetime, None] = None
 ) -> dict[int, list[UserFullMatchStats]]:
     """
     Fetch matches for multiple users within a specific time range.
@@ -326,7 +324,7 @@ def data_access_fetch_user_matches_in_time_range(
         return {}
 
     # Build query with proper parameter binding
-    placeholders = ','.join(['?'] * len(user_ids))
+    placeholders = ",".join(["?"] * len(user_ids))
 
     # Build WHERE clause components
     where_clauses = [f"user_id IN ({placeholders})"]

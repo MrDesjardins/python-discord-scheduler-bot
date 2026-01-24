@@ -37,7 +37,7 @@ def create_test_match(
     user_id: int,
     match_timestamp: datetime,
     r6_tracker_user_uuid: str = "test-uuid-123",
-    ubisoft_username: str = "test_user"
+    ubisoft_username: str = "test_user",
 ) -> UserFullMatchStats:
     """Helper function to create a test match"""
     return UserFullMatchStats(
@@ -93,7 +93,7 @@ def create_test_match(
         kills_per_round=1.11,
         deaths_per_round=0.89,
         assists_per_round=0.33,
-        has_win=True
+        has_win=True,
     )
 
 
@@ -112,7 +112,7 @@ def test_fetch_matches_in_time_range_single_user():
         ubisoft_username_active="test_ubi",
         r6_tracker_active_id="test-uuid-123",
         time_zone="US/Eastern",
-        max_mmr=3500
+        max_mmr=3500,
     )
     upsert_user_info(
         user_id,
@@ -121,7 +121,7 @@ def test_fetch_matches_in_time_range_single_user():
         user_info.ubisoft_username_active,
         user_info.r6_tracker_active_id,
         user_info.time_zone,
-        user_info.max_mmr
+        user_info.max_mmr,
     )
 
     # Insert 5 matches: 2 before range, 2 in range, 1 after range
@@ -135,9 +135,7 @@ def test_fetch_matches_in_time_range_single_user():
     insert_if_nonexistant_full_match_info(user_info, matches)
 
     # Fetch matches in time range
-    result = data_access_fetch_user_matches_in_time_range(
-        [user_id], from_date, to_date
-    )
+    result = data_access_fetch_user_matches_in_time_range([user_id], from_date, to_date)
 
     assert user_id in result
     assert len(result[user_id]) == 2  # Only 2 in range
@@ -164,26 +162,45 @@ def test_fetch_matches_multiple_users():
     user3_info = UserInfo(user3_id, "User3", "ubi_333333", "ubi_333333", "uuid-333333", "US/Eastern", 3000)
 
     # User 1: 3 matches in range
-    insert_if_nonexistant_full_match_info(user1_info, [
-        create_test_match("u1m1", user1_id, datetime(2026, 1, 20, 10, 0, tzinfo=timezone.utc), "uuid-111111", "ubi_111111"),
-        create_test_match("u1m2", user1_id, datetime(2026, 1, 21, 11, 0, tzinfo=timezone.utc), "uuid-111111", "ubi_111111"),
-        create_test_match("u1m3", user1_id, datetime(2026, 1, 21, 20, 0, tzinfo=timezone.utc), "uuid-111111", "ubi_111111"),
-    ])
+    insert_if_nonexistant_full_match_info(
+        user1_info,
+        [
+            create_test_match(
+                "u1m1", user1_id, datetime(2026, 1, 20, 10, 0, tzinfo=timezone.utc), "uuid-111111", "ubi_111111"
+            ),
+            create_test_match(
+                "u1m2", user1_id, datetime(2026, 1, 21, 11, 0, tzinfo=timezone.utc), "uuid-111111", "ubi_111111"
+            ),
+            create_test_match(
+                "u1m3", user1_id, datetime(2026, 1, 21, 20, 0, tzinfo=timezone.utc), "uuid-111111", "ubi_111111"
+            ),
+        ],
+    )
 
     # User 2: 1 match in range
-    insert_if_nonexistant_full_match_info(user2_info, [
-        create_test_match("u2m1", user2_id, datetime(2026, 1, 21, 15, 0, tzinfo=timezone.utc), "uuid-222222", "ubi_222222"),
-    ])
+    insert_if_nonexistant_full_match_info(
+        user2_info,
+        [
+            create_test_match(
+                "u2m1", user2_id, datetime(2026, 1, 21, 15, 0, tzinfo=timezone.utc), "uuid-222222", "ubi_222222"
+            ),
+        ],
+    )
 
     # User 3: 0 matches in range (1 before, 1 after)
-    insert_if_nonexistant_full_match_info(user3_info, [
-        create_test_match("u3m1", user3_id, datetime(2026, 1, 19, 10, 0, tzinfo=timezone.utc), "uuid-333333", "ubi_333333"),
-        create_test_match("u3m2", user3_id, datetime(2026, 1, 23, 10, 0, tzinfo=timezone.utc), "uuid-333333", "ubi_333333"),
-    ])
-
-    result = data_access_fetch_user_matches_in_time_range(
-        [user1_id, user2_id, user3_id], from_date, to_date
+    insert_if_nonexistant_full_match_info(
+        user3_info,
+        [
+            create_test_match(
+                "u3m1", user3_id, datetime(2026, 1, 19, 10, 0, tzinfo=timezone.utc), "uuid-333333", "ubi_333333"
+            ),
+            create_test_match(
+                "u3m2", user3_id, datetime(2026, 1, 23, 10, 0, tzinfo=timezone.utc), "uuid-333333", "ubi_333333"
+            ),
+        ],
     )
+
+    result = data_access_fetch_user_matches_in_time_range([user1_id, user2_id, user3_id], from_date, to_date)
 
     assert len(result[user1_id]) == 3
     assert len(result[user2_id]) == 1
@@ -212,9 +229,7 @@ def test_fetch_matches_exceeds_pagination_limit():
 
     insert_if_nonexistant_full_match_info(user_info, matches)
 
-    result = data_access_fetch_user_matches_in_time_range(
-        [user_id], from_date, to_date
-    )
+    result = data_access_fetch_user_matches_in_time_range([user_id], from_date, to_date)
 
     # Verify all matches are returned (not limited to 50)
     assert user_id in result
@@ -225,9 +240,7 @@ def test_fetch_matches_exceeds_pagination_limit():
 def test_fetch_matches_no_results():
     """Test with time range that has no matches"""
     result = data_access_fetch_user_matches_in_time_range(
-        [999999],
-        datetime(2020, 1, 1, tzinfo=timezone.utc),
-        datetime(2020, 1, 2, tzinfo=timezone.utc)
+        [999999], datetime(2020, 1, 1, tzinfo=timezone.utc), datetime(2020, 1, 2, tzinfo=timezone.utc)
     )
     assert result == {}
 
@@ -236,9 +249,7 @@ def test_fetch_matches_no_results():
 def test_fetch_matches_empty_user_list():
     """Test with empty user list"""
     result = data_access_fetch_user_matches_in_time_range(
-        [],
-        datetime(2026, 1, 1, tzinfo=timezone.utc),
-        datetime(2026, 1, 31, tzinfo=timezone.utc)
+        [], datetime(2026, 1, 1, tzinfo=timezone.utc), datetime(2026, 1, 31, tzinfo=timezone.utc)
     )
     assert result == {}
 
@@ -257,9 +268,7 @@ def test_fetch_matches_unbounded_from():
     insert_if_nonexistant_full_match_info(user_info, matches)
 
     result = data_access_fetch_user_matches_in_time_range(
-        [user_id],
-        from_timestamp=None,
-        to_timestamp=datetime(2026, 1, 20, tzinfo=timezone.utc)
+        [user_id], from_timestamp=None, to_timestamp=datetime(2026, 1, 20, tzinfo=timezone.utc)
     )
 
     assert len(result[user_id]) == 2  # Both matches before to_timestamp
@@ -279,9 +288,7 @@ def test_fetch_matches_unbounded_to():
     insert_if_nonexistant_full_match_info(user_info, matches)
 
     result = data_access_fetch_user_matches_in_time_range(
-        [user_id],
-        from_timestamp=datetime(2026, 1, 5, tzinfo=timezone.utc),
-        to_timestamp=None
+        [user_id], from_timestamp=datetime(2026, 1, 5, tzinfo=timezone.utc), to_timestamp=None
     )
 
     assert len(result[user_id]) == 2  # Both matches after from_timestamp

@@ -272,6 +272,7 @@ def data_access_set_new_user_text_channel_id(guild_id: int, channel_id: int) -> 
 
 
 lock_member_stats = asyncio.Lock()
+lock_voice_user_list = asyncio.Lock()
 
 
 async def data_access_get_list_member_stats() -> Optional[List[UserQueueForStats]]:
@@ -344,9 +345,11 @@ async def data_access_get_main_text_channel_id(
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_MAIN_TEXT_CHANNEL}:{guild_id}")
 
+
 def data_access_set_main_text_channel_id(guild_id: int, channel_id: int) -> None:
     """Set the channel that the bot will send text related to Siege"""
     set_cache(False, f"{KEY_GUILD_MAIN_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
 
 async def data_access_get_ai_text_channel_id(
     guild_id: int,
@@ -354,9 +357,11 @@ async def data_access_get_ai_text_channel_id(
     """Get the channel by the given channel id"""
     return await get_cache(False, f"{KEY_GUILD_AI_TEXT_CHANNEL}:{guild_id}")
 
+
 def data_access_set_ai_text_channel_id(guild_id: int, channel_id: int) -> None:
     """Set the channel that the bot will send text related to AI"""
     set_cache(False, f"{KEY_GUILD_AI_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
 
 def data_access_set_voice_user_list(guild_id: int, channel_id: int, user_map: dict[int, ActivityTransition]) -> None:
     """Set the list of user for a voice channel and their activity"""
@@ -373,10 +378,11 @@ async def data_access_get_voice_user_list(guild_id: int, channel_id: int) -> dic
 
 async def data_access_remove_voice_user_list(guild_id: int, channel_id: int, user_id: int) -> None:
     """Remove a user from the voice channel list"""
-    user_map = await data_access_get_voice_user_list(guild_id, channel_id)
-    user_map.pop(user_id, None)
-    print_log(f"data_access_remove_voice_user_list: Remove voice user list: {len(user_map.keys())}")
-    set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
+    async with lock_voice_user_list:  # FIX: Add locking
+        user_map = await data_access_get_voice_user_list(guild_id, channel_id)
+        user_map.pop(user_id, None)
+        print_log(f"data_access_remove_voice_user_list: Remove voice user list: {len(user_map.keys())}")
+        set_cache(True, f"{KEY_GUILD_VOICE_CHANNEL_LIST_USER}:{guild_id}:{channel_id}", user_map, ALWAYS_TTL)
 
 
 async def data_access_update_voice_user_list(
@@ -388,29 +394,30 @@ async def data_access_update_voice_user_list(
         If a string, we need to take the current after, set to before and use the string as the after
         If an activity, we just set the activity
     """
-    user_map = await data_access_get_voice_user_list(guild_id, channel_id)
+    async with lock_voice_user_list:  # FIX: Add locking
+        user_map = await data_access_get_voice_user_list(guild_id, channel_id)
 
-    # The activity_detail exist (could be string or a full activity detail or None if the user does not have the activity feature enabled)
-    if isinstance(activity_detail, str):
-        # If a string is provided, it means we only have a activity detail (without the before)
-        # It happens in the case of changing status (offline to online)
-        current_activity = user_map.get(user_id, None)
-        if current_activity is None:
-            # If the user wasn't there and we have only the after, we set the None the before
-            to_save = ActivityTransition(None, activity_detail)
+        # The activity_detail exist (could be string or a full activity detail or None if the user does not have the activity feature enabled)
+        if isinstance(activity_detail, str):
+            # If a string is provided, it means we only have a activity detail (without the before)
+            # It happens in the case of changing status (offline to online)
+            current_activity = user_map.get(user_id, None)
+            if current_activity is None:
+                # If the user wasn't there and we have only the after, we set the None the before
+                to_save = ActivityTransition(None, activity_detail)
+            else:
+                # If we had the user before and now providing only a current detail, we set the current after as before and then the string as after
+                to_save = ActivityTransition(current_activity.after, activity_detail)
         else:
-            # If we had the user before and now providing only a current detail, we set the current after as before and then the string as after
-            to_save = ActivityTransition(current_activity.after, activity_detail)
-    else:
-        # We have a full activity detail. Might be None, or might have both before and after
-        if activity_detail is None:
-            to_save = ActivityTransition(None, None)
-        else:
-            to_save = activity_detail
+            # We have a full activity detail. Might be None, or might have both before and after
+            if activity_detail is None:
+                to_save = ActivityTransition(None, None)
+            else:
+                to_save = activity_detail
 
-    # Save the user which is None or a full activity detail
-    user_map[user_id] = to_save
-    data_access_set_voice_user_list(guild_id, channel_id, user_map)
+        # Save the user which is None or a full activity detail
+        user_map[user_id] = to_save
+        data_access_set_voice_user_list(guild_id, channel_id, user_map)
 
 
 async def data_access_get_last_bot_message_in_main_text_channel(

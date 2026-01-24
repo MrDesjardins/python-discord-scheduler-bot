@@ -347,7 +347,7 @@ class ModChannels(commands.Cog):
             return
 
         await interaction.followup.send(f"The AI text channel is <#{channel_id}>", ephemeral=True)
-        
+
     @app_commands.command(name=COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS)
     @commands.has_permissions(administrator=True)
     async def set_custom_game_voice_channels(

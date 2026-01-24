@@ -29,11 +29,7 @@ def setup_and_teardown():
 
 
 def create_test_match(
-    match_uuid: str,
-    user_id: int,
-    match_timestamp: datetime,
-    r6_tracker_user_uuid: str,
-    ubisoft_username: str
+    match_uuid: str, user_id: int, match_timestamp: datetime, r6_tracker_user_uuid: str, ubisoft_username: str
 ) -> UserFullMatchStats:
     """Helper function to create a test match"""
     return UserFullMatchStats(
@@ -89,7 +85,7 @@ def create_test_match(
         kills_per_round=1.11,
         deaths_per_round=0.89,
         assists_per_round=0.33,
-        has_win=True
+        has_win=True,
     )
 
 
@@ -122,17 +118,23 @@ def test_gather_information_includes_all_users_with_matches():
     user2_info = UserInfo(user2_id, "Player2", "ubi_100002", "ubi_100002", "uuid-100002", "US/Eastern", 3000)
 
     # User 1: 2 matches
-    insert_if_nonexistant_full_match_info(user1_info, [
-        create_test_match("u1m1", user1_id, time_6_hours_ago + timedelta(hours=1), "uuid-100001", "ubi_100001"),
-        create_test_match("u1m2", user1_id, time_6_hours_ago + timedelta(hours=2), "uuid-100001", "ubi_100001"),
-    ])
+    insert_if_nonexistant_full_match_info(
+        user1_info,
+        [
+            create_test_match("u1m1", user1_id, time_6_hours_ago + timedelta(hours=1), "uuid-100001", "ubi_100001"),
+            create_test_match("u1m2", user1_id, time_6_hours_ago + timedelta(hours=2), "uuid-100001", "ubi_100001"),
+        ],
+    )
 
     # User 2: 3 matches
-    insert_if_nonexistant_full_match_info(user2_info, [
-        create_test_match("u2m1", user2_id, time_6_hours_ago + timedelta(hours=1), "uuid-100002", "ubi_100002"),
-        create_test_match("u2m2", user2_id, time_6_hours_ago + timedelta(hours=2), "uuid-100002", "ubi_100002"),
-        create_test_match("u2m3", user2_id, time_6_hours_ago + timedelta(hours=3), "uuid-100002", "ubi_100002"),
-    ])
+    insert_if_nonexistant_full_match_info(
+        user2_info,
+        [
+            create_test_match("u2m1", user2_id, time_6_hours_ago + timedelta(hours=1), "uuid-100002", "ubi_100002"),
+            create_test_match("u2m2", user2_id, time_6_hours_ago + timedelta(hours=2), "uuid-100002", "ubi_100002"),
+            create_test_match("u2m3", user2_id, time_6_hours_ago + timedelta(hours=3), "uuid-100002", "ubi_100002"),
+        ],
+    )
 
     # User 3: No matches in time range (has activity but no matches)
 
@@ -213,24 +215,24 @@ def test_gather_information_pagination_bug_fixed():
     matches_to_insert = []
     for i in range(60):
         match_time = time_24_hours_ago + timedelta(minutes=i * 20)  # One match every 20 minutes
-        matches_to_insert.append(
-            create_test_match(f"match_{i}", user_id, match_time, "uuid-300001", "ubi_300001")
-        )
+        matches_to_insert.append(create_test_match(f"match_{i}", user_id, match_time, "uuid-300001", "ubi_300001"))
     insert_if_nonexistant_full_match_info(user_info, matches_to_insert)
 
     # Query for the specific time range
     from deps.analytic_data_access import get_active_user_info
+
     users_active = get_active_user_info(time_24_hours_ago, base_time)
 
     # Manually call the data access function to test it directly
     from deps.analytic_match_data_access import data_access_fetch_user_matches_in_time_range
-    matches_by_user = data_access_fetch_user_matches_in_time_range(
-        [user_id], time_24_hours_ago, base_time
-    )
+
+    matches_by_user = data_access_fetch_user_matches_in_time_range([user_id], time_24_hours_ago, base_time)
 
     # Verify all 60 matches are included (not limited to 50)
     assert user_id in matches_by_user
-    assert len(matches_by_user[user_id]) == 60, f"Expected all 60 matches, got {len(matches_by_user[user_id])} (pagination bug if 50)"
+    assert (
+        len(matches_by_user[user_id]) == 60
+    ), f"Expected all 60 matches, got {len(matches_by_user[user_id])} (pagination bug if 50)"
 
 
 @pytest.mark.no_parallel
@@ -254,21 +256,25 @@ def test_gather_information_filters_by_time_correctly():
     user_info = UserInfo(user_id, "TimeTestPlayer", "ubi_400001", "ubi_400001", "uuid-400001", "US/Eastern", 3200)
 
     # Insert matches: 2 within 6 hours, 2 older than 6 hours
-    insert_if_nonexistant_full_match_info(user_info, [
-        # Within range
-        create_test_match("recent1", user_id, time_6_hours_ago + timedelta(hours=1), "uuid-400001", "ubi_400001"),
-        create_test_match("recent2", user_id, time_6_hours_ago + timedelta(hours=3), "uuid-400001", "ubi_400001"),
-        # Outside range (too old)
-        create_test_match("old1", user_id, time_12_hours_ago, "uuid-400001", "ubi_400001"),
-        create_test_match("old2", user_id, time_12_hours_ago + timedelta(hours=1), "uuid-400001", "ubi_400001"),
-    ])
+    insert_if_nonexistant_full_match_info(
+        user_info,
+        [
+            # Within range
+            create_test_match("recent1", user_id, time_6_hours_ago + timedelta(hours=1), "uuid-400001", "ubi_400001"),
+            create_test_match("recent2", user_id, time_6_hours_ago + timedelta(hours=3), "uuid-400001", "ubi_400001"),
+            # Outside range (too old)
+            create_test_match("old1", user_id, time_12_hours_ago, "uuid-400001", "ubi_400001"),
+            create_test_match("old2", user_id, time_12_hours_ago + timedelta(hours=1), "uuid-400001", "ubi_400001"),
+        ],
+    )
 
     # Manually call the data access function to test it directly
     from deps.analytic_match_data_access import data_access_fetch_user_matches_in_time_range
-    matches_by_user = data_access_fetch_user_matches_in_time_range(
-        [user_id], time_6_hours_ago, base_time
-    )
+
+    matches_by_user = data_access_fetch_user_matches_in_time_range([user_id], time_6_hours_ago, base_time)
 
     # Should only include the 2 recent matches
     assert user_id in matches_by_user
-    assert len(matches_by_user[user_id]) == 2, f"Expected 2 matches within 6-hour window, got {len(matches_by_user[user_id])}"
+    assert (
+        len(matches_by_user[user_id]) == 2
+    ), f"Expected 2 matches within 6-hour window, got {len(matches_by_user[user_id])}"

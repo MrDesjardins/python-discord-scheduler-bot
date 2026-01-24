@@ -464,15 +464,32 @@ class DatabaseManager:
         # Add composite index for time-based match queries
         self._migrate_add_match_timestamp_index()
 
+        # Add deduplication index for user_activity
+        self._migrate_add_activity_dedup_index()
+
     def _migrate_add_match_timestamp_index(self):
         """Add composite index for time-based match queries (user_id, match_timestamp)."""
         print_log("Running migration: Add index on user_full_match_info(user_id, match_timestamp)")
-        self.cursor.execute("""
+        self.cursor.execute(
+            """
             CREATE INDEX IF NOT EXISTS idx_user_match_timestamp
             ON user_full_match_info(user_id, match_timestamp DESC)
-        """)
+        """
+        )
         self.conn.commit()
         print_log("Migration complete: idx_user_match_timestamp created")
+
+    def _migrate_add_activity_dedup_index(self):
+        """Add index to help deduplication queries."""
+        print_log("Running migration: Add deduplication index on user_activity")
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_activity_dedup
+            ON user_activity(user_id, channel_id, guild_id, event, timestamp)
+        """
+        )
+        self.conn.commit()
+        print_log("Migration complete: idx_user_activity_dedup created")
 
     def get_conn(self):
         """Access to the database connection"""

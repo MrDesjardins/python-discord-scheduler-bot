@@ -17,12 +17,11 @@ Functions:
 - calculate_time_spent_from_db: Calculate and persist user relationship weights
 """
 
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Dict, List, Optional, Union
 
 from deps.analytic_constants import (
     KEY_USER_INFO,
-    KEY_USER_ACTIVITY,
     USER_ACTIVITY_SELECT_FIELD,
     USER_INFO_SELECT_FIELD,
 )
@@ -31,6 +30,7 @@ from deps.system_database import database_manager
 from deps.analytic_functions import compute_users_weights
 from deps.cache import get_cache
 from deps.functions_date import ensure_utc
+from deps.log import print_warning_log
 
 
 def delete_all_user_weights():
@@ -45,10 +45,34 @@ def insert_user_activity(
     user_id: int, user_display_name: str, channel_id: int, guild_id: int, event: str, time: datetime
 ) -> None:
     """
-    Log a user activity in the database
+    Log a user activity in the database with deduplication
     """
     time = ensure_utc(time)
-    database_manager.get_cursor().execute(
+
+    # FIX: Check for duplicate events within 1-second window
+    cursor = database_manager.get_cursor()
+    time_start = (time - timedelta(seconds=1)).isoformat()
+    time_end = (time + timedelta(seconds=1)).isoformat()
+
+    cursor.execute(
+        """
+        SELECT COUNT(*) FROM user_activity
+        WHERE user_id = ? AND channel_id = ? AND guild_id = ? AND event = ?
+        AND timestamp >= ? AND timestamp <= ?
+        """,
+        (user_id, channel_id, guild_id, event, time_start, time_end),
+    )
+
+    if cursor.fetchone()[0] > 0:
+
+        print_warning_log(
+            f"Duplicate activity event detected for user {user_id} in channel {channel_id} "
+            f"(event={event}, time={time.isoformat()}). Skipping."
+        )
+        return
+
+    # Original insert logic
+    cursor.execute(
         """
     INSERT INTO user_info(id, display_name)
       VALUES(:user_id, :user_display_name)
@@ -58,7 +82,7 @@ def insert_user_activity(
     """,
         {"user_id": user_id, "user_display_name": user_display_name},
     )
-    database_manager.get_cursor().execute(
+    cursor.execute(
         """
     INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
     VALUES (:user_id, :channel_id, :guild_id, :event, :time)
@@ -207,8 +231,8 @@ def fetch_all_user_activities(from_day: int = 3600, to_day: int = 0) -> list[Use
     """
     Fetch all connect and disconnect events from the user_activity table
     """
-    from_date = datetime.now() - timedelta(days=from_day)
-    to_date = datetime.now() - timedelta(days=to_day)
+    from_date = datetime.now(timezone.utc) - timedelta(days=from_day)
+    to_date = datetime.now(timezone.utc) - timedelta(days=to_day)
     # from_date = datetime(2025, 2, 5, 0, 0, 0)
     # to_date = datetime(2025, 2, 20, 23, 59, 59)
     query = f"""

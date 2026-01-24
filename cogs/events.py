@@ -123,109 +123,182 @@ class MyEventsCog(commands.Cog):
         if member.bot:
             return  # Ignore bot
 
+        # FIX: Process only member's guild, not all guilds
+        guild = member.guild
+        guild_id = guild.id
+        voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
+
+        if voice_channel_ids is None:
+            print_warning_log(f"Voice channel not set for guild {guild.name}. Skipping.")
+            return
+        schedule_text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
+        if schedule_text_channel_id is None:
+            print_warning_log(f"Schedule text channel not set for guild {guild.name}. Skipping.")
+            return
+
+        # Log user activity
+        try:
+            if before.channel is None and after.channel is not None:
+                # User joined a voice channel but wasn't in any voice channel before
+                channel_id = after.channel.id
+                event = EVENT_CONNECT
+                insert_user_activity(
+                    member.id,
+                    member.display_name,
+                    channel_id,
+                    guild_id,
+                    event,
+                    datetime.now(timezone.utc),
+                )
+
+                # Add the user to the voice channel list with the current siege activity detail
+                user_activity = get_siege_activity(member)
+                await data_access_update_voice_user_list(
+                    guild_id,
+                    after.channel.id,
+                    member.id,
+                    user_activity.details if user_activity else None,
+                )
+
+                # When a user joins a voice channel, we see if someone is following that new user to send a private message
+                try:
+                    await send_private_notification_following_user(self.bot, member.id, guild_id, channel_id)
+                except Exception as e:
+                    print_error_log(f"on_voice_state_update: Error sending follow notification: {e}")
+
+            elif before.channel is not None and after.channel is None:
+                # User left a voice channel
+                channel_id = before.channel.id
+                event = EVENT_DISCONNECT
+                insert_user_activity(
+                    member.id,
+                    member.display_name,
+                    channel_id,
+                    guild_id,
+                    event,
+                    datetime.now(timezone.utc),
+                )
+                try:
+                    await send_session_stats_to_queue(member, guild_id)
+                except Exception as e:
+                    print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
+
+                # Remove the user from the voice channel list (after.channel is None)
+                await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
+            elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
+                # User switched between voice channels
+                # FIX: Use transaction to make channel move atomic
+                from deps.system_database import database_manager
+
+                try:
+                    with database_manager.data_access_transaction() as cursor:
+                        move_time = datetime.now(timezone.utc)
+
+                        # Upsert user_info
+                        cursor.execute(
+                            """
+                            INSERT INTO user_info(id, display_name)
+                            VALUES(:user_id, :user_display_name)
+                            ON CONFLICT(id) DO UPDATE SET display_name = :user_display_name
+                            WHERE id = :user_id;
+                            """,
+                            {"user_id": member.id, "user_display_name": member.display_name},
+                        )
+
+                        # Insert DISCONNECT from old channel
+                        cursor.execute(
+                            """
+                            INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
+                            VALUES (:user_id, :channel_id, :guild_id, :event, :time)
+                            """,
+                            {
+                                "user_id": member.id,
+                                "channel_id": before.channel.id,
+                                "guild_id": guild_id,
+                                "event": EVENT_DISCONNECT,
+                                "time": move_time.isoformat(),
+                            },
+                        )
+
+                        # Insert CONNECT to new channel
+                        cursor.execute(
+                            """
+                            INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
+                            VALUES (:user_id, :channel_id, :guild_id, :event, :time)
+                            """,
+                            {
+                                "user_id": member.id,
+                                "channel_id": after.channel.id,
+                                "guild_id": guild_id,
+                                "event": EVENT_CONNECT,
+                                "time": move_time.isoformat(),
+                            },
+                        )
+                        # Transaction commits on context manager exit
+                except Exception as e:
+                    print_error_log(f"on_voice_state_update: Error logging channel move: {e}")
+                    # Transaction rolls back on exception
+
+                # Update cache (after transaction)
+                await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
+                user_activity = get_siege_activity(member)
+                await data_access_update_voice_user_list(
+                    guild_id,
+                    after.channel.id,
+                    member.id,
+                    user_activity.details if user_activity else None,
+                )
+        except Exception as e:
+            print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
+
+        # Check if the user joined a voice channel to send a voice message
+        if after.channel is not None and after.channel.id in voice_channel_ids:
+            # Check if the user is the only one in the voice channel
+            if len(after.channel.members) == 1:
+                await send_notification_voice_channel(
+                    guild_id,
+                    member,
+                    after.channel,
+                    schedule_text_channel_id,
+                )
+
+    @commands.Cog.listener()
+    async def on_close(self):
+        """
+        Handle bot shutdown by closing all open voice sessions.
+        Ensures every CONNECT event has a matching DISCONNECT.
+        """
+        print_log("Bot shutting down - closing all open voice sessions")
+
         for guild in self.bot.guilds:
             guild_id = guild.id
             voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
 
             if voice_channel_ids is None:
-                print_warning_log(f"Voice channel not set for guild {guild.name}. Skipping.")
-                continue
-            schedule_text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
-            if schedule_text_channel_id is None:
-                print_warning_log(f"Schedule text channel not set for guild {guild.name}. Skipping.")
                 continue
 
-            # Log user activity
-            try:
-                if before.channel is None and after.channel is not None:
-                    # User joined a voice channel but wasn't in any voice channel before
-                    channel_id = after.channel.id
-                    event = EVENT_CONNECT
-                    insert_user_activity(
-                        member.id,
-                        member.display_name,
-                        channel_id,
-                        guild_id,
-                        event,
-                        datetime.now(timezone.utc),
-                    )
+            for voice_channel_id in voice_channel_ids:
+                try:
+                    channel = await data_access_get_channel(voice_channel_id)
+                    if channel is None or not isinstance(channel, discord.VoiceChannel):
+                        continue
 
-                    # Add the user to the voice channel list with the current siege activity detail
-                    user_activity = get_siege_activity(member)
-                    await data_access_update_voice_user_list(
-                        guild_id,
-                        after.channel.id,
-                        member.id,
-                        user_activity.details if user_activity else None,
-                    )
+                    # Insert DISCONNECT for all members in channel
+                    for member in channel.members:
+                        if not member.bot:
+                            insert_user_activity(
+                                member.id,
+                                member.display_name,
+                                voice_channel_id,
+                                guild_id,
+                                EVENT_DISCONNECT,
+                                datetime.now(timezone.utc),
+                            )
+                            print_log(f"Shutdown cleanup: Disconnected {member.display_name} from {channel.name}")
+                except Exception as e:
+                    print_error_log(f"on_close: Error processing channel {voice_channel_id}: {e}")
 
-                    # When a user joins a voice channel, we see if someone is following that new user to send a private message
-                    try:
-                        await send_private_notification_following_user(self.bot, member.id, guild_id, channel_id)
-                    except Exception as e:
-                        print_error_log(f"on_voice_state_update: Error sending follow notification: {e}")
-
-                elif before.channel is not None and after.channel is None:
-                    # User left a voice channel
-                    channel_id = before.channel.id
-                    event = EVENT_DISCONNECT
-                    insert_user_activity(
-                        member.id,
-                        member.display_name,
-                        channel_id,
-                        guild_id,
-                        event,
-                        datetime.now(timezone.utc),
-                    )
-                    try:
-                        await send_session_stats_to_queue(member, guild_id)
-                    except Exception as e:
-                        print_error_log(f"on_voice_state_update: Error sending user stats: {e}")
-
-                    # Remove the user from the voice channel list (after.channel is None)
-                    await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
-                elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
-                    # User switched between voice channel
-                    insert_user_activity(
-                        member.id,
-                        member.display_name,
-                        before.channel.id,
-                        guild_id,
-                        EVENT_DISCONNECT,
-                        datetime.now(timezone.utc),
-                    )
-                    insert_user_activity(
-                        member.id,
-                        member.display_name,
-                        after.channel.id,
-                        guild_id,
-                        EVENT_CONNECT,
-                        datetime.now(timezone.utc),
-                    )
-                    # Remove the user from the voice channel list
-                    # (before.channel is different then the after, remove from before.channel)
-                    await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
-                    # Add the user to the voice channel list with the current siege activity detail
-                    user_activity = get_siege_activity(member)
-                    await data_access_update_voice_user_list(
-                        guild_id,
-                        after.channel.id,
-                        member.id,
-                        user_activity.details if user_activity else None,
-                    )
-            except Exception as e:
-                print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
-
-            # Check if the user joined a voice channel to send a voice message
-            if after.channel is not None and after.channel.id in voice_channel_ids:
-                # Check if the user is the only one in the voice channel
-                if len(after.channel.members) == 1:
-                    await send_notification_voice_channel(
-                        guild_id,
-                        member,
-                        after.channel,
-                        schedule_text_channel_id,
-                    )
+        print_log("Shutdown cleanup completed")
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
