@@ -115,40 +115,69 @@ class BotAI:
     def ask_ai(self, question: str, use_gpt: bool = False) -> Union[str, None]:
         """
         Ask AI a question and return the answer (blocking).
+        Automatically falls back from Gemini to GPT on failure.
         """
         print_log(f"ask_ai: The number of AI count today is {self.today_count()}.")
-        try:
-            if use_gpt is False and self.today_count() < THRESHOLD_GEMINI:
+
+        # Determine if we should try Gemini first
+        should_try_gemini = not use_gpt and self.today_count() < THRESHOLD_GEMINI
+
+        # Try Gemini first if appropriate
+        if should_try_gemini:
+            try:
                 gemini_key = os.getenv("GEMINI_API_KEY")
-                client_gemini = genai.Client(api_key=gemini_key)
-                response_gemini = client_gemini.models.generate_content(model="gemini-2.5-flash", contents=question)
-                # print_log(f"Gemini response: {response_gemini}")
-                if hasattr(response_gemini, "text") and response_gemini.text:
-                    return response_gemini.text
+                if not gemini_key:
+                    print_error_log("ask_ai: GEMINI_API_KEY not found in environment variables. Falling back to GPT.")
                 else:
-                    print_error_log("ask_ai: Gemini response has no 'text' attribute or is empty.")
-                    return None
+                    print_log("ask_ai: Attempting to use Gemini API...")
+                    client_gemini = genai.Client(api_key=gemini_key)
+                    response_gemini = client_gemini.models.generate_content(model="gemini-2.5-flash", contents=question)
+
+                    if hasattr(response_gemini, "text") and response_gemini.text:
+                        print_log("ask_ai: Gemini API response successful.")
+                        return response_gemini.text
+                    else:
+                        print_error_log("ask_ai: Gemini response has no 'text' attribute or is empty. Falling back to GPT.")
+            except Exception as e:
+                print_error_log(f"ask_ai: Gemini API error: {e}. Falling back to GPT.")
+
+        # Fall back to GPT (or use it if requested explicitly)
+        try:
+            print_log("ask_ai: Attempting to use OpenAI GPT API...")
+            client_open_ai = OpenAI()
+            response_open_ai = client_open_ai.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": question}]
+            )
+
+            if response_open_ai.choices and len(response_open_ai.choices) > 0:
+                result = response_open_ai.choices[0].message.content
+                print_log("ask_ai: OpenAI GPT API response successful.")
+                return result
             else:
-                client_open_ai = OpenAI()
-                response_open_ai = client_open_ai.responses.create(model="gpt-4.1", input=question)
-                return response_open_ai.output_text
+                print_error_log("ask_ai: GPT response has no choices or is empty.")
+                return None
         except Exception as e:
-            print_error_log(f"ask_ai: Unknown error: {e}")
+            print_error_log(f"ask_ai: OpenAI GPT API error: {e}")
             return None
 
     async def ask_ai_async(self, question: str, timeout: float = 800.0, use_gpt: bool = False) -> Union[str, None]:
         """
         Ask AI a question and return the answer (non-blocking, async, with timeout).
+        Automatically falls back from Gemini to GPT on failure.
         """
         self.increase_daily_count()
         try:
-            return await asyncio.wait_for(asyncio.to_thread(self.ask_ai, question, use_gpt), timeout=timeout)
-        except asyncio.TimeoutError as e:
+            result = await asyncio.wait_for(asyncio.to_thread(self.ask_ai, question, use_gpt), timeout=timeout)
+            if result is None:
+                print_error_log("ask_ai_async: Both Gemini and GPT APIs failed to return a valid response.")
+            return result
+        except asyncio.TimeoutError:
             print_error_log(f"ask_ai_async: AI API call timed out after {timeout} seconds.")
-            raise e
+            return None
         except Exception as e:
-            print_error_log(f"ask_ai_async: Unknown error: {e}")
-            raise e
+            print_error_log(f"ask_ai_async: Unexpected error during AI API call: {e}")
+            return None
 
     def gather_information_for_generating_message_summary(
         self, hours
@@ -213,9 +242,8 @@ class BotAI:
     async def generate_message_summary_matches_async(self, hours: int) -> str:
         """
         Async version: Generate a message summary of the matches played by the users without blocking the event loop.
+        Uses automatic Gemini->GPT fallback from ask_ai_async.
         """
-        try_model = 1  # GPT (in case suddently GPT is doing bad, like with gpt 5, turn this to zero).
-        ai_response = None
         users, full_matches_info_by_user_id = self.gather_information_for_generating_message_summary(hours)
         if len(users) == 0 or len(full_matches_info_by_user_id) == 0:
             return f"✨**AI summary generated of the last {hours} hours**✨\nNo user played any match in the last {hours} hours."
@@ -254,29 +282,30 @@ class BotAI:
         # context += "If the display_name is 'Obey' prefix with the name with 'ultimate head shot machine'. "
         # context += "If the display_name is 'Dom1nator' prefix the name with 'upcoming champion'. "
         # context += "If the display_name is 'fridge ' prefix the name with 'Obey worse nightmare AKA'. "
-        try:
-            while try_model <= 1:
-                model = "gemini" if try_model == 0 else "gpt"
-                print_log(
-                    f"generate_message_summary_matches_async: Asking AI for {hours} hours summary that contained a size of {len(context)} characters. The data contains {len(users)} users and {len(full_matches_info_by_user_id)} matches using {model} model."
-                )
-                ai_response = await self.ask_ai_async(context, 800, model == "gpt")
 
-                if ai_response is None:
-                    file_name = f"ai_context_{model}.txt"
-                    print_error_log(f"Context dumped in {file_name}")
-                    with open(file_name, "w", encoding="utf-8") as f:
-                        f.write(context)
-                    print_error_log(f"Error: AI response is None using {model}.")
-                    try_model += 1
-                else:
-                    break
+        print_log(
+            f"generate_message_summary_matches_async: Asking AI for {hours} hours summary "
+            f"with context size of {len(context)} characters. "
+            f"Data contains {len(users)} users and {len(full_matches_info_by_user_id)} matches."
+        )
+
+        try:
+            # ask_ai_async will automatically fallback from Gemini to GPT on failure
+            ai_response = await self.ask_ai_async(context, timeout=800, use_gpt=False)
+
+            if ai_response is None:
+                # Dump context for debugging if both APIs failed
+                file_name = "ai_context_failed.txt"
+                print_error_log(f"generate_message_summary_matches_async: Both Gemini and GPT failed. Context dumped to {file_name}")
+                with open(file_name, "w", encoding="utf-8") as f:
+                    f.write(context)
+                return f"✨**AI summary generated of the last {hours} hours**✨\n⚠️ Unable to generate summary. Both AI services are currently unavailable."
+
+            return f"✨**AI summary generated of the last {hours} hours**✨\n" + ai_response
+
         except Exception as e:
-            print_error_log(f"Error while asking AI: {e}")
-            return ""
-        if ai_response is None:
-            return ""
-        return f"✨**AI summary generated of the last {hours} hours**✨\n" + ai_response
+            print_error_log(f"generate_message_summary_matches_async: Unexpected error: {e}")
+            return f"✨**AI summary generated of the last {hours} hours**✨\n⚠️ An error occurred while generating the summary."
 
     async def generate_answer_when_mentioning_bot(
         self, context_previous_messages: str, message_user: str, user_display_name: str, user_id: int, user_rank: str
@@ -464,10 +493,12 @@ class BotAI:
         context += f'The fields: {USER_INFO_SELECT_FIELD.replace(KEY_USER_INFO + ".", "")}. '
         try:
             response = self.ask_ai(context)
+            if response is None:
+                print_error_log("ask_ai_sql_for_stats: Both Gemini and GPT failed to generate SQL query.")
+                return ""
             return response
         except Exception as e:
-            print_error_log(f"Error while asking AI for SQL query: {e}")
-            print_error_log(f"Context was: {context}")
+            print_error_log(f"ask_ai_sql_for_stats: Error while asking AI for SQL query: {e}")
             return ""
 
 
