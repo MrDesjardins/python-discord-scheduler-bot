@@ -117,7 +117,10 @@ class BrowserContextManager:
             print_log("Launching Chrome in System-Level Xvfb environment...")
             try:
                 self.driver = uc.Chrome(
-                    options=options, browser_executable_path="/usr/bin/google-chrome", headless=False
+                    options=options,
+                    browser_executable_path="/usr/bin/google-chrome",  # Version 144
+                    headless=False,
+                    driver_executable_path="/usr/bin/chromedriver",  # Force it to use your fixed 144 driver
                 )
                 print_log("Driver attached successfully!")
             except Exception as e:
