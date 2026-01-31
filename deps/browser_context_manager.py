@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc  # type: ignore
 from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserInformation, UserQueueForStats
-from deps.log import print_error_log, print_log
+from deps.log import print_error_log, print_log, print_warning_log
 from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_max_rank, parse_json_user_info
 from deps.functions import (
     get_url_api_ranked_matches,
@@ -74,6 +74,9 @@ class BrowserContextManager:
     def _cleanup(self) -> None:
         print_log("Cleaning up browser and Xvfb...")
 
+        browser_pid = None
+        xvfb_pgid = None
+
         # 1. Try to quit the driver gracefully
         if self.driver:
             try:
@@ -81,7 +84,10 @@ class BrowserContextManager:
                 browser_pid = self.driver.browser_pid
                 self.driver.quit()
                 # Force kill the specific browser PID just in case
-                os.kill(browser_pid, signal.SIGKILL)
+                try:
+                    os.kill(browser_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass  # Already dead
             except:
                 pass
             self.driver = None
@@ -90,12 +96,47 @@ class BrowserContextManager:
         if self._xvfb_proc:
             try:
                 # This kills the Xvfb AND any children it spawned
-                os.killpg(os.getpgid(self._xvfb_proc.pid), signal.SIGKILL)
+                xvfb_pgid = os.getpgid(self._xvfb_proc.pid)
+                os.killpg(xvfb_pgid, signal.SIGKILL)
             except:
                 pass
             self._xvfb_proc = None
 
-        # 3. Final Wipe of the specific profile directory
+        # 3. Wait for processes to fully terminate
+        # This prevents the "cannot connect to chrome" race condition
+        max_wait = 3.0  # seconds
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            all_dead = True
+
+            # Check if browser process is dead
+            if browser_pid:
+                try:
+                    os.kill(browser_pid, 0)  # Check if process exists
+                    all_dead = False
+                except ProcessLookupError:
+                    browser_pid = None  # Confirmed dead
+
+            # Check if Xvfb process group is dead
+            if xvfb_pgid:
+                try:
+                    os.killpg(xvfb_pgid, 0)  # Check if process group exists
+                    all_dead = False
+                except ProcessLookupError:
+                    xvfb_pgid = None  # Confirmed dead
+
+            if all_dead:
+                print_log("All browser processes terminated successfully")
+                break
+
+            time.sleep(0.1)  # Small delay between checks
+
+        if browser_pid or xvfb_pgid:
+            print_warning_log(
+                f"Some processes may still be terminating (browser_pid={browser_pid}, xvfb_pgid={xvfb_pgid})"
+            )
+
+        # 4. Final Wipe of the specific profile directory
         if self._profile_dir and os.path.exists(self._profile_dir):
             shutil.rmtree(self._profile_dir, ignore_errors=True)
 
@@ -106,7 +147,25 @@ class BrowserContextManager:
                 pass
             self._lock_acquired = False
 
+    def _kill_orphaned_chrome_processes(self) -> None:
+        """Kill any orphaned Chrome/chromedriver processes before starting"""
+        try:
+            # Only do this in production to avoid interfering with developer's Chrome instances
+            if self.environment == "prod":
+                # Kill orphaned chrome processes
+                subprocess.run(
+                    ["pkill", "-9", "-f", "google-chrome.*--remote-debugging"], check=False, capture_output=True
+                )
+                subprocess.run(["pkill", "-9", "-f", "chromedriver"], check=False, capture_output=True)
+                time.sleep(0.5)  # Give processes time to die
+                print_log("Cleaned up any orphaned Chrome processes")
+        except Exception as e:
+            print_log(f"Failed to kill orphaned processes (non-critical): {e}")
+
     def _config_browser(self):
+        # Clean up any orphaned processes first
+        self._kill_orphaned_chrome_processes()
+
         options = uc.ChromeOptions()
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
