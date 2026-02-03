@@ -2,12 +2,14 @@
 
 import signal
 import subprocess
+import tempfile
 from filelock import FileLock
 import subprocess
 import shutil
 import os, time
 from typing import List, Optional, Union
 import json
+from requests import options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -139,6 +141,7 @@ class BrowserContextManager:
         # 4. Final Wipe of the specific profile directory
         if self._profile_dir and os.path.exists(self._profile_dir):
             shutil.rmtree(self._profile_dir, ignore_errors=True)
+            print_log(f"Deleted profile directory: {self._profile_dir}")
 
         if self._lock_acquired:
             try:
@@ -159,14 +162,23 @@ class BrowserContextManager:
                 subprocess.run(["pkill", "-9", "-f", "chromedriver"], check=False, capture_output=True)
                 time.sleep(0.5)  # Give processes time to die
                 print_log("Cleaned up any orphaned Chrome processes")
+                # Clean up any leftover profile directories from previous crashes
+                subprocess.run("find /tmp -maxdepth 1 -name 'chrome_profile_*' -mmin +60 -exec rm -rf {} +", shell=True)
+                time.sleep(0.5)  # Give processes time to die
         except Exception as e:
             print_log(f"Failed to kill orphaned processes (non-critical): {e}")
 
     def _config_browser(self):
+        # 1. Create a unique path for THIS instance
+        # This ensures that even with the lock, we know exactly which folder to kill
+        self._profile_dir = tempfile.mkdtemp(prefix="chrome_profile_", dir="/tmp")
+        
         # Clean up any orphaned processes first
         self._kill_orphaned_chrome_processes()
 
         options = uc.ChromeOptions()
+        # 2. Tell Chrome to use this specific folder
+        options.add_argument(f"--user-data-dir={self._profile_dir}")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--window-size=1920,1080")
