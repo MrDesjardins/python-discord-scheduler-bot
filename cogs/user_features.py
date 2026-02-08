@@ -359,14 +359,19 @@ class UserFeatures(commands.Cog):
         print_log(
             f"get_user_info: Fetching user info for user {user.display_name}({user.id}) by {interaction.user.display_name}({interaction.user.id})."
         )
+        # Acknowledge the interaction immediately
+        await interaction.response.defer(ephemeral=True)
+
         user_info = await fetch_user_info_by_user_id(user.id)
 
         if user_info is None:
             print_error_log(f"get_user_info: Cannot find user info for user id {user.id}.")
-            await interaction.response.send_message(
-                "The user has not set up their profile yet.",
-                ephemeral=True,
-            )
+            try:
+                await interaction.user.send("The user has not set up their profile yet.")
+                await interaction.followup.send("User info sent to your DMs!", ephemeral=True)
+            except discord.Forbidden:
+                print_error_log(f"get_user_info: Cannot send DM to user {interaction.user.display_name}({interaction.user.id}).")
+                await interaction.followup.send("The user has not set up their profile yet. (Could not send DM - please enable DMs from server members)", ephemeral=True)
             return
         print_log(
             f"get_user_info: Found user info for user {user.display_name}({user.id}). Now data_access_fetch_first_activity and data_access_fetch_last_activity."
@@ -458,7 +463,14 @@ class UserFeatures(commands.Cog):
                 ]
             )
             embed.add_field(name="Top Winning Partners", value=winning_partners_str, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        print_log(f"get_user_info: Sending user info embed to DM for user {interaction.user.display_name}({interaction.user.id}).")
+        try:
+            await interaction.user.send(embed=embed)
+            await interaction.followup.send("User info sent to your DMs!", ephemeral=True)
+        except discord.Forbidden:
+            print_error_log(f"get_user_info: Cannot send DM to user {interaction.user.display_name}({interaction.user.id}).")
+            await interaction.followup.send("Could not send DM. Please enable DMs from server members in your privacy settings. Here's the info:", embed=embed, ephemeral=True)
 
     async def set_user_follow(self, interaction: discord.Interaction, user_to_follow: discord.User) -> None:
         """Callback for the 'Follow User' context menu."""
