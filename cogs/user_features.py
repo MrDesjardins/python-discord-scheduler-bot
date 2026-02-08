@@ -368,6 +368,9 @@ class UserFeatures(commands.Cog):
                 ephemeral=True,
             )
             return
+        print_log(
+            f"get_user_info: Found user info for user {user.display_name}({user.id}). Now data_access_fetch_first_activity and data_access_fetch_last_activity."
+        )
         first_activity = data_access_fetch_first_activity(user.id)
         last_activity = data_access_fetch_last_activity(user.id)
         display_name = user_info.ubisoft_username_max if user_info.ubisoft_username_max is not None else "Not set"
@@ -413,6 +416,7 @@ class UserFeatures(commands.Cog):
             inline=True,
         )
 
+        print_log(f"get_user_info: Now fetching user full info for user {user.display_name}({user.id}).")
         user_full_info = data_access_fetch_user_full_user_info(user.id)
         if user_full_info is not None:
             embed.add_field(
@@ -431,16 +435,20 @@ class UserFeatures(commands.Cog):
                 inline=True,
             )
 
+        print_log(f"get_user_info: Now fetching total hours for user {user.display_name}({user.id}).")
         hours = data_access_fetch_total_hours(user.id)
         if hours is not None:
             embed.add_field(name="Hours played on this server", value=f"{hours} hours", inline=True)
 
+        print_log(f"get_user_info: Now fetching top game partners for user {user.display_name}({user.id}).")
         top_game_partners = data_access_fetch_top_game_played_for_user(user.id)
         if top_game_partners is not None and len(top_game_partners) > 0:
             partners_str = "\n".join(
                 [f"{idx + 1}. {partner[0]} - {partner[1]} matches" for idx, partner in enumerate(top_game_partners)]
             )
             embed.add_field(name="Top Rank Partners", value=partners_str, inline=False)
+            
+        print_log(f"get_user_info: Now fetching top winning partners for user {user.display_name}({user.id}).")    
         top_winning_partners = data_access_fetch_top_winning_partners_for_user(user.id)
         if top_winning_partners is not None and len(top_winning_partners) > 0:
             winning_partners_str = "\n".join(
