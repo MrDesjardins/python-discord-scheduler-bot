@@ -27,6 +27,33 @@ from deps.system_database import database_manager
 from deps.log import print_error_log, print_log
 
 
+def data_access_fetch_recent_win_loss(user_id: int, match_count: int = 10) -> tuple[int, int]:
+    """
+    Get win/loss counts from last N matches for a user.
+
+    Args:
+        user_id: Discord user ID
+        match_count: Number of recent matches to analyze (default: 10)
+
+    Returns:
+        Tuple of (wins, losses)
+    """
+    query = """
+        SELECT
+            SUM(CASE WHEN has_win = 1 THEN 1 ELSE 0 END) as wins,
+            SUM(CASE WHEN has_win = 0 THEN 1 ELSE 0 END) as losses
+        FROM (
+            SELECT has_win
+            FROM user_full_match_info
+            WHERE user_id = :user_id AND is_rollback = 0
+            ORDER BY match_timestamp DESC
+            LIMIT :match_count
+        )
+    """
+    result = database_manager.get_cursor().execute(query, {"user_id": user_id, "match_count": match_count}).fetchone()
+    return (result[0] or 0, result[1] or 0)
+
+
 def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: list[UserFullMatchStats]) -> None:
     """
     We have a list of full match info, we want to insert them if they do not exist

@@ -17,6 +17,7 @@ from deps.values import (
     COMMAND_VERSION,
     COMMAND_RESET_CACHE,
     COMMAND_GUILD_ENABLE_BOT_VOICE,
+    COMMAND_TEST_MATCH_START_GIF,
 )
 from deps.functions import (
     get_sha,
@@ -266,6 +267,77 @@ class ModBasic(commands.Cog):
             f"Team 2: {key in perm_list_team2}",
             ephemeral=True,
         )
+
+    @app_commands.command(name=COMMAND_TEST_MATCH_START_GIF)
+    @app_commands.describe(
+        member1="First member",
+        member2="Second member (optional)",
+        member3="Third member (optional)",
+        member4="Fourth member (optional)",
+        member5="Fifth member (optional)",
+    )
+    @commands.has_permissions(administrator=True)
+    async def test_match_start_gif(
+        self,
+        interaction: discord.Interaction,
+        member1: discord.Member,
+        member2: discord.Member = None,
+        member3: discord.Member = None,
+        member4: discord.Member = None,
+        member5: discord.Member = None,
+    ):
+        """Test the match start GIF generation with specified members"""
+        await interaction.response.defer(ephemeral=True)
+
+        # Collect all provided members
+        members = [m for m in [member1, member2, member3, member4, member5] if m is not None]
+
+        if not members:
+            await interaction.followup.send("❌ You must specify at least one member!", ephemeral=True)
+            return
+
+        try:
+            from deps.match_start_gif import generate_match_start_gif
+            import io
+
+            # Get main text channel
+            guild_id = interaction.guild_id
+            text_channel_id = await data_access_get_main_text_channel_id(guild_id)
+            text_channel = await data_access_get_channel(text_channel_id)
+
+            if not text_channel:
+                await interaction.followup.send(
+                    "❌ Main text channel not configured! Use /modtextmainchannel first.", ephemeral=True
+                )
+                return
+
+            # Generate GIF
+            await interaction.followup.send(
+                f"🎨 Generating match start GIF for {len(members)} member(s)...", ephemeral=True
+            )
+
+            gif_bytes = await generate_match_start_gif(members, guild_id, self.bot.guild_emoji.get(guild_id, {}))
+
+            if not gif_bytes:
+                await interaction.followup.send("❌ Failed to generate GIF!", ephemeral=True)
+                return
+
+            # Send to Discord
+            file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start_test.gif")
+            await text_channel.send(
+                f"🎮 **Test Match Start GIF** (triggered by {interaction.user.mention})\n"
+                f"Players: {', '.join([m.mention for m in members])}",
+                file=file,
+            )
+
+            await interaction.followup.send(
+                f"✅ Match start GIF posted to {text_channel.mention}!\n" f"Generated for {len(members)} member(s).",
+                ephemeral=True,
+            )
+
+        except Exception as e:
+            print_error_log(f"test_match_start_gif: Error: {e}")
+            await interaction.followup.send(f"❌ Error generating GIF: {str(e)}", ephemeral=True)
 
 
 async def setup(bot):

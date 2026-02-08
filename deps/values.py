@@ -141,6 +141,7 @@ COMMAND_STATS_ACTIVE_USER = "modstatsactiveusers"
 COMMAND_USER_INFORMATION_ACTIVE_USER = "moduserinformationsactiveusers"
 COMMAND_DAILY_STATS = "moddailystats"
 COMMAND_GENERATE_AI_SUMMARY = "modgenaisummary"
+COMMAND_TEST_MATCH_START_GIF = "modtestmatchstartgif"
 
 # URL from TRN (third-party)
 URL_TRN_PROFILE_MAIN = "https://r6.tracker.network/r6siege/profile/uplay/{account_name}"

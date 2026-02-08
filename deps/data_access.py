@@ -48,6 +48,7 @@ KEY_AI_COUNT = "AI_daily_Count"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY = "GuildCustomGameVoiceChannelLobby"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1 = "GuildCustomGameVoiceChannelTeam1"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2 = "GuildCustomGameVoiceChannelTeam2"
+KEY_LAST_MATCH_START_GIF = "LastMatchStartGif"
 
 
 async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
@@ -492,3 +493,15 @@ async def data_access_get_custom_game_voice_channels(
     team1_channel_id = await get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1}:{guild_id}")
     team2_channel_id = await get_cache(False, f"{KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2}:{guild_id}")
     return (lobby_channel_id, team1_channel_id, team2_channel_id)
+
+
+async def data_access_get_last_match_start_gif_time(guild_id: int, channel_id: int) -> Optional[datetime]:
+    """Get the last time a match start GIF was sent for a specific voice channel"""
+    key = f"{KEY_LAST_MATCH_START_GIF}:{guild_id}:{channel_id}"
+    return await get_cache(False, key)
+
+
+async def data_access_set_last_match_start_gif_time(guild_id: int, channel_id: int, time: datetime) -> None:
+    """Set the last time a match start GIF was sent for a specific voice channel"""
+    key = f"{KEY_LAST_MATCH_START_GIF}:{guild_id}:{channel_id}"
+    set_cache(False, key, time, ONE_HOUR_TTL)

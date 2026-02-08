@@ -68,6 +68,7 @@ from deps.analytic_match_data_access import (
     data_access_fetch_user_matches_in_time_range,
     insert_if_nonexistant_full_user_info,
     data_access_fetch_user_full_user_info,
+    data_access_fetch_recent_win_loss,
 )
 
 # Re-export leaderboard functions

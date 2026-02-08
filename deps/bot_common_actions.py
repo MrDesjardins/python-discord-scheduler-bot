@@ -691,3 +691,46 @@ async def move_members_between_voice_channel(
             await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
         except Exception as e:
             print_error_log(f"Error moving member {member.display_name}: {e}")
+
+
+async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int) -> None:
+    """
+    Generate and send match start GIF to main text channel.
+
+    Args:
+        bot: Bot instance
+        guild_id: Guild ID
+        voice_channel_id: Voice channel ID where the match is starting
+    """
+    from deps.match_start_gif import generate_match_start_gif
+    import io
+
+    try:
+        # Get voice channel and members
+        vc_channel = await data_access_get_channel(voice_channel_id)
+        if not vc_channel or not vc_channel.members:
+            print_log(f"send_match_start_gif: No voice channel or members found for channel {voice_channel_id}")
+            return
+
+        # Get text channel
+        text_channel_id = await data_access_get_main_text_channel_id(guild_id)
+        text_channel = await data_access_get_channel(text_channel_id)
+        if not text_channel:
+            print_log(f"send_match_start_gif: No main text channel found for guild {guild_id}")
+            return
+
+        # Generate GIF
+        print_log(f"send_match_start_gif: Generating GIF for {len(vc_channel.members)} members in {vc_channel.name}")
+        gif_bytes = await generate_match_start_gif(vc_channel.members, guild_id, bot.guild_emoji.get(guild_id, {}))
+
+        if not gif_bytes:
+            print_log("send_match_start_gif: GIF generation returned no data")
+            return
+
+        # Send to Discord
+        file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")
+        await text_channel.send(f"🎮 Match starting in <#{voice_channel_id}>! Good luck!", file=file)
+        print_log(f"send_match_start_gif: Successfully sent GIF to {text_channel.name}")
+
+    except Exception as e:
+        print_error_log(f"send_match_start_gif: Error: {e}")

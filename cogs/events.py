@@ -5,7 +5,7 @@ Events are actions that the bot listens and reacts to
 
 import os
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from discord.ext import commands
 import discord
@@ -29,11 +29,14 @@ from deps.data_access import (
     data_access_get_new_user_text_channel_id,
     data_access_remove_voice_user_list,
     data_access_update_voice_user_list,
+    data_access_get_voice_user_list,
+    data_access_get_last_match_start_gif_time,
+    data_access_set_last_match_start_gif_time,
 )
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.models import ActivityTransition
-from deps.siege import get_siege_activity, get_user_rank_siege
+from deps.siege import get_siege_activity, get_user_rank_siege, get_aggregation_siege_activity
 from deps.follow_functions import send_private_notification_following_user
 
 load_dotenv()
@@ -373,6 +376,9 @@ class MyEventsCog(commands.Cog):
         # Automatic send in the Siege text message a "looking for game" message
         await self.send_automatic_lfg_message_debounced(guild_id, after.voice.channel.id)
 
+        # Check for match start and send animated GIF
+        await self.send_match_start_gif_debounced(guild_id, after.voice.channel.id)
+
         # Check that the detail variables exist BEFORE checking their contents
         # if before_details and after_details and after.voice and after.voice.channel:
         #     if "CUSTOM GAME match" in before_details and "MENU" in after_details:
@@ -401,6 +407,44 @@ class MyEventsCog(commands.Cog):
             self.bot, guild_id, channel_id
         )  # Send the actual command to see if we can send a message (depending of everyone state)
         self.last_task.pop(f"lfg-{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
+
+    async def send_match_start_gif_debounced(self, guild_id: int, channel_id: int) -> None:
+        """
+        Handle the request for match start GIF generation with debouncing.
+        The goal is to debounce and only act on the last operation.
+        """
+        key = f"matchstartgif-{guild_id}-{channel_id}"
+        if key in self.last_task:
+            task = self.last_task.get(key)
+            if task is not None:
+                task.cancel()  # Cancel any pending execution
+        self.last_task[key] = asyncio.create_task(
+            self.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+        )
+
+    async def send_match_start_gif_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
+        """
+        A task that can be cancelled and will wait for X seconds before checking if a ranked match started.
+        """
+        try:
+            await asyncio.sleep(5)  # Wait for all presence updates to settle
+
+            # Check if 2+ users are now playing ranked
+            user_activities = await data_access_get_voice_user_list(guild_id, channel_id)
+            aggregation = get_aggregation_siege_activity(user_activities)
+
+            if aggregation.playing_rank >= 2:
+                # Rate limit: once per hour per channel
+                last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
+                if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(hours=1):
+                    from deps.bot_common_actions import send_match_start_gif
+
+                    await send_match_start_gif(self.bot, guild_id, channel_id)
+                    await data_access_set_last_match_start_gif_time(guild_id, channel_id, datetime.now(timezone.utc))
+        except Exception as e:
+            print_error_log(f"send_match_start_gif_debounced_cancellable_task: {e}")
+        finally:
+            self.last_task.pop(f"matchstartgif-{guild_id}-{channel_id}", None)
 
     async def auto_move_custom_game_debounced(self, guild_id: int, channel_id: int) -> None:
         """

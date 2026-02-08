@@ -370,8 +370,13 @@ class UserFeatures(commands.Cog):
                 await interaction.user.send("The user has not set up their profile yet.")
                 await interaction.followup.send("User info sent to your DMs!", ephemeral=True)
             except discord.Forbidden:
-                print_error_log(f"get_user_info: Cannot send DM to user {interaction.user.display_name}({interaction.user.id}).")
-                await interaction.followup.send("The user has not set up their profile yet. (Could not send DM - please enable DMs from server members)", ephemeral=True)
+                print_error_log(
+                    f"get_user_info: Cannot send DM to user {interaction.user.display_name}({interaction.user.id})."
+                )
+                await interaction.followup.send(
+                    "The user has not set up their profile yet. (Could not send DM - please enable DMs from server members)",
+                    ephemeral=True,
+                )
             return
         print_log(
             f"get_user_info: Found user info for user {user.display_name}({user.id}). Now data_access_fetch_first_activity and data_access_fetch_last_activity."
@@ -452,8 +457,8 @@ class UserFeatures(commands.Cog):
                 [f"{idx + 1}. {partner[0]} - {partner[1]} matches" for idx, partner in enumerate(top_game_partners)]
             )
             embed.add_field(name="Top Rank Partners", value=partners_str, inline=False)
-            
-        print_log(f"get_user_info: Now fetching top winning partners for user {user.display_name}({user.id}).")    
+
+        print_log(f"get_user_info: Now fetching top winning partners for user {user.display_name}({user.id}).")
         top_winning_partners = data_access_fetch_top_winning_partners_for_user(user.id)
         if top_winning_partners is not None and len(top_winning_partners) > 0:
             winning_partners_str = "\n".join(
@@ -464,13 +469,21 @@ class UserFeatures(commands.Cog):
             )
             embed.add_field(name="Top Winning Partners", value=winning_partners_str, inline=False)
 
-        print_log(f"get_user_info: Sending user info embed to DM for user {interaction.user.display_name}({interaction.user.id}).")
+        print_log(
+            f"get_user_info: Sending user info embed to DM for user {interaction.user.display_name}({interaction.user.id})."
+        )
         try:
             await interaction.user.send(embed=embed)
             await interaction.followup.send("User info sent to your DMs!", ephemeral=True)
         except discord.Forbidden:
-            print_error_log(f"get_user_info: Cannot send DM to user {interaction.user.display_name}({interaction.user.id}).")
-            await interaction.followup.send("Could not send DM. Please enable DMs from server members in your privacy settings. Here's the info:", embed=embed, ephemeral=True)
+            print_error_log(
+                f"get_user_info: Cannot send DM to user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.followup.send(
+                "Could not send DM. Please enable DMs from server members in your privacy settings. Here's the info:",
+                embed=embed,
+                ephemeral=True,
+            )
 
     async def set_user_follow(self, interaction: discord.Interaction, user_to_follow: discord.User) -> None:
         """Callback for the 'Follow User' context menu."""

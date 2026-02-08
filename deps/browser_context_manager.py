@@ -71,6 +71,7 @@ class BrowserContextManager:
 
             # Get soft limit
             import resource  # pylint: disable=import-outside-toplevel
+
             soft_limit, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
 
             return current_fds, soft_limit
@@ -102,15 +103,11 @@ class BrowserContextManager:
                 # If we hit file descriptor limit, don't retry immediately
                 if e.errno == 24:  # EMFILE - Too many open files
                     current_fds, max_fds = self._check_file_descriptor_usage()
-                    print_error_log(
-                        f"Startup attempt {i+1} failed: {e}. "
-                        f"File descriptors: {current_fds}/{max_fds}"
-                    )
+                    print_error_log(f"Startup attempt {i+1} failed: {e}. " f"File descriptors: {current_fds}/{max_fds}")
                     self._cleanup()
                     if i == retries - 1:
                         print_error_log(
-                            "Hit file descriptor limit after retries. "
-                            "Aborting to prevent resource exhaustion."
+                            "Hit file descriptor limit after retries. " "Aborting to prevent resource exhaustion."
                         )
                         raise
                     # Wait longer before retry to let system clean up
@@ -142,8 +139,8 @@ class BrowserContextManager:
 
                 # Close any open file descriptors the driver might have
                 try:
-                    if hasattr(self.driver, 'service') and self.driver.service:
-                        if hasattr(self.driver.service, 'process') and self.driver.service.process:
+                    if hasattr(self.driver, "service") and self.driver.service:
+                        if hasattr(self.driver.service, "process") and self.driver.service.process:
                             # Close subprocess pipes explicitly
                             if self.driver.service.process.stdin:
                                 self.driver.service.process.stdin.close()
@@ -236,7 +233,7 @@ class BrowserContextManager:
                     ["pkill", "-9", "-f", "google-chrome.*--remote-debugging"],
                     check=False,
                     capture_output=True,
-                    timeout=5
+                    timeout=5,
                 )
                 if result1.stdout:
                     result1.stdout.close()
@@ -244,10 +241,7 @@ class BrowserContextManager:
                     result1.stderr.close()
 
                 result2 = subprocess.run(
-                    ["pkill", "-9", "-f", "chromedriver"],
-                    check=False,
-                    capture_output=True,
-                    timeout=5
+                    ["pkill", "-9", "-f", "chromedriver"], check=False, capture_output=True, timeout=5
                 )
                 if result2.stdout:
                     result2.stdout.close()
@@ -263,7 +257,7 @@ class BrowserContextManager:
                     shell=True,
                     check=False,
                     capture_output=True,
-                    timeout=10
+                    timeout=10,
                 )
                 if result3.stdout:
                     result3.stdout.close()
