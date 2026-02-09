@@ -299,3 +299,211 @@ class TestChannelMoveAtomicity:
             # Verify: Cache was updated after transaction
             mock_remove_voice_list.assert_called_once_with(mock_guild.id, channel1.id, mock_member.id)
             mock_update_voice_list.assert_called_once()
+
+
+class TestMatchStartGif:
+    """Test match start GIF sending logic"""
+
+    @pytest.mark.asyncio
+    async def test_gif_sent_when_conditions_met(self, mock_bot, mock_guild):
+        """Verify GIF is sent when 1+ users looking for ranked and 2+ users in channel"""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+
+        cog = MyEventsCog(mock_bot)
+
+        guild_id = mock_guild.id
+        channel_id = 333333333
+
+        # Mock: 2 users in channel, 1 looking for ranked
+        user_activities = {
+            111: ActivityTransition("in MENU", "Looking for RANKED match"),
+            222: ActivityTransition("in MENU", "Playing Map Training"),
+        }
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
+            patch("cogs.events.data_access_get_last_match_start_gif_time") as mock_get_last_time,
+            patch("cogs.events.data_access_set_last_match_start_gif_time") as mock_set_last_time,
+            patch("deps.bot_common_actions.send_match_start_gif") as mock_send_gif,
+            patch("cogs.events.print_log") as mock_log,
+        ):
+
+            mock_get_users.return_value = user_activities
+            mock_get_last_time.return_value = None  # No previous GIF sent
+
+            # Execute
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+            # Verify: GIF was sent
+            mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
+            mock_set_last_time.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_gif_not_sent_with_only_one_user(self, mock_bot, mock_guild):
+        """Verify GIF is NOT sent when only 1 user in channel (even if looking for ranked)"""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+
+        cog = MyEventsCog(mock_bot)
+
+        guild_id = mock_guild.id
+        channel_id = 333333333
+
+        # Mock: Only 1 user in channel, looking for ranked
+        user_activities = {
+            111: ActivityTransition("in MENU", "Looking for RANKED match"),
+        }
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
+            patch("deps.bot_common_actions.send_match_start_gif") as mock_send_gif,
+        ):
+
+            mock_get_users.return_value = user_activities
+
+            # Execute
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+            # Verify: GIF was NOT sent (only 1 user)
+            mock_send_gif.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_gif_not_sent_when_nobody_looking_for_ranked(self, mock_bot, mock_guild):
+        """Verify GIF is NOT sent when nobody is looking for ranked match"""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+
+        cog = MyEventsCog(mock_bot)
+
+        guild_id = mock_guild.id
+        channel_id = 333333333
+
+        # Mock: 2 users in channel, but neither looking for ranked
+        user_activities = {
+            111: ActivityTransition("in MENU", "Playing Map Training"),
+            222: ActivityTransition("in MENU", "Playing SHOOTING RANGE"),
+        }
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
+            patch("deps.bot_common_actions.send_match_start_gif") as mock_send_gif,
+        ):
+
+            mock_get_users.return_value = user_activities
+
+            # Execute
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+            # Verify: GIF was NOT sent (nobody looking for ranked)
+            mock_send_gif.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_gif_respects_rate_limit(self, mock_bot, mock_guild):
+        """Verify GIF respects 15-minute rate limit"""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+        from datetime import timedelta
+
+        cog = MyEventsCog(mock_bot)
+
+        guild_id = mock_guild.id
+        channel_id = 333333333
+
+        # Mock: 2 users, 1 looking for ranked
+        user_activities = {
+            111: ActivityTransition("in MENU", "Looking for RANKED match"),
+            222: ActivityTransition("in MENU", "Playing Map Training"),
+        }
+
+        # Mock: GIF was sent 5 minutes ago (within 15-minute window)
+        recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
+            patch("cogs.events.data_access_get_last_match_start_gif_time") as mock_get_last_time,
+            patch("deps.bot_common_actions.send_match_start_gif") as mock_send_gif,
+            patch("cogs.events.print_log") as mock_log,
+        ):
+
+            mock_get_users.return_value = user_activities
+            mock_get_last_time.return_value = recent_time
+
+            # Execute
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+            # Verify: GIF was NOT sent (rate limited)
+            mock_send_gif.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_gif_sent_after_rate_limit_expires(self, mock_bot, mock_guild):
+        """Verify GIF is sent after 15-minute rate limit expires"""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+        from datetime import timedelta
+
+        cog = MyEventsCog(mock_bot)
+
+        guild_id = mock_guild.id
+        channel_id = 333333333
+
+        # Mock: 2 users, 1 looking for ranked
+        user_activities = {
+            111: ActivityTransition("in MENU", "Looking for RANKED match"),
+            222: ActivityTransition("in MENU", "Playing Map Training"),
+        }
+
+        # Mock: GIF was sent 20 minutes ago (outside 15-minute window)
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=20)
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
+            patch("cogs.events.data_access_get_last_match_start_gif_time") as mock_get_last_time,
+            patch("cogs.events.data_access_set_last_match_start_gif_time") as mock_set_last_time,
+            patch("deps.bot_common_actions.send_match_start_gif") as mock_send_gif,
+        ):
+
+            mock_get_users.return_value = user_activities
+            mock_get_last_time.return_value = old_time
+
+            # Execute
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+            # Verify: GIF was sent (rate limit expired)
+            mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
+            mock_set_last_time.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_multiple_users_looking_for_ranked(self, mock_bot, mock_guild):
+        """Verify GIF is sent when multiple users are looking for ranked"""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+
+        cog = MyEventsCog(mock_bot)
+
+        guild_id = mock_guild.id
+        channel_id = 333333333
+
+        # Mock: 3 users in channel, 2 looking for ranked
+        user_activities = {
+            111: ActivityTransition("in MENU", "Looking for RANKED match"),
+            222: ActivityTransition("in MENU", "Looking for RANKED match"),
+            333: ActivityTransition("in MENU", "Playing Map Training"),
+        }
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
+            patch("cogs.events.data_access_get_last_match_start_gif_time") as mock_get_last_time,
+            patch("cogs.events.data_access_set_last_match_start_gif_time") as mock_set_last_time,
+            patch("deps.bot_common_actions.send_match_start_gif") as mock_send_gif,
+        ):
+
+            mock_get_users.return_value = user_activities
+            mock_get_last_time.return_value = None
+
+            # Execute
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+            # Verify: GIF was sent
+            mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
+            mock_set_last_time.assert_called_once()
