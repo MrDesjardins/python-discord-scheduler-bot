@@ -340,3 +340,78 @@ def parse_json_user_info(user_id: int, json_content: Union[str, Dict[str, Any]])
         quickmatch_kill_per_match=get_stat_value(quickmatch_segment, "killsPerMatch", 0.0),
         quickmatch_win_percentage=get_stat_value(quickmatch_segment, "winPercentage", 0.0),
     )
+
+
+def parse_operator_stats_from_json(json_content: Union[str, Dict[str, Any]], user_id: int) -> List[Dict[str, Any]]:
+    """
+    Parse operator stats from R6 Tracker API JSON response.
+
+    Args:
+        json_content: JSON string or dict from API
+        user_id: Discord user ID to associate with stats
+
+    Returns:
+        List of operator stat dictionaries ready for database insertion
+    """
+    try:
+        if isinstance(json_content, str):
+            data_dict = json.loads(json_content)
+        else:
+            data_dict = json_content
+
+        operators_data = data_dict.get("data", [])
+        if not operators_data:
+            return []
+
+        operator_stats = []
+        for operator in operators_data:
+            try:
+                attributes = operator.get("attributes", {})
+                stats = operator.get("stats", {})
+
+                # Extract required fields
+                operator_name = attributes.get("operator", "").lower()
+                session_type = attributes.get("sessionType", "")
+                side = attributes.get("side", "")
+                gamemode = attributes.get("gamemode", "")
+
+                # Skip if missing required fields
+                if not all([operator_name, session_type, side, gamemode]):
+                    continue
+
+                # Extract stats with .get() to handle missing values
+                operator_stat = {
+                    "user_id": user_id,
+                    "operator_name": operator_name,
+                    "session_type": session_type,
+                    "side": side,
+                    "gamemode": gamemode,
+                    "matches_played": stats.get("matchesPlayed", {}).get("value", 0) or 0,
+                    "matches_won": stats.get("matchesWon", {}).get("value", 0) or 0,
+                    "matches_lost": stats.get("matchesLost", {}).get("value", 0) or 0,
+                    "win_percentage": stats.get("winPercentage", {}).get("value", 0.0) or 0.0,
+                    "time_played": stats.get("timePlayed", {}).get("value", 0) or 0,
+                    "rounds_played": stats.get("roundsPlayed", {}).get("value", 0) or 0,
+                    "rounds_won": stats.get("roundsWon", {}).get("value", 0) or 0,
+                    "rounds_lost": stats.get("roundsLost", {}).get("value", 0) or 0,
+                    "round_win_pct": stats.get("roundWinPct", {}).get("value", 0.0) or 0.0,
+                    "kills": stats.get("kills", {}).get("value", 0) or 0,
+                    "deaths": stats.get("deaths", {}).get("value", 0) or 0,
+                    "kd_ratio": stats.get("kdRatio", {}).get("value", 0.0) or 0.0,
+                    "kills_per_game": stats.get("killsPerGame", {}).get("value", 0.0) or 0.0,
+                    "kills_per_round": stats.get("killsPerRound", {}).get("value", 0.0) or 0.0,
+                }
+
+                operator_stats.append(operator_stat)
+
+            except Exception as e:
+                print_error_log(
+                    f"parse_operator_stats_from_json: Error parsing operator {operator.get('attributes', {}).get('operator', 'unknown')}: {e}"
+                )
+                continue
+
+        return operator_stats
+
+    except Exception as e:
+        print_error_log(f"parse_operator_stats_from_json: Error parsing JSON: {e}")
+        return []

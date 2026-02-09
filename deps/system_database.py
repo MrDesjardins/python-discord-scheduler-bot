@@ -467,6 +467,56 @@ class DatabaseManager:
         # Add deduplication index for user_activity
         self._migrate_add_activity_dedup_index()
 
+        # Add operator stats table
+        self._migrate_add_operator_stats_table()
+
+    def _migrate_add_operator_stats_table(self):
+        """Create operator_stats table for storing per-operator statistics."""
+        print_log("Running migration: Create operator_stats table")
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS operator_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                operator_name TEXT NOT NULL,
+                session_type TEXT NOT NULL,
+                side TEXT NOT NULL,
+                gamemode TEXT NOT NULL,
+                matches_played INTEGER DEFAULT 0,
+                matches_won INTEGER DEFAULT 0,
+                matches_lost INTEGER DEFAULT 0,
+                win_percentage REAL DEFAULT 0.0,
+                time_played INTEGER DEFAULT 0,
+                rounds_played INTEGER DEFAULT 0,
+                rounds_won INTEGER DEFAULT 0,
+                rounds_lost INTEGER DEFAULT 0,
+                round_win_pct REAL DEFAULT 0.0,
+                kills INTEGER DEFAULT 0,
+                deaths INTEGER DEFAULT 0,
+                kd_ratio REAL DEFAULT 0.0,
+                kills_per_game REAL DEFAULT 0.0,
+                kills_per_round REAL DEFAULT 0.0,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES user_info(id) ON DELETE CASCADE,
+                UNIQUE(user_id, operator_name, session_type, gamemode)
+            )
+        """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_operator_stats_user
+            ON operator_stats(user_id)
+        """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_operator_stats_operator
+            ON operator_stats(operator_name, session_type)
+        """
+        )
+        self.conn.commit()
+        print_log("Migration complete: operator_stats table created")
+
     def _migrate_add_match_timestamp_index(self):
         """Add composite index for time-based match queries (user_id, match_timestamp)."""
         print_log("Running migration: Add index on user_full_match_info(user_id, match_timestamp)")

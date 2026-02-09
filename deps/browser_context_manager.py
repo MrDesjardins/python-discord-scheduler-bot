@@ -480,3 +480,66 @@ class BrowserContextManager:
         else:
             print_error_log("download_full_user_stats: JSON data not found within <pre> tag.")
         return None
+
+    def download_operator_stats(self, r6_tracker_user_uuid: str) -> Optional[List]:
+        """
+        Download operator statistics for a given R6 Tracker user UUID.
+
+        Args:
+            r6_tracker_user_uuid: R6 Tracker UUID for the user
+
+        Returns:
+            List of operator stat dictionaries, or None if failed
+        """
+        self.counter += 1
+
+        if not r6_tracker_user_uuid:
+            print_error_log("download_operator_stats: R6 Tracker UUID not provided.")
+            return None
+
+        # Construct API URL
+        api_url = f"https://api.tracker.gg/api/v2/r6siege/standard/profile/ubi/{r6_tracker_user_uuid}/segments/operator?sessionType=ranked&season=all"
+
+        try:
+            self.driver.get(api_url)
+            print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
+
+            # Wait until the page contains the expected JSON data
+            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+
+            # Get the page source
+            page_source = self.driver.page_source
+
+            # Remove the HTML
+            soup = BeautifulSoup(page_source, "html.parser")
+            pre_tag = soup.find("pre")
+
+            if pre_tag:
+                # Extract the text content of the <pre> tag
+                json_data = pre_tag.get_text().strip()
+
+                try:
+                    # Parse the JSON data
+                    data = json.loads(json_data)
+                    print_log(f"download_operator_stats: JSON found for UUID {r6_tracker_user_uuid}")
+
+                    # Save the JSON data to a file for debugging in dev
+                    if os.getenv("ENV") == "dev":
+                        try:
+                            with open(f"r6tracker_operator_stats_{self.counter}.json", "w", encoding="utf8") as file:
+                                file.write(json.dumps(data, indent=4))
+                        except Exception as e:
+                            print_warning_log(f"Failed to write debug JSON file: {e}")
+
+                    return data
+
+                except json.JSONDecodeError as e:
+                    print_error_log(f"download_operator_stats: Error parsing JSON: {e}")
+                    return None
+            else:
+                print_error_log("download_operator_stats: JSON data not found within <pre> tag.")
+                return None
+
+        except Exception as e:
+            print_error_log(f"download_operator_stats: Error downloading operator stats: {e}")
+            return None

@@ -6,7 +6,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Union
 from gtts import gTTS  # type: ignore
 import discord
-from deps.browser import download_full_matches_async, download_full_user_information_async
+from deps.browser import (
+    download_full_matches_async,
+    download_full_user_information_async,
+    download_operator_stats_for_users_async,
+)
 from deps.analytic_data_access import (
     data_access_set_max_mmr,
     data_access_set_r6_tracker_id,
@@ -16,6 +20,7 @@ from deps.analytic_data_access import (
     insert_if_nonexistant_full_user_info,
 )
 from deps.data_access_data_class import UserInfo
+from deps.operator_stats_data_access import upsert_operator_stats
 from deps.data_access import (
     data_access_add_list_member_stats,
     data_access_get_bot_voice_first_user,
@@ -64,7 +69,7 @@ from deps.values import (
     SUPPORTED_TIMES_STR,
 )
 from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
-from deps.functions_r6_tracker import get_user_gaming_session_stats
+from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
     adjust_reaction,
     get_daily_embed_message,
@@ -651,6 +656,41 @@ async def persist_siege_matches_cross_guilds(from_time: datetime, to_time: datet
             data_access_set_r6_tracker_id(user_info.id, r6_id)
 
 
+async def fetch_and_persist_operator_stats(users: List[UserInfo]) -> None:
+    """
+    Fetch and persist operator statistics for all active users.
+    Uses BrowserContextManager to fetch data with proper cookies and rate limiting.
+
+    Args:
+        users: List of UserInfo objects with r6_tracker_active_id
+    """
+    print_log(f"fetch_and_persist_operator_stats: Starting collection for {len(users)} users")
+
+    # Download operator stats using BrowserContextManager (with built-in rate limiting)
+    all_operator_data = await download_operator_stats_for_users_async(users)
+
+    # Parse and store the data
+    for user, operator_data in all_operator_data:
+        try:
+            # Parse the operator stats
+            operator_stats = parse_operator_stats_from_json(operator_data, user.id)
+
+            if operator_stats:
+                # Store in database
+                upsert_operator_stats(operator_stats)
+                print_log(
+                    f"fetch_and_persist_operator_stats: Saved {len(operator_stats)} operator stats for {user.display_name}"
+                )
+            else:
+                print_log(f"fetch_and_persist_operator_stats: No operator stats found for {user.display_name}")
+
+        except Exception as e:
+            print_error_log(f"fetch_and_persist_operator_stats: Error processing stats for {user.display_name}: {e}")
+            continue
+
+    print_log(f"fetch_and_persist_operator_stats: Completed collection for {len(all_operator_data)} users")
+
+
 async def persist_user_full_information_cross_guilds(from_time: datetime, to_time: datetime) -> None:
     """
     Fetch and persist the user full information between two dates
@@ -673,6 +713,10 @@ async def persist_user_full_information_cross_guilds(from_time: datetime, to_tim
         except Exception as e:
             print_error_log(f"persist_user_full_information_cross_guilds: Error saving the user full stats info: {e}")
             continue
+
+    # Fetch and persist operator statistics for all active users
+    print_log("persist_user_full_information_cross_guilds: Starting operator stats collection...")
+    await fetch_and_persist_operator_stats(users)
 
 
 async def move_members_between_voice_channel(
