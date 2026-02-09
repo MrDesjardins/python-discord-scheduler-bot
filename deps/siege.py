@@ -5,6 +5,7 @@ import discord
 
 from deps.models import ActivityTransition, SiegeActivityAggregation
 from deps.mybot import MyBot
+from deps.log import print_log
 
 siege_ranks = [
     "Champion",
@@ -91,8 +92,10 @@ def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
     Get the siege activity from the member's activities
     The activity.detail will give information about where in the game the user is (e.g. in a match)
     """
+    print_log(f"Checking activities for member {member.display_name}")
     for activity in member.activities:
         if isinstance(activity, discord.Activity):
+            print_log(f"Activity found: {activity.name}")
             if activity.name == "Rainbow Six Siege" or activity.name == "Tom Clancy's Rainbow Six Siege X":
                 return activity
     return None

@@ -345,11 +345,11 @@ class MyEventsCog(commands.Cog):
         guild_name = before.guild.name
         text_channel_main_siege_id = await data_access_get_main_text_channel_id(guild_id)
         if text_channel_main_siege_id is None:
-            print_warning_log(f"on_member_update: Main Siege text channel id not set for guild {guild_name}. Skipping.")
+            print_warning_log(f"on_presence_update: Main Siege text channel id not set for guild {guild_name}. Skipping.")
             return
         channel = await data_access_get_channel(text_channel_main_siege_id)
         if not channel:
-            print_warning_log(f"on_member_update: New user text channel not found for guild {guild_name}. Skipping.")
+            print_warning_log(f"on_presence_update: New user text channel not found for guild {guild_name}. Skipping.")
             return
 
         # Check if the member is in a voice channel
@@ -363,7 +363,7 @@ class MyEventsCog(commands.Cog):
         after_details = after_activity.details if after_activity else None
 
         if before_details != after_details:
-            message = f"User {after.display_name} changed activity from {before_details} to {after_details}"
+            message = f"on_presence_update: User {after.display_name} changed activity from {before_details} to {after_details}"
             print_log(message)
         # Add the user to the voice channel list with the current siege activity detail
         await data_access_update_voice_user_list(
