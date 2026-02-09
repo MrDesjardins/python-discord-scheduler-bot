@@ -630,6 +630,9 @@ async def persist_siege_matches_cross_guilds(from_time: datetime, to_time: datet
     """
     # Get the list of user who were active between the time
     users: List[UserInfo] = get_active_user_info(from_time, to_time)
+    # Log all users we found active
+    print_log(f"persist_siege_matches_cross_guilds: Found {len(users)} active users between {from_time} and {to_time}")
+    print_log(f"persist_siege_matches_cross_guilds: Active users: {[user.display_name for user in users]}")
     users_stats: List[UserQueueForStats] = [UserQueueForStats(user, 0, from_time) for user in users]
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API

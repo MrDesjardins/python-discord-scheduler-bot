@@ -31,7 +31,7 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
                     all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
 
                     if len(users_queued) > 1:
-                        time.sleep(random.uniform(1, 5))  # Sleep few seconds between each request
+                        time.sleep(random.uniform(3, 12))  # Sleep few seconds between each request
 
                 except Exception as e:
                     print_error_log(
