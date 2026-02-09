@@ -429,18 +429,21 @@ class MyEventsCog(commands.Cog):
         try:
             await asyncio.sleep(5)  # Wait for all presence updates to settle
 
-            # Check if 2+ users are now playing ranked
+            # Check if 1+ users are now looking for a ranked match
             user_activities = await data_access_get_voice_user_list(guild_id, channel_id)
             aggregation = get_aggregation_siege_activity(user_activities)
-
-            if aggregation.playing_rank >= 2:
+            number_users = len(user_activities)
+            if aggregation.looking_ranked_match >= 1 and number_users >= 2:
+                print_log(f"Detected ranked match start in guild {guild_id}, channel {channel_id}. Sending GIF.")
                 # Rate limit: once per hour per channel
                 last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
-                if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(hours=1):
+                if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(minutes=15):
                     from deps.bot_common_actions import send_match_start_gif
 
                     await send_match_start_gif(self.bot, guild_id, channel_id)
                     await data_access_set_last_match_start_gif_time(guild_id, channel_id, datetime.now(timezone.utc))
+                else:
+                    print_log(f"Match start GIF recently sent for guild {guild_id}, channel {channel_id}. Skipping.")
         except Exception as e:
             print_error_log(f"send_match_start_gif_debounced_cancellable_task: {e}")
         finally:

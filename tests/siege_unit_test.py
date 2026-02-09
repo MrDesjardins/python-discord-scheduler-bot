@@ -21,6 +21,7 @@ def test_get_aggregation_siege_activity_no_data() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_none_entry() -> None:
@@ -37,6 +38,7 @@ def test_get_aggregation_siege_activity_none_entry() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_no_before_no_after() -> None:
@@ -53,6 +55,7 @@ def test_get_aggregation_siege_activity_no_before_no_after() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_no_before_after_in_menu() -> None:
@@ -69,6 +72,7 @@ def test_get_aggregation_siege_activity_no_before_after_in_menu() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_no_before_after_playing_map_training() -> None:
@@ -85,6 +89,7 @@ def test_get_aggregation_siege_activity_no_before_after_playing_map_training() -
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_no_before_after_playing_shooting_range() -> None:
@@ -101,6 +106,7 @@ def test_get_aggregation_siege_activity_no_before_after_playing_shooting_range()
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_no_before_after_arcade() -> None:
@@ -117,6 +123,7 @@ def test_get_aggregation_siege_activity_no_before_after_arcade() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_no_before_after_ai() -> None:
@@ -133,6 +140,7 @@ def test_get_aggregation_siege_activity_no_before_after_ai() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_no_after() -> None:
@@ -149,6 +157,7 @@ def test_get_aggregation_siege_activity_before_but_no_after() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_1() -> None:
@@ -165,6 +174,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_1() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_2() -> None:
@@ -181,6 +191,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_2() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_3() -> None:
@@ -197,6 +208,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_3() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_4() -> None:
@@ -213,6 +225,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_4() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_5() -> None:
@@ -229,6 +242,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_5() -> None:
     assert result.done_match_waiting_in_menu == 1
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_6() -> None:
@@ -245,6 +259,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_6() -> None:
     assert result.done_match_waiting_in_menu == 1
     assert result.playing_rank == 0
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_7() -> None:
@@ -261,6 +276,7 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_7() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 1
     assert result.playing_standard == 0
+    assert result.looking_ranked_match == 0
 
 
 def test_get_aggregation_siege_activity_before_but_after_in_menu_8() -> None:
@@ -277,3 +293,42 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_8() -> None:
     assert result.done_match_waiting_in_menu == 0
     assert result.playing_rank == 0
     assert result.playing_standard == 1
+    assert result.looking_ranked_match == 0
+
+
+def test_get_aggregation_siege_activity_looking_for_ranked_match() -> None:
+    """
+    Test the case where a user transitions from in MENU to Looking for RANKED match
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("in MENU", "Looking for RANKED match")}
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 0
+    assert result.done_warming_up_waiting_in_menu == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+    assert result.looking_ranked_match == 1
+
+
+def test_get_aggregation_siege_activity_looking_for_ranked_match_multiple_users() -> None:
+    """
+    Test the case where multiple users are looking for ranked match
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("in MENU", "Looking for RANKED match"),
+        2: ActivityTransition("in MENU", "Looking for RANKED match"),
+        3: ActivityTransition("in MENU", "Playing Map Training"),
+    }
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.count_in_menu == 0
+    assert result.game_not_started == 0
+    assert result.user_leaving == 0
+    assert result.warming_up == 1
+    assert result.done_warming_up_waiting_in_menu == 0
+    assert result.done_match_waiting_in_menu == 0
+    assert result.playing_rank == 0
+    assert result.playing_standard == 0
+    assert result.looking_ranked_match == 2

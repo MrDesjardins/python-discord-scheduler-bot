@@ -122,6 +122,7 @@ def get_aggregation_siege_activity(
     done_match_waiting_in_menu = 0
     playing_rank = 0
     playing_standard = 0
+    looking_ranked_match = 0
 
     for user_id, activity_before_after in dict_users_activities.items():
         if activity_before_after is None:
@@ -161,6 +162,8 @@ def get_aggregation_siege_activity(
             playing_rank += 1
         if aft is not None and aft.startswith("STANDARD match"):
             playing_standard += 1
+        if bef == "in MENU" and aft is not None and aft.startswith("Looking for RANKED match"):
+            looking_ranked_match += 1
 
     return SiegeActivityAggregation(
         count_in_menu,
@@ -171,6 +174,7 @@ def get_aggregation_siege_activity(
         done_match_waiting_in_menu,
         playing_rank,
         playing_standard,
+        looking_ranked_match
     )
 
 

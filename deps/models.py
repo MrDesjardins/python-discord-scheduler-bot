@@ -354,6 +354,7 @@ class SiegeActivityAggregation:
         done_match_waiting_in_menu: int,
         playing_rank: int,
         playing_standard: int,
+        looking_ranked_match: int = 0,
     ):
         self.count_in_menu = count_in_menu
         self.game_not_started = game_not_started
@@ -363,6 +364,7 @@ class SiegeActivityAggregation:
         self.done_match_waiting_in_menu = done_match_waiting_in_menu
         self.playing_rank = playing_rank
         self.playing_standard = playing_standard
+        self.looking_ranked_match = looking_ranked_match
 
 
 class UserInformation:
