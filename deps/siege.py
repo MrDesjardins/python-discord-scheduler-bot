@@ -95,7 +95,7 @@ def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
     print_log(f"Checking activities for member {member.display_name}")
     for activity in member.activities:
         if isinstance(activity, discord.Activity):
-            print_log(f"Activity found: {activity.name}")
+            print_log(f"Activity found: {activity.name}, Details: {activity.details if activity.details else 'No details'}")
             if activity.name == "Rainbow Six Siege" or activity.name == "Tom Clancy's Rainbow Six Siege X":
                 return activity
     return None
