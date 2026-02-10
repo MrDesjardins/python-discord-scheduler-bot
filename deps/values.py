@@ -62,6 +62,10 @@ MSG_UNIQUE_STRING = "What time will you play"
 # Used in moving people between voice channels
 DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS = 0.1
 
+# Time in seconds before match start GIF is automatically deleted
+# 30 minutes to prevent channel clutter
+MATCH_START_GIF_DELETE_AFTER_SECONDS = 30 * 60
+
 # -----------------------
 # User's commands
 ## Initialization, Setup

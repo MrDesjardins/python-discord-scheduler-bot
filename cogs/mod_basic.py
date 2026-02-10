@@ -2,6 +2,7 @@
 Basic moderator commands
 """
 
+import io
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -18,6 +19,7 @@ from deps.values import (
     COMMAND_RESET_CACHE,
     COMMAND_GUILD_ENABLE_BOT_VOICE,
     COMMAND_TEST_MATCH_START_GIF,
+    MATCH_START_GIF_DELETE_AFTER_SECONDS,
 )
 from deps.functions import (
     get_sha,
@@ -34,6 +36,7 @@ from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
 from deps.siege import get_siege_activity
 from deps.functions_stats import send_daily_stats_to_a_guild
+from deps.match_start_gif import generate_match_start_gif
 from deps.ai.ai_functions import BotAISingleton
 
 
@@ -297,9 +300,6 @@ class ModBasic(commands.Cog):
             return
 
         try:
-            from deps.match_start_gif import generate_match_start_gif
-            import io
-
             # Get main text channel
             guild_id = interaction.guild_id
             text_channel_id = await data_access_get_main_text_channel_id(guild_id)
@@ -322,16 +322,19 @@ class ModBasic(commands.Cog):
                 await interaction.followup.send("❌ Failed to generate GIF!", ephemeral=True)
                 return
 
-            # Send to Discord
+            # Send to Discord with automatic deletion
             file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start_test.gif")
             await text_channel.send(
                 f"🎮 **Test Match Start GIF** (triggered by {interaction.user.mention})\n"
                 f"Players: {', '.join([m.mention for m in members])}",
                 file=file,
+                delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
             )
 
             await interaction.followup.send(
-                f"✅ Match start GIF posted to {text_channel.mention}!\n" f"Generated for {len(members)} member(s).",
+                f"✅ Match start GIF posted to {text_channel.mention}!\n"
+                f"Generated for {len(members)} member(s). "
+                f"(Auto-deletes after {MATCH_START_GIF_DELETE_AFTER_SECONDS // 60} minutes)",
                 ephemeral=True,
             )
 

@@ -1,6 +1,7 @@
 """Common Actions that the bots Cogs or Bots can invoke"""
 
 import asyncio
+import io
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Union
@@ -65,6 +66,7 @@ from deps.functions import (
 )
 from deps.values import (
     DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS,
+    MATCH_START_GIF_DELETE_AFTER_SECONDS,
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
@@ -76,6 +78,7 @@ from deps.functions_schedule import (
     auto_assign_user_to_daily_question,
     update_vote_message,
 )
+from deps.match_start_gif import generate_match_start_gif
 from ui.schedule_buttons import ScheduleButtons
 
 
@@ -749,9 +752,6 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
         guild_id: Guild ID
         voice_channel_id: Voice channel ID where the match is starting
     """
-    from deps.match_start_gif import generate_match_start_gif
-    import io
-
     try:
         # Get voice channel and members
         vc_channel = await data_access_get_channel(voice_channel_id)
@@ -774,10 +774,17 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
             print_log("send_match_start_gif: GIF generation returned no data")
             return
 
-        # Send to Discord
+        # Send to Discord with automatic deletion
         file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")
-        await text_channel.send(f"🎮 Match starting in <#{voice_channel_id}>! Good luck!", file=file)
-        print_log(f"send_match_start_gif: Successfully sent GIF to {text_channel.name}")
+        await text_channel.send(
+            f"🎮 Match starting in <#{voice_channel_id}>! Good luck!",
+            file=file,
+            delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+        )
+        print_log(
+            f"send_match_start_gif: Successfully sent GIF to {text_channel.name} "
+            f"(will auto-delete after {MATCH_START_GIF_DELETE_AFTER_SECONDS // 60} minutes)"
+        )
 
     except Exception as e:
         print_error_log(f"send_match_start_gif: Error: {e}")
