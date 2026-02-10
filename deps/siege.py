@@ -95,7 +95,9 @@ def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
     print_log(f"Checking activities for member {member.display_name}")
     for activity in member.activities:
         if isinstance(activity, discord.Activity):
-            print_log(f"Activity found: {activity.name}, Details: {activity.details if activity.details else 'No details'}")
+            print_log(
+                f"Activity found: {activity.name}, Details: {activity.details if activity.details else 'No details'}, State: {activity.state if activity.state else 'No state'}, Party: {activity.party if activity.party else 'No party'}, State: {activity.state if activity.state else 'No state'}, Type: {activity.type}"
+            )
             if activity.name == "Rainbow Six Siege" or activity.name == "Tom Clancy's Rainbow Six Siege X":
                 return activity
     return None
@@ -177,7 +179,7 @@ def get_aggregation_siege_activity(
         done_match_waiting_in_menu,
         playing_rank,
         playing_standard,
-        looking_ranked_match
+        looking_ranked_match,
     )
 
 
