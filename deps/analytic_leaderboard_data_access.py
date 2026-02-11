@@ -579,6 +579,65 @@ def data_access_fetch_best_trio(from_data: date) -> list[tuple[str, str, str, in
     return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in result]
 
 
+def data_access_fetch_team_stats(user_ids: List[int]) -> tuple[int, float] | None:
+    """
+    Get the number of games played and win rate percentage for a specific group of 2-5 players.
+
+    Args:
+        user_ids: List of 2-5 user IDs to get stats for
+
+    Returns:
+        Tuple of (games_played, win_rate_percentage) or None if no matches found
+
+    Raises:
+        ValueError: If user_ids list is not between 2-5 players
+    """
+    if len(user_ids) < 2 or len(user_ids) > 5:
+        raise ValueError(f"user_ids must contain 2-5 players, got {len(user_ids)}")
+
+    # Sort user IDs to ensure consistent ordering
+    sorted_user_ids = sorted(user_ids)
+    num_users = len(sorted_user_ids)
+
+    # Build the query dynamically based on number of users
+    # We need to join the table once per user and ensure they all played in the same match
+    joins = []
+    where_clauses = []
+
+    for i in range(num_users):
+        alias = f"m{i+1}"
+        if i == 0:
+            joins.append(f"user_full_match_info {alias}")
+        else:
+            joins.append(f"JOIN user_full_match_info {alias} ON m1.match_uuid = {alias}.match_uuid")
+        where_clauses.append(f"{alias}.user_id = :user{i+1}")
+
+    query = f"""
+        SELECT
+            COUNT(*) AS games_played,
+            SUM(m1.has_win) AS wins,
+            SUM(m1.has_win) * 1.0 / COUNT(*) AS win_rate_percentage
+        FROM
+            {joins[0]}
+        {' '.join(joins[1:])}
+        WHERE
+            {' AND '.join(where_clauses)}
+        """
+
+    # Build parameters dict
+    params = {f"user{i+1}": sorted_user_ids[i] for i in range(num_users)}
+
+    result = database_manager.get_cursor().execute(query, params).fetchone()
+
+    if result is None or result[0] == 0:
+        return None
+
+    games_played = result[0]
+    win_rate_percentage = result[2]
+
+    return (games_played, win_rate_percentage)
+
+
 def data_access_fetch_first_death(from_data: date) -> list[tuple[str, int, int, float]]:
     """
     Get the user name, the number of first death, the number of first rounds and the number of first death

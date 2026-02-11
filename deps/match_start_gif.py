@@ -121,10 +121,12 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
     try:
         font_title = ImageFont.truetype(font_path, 36)
         font_name = ImageFont.truetype(font_path, 20)
+        font_stats = ImageFont.truetype(font_path, 18)
     except Exception as e:
         print_error_log(f"_create_good_luck_frame: Failed to load font: {e}")
         font_title = ImageFont.load_default()
         font_name = ImageFont.load_default()
+        font_stats = ImageFont.load_default()
 
     # Title
     title = "Good luck to"
@@ -172,6 +174,32 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
         draw.text((x + avatar_size // 2, y + avatar_size + 10), name, fill="white", font=font_name, anchor="mt")
 
         col += 1
+
+    # Fetch and display team stats if we have 2-5 players
+    if 2 <= num_members <= 5:
+        from deps.analytic_leaderboard_data_access import data_access_fetch_team_stats
+
+        try:
+            user_ids = [member.id for member in members]
+            team_stats = data_access_fetch_team_stats(user_ids)
+
+            if team_stats is not None:
+                games_played, win_rate = team_stats
+                win_rate_pct = win_rate * 100  # Convert to percentage
+
+                # Position stats below the last row of players
+                stats_y = y_position + (row + 1) * 220 + 30
+
+                # Format stats text
+                stats_text = f"Team: {games_played} games | {win_rate_pct:.1f}% win rate"
+
+                # Draw stats centered
+                draw.text(
+                    (width // 2, stats_y), stats_text, fill="#00FF00", font=font_stats, anchor="mm"
+                )
+        except Exception as e:
+            # Don't fail the entire frame if stats fetch fails
+            print_error_log(f"_create_good_luck_frame: Failed to fetch team stats: {e}")
 
     return img
 
