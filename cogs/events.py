@@ -54,6 +54,8 @@ class MyEventsCog(commands.Cog):
     def __init__(self, bot: MyBot):
         self.bot = bot
         self.last_task: dict[str, asyncio.Task] = {}
+        self.match_start_gif_locks: dict[str, asyncio.Lock] = {}
+        self.match_start_gif_locks_creation_lock = asyncio.Lock()
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -89,8 +91,7 @@ class MyEventsCog(commands.Cog):
             for emoji in guild.emojis:
                 bot.guild_emoji[guild.id][emoji.name] = emoji.id
                 print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
-            tasks.append(send_daily_question_to_a_guild(bot, guild))
-
+            
         # Cleanup task that runs every few seconds
         tasks.append(start_periodic_cache_cleanup())
 
@@ -428,24 +429,37 @@ class MyEventsCog(commands.Cog):
         """
         A task that can be cancelled and will wait for X seconds before checking if a ranked match started.
         """
+        lock_key = f"{guild_id}:{channel_id}"
+
+        # Ensure we have a lock for this channel BEFORE the sleep
+        # Use a creation lock to prevent race condition where multiple tasks create separate locks
+        async with self.match_start_gif_locks_creation_lock:
+            if lock_key not in self.match_start_gif_locks:
+                self.match_start_gif_locks[lock_key] = asyncio.Lock()
+
         try:
             await asyncio.sleep(5)  # Wait for all presence updates to settle
 
-            # Check if 1+ users are now looking for a ranked match
-            user_activities = await data_access_get_voice_user_list(guild_id, channel_id)
-            aggregation = get_aggregation_all_activities(user_activities)
-            number_users = len(user_activities)
-            if aggregation.looking_ranked_match >= 1 and number_users >= 2:
-                print_log(f"Detected ranked match start in guild {guild_id}, channel {channel_id}. Sending GIF.")
-                # Rate limit: once per hour per channel
-                last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
-                if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(minutes=15):
-                    from deps.bot_common_actions import send_match_start_gif
+            # Use a lock to prevent multiple GIFs from being sent simultaneously for the same channel
+            async with self.match_start_gif_locks[lock_key]:
+                # Check if 1+ users are now looking for a ranked match
+                user_activities = await data_access_get_voice_user_list(guild_id, channel_id)
+                aggregation = get_aggregation_all_activities(user_activities)
+                number_users = len(user_activities)
+                if aggregation.looking_ranked_match >= 1 and number_users >= 2:
+                    print_log(f"Detected ranked match start in guild {guild_id}, channel {channel_id}. Sending GIF.")
+                    # Rate limit: once per hour per channel
+                    last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
+                    if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(minutes=15):
+                        from deps.bot_common_actions import send_match_start_gif
 
-                    await send_match_start_gif(self.bot, guild_id, channel_id)
-                    await data_access_set_last_match_start_gif_time(guild_id, channel_id, datetime.now(timezone.utc))
-                else:
-                    print_log(f"Match start GIF recently sent for guild {guild_id}, channel {channel_id}. Skipping.")
+                        await send_match_start_gif(self.bot, guild_id, channel_id)
+                        await data_access_set_last_match_start_gif_time(guild_id, channel_id, datetime.now(timezone.utc))
+                    else:
+                        print_log(f"Match start GIF recently sent for guild {guild_id}, channel {channel_id}. Skipping.")
+        except asyncio.CancelledError:
+            # Task was cancelled during sleep, this is expected
+            pass
         except Exception as e:
             print_error_log(f"send_match_start_gif_debounced_cancellable_task: {e}")
         finally:

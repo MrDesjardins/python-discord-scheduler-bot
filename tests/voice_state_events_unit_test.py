@@ -507,3 +507,53 @@ class TestMatchStartGif:
             # Verify: GIF was sent
             mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
             mock_set_last_time.assert_called_once()
+    async def test_concurrent_presence_updates_send_only_one_gif(self) -> None:
+        """Test that concurrent presence updates only result in one GIF being sent due to locking"""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+
+        mock_bot = MagicMock()
+        cog = MyEventsCog(mock_bot)
+        guild_id = 111111111
+        channel_id = 333333333
+
+        # Setup: multiple users all looking for ranked match
+        user_activities = {
+            1: ActivityTransition("At the Main Menu", "In Queue"),
+            2: ActivityTransition("At the Main Menu", "In Queue"),
+            3: ActivityTransition("At the Main Menu", "In Queue"),
+        }
+
+        # Simulate actual cache behavior: first call returns None, subsequent calls return a timestamp
+        last_gif_time = None
+
+        def get_last_time_side_effect(gid, cid):
+            return last_gif_time
+
+        def set_last_time_side_effect(gid, cid, time):
+            nonlocal last_gif_time
+            last_gif_time = time
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
+            patch("cogs.events.data_access_get_last_match_start_gif_time") as mock_get_last_time,
+            patch("cogs.events.data_access_set_last_match_start_gif_time") as mock_set_last_time,
+            patch("deps.bot_common_actions.send_match_start_gif") as mock_send_gif,
+        ):
+
+            mock_get_users.return_value = user_activities
+            mock_get_last_time.side_effect = get_last_time_side_effect
+            mock_set_last_time.side_effect = set_last_time_side_effect
+
+            # Execute: run multiple tasks concurrently (simulating rapid presence updates)
+            tasks = [
+                cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id),
+                cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id),
+                cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id),
+            ]
+            await asyncio.gather(*tasks)
+
+            # Verify: GIF was sent exactly once despite multiple concurrent tasks
+            assert mock_send_gif.call_count == 1, f"Expected 1 GIF to be sent, but got {mock_send_gif.call_count}"
+            mock_send_gif.assert_called_with(mock_bot, guild_id, channel_id)
+            assert mock_set_last_time.call_count == 1
