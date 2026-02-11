@@ -38,6 +38,7 @@ from deps.siege import get_any_siege_activity
 from deps.functions_stats import send_daily_stats_to_a_guild
 from deps.match_start_gif import generate_match_start_gif
 from deps.ai.ai_functions import BotAISingleton
+from deps.ai.ai_bot_functions import split_message_at_paragraphs
 
 
 class ModBasic(commands.Cog):
@@ -217,8 +218,8 @@ class ModBasic(commands.Cog):
         if msg == "":
             await interaction.followup.send("Error while generating the summary", ephemeral=True)
             return
-        # Split the message into chunks of 2000 characters
-        chunks = [msg[i : i + 2000] for i in range(0, len(msg), 2000)]
+        # Split the message into chunks at paragraph boundaries to avoid breaking mid-paragraph
+        chunks = split_message_at_paragraphs(msg)
         # Send each chunk as a separate message
         for chunk in chunks:
             await channel.send(content=chunk)

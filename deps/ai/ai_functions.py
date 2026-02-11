@@ -254,7 +254,7 @@ class BotAI:
 
         context = "Your goal is to generate a summary of the ranked matches played by the users I will provide belows under 12000 characters. Provide data for each user."
         context += "I am providing you a list of users and a list of their matches. You can use the match_uuid and user id to make some relationship with the user and the match. You need to use both. "
-        context += "Your message must never have more than 100 words per user and have a line break between user info. "
+        context += "Your message must never have more than 100 words per user and have a blank line (two line breaks: \\n\\n) between each user's section. "
         context += "If no match, say nothing, don't say they did not play. "
         context += (
             "Please mention every user by their display_name, so you must match the user id with the display_name. "
@@ -276,7 +276,7 @@ class BotAI:
         context += "Dont mention anything about what I asked you to do, just the result. No notes in the result concerning your task. "
         context += "Dont mention any ID, for example do not talk about r6_tracker_active_id or match_uuid. "
         context += "Dont mention any thing about the time. I provide the time and match_uuid for your to correlate the users and matches. "
-        context += "Change line without empty line (do not add two new lines in a row). "
+        context += "IMPORTANT: Separate each user's summary with a blank line (\\n\\n) to make it easy to read and split into Discord messages. Within a user's section, use single line breaks (\\n) for sentences. "
         context += "Format your text not in bullet point, but in a text like we would read in a sport news paper. "
         context += "Be professional, sport and concise. Do not add any emoji or special character. "
         # context += "If the display_name is 'Obey' prefix with the name with 'ultimate head shot machine'. "
