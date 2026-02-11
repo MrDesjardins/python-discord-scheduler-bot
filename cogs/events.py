@@ -36,7 +36,7 @@ from deps.data_access import (
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.mybot import MyBot
 from deps.models import ActivityTransition
-from deps.siege import get_siege_activity, get_user_rank_siege, get_aggregation_siege_activity
+from deps.siege import get_any_siege_activity, get_user_rank_siege, get_aggregation_all_activities
 from deps.follow_functions import send_private_notification_following_user
 
 load_dotenv()
@@ -155,7 +155,7 @@ class MyEventsCog(commands.Cog):
                 )
 
                 # Add the user to the voice channel list with the current siege activity detail
-                user_activity = get_siege_activity(member)
+                user_activity = get_any_siege_activity(member)
                 await data_access_update_voice_user_list(
                     guild_id,
                     after.channel.id,
@@ -244,7 +244,7 @@ class MyEventsCog(commands.Cog):
 
                 # Update cache (after transaction)
                 await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
-                user_activity = get_siege_activity(member)
+                user_activity = get_any_siege_activity(member)
                 await data_access_update_voice_user_list(
                     guild_id,
                     after.channel.id,
@@ -345,7 +345,9 @@ class MyEventsCog(commands.Cog):
         guild_name = before.guild.name
         text_channel_main_siege_id = await data_access_get_main_text_channel_id(guild_id)
         if text_channel_main_siege_id is None:
-            print_warning_log(f"on_presence_update: Main Siege text channel id not set for guild {guild_name}. Skipping.")
+            print_warning_log(
+                f"on_presence_update: Main Siege text channel id not set for guild {guild_name}. Skipping."
+            )
             return
         channel = await data_access_get_channel(text_channel_main_siege_id)
         if not channel:
@@ -357,8 +359,8 @@ class MyEventsCog(commands.Cog):
             return  # Ignore users not in a voice channel
 
         # Check for activity changes
-        before_activity = get_siege_activity(before)
-        after_activity = get_siege_activity(after)
+        before_activity = get_any_siege_activity(before)
+        after_activity = get_any_siege_activity(after)
         before_details = before_activity.details if before_activity else None
         after_details = after_activity.details if after_activity else None
 
@@ -431,7 +433,7 @@ class MyEventsCog(commands.Cog):
 
             # Check if 1+ users are now looking for a ranked match
             user_activities = await data_access_get_voice_user_list(guild_id, channel_id)
-            aggregation = get_aggregation_siege_activity(user_activities)
+            aggregation = get_aggregation_all_activities(user_activities)
             number_users = len(user_activities)
             if aggregation.looking_ranked_match >= 1 and number_users >= 2:
                 print_log(f"Detected ranked match start in guild {guild_id}, channel {channel_id}. Sending GIF.")

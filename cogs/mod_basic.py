@@ -34,7 +34,7 @@ from deps.data_access import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
-from deps.siege import get_siege_activity
+from deps.siege import get_any_siege_activity
 from deps.functions_stats import send_daily_stats_to_a_guild
 from deps.match_start_gif import generate_match_start_gif
 from deps.ai.ai_functions import BotAISingleton
@@ -156,7 +156,7 @@ class ModBasic(commands.Cog):
                 )
                 continue
             for member in voice_channel.members:
-                activity = get_siege_activity(member)
+                activity = get_any_siege_activity(member)
                 if activity is not None:
                     msg.append(
                         f"{voice_channel.name} has {member.display_name} playing {activity.name} and {activity.details}"

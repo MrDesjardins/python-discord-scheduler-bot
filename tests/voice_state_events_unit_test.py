@@ -98,7 +98,7 @@ class TestGuildLoopBug:
             patch("cogs.events.data_access_get_guild_schedule_text_channel_id") as mock_get_schedule_channel,
             patch("cogs.events.insert_user_activity") as mock_insert,
             patch("cogs.events.data_access_update_voice_user_list") as mock_update_voice_list,
-            patch("cogs.events.get_siege_activity") as mock_get_activity,
+            patch("cogs.events.get_any_siege_activity") as mock_get_activity,
             patch("cogs.events.send_private_notification_following_user") as mock_send_notification,
         ):
 
@@ -272,7 +272,7 @@ class TestChannelMoveAtomicity:
             patch("deps.system_database.database_manager") as mock_db_manager,
             patch("cogs.events.data_access_remove_voice_user_list") as mock_remove_voice_list,
             patch("cogs.events.data_access_update_voice_user_list") as mock_update_voice_list,
-            patch("cogs.events.get_siege_activity") as mock_get_activity,
+            patch("cogs.events.get_any_siege_activity") as mock_get_activity,
         ):
 
             # Setup mocks

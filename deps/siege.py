@@ -183,6 +183,187 @@ def get_aggregation_siege_activity(
     )
 
 
+def get_statscc_activity(member: discord.Member) -> Optional[discord.Activity]:
+    """
+    Get the stats.cc activity from the member's activities.
+    stats.cc is a companion app that reports Siege activity via Discord Rich Presence
+    with different detail string formats than the native game.
+    """
+    for activity in member.activities:
+        if isinstance(activity, discord.Activity):
+            if activity.name == "stats.cc":
+                return activity
+    return None
+
+
+def get_any_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
+    """
+    Get Siege activity from either native game or stats.cc.
+    Tries native Siege first, then falls back to stats.cc.
+    """
+    return get_siege_activity(member) or get_statscc_activity(member)
+
+
+# Known stats.cc detail strings that are distinct from native Siege detail strings
+_STATSCC_DETAILS = frozenset(
+    [
+        "At the Main Menu",
+        "In Queue",
+        "Match Started",
+    ]
+)
+
+# Prefixes used by stats.cc for in-match details (e.g. "Picking Operators: Ranked on Villa")
+_STATSCC_MATCH_PREFIXES = (
+    "Picking Operators:",
+    "Banning Operators:",
+    "Prep Phase:",
+    "In round:",
+    "Match Ending:",
+)
+
+
+def _is_statscc_detail(detail: Optional[str]) -> bool:
+    """Return True if the detail string matches stats.cc patterns (distinct from native Siege patterns)."""
+    if detail is None:
+        return False
+    if detail in _STATSCC_DETAILS:
+        return True
+    for prefix in _STATSCC_MATCH_PREFIXES:
+        if detail.startswith(prefix):
+            return True
+    # stats.cc also uses bare "Ranked" and "Standard" as detail strings
+    if detail in ("Ranked", "Standard"):
+        return True
+    return False
+
+
+def _is_statscc_ranked_detail(detail: Optional[str]) -> bool:
+    """Return True if the stats.cc detail indicates a ranked match."""
+    if detail is None:
+        return False
+    if detail == "Ranked":
+        return True
+    if "Ranked" in detail and any(detail.startswith(p) for p in _STATSCC_MATCH_PREFIXES):
+        return True
+    return False
+
+
+def _is_statscc_standard_detail(detail: Optional[str]) -> bool:
+    """Return True if the stats.cc detail indicates a standard match."""
+    if detail is None:
+        return False
+    if detail == "Standard":
+        return True
+    if "Standard" in detail and any(detail.startswith(p) for p in _STATSCC_MATCH_PREFIXES):
+        return True
+    return False
+
+
+def get_aggregation_statscc_activity(
+    dict_users_activities: Mapping[int, Union[ActivityTransition, None]],
+) -> SiegeActivityAggregation:
+    """
+    From the before and after activity detail for stats.cc, get the count of users
+    from different transitions to determine if we send a message or not.
+    stats.cc detail strings:
+        "At the Main Menu"
+        "In Queue"
+        "Match Started"
+        "Ranked"
+        "Picking Operators: Ranked on <map>"
+        "Banning Operators: Ranked on <map>"
+        "Prep Phase: Ranked on <map>"
+        "In round: Ranked on <map>"
+        "Match Ending: Ranked on <map>"
+    """
+    count_in_menu = 0
+    game_not_started = 0
+    user_leaving = 0
+    warming_up = 0
+    done_warming_up_waiting_in_menu = 0
+    done_match_waiting_in_menu = 0
+    playing_rank = 0
+    playing_standard = 0
+    looking_ranked_match = 0
+
+    for user_id, activity_before_after in dict_users_activities.items():
+        if activity_before_after is None:
+            continue
+        bef = activity_before_after.before
+        aft = activity_before_after.after
+        if bef is None and aft is None:
+            game_not_started += 1
+        if aft == "At the Main Menu":
+            count_in_menu += 1
+        if bef is not None and aft is None:
+            user_leaving += 1
+        # Ranked match done, back to menu
+        if _is_statscc_ranked_detail(bef) and aft == "At the Main Menu":
+            done_match_waiting_in_menu += 1
+        # Standard match done, back to menu
+        if _is_statscc_standard_detail(bef) and aft == "At the Main Menu":
+            done_match_waiting_in_menu += 1
+        # Currently in a ranked match
+        if _is_statscc_ranked_detail(aft):
+            playing_rank += 1
+        # Currently in a standard match
+        if _is_statscc_standard_detail(aft):
+            playing_standard += 1
+        # Went from menu to queue
+        if bef == "At the Main Menu" and aft == "In Queue":
+            looking_ranked_match += 1
+
+    return SiegeActivityAggregation(
+        count_in_menu,
+        game_not_started,
+        user_leaving,
+        warming_up,
+        done_warming_up_waiting_in_menu,
+        done_match_waiting_in_menu,
+        playing_rank,
+        playing_standard,
+        looking_ranked_match,
+    )
+
+
+def get_aggregation_all_activities(
+    dict_users_activities: Mapping[int, Union[ActivityTransition, None]],
+) -> SiegeActivityAggregation:
+    """
+    Combined aggregation that handles both native Siege and stats.cc detail strings.
+    For each user, determines if the details are stats.cc format or Siege format
+    and applies the appropriate logic, accumulating into a single SiegeActivityAggregation.
+    """
+    siege_users: dict[int, Union[ActivityTransition, None]] = {}
+    statscc_users: dict[int, Union[ActivityTransition, None]] = {}
+
+    for user_id, activity_before_after in dict_users_activities.items():
+        if activity_before_after is None:
+            siege_users[user_id] = None
+            continue
+        # Check if either detail string is a stats.cc pattern
+        if _is_statscc_detail(activity_before_after.before) or _is_statscc_detail(activity_before_after.after):
+            statscc_users[user_id] = activity_before_after
+        else:
+            siege_users[user_id] = activity_before_after
+
+    siege_agg = get_aggregation_siege_activity(siege_users)
+    statscc_agg = get_aggregation_statscc_activity(statscc_users)
+
+    return SiegeActivityAggregation(
+        siege_agg.count_in_menu + statscc_agg.count_in_menu,
+        siege_agg.game_not_started + statscc_agg.game_not_started,
+        siege_agg.user_leaving + statscc_agg.user_leaving,
+        siege_agg.warming_up + statscc_agg.warming_up,
+        siege_agg.done_warming_up_waiting_in_menu + statscc_agg.done_warming_up_waiting_in_menu,
+        siege_agg.done_match_waiting_in_menu + statscc_agg.done_match_waiting_in_menu,
+        siege_agg.playing_rank + statscc_agg.playing_rank,
+        siege_agg.playing_standard + statscc_agg.playing_standard,
+        siege_agg.looking_ranked_match + statscc_agg.looking_ranked_match,
+    )
+
+
 def get_list_users_with_rank(bot: MyBot, members: List[discord.Member], guild_id: int) -> str:
     """
     Return a list of users with their rank in a voice channel

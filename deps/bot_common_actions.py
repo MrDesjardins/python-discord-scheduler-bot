@@ -70,7 +70,7 @@ from deps.values import (
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
-from deps.siege import get_aggregation_siege_activity, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
+from deps.siege import get_aggregation_all_activities, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
     adjust_reaction,
@@ -609,7 +609,7 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
     needed_user = 5 - user_count_vc
     # At this point, we have 1 to 4 users in the voice channel, we still miss few to get 5
     try:
-        aggregation = get_aggregation_siege_activity(dict_users)
+        aggregation = get_aggregation_all_activities(dict_users)
         print_log(
             f"""send_automatic_lfg_message: count_in_menu {aggregation.count_in_menu}, game_not_started {aggregation.game_not_started}, user_leaving {aggregation.user_leaving}, warming_up {aggregation.warming_up}, done_warming_up {aggregation.done_warming_up_waiting_in_menu}, done_match_waiting_in_menu {aggregation.done_match_waiting_in_menu}, playing_rank {aggregation.playing_rank}, playing_standard {aggregation.playing_standard} for voice channel {voice_channel_id}"""
         )

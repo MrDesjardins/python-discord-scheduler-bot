@@ -300,7 +300,9 @@ def test_get_aggregation_siege_activity_looking_for_ranked_match() -> None:
     """
     Test the case where a user transitions from in MENU to Looking for RANKED match
     """
-    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("in MENU", "Looking for RANKED match")}
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("in MENU", "Looking for RANKED match")
+    }
     result = get_aggregation_siege_activity(dict_users_activities)
     assert result.count_in_menu == 0
     assert result.game_not_started == 0
