@@ -298,10 +298,10 @@ def test_get_aggregation_siege_activity_before_but_after_in_menu_8() -> None:
 
 def test_get_aggregation_siege_activity_looking_for_ranked_match() -> None:
     """
-    Test the case where a user transitions from in MENU to Looking for RANKED match
+    Test the case where a user transitions from Looking for RANKED match to RANKED match (match starts)
     """
     dict_users_activities: dict[int, ActivityTransition] = {
-        1: ActivityTransition("in MENU", "Looking for RANKED match")
+        1: ActivityTransition("Looking for RANKED match", "RANKED match")
     }
     result = get_aggregation_siege_activity(dict_users_activities)
     assert result.count_in_menu == 0
@@ -310,18 +310,18 @@ def test_get_aggregation_siege_activity_looking_for_ranked_match() -> None:
     assert result.warming_up == 0
     assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
-    assert result.playing_rank == 0
+    assert result.playing_rank == 1  # Now in ranked match
     assert result.playing_standard == 0
-    assert result.looking_ranked_match == 1
+    assert result.looking_ranked_match == 1  # Match just started
 
 
 def test_get_aggregation_siege_activity_looking_for_ranked_match_multiple_users() -> None:
     """
-    Test the case where multiple users are looking for ranked match
+    Test the case where multiple users just started a ranked match
     """
     dict_users_activities: dict[int, ActivityTransition] = {
-        1: ActivityTransition("in MENU", "Looking for RANKED match"),
-        2: ActivityTransition("in MENU", "Looking for RANKED match"),
+        1: ActivityTransition("Looking for RANKED match", "RANKED match"),
+        2: ActivityTransition("Looking for RANKED match", "RANKED match"),
         3: ActivityTransition("in MENU", "Playing Map Training"),
     }
     result = get_aggregation_siege_activity(dict_users_activities)
@@ -331,6 +331,6 @@ def test_get_aggregation_siege_activity_looking_for_ranked_match_multiple_users(
     assert result.warming_up == 1
     assert result.done_warming_up_waiting_in_menu == 0
     assert result.done_match_waiting_in_menu == 0
-    assert result.playing_rank == 0
+    assert result.playing_rank == 2  # Two users now in ranked match
     assert result.playing_standard == 0
-    assert result.looking_ranked_match == 2
+    assert result.looking_ranked_match == 2  # Two matches just started

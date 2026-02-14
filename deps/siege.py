@@ -167,7 +167,9 @@ def get_aggregation_siege_activity(
             playing_rank += 1
         if aft is not None and aft.startswith("STANDARD match"):
             playing_standard += 1
-        if bef == "in MENU" and aft is not None and aft.startswith("Looking for RANKED match"):
+        # Detect ranked match START: transition from "Looking for RANKED match" to "RANKED match"
+        # This indicates the queue popped and the match actually started
+        if bef is not None and bef.startswith("Looking for RANKED match") and aft is not None and aft.startswith("RANKED match"):
             looking_ranked_match += 1
 
     return SiegeActivityAggregation(
@@ -204,6 +206,8 @@ def get_any_siege_activity(member: discord.Member) -> Optional[discord.Activity]
     return get_siege_activity(member) or get_statscc_activity(member)
 
 
+_STATSCC_MAIN_MENU = ("At the Main Menu","Idle - at Main Menu")
+
 # Known stats.cc detail strings that are distinct from native Siege detail strings
 _STATSCC_DETAILS = frozenset(
     [
@@ -222,6 +226,7 @@ _STATSCC_MATCH_PREFIXES = (
     "Match Ending:",
 )
 
+_STATSCC_WARMUP = ("SHOOTING RANGE", "Map Training", "ARCADE", "VERSUS AI")
 
 def _is_statscc_detail(detail: Optional[str]) -> bool:
     """Return True if the detail string matches stats.cc patterns (distinct from native Siege patterns)."""
@@ -259,6 +264,13 @@ def _is_statscc_standard_detail(detail: Optional[str]) -> bool:
         return True
     return False
 
+
+def _is_statscc_warmup(detail: Optional[str]) -> bool:
+    """Return True if the stats.cc detail indicates a warmup activity."""
+    if detail is None:
+        return False
+
+    return any(detail.startswith(p) for p in _STATSCC_WARMUP)
 
 def get_aggregation_statscc_activity(
     dict_users_activities: Mapping[int, Union[ActivityTransition, None]],
@@ -299,20 +311,28 @@ def get_aggregation_statscc_activity(
         if bef is not None and aft is None:
             user_leaving += 1
         # Ranked match done, back to menu
-        if _is_statscc_ranked_detail(bef) and aft == "At the Main Menu":
+        if _is_statscc_ranked_detail(bef) and aft in _STATSCC_MAIN_MENU:
             done_match_waiting_in_menu += 1
         # Standard match done, back to menu
-        if _is_statscc_standard_detail(bef) and aft == "At the Main Menu":
+        if _is_statscc_standard_detail(bef) and aft in _STATSCC_MAIN_MENU:
             done_match_waiting_in_menu += 1
+        
+        # Warming up done
+        if (_is_statscc_warmup(bef) and aft in _STATSCC_MAIN_MENU):
+            done_warming_up_waiting_in_menu += 1
+        
         # Currently in a ranked match
         if _is_statscc_ranked_detail(aft):
             playing_rank += 1
         # Currently in a standard match
         if _is_statscc_standard_detail(aft):
             playing_standard += 1
-        # Went from menu to queue
-        if bef == "At the Main Menu" and aft == "In Queue":
+        # Detect ranked match START: transition TO "Picking Operators: Ranked on..."
+        # This is the clearest indicator that a ranked match just started
+        if aft is not None and aft.startswith("Picking Operators: Ranked"):
             looking_ranked_match += 1
+        # NOTE: We don't count "In Queue" as looking_ranked_match for stats.cc
+        # because stats.cc doesn't specify which mode (ranked/standard/deathmatch/etc.)
 
     return SiegeActivityAggregation(
         count_in_menu,

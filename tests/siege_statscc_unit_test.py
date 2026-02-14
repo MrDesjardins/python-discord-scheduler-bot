@@ -140,24 +140,28 @@ def test_statscc_aggregation_at_main_menu() -> None:
 
 
 def test_statscc_aggregation_in_queue() -> None:
-    """Menu to In Queue should count as looking_ranked_match"""
+    """Menu to In Queue should NOT count as looking_ranked_match (ambiguous - could be any mode)"""
     dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("At the Main Menu", "In Queue")}
     result = get_aggregation_statscc_activity(dict_users_activities)
-    assert result.looking_ranked_match == 1
-
-
-def test_statscc_aggregation_playing_ranked() -> None:
-    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("In Queue", "Ranked")}
-    result = get_aggregation_statscc_activity(dict_users_activities)
-    assert result.playing_rank == 1
+    assert result.looking_ranked_match == 0  # Changed: "In Queue" is ambiguous, don't count it
 
 
 def test_statscc_aggregation_picking_operators_ranked() -> None:
+    """Transition to 'Picking Operators: Ranked' should count as match start AND playing ranked"""
     dict_users_activities: dict[int, ActivityTransition] = {
         1: ActivityTransition("In Queue", "Picking Operators: Ranked on Villa")
     }
     result = get_aggregation_statscc_activity(dict_users_activities)
+    assert result.looking_ranked_match == 1  # Match just started!
+    assert result.playing_rank == 1  # Now playing ranked
+
+
+def test_statscc_aggregation_playing_ranked() -> None:
+    """Bare 'Ranked' detail without transition info"""
+    dict_users_activities: dict[int, ActivityTransition] = {1: ActivityTransition("In Queue", "Ranked")}
+    result = get_aggregation_statscc_activity(dict_users_activities)
     assert result.playing_rank == 1
+    assert result.looking_ranked_match == 0  # No clear match start indicator
 
 
 def test_statscc_aggregation_in_round_ranked() -> None:
@@ -221,7 +225,7 @@ def test_statscc_aggregation_multiple_users() -> None:
         3: ActivityTransition(None, "At the Main Menu"),
     }
     result = get_aggregation_statscc_activity(dict_users_activities)
-    assert result.looking_ranked_match == 2
+    assert result.looking_ranked_match == 0  # Changed: "In Queue" is ambiguous
     assert result.count_in_menu == 1
 
 
@@ -231,34 +235,35 @@ def test_statscc_aggregation_multiple_users() -> None:
 def test_all_activities_mixed_siege_and_statscc() -> None:
     """Test mixed voice channel with both native Siege and stats.cc users"""
     dict_users_activities: dict[int, Union[ActivityTransition, None]] = {
-        1: ActivityTransition("in MENU", "Looking for RANKED match"),  # Native Siege
-        2: ActivityTransition("At the Main Menu", "In Queue"),  # stats.cc
-        3: ActivityTransition(None, "At the Main Menu"),  # stats.cc
+        1: ActivityTransition("Looking for RANKED match", "RANKED match"),  # Native Siege - match start!
+        2: ActivityTransition("In Queue", "Picking Operators: Ranked on Villa"),  # stats.cc - match start!
+        3: ActivityTransition(None, "At the Main Menu"),  # stats.cc - just joined
     }
     result = get_aggregation_all_activities(dict_users_activities)
-    assert result.looking_ranked_match == 2  # 1 from Siege + 1 from stats.cc
+    assert result.looking_ranked_match == 2  # Both native Siege and stats.cc match starts
+    assert result.playing_rank == 2  # Both now playing ranked
     assert result.count_in_menu == 1  # 1 from stats.cc
 
 
 def test_all_activities_only_siege() -> None:
-    """All native Siege users"""
+    """All native Siege users - one match start, one already playing"""
     dict_users_activities: dict[int, ActivityTransition] = {
-        1: ActivityTransition("in MENU", "Looking for RANKED match"),
-        2: ActivityTransition("in MENU", "RANKED match"),
+        1: ActivityTransition("Looking for RANKED match", "RANKED match"),  # Match start!
+        2: ActivityTransition("RANKED match", "RANKED match"),  # Already playing
     }
     result = get_aggregation_all_activities(dict_users_activities)
-    assert result.looking_ranked_match == 1
-    assert result.playing_rank == 1
+    assert result.looking_ranked_match == 1  # Only user 1's match started
+    assert result.playing_rank == 2  # Both playing ranked
 
 
 def test_all_activities_only_statscc() -> None:
     """All stats.cc users"""
     dict_users_activities: dict[int, ActivityTransition] = {
-        1: ActivityTransition("At the Main Menu", "In Queue"),
-        2: ActivityTransition("In Queue", "Ranked"),
+        1: ActivityTransition("At the Main Menu", "In Queue"),  # Not counted
+        2: ActivityTransition("In Queue", "Ranked"),  # Playing rank
     }
     result = get_aggregation_all_activities(dict_users_activities)
-    assert result.looking_ranked_match == 1
+    assert result.looking_ranked_match == 0  # Changed: "In Queue" not counted
     assert result.playing_rank == 1
 
 

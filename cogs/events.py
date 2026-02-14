@@ -442,7 +442,9 @@ class MyEventsCog(commands.Cog):
 
             # Use a lock to prevent multiple GIFs from being sent simultaneously for the same channel
             async with self.match_start_gif_locks[lock_key]:
-                # Check if 1+ users are now looking for a ranked match
+                # Check if 1+ users just started a ranked match (not just queuing, but actually in match)
+                # We detect this by looking for users who transitioned TO ranked-specific states like
+                # "Picking Operators: Ranked on..." which indicates match actually started
                 user_activities = await data_access_get_voice_user_list(guild_id, channel_id)
                 aggregation = get_aggregation_all_activities(user_activities)
                 number_users = len(user_activities)

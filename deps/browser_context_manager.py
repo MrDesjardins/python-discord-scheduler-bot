@@ -93,6 +93,8 @@ class BrowserContextManager:
                 print_log(f"File descriptor usage: {current_fds}/{max_fds} ({usage_percent:.1f}%)")
 
         retries = 2
+        last_exception = None
+
         for i in range(retries):
             try:
                 self._lock.acquire(timeout=120)
@@ -100,6 +102,7 @@ class BrowserContextManager:
                 self._config_browser()
                 return self
             except OSError as e:
+                last_exception = e
                 # If we hit file descriptor limit, don't retry immediately
                 if e.errno == 24:  # EMFILE - Too many open files
                     current_fds, max_fds = self._check_file_descriptor_usage()
@@ -116,11 +119,40 @@ class BrowserContextManager:
                 else:
                     raise
             except Exception as e:
-                print_error_log(f"Startup attempt {i+1} failed: {e}")
+                last_exception = e
+                error_msg = str(e).lower()
+
+                # Check for non-retryable errors
+                is_retryable = True
+                if "version" in error_msg or "mismatch" in error_msg:
+                    print_error_log(f"Startup attempt {i+1} failed with version issue: {e}")
+                    print_error_log("This appears to be a Chrome/chromedriver version mismatch - retrying won't help")
+                    is_retryable = False
+                elif "permission" in error_msg or "access" in error_msg:
+                    print_error_log(f"Startup attempt {i+1} failed with permission issue: {e}")
+                    print_error_log("This appears to be a permissions issue - retrying won't help")
+                    is_retryable = False
+                elif "status code was: 1" in error_msg:
+                    print_error_log(f"Startup attempt {i+1} failed: chromedriver exited with status 1")
+                    # This could be various issues, let's try to diagnose
+                    print_error_log("Chromedriver failed to start - check logs above for version info and diagnostics")
+                else:
+                    print_error_log(f"Startup attempt {i+1} failed: {e}")
+
                 self._cleanup()  # Full wipe before retry
-                if i == retries - 1:
+
+                # Don't retry if we know it won't help
+                if not is_retryable or i == retries - 1:
+                    if not is_retryable:
+                        print_error_log("Error is not retryable - aborting immediately")
                     raise
+
+                print_log(f"Waiting 2 seconds before retry {i+2}/{retries}...")
                 time.sleep(2)  # Breath before retry
+
+        # Should never reach here, but just in case
+        if last_exception:
+            raise last_exception
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._cleanup()
@@ -268,6 +300,101 @@ class BrowserContextManager:
         except Exception as e:
             print_log(f"Failed to kill orphaned processes (non-critical): {e}")
 
+    def _check_chrome_environment(self) -> dict:
+        """
+        Verify Chrome/chromedriver environment before attempting to launch.
+        Returns diagnostic information.
+        """
+        diagnostics = {}
+
+        # Check Chrome binary
+        chrome_path = "/usr/bin/google-chrome" if self.environment == "prod" else None
+        if chrome_path:
+            if os.path.exists(chrome_path) and os.access(chrome_path, os.X_OK):
+                try:
+                    result = subprocess.run(
+                        [chrome_path, "--version"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    chrome_version = result.stdout.strip()
+                    diagnostics["chrome_version"] = chrome_version
+
+                    # Check for stderr errors
+                    if result.stderr:
+                        stderr_msg = result.stderr.strip()
+                        if stderr_msg:
+                            diagnostics["chrome_stderr"] = stderr_msg
+                            print_warning_log(f"Chrome stderr: {stderr_msg}")
+                        result.stderr.close()
+                    if result.stdout:
+                        result.stdout.close()
+
+                    # Extract version number for comparison
+                    import re
+                    version_match = re.search(r'(\d+)\.', chrome_version)
+                    if version_match:
+                        diagnostics["chrome_major_version"] = int(version_match.group(1))
+                except Exception as e:
+                    diagnostics["chrome_error"] = str(e)
+            else:
+                diagnostics["chrome_error"] = f"Not found or not executable at {chrome_path}"
+
+        # Check chromedriver binary
+        driver_path = "/usr/bin/chromedriver" if self.environment == "prod" else "chromedriver"
+        try:
+            result = subprocess.run(
+                [driver_path, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            driver_version = result.stdout.strip()
+            diagnostics["chromedriver_version"] = driver_version
+
+            # Extract version number for comparison
+            import re
+            version_match = re.search(r'(\d+)\.', driver_version)
+            if version_match:
+                diagnostics["chromedriver_major_version"] = int(version_match.group(1))
+
+            # Capture any stderr warnings
+            if result.stderr:
+                stderr_msg = result.stderr.strip()
+                if stderr_msg:
+                    diagnostics["chromedriver_stderr"] = stderr_msg
+                    print_warning_log(f"Chromedriver stderr: {stderr_msg}")
+                result.stderr.close()
+            if result.stdout:
+                result.stdout.close()
+        except FileNotFoundError:
+            diagnostics["chromedriver_error"] = f"chromedriver not found at {driver_path}"
+        except Exception as e:
+            diagnostics["chromedriver_error"] = str(e)
+
+        # Check for version compatibility
+        if "chrome_major_version" in diagnostics and "chromedriver_major_version" in diagnostics:
+            chrome_ver = diagnostics["chrome_major_version"]
+            driver_ver = diagnostics["chromedriver_major_version"]
+            if chrome_ver != driver_ver:
+                diagnostics["version_mismatch"] = True
+                print_error_log(
+                    f"VERSION MISMATCH: Chrome {chrome_ver} vs chromedriver {driver_ver}. "
+                    f"These must match! Update chromedriver to version {chrome_ver}."
+                )
+            else:
+                print_log(f"Chrome and chromedriver versions match: {chrome_ver}")
+
+        # Log diagnostics
+        if "chrome_version" in diagnostics or "chromedriver_version" in diagnostics:
+            print_log(f"Environment check: Chrome={diagnostics.get('chrome_version', 'N/A')}, "
+                     f"Chromedriver={diagnostics.get('chromedriver_version', 'N/A')}")
+        if "chrome_error" in diagnostics or "chromedriver_error" in diagnostics:
+            print_error_log(f"Environment issues detected: {diagnostics}")
+
+        return diagnostics
+
     def _config_browser(self):
         # 1. Create a unique path for THIS instance
         # This ensures that even with the lock, we know exactly which folder to kill
@@ -275,17 +402,24 @@ class BrowserContextManager:
         # Clean up any orphaned processes first
         self._kill_orphaned_chrome_processes()
 
+        # 2. Check environment before attempting launch
+        self._check_chrome_environment()
+
         options = uc.ChromeOptions()
-        # 2. Tell Chrome to use this specific folder
+        # 3. Tell Chrome to use this specific folder
         options.add_argument(f"--user-data-dir={self._profile_dir}")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--window-size=1920,1080")
         options.add_argument("--disable-setuid-sandbox")
+        # Add verbose logging to help diagnose issues
+        options.add_argument("--enable-logging")
+        options.add_argument("--v=1")
 
         if self.environment == "prod":
             print_log("Launching Chrome in System-Level Xvfb environment...")
             try:
+                # Create driver with verbose error capture
                 self.driver = uc.Chrome(
                     options=options,
                     browser_executable_path="/usr/bin/google-chrome",  # Version 144
@@ -294,7 +428,75 @@ class BrowserContextManager:
                 )
                 print_log("Driver attached successfully!")
             except Exception as e:
-                print_log(f"Failed to attach driver: {e}")
+                # Try to capture chromedriver stderr if available
+                error_details = str(e)
+
+                # Check if we can get more info from the service
+                try:
+                    if hasattr(self, 'driver') and self.driver and hasattr(self.driver, 'service'):
+                        service = self.driver.service
+                        if hasattr(service, 'process') and service.process:
+                            if service.process.stderr:
+                                stderr_output = service.process.stderr.read()
+                                if stderr_output:
+                                    error_details += f"\nChromedriver stderr: {stderr_output}"
+                except:
+                    pass
+
+                print_error_log(f"Failed to attach driver: {error_details}")
+
+                # Try to run chromedriver directly to see what error it gives
+                try:
+                    print_log("Testing chromedriver standalone startup...")
+                    test_result = subprocess.run(
+                        ["/usr/bin/chromedriver", "--port=9999"],
+                        capture_output=True,
+                        text=True,
+                        timeout=3
+                    )
+                    if test_result.returncode != 0:
+                        print_error_log(f"Chromedriver exited with code {test_result.returncode}")
+                    if test_result.stderr:
+                        stderr_output = test_result.stderr.strip()
+                        if stderr_output:
+                            print_error_log(f"Chromedriver direct test stderr: {stderr_output}")
+                        test_result.stderr.close()
+                    if test_result.stdout:
+                        stdout_output = test_result.stdout.strip()
+                        if stdout_output:
+                            print_log(f"Chromedriver direct test stdout: {stdout_output}")
+                        test_result.stdout.close()
+                except subprocess.TimeoutExpired:
+                    # Timeout is expected if chromedriver starts successfully
+                    print_log("Chromedriver can start standalone (timeout is expected - this is GOOD)")
+                except Exception as test_error:
+                    print_error_log(f"Chromedriver direct test failed: {test_error}")
+
+                # Check for chromedriver log files
+                try:
+                    log_files = subprocess.run(
+                        ["find", "/tmp", "-name", "chromedriver*.log", "-mmin", "-5"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if log_files.stdout:
+                        log_paths = log_files.stdout.strip().split('\n')
+                        for log_path in log_paths:
+                            if log_path and os.path.exists(log_path):
+                                print_log(f"Found recent chromedriver log: {log_path}")
+                                try:
+                                    with open(log_path, 'r') as f:
+                                        last_lines = f.readlines()[-20:]  # Last 20 lines
+                                        print_error_log(f"Last lines from {log_path}:\n{''.join(last_lines)}")
+                                except Exception as read_err:
+                                    print_warning_log(f"Could not read log file: {read_err}")
+                        log_files.stdout.close()
+                    if log_files.stderr:
+                        log_files.stderr.close()
+                except Exception as log_err:
+                    print_warning_log(f"Could not search for chromedriver logs: {log_err}")
+
                 raise
         else:
             # --- WSL (DEV) ---

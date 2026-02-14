@@ -306,7 +306,7 @@ class TestMatchStartGif:
 
     @pytest.mark.asyncio
     async def test_gif_sent_when_conditions_met(self, mock_bot, mock_guild):
-        """Verify GIF is sent when 1+ users looking for ranked and 2+ users in channel"""
+        """Verify GIF is sent when 2+ users looking for ranked and 2+ users in channel"""
         from cogs.events import MyEventsCog
         from deps.models import ActivityTransition
 
@@ -315,10 +315,11 @@ class TestMatchStartGif:
         guild_id = mock_guild.id
         channel_id = 333333333
 
-        # Mock: 2 users in channel, 1 looking for ranked
+        # Mock: 3 users in channel, 2 just started ranked match (transitioned to RANKED match)
         user_activities = {
-            111: ActivityTransition("in MENU", "Looking for RANKED match"),
-            222: ActivityTransition("in MENU", "Playing Map Training"),
+            111: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            222: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            333: ActivityTransition("in MENU", "Playing Map Training"),
         }
 
         with (
@@ -410,10 +411,10 @@ class TestMatchStartGif:
         guild_id = mock_guild.id
         channel_id = 333333333
 
-        # Mock: 2 users, 1 looking for ranked
+        # Mock: 2 users starting ranked matches (would normally trigger GIF)
         user_activities = {
-            111: ActivityTransition("in MENU", "Looking for RANKED match"),
-            222: ActivityTransition("in MENU", "Playing Map Training"),
+            111: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            222: ActivityTransition("Looking for RANKED match", "RANKED match"),
         }
 
         # Mock: GIF was sent 5 minutes ago (within 15-minute window)
@@ -447,10 +448,11 @@ class TestMatchStartGif:
         guild_id = mock_guild.id
         channel_id = 333333333
 
-        # Mock: 2 users, 1 looking for ranked
+        # Mock: 3 users, 2 starting ranked matches
         user_activities = {
-            111: ActivityTransition("in MENU", "Looking for RANKED match"),
-            222: ActivityTransition("in MENU", "Playing Map Training"),
+            111: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            222: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            333: ActivityTransition("in MENU", "Playing Map Training"),
         }
 
         # Mock: GIF was sent 20 minutes ago (outside 15-minute window)
@@ -484,10 +486,10 @@ class TestMatchStartGif:
         guild_id = mock_guild.id
         channel_id = 333333333
 
-        # Mock: 3 users in channel, 2 looking for ranked
+        # Mock: 3 users in channel, 2 just started ranked match (transitioned to RANKED match)
         user_activities = {
-            111: ActivityTransition("in MENU", "Looking for RANKED match"),
-            222: ActivityTransition("in MENU", "Looking for RANKED match"),
+            111: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            222: ActivityTransition("Looking for RANKED match", "RANKED match"),
             333: ActivityTransition("in MENU", "Playing Map Training"),
         }
 
@@ -517,11 +519,11 @@ class TestMatchStartGif:
         guild_id = 111111111
         channel_id = 333333333
 
-        # Setup: multiple users all looking for ranked match
+        # Setup: multiple users just started ranked match (use native Siege format)
         user_activities = {
-            1: ActivityTransition("At the Main Menu", "In Queue"),
-            2: ActivityTransition("At the Main Menu", "In Queue"),
-            3: ActivityTransition("At the Main Menu", "In Queue"),
+            1: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            2: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            3: ActivityTransition("Looking for RANKED match", "RANKED match"),
         }
 
         # Simulate actual cache behavior: first call returns None, subsequent calls return a timestamp
