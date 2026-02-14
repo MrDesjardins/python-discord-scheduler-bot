@@ -28,6 +28,9 @@ OOMScoreAdjust=-1000
 StandardOutput=journal
 StandardError=journal
 
+# Increase file descriptor limit for Chrome/Selenium
+LimitNOFILE=65536
+
 # Full access to filesystem / shm
 PrivateTmp=false
 ProtectSystem=off

@@ -19,6 +19,21 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Clean up old Chrome profile directories
+echo "Cleaning up old Chrome profiles..."
+./deployment/cleanup_chrome_profiles.sh
+
+# Update systemd service file if it changed
+echo "Checking for systemd service file updates..."
+if ! cmp -s systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service; then
+    echo "Systemd service file has changed, updating..."
+    sudo cp systemd/gametimescheduler.service /etc/systemd/system/gametimescheduler.service
+    sudo systemctl daemon-reload
+    echo "✓ Systemd service file updated"
+else
+    echo "Systemd service file unchanged"
+fi
+
 # Restart the service
 echo "Restarting gametimescheduler.service..."
 sudo systemctl restart gametimescheduler.service
