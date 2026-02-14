@@ -2,6 +2,7 @@
 Function to calculate the gain and lost of bets
 """
 
+import math
 from datetime import datetime, timezone
 from typing import List, Optional
 from deps.analytic_data_access import (
@@ -25,6 +26,7 @@ from deps.bet.bet_data_access import (
     data_access_update_bet_user_tournament,
     data_access_update_bet_user_game_distribution_completed,
     data_access_update_bet_game_distribution_completed,
+    data_access_update_wallet_if_sufficient_balance,
     data_access_insert_bet_ledger_entry,
 )
 from deps.bet.bet_data_class import BetGame, BetLedgerEntry, BetUserGame, BetUserTournament
@@ -117,7 +119,8 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
     bet_games_dict = {game.id: game for game in bet_games}
     bet_user_games: List[BetUserGame] = data_access_get_bet_user_game_ready_for_distribution(tournament_id)
 
-    # Loop the bet_user_games and calculate the gain and lost
+    # Always use explicit transaction - SQLite doesn't support nested transactions.
+    # This function is only called standalone (never within an existing transaction).
     with database_manager.data_access_transaction():
         # Find the bet_user_games that are ready for distribution
         bet_user_games_ready_for_distribution = []
@@ -140,7 +143,7 @@ def distribute_gain_on_recent_ended_game(tournament_id: int) -> None:
             bet_user_games_ready_for_distribution.append(bet_user_game)
             # Calculate the gain and lost for the bet_user_games that are ready for distribution ONLY
             winning_distributions = calculate_gain_lost_for_open_bet_game(tournament_game, [bet_user_game])
-            # At the moment, winning_distribution is always a list wiht 1 item
+            # At the moment, winning_distribution is always a list with 1 item
             for winning_distribution in winning_distributions:
                 if winning_distribution.amount > 0:
                     wallet = get_bet_user_wallet_for_tournament(tournament_id, winning_distribution.user_id)
@@ -176,9 +179,14 @@ def calculate_gain_lost_for_open_bet_game(
     winning_distributions: List[BetLedgerEntry] = []
     for bet in bet_on_games_not_distributed:
         if bet.user_id_bet_placed == winner_id:
-            fair_odd = 1 / bet.probability_user_win_when_bet_placed
-            adjusted_odd = fair_odd / (1 + houst_cut_fraction)
-            winning_amount = bet.amount * adjusted_odd
+            # Handle edge case where probability is 0 to prevent division by zero
+            if bet.probability_user_win_when_bet_placed <= 0.0:
+                winning_amount = 0
+            else:
+                fair_odd = 1 / bet.probability_user_win_when_bet_placed
+                adjusted_odd = fair_odd / (1 + houst_cut_fraction)
+                # Round to 2 decimal places to prevent floating-point precision issues
+                winning_amount = round(bet.amount * adjusted_odd, 2)
         else:
             winning_amount = 0
         winning_distributions.append(
@@ -356,6 +364,13 @@ def place_bet_for_game(
     else:
         if single_game.user1_id == user_who_is_betting_id or single_game.user2_id == user_who_is_betting_id:
             raise ValueError("The user cannot bet on a game where he/she is playing")
+    # Validate bet amount
+    if not isinstance(amount, (int, float)):
+        raise ValueError("Bet amount must be a number")
+    if math.isnan(amount) or math.isinf(amount):
+        raise ValueError("Bet amount must be a valid finite number")
+    if amount <= 0:
+        raise ValueError("Bet amount must be greater than 0")
     if amount < MIN_BET_AMOUNT:
         raise ValueError(f"The minimum amount to bet is ${MIN_BET_AMOUNT}")
 
@@ -373,14 +388,32 @@ def place_bet_for_game(
     else:
         probability = bet_game.probability_user_2_win
 
-    # 4 Insert the bet into the database
+    # 4 Insert the bet into the database and atomically deduct from wallet
+    # Wrap wallet deduction and bet creation in a transaction to ensure atomicity
     current_date = datetime.now(timezone.utc)
-    data_access_create_bet_user_game(
-        tournament_id, bet_game.id, user_who_is_betting_id, amount, user_id_bet_placed_on, current_date, probability
-    )
-    wallet.amount -= amount
-    data_access_update_bet_user_tournament(wallet.id, wallet.amount, True)
 
+    with database_manager.data_access_transaction():
+        # Atomically check balance and deduct (prevents race conditions from concurrent bets)
+        rows_updated = data_access_update_wallet_if_sufficient_balance(wallet.id, amount)
+        if rows_updated == 0:
+            # Concurrent bet detected or insufficient balance
+            raise ValueError(
+                f"Not enough money in wallet. Another bet may have been placed concurrently."
+            )
+
+        # Only insert bet after successful wallet deduction (within same transaction)
+        data_access_create_bet_user_game(
+            tournament_id,
+            bet_game.id,
+            user_who_is_betting_id,
+            amount,
+            user_id_bet_placed_on,
+            current_date,
+            probability,
+            auto_commit=False,  # Don't commit - we're within a transaction
+        )
+
+    # Update odds after successful bet (outside transaction, can fail without affecting bet)
     try:
         dynamically_adjust_bet_game_odd(bet_game, is_user_1)
         data_access_update_bet_game_probability(bet_game, True)
@@ -392,10 +425,12 @@ def dynamically_adjust_bet_game_odd(game: BetGame, reduce_probability_user_1: bo
     """Adjust the odd of a bet_game when a user place a bet"""
 
     if reduce_probability_user_1:
-        game.probability_user_1_win *= DYNAMIC_ADJUSTMENT_PERCENTAGE
+        # Cap probability at 0.99 to prevent exceeding 1.0
+        game.probability_user_1_win = min(0.99, game.probability_user_1_win * DYNAMIC_ADJUSTMENT_PERCENTAGE)
         game.probability_user_2_win = 1 - game.probability_user_1_win
     else:
-        game.probability_user_2_win *= DYNAMIC_ADJUSTMENT_PERCENTAGE
+        # Cap probability at 0.99 to prevent exceeding 1.0
+        game.probability_user_2_win = min(0.99, game.probability_user_2_win * DYNAMIC_ADJUSTMENT_PERCENTAGE)
         game.probability_user_1_win = 1 - game.probability_user_2_win
 
 
@@ -530,7 +565,10 @@ async def generate_msg_bet_game(tournament_game: TournamentNode) -> str:
             continue
         if ledger_entry.amount == 0:
             msg += f"📉 {user1_display} bet ${bet_user_game.amount:.2f} and loss it all\n"
-        else:
+        elif bet_user_game.amount > 0:
             gain_in_percent = (ledger_entry.amount - bet_user_game.amount) / bet_user_game.amount * 100
             msg += f"📈 {user1_display} bet ${bet_user_game.amount:.2f} and won ${ledger_entry.amount:.2f} (+{gain_in_percent:.2f}%)\n"
+        else:
+            # Invalid bet amount, skip percentage calculation
+            msg += f"📈 {user1_display} won ${ledger_entry.amount:.2f}\n"
     return msg.strip()

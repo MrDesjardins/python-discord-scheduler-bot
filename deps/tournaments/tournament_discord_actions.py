@@ -167,6 +167,13 @@ async def send_tournament_starting_to_a_guild(guild: discord.Guild) -> None:
                     msg += f"\n❗️ {len(people_out)} people were removed from the tournament because the team size was not met."
             except Exception as e:
                 print_error_log(f"send_tournament_starting_to_a_guild: Error starting tournament {tournament.id}: {e}")
+                # Send error message to Discord channel to inform users
+                error_msg = f"❌ **Tournament '{tournament.name}' failed to start**\n"
+                error_msg += f"Error: {str(e)}\n"
+                error_msg += "Please contact a moderator for assistance."
+                await channel.send(content=error_msg)
+                # Continue to next tournament instead of crashing entire function
+                continue
 
         await channel.send(content=msg)
         for tournament in tournaments:

@@ -398,26 +398,25 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
         user_info: The UserInfo object containing the user's basic information
         user_information: The UserInformation object containing the detailed user statistics
     """
-    # Check if a record for this user already exists and delete it
-    cursor = database_manager.get_cursor()
-    query = """
-        DELETE FROM user_full_stats_info
-        WHERE user_id = ?
-    """
-
-    cursor.execute(query, (user_info.id,))
-    deleted_count = cursor.rowcount
-
-    if deleted_count > 0:
-        print_log(
-            f"insert_if_nonexistant_full_user_info: Deleted {deleted_count} existing record(s) for user {user_info.display_name}"
-        )
-
-    # Insert the new record if it doesn't exist
+    # Wrap DELETE + INSERT in transaction to prevent data loss on failure
     try:
+        with database_manager.data_access_transaction() as cursor:
+            # Check if a record for this user already exists and delete it
+            query = """
+                DELETE FROM user_full_stats_info
+                WHERE user_id = ?
+            """
 
-        cursor = database_manager.get_cursor()
-        cursor.execute(
+            cursor.execute(query, (user_info.id,))
+            deleted_count = cursor.rowcount
+
+            if deleted_count > 0:
+                print_log(
+                    f"insert_if_nonexistant_full_user_info: Deleted {deleted_count} existing record(s) for user {user_info.display_name}"
+                )
+
+            # Insert the new record
+            cursor.execute(
             """
             INSERT INTO user_full_stats_info (
                 user_id,
@@ -645,10 +644,9 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
                 "quickmatch_kill_per_match": user_information.quickmatch_kill_per_match,
                 "quickmatch_win_percentage": user_information.quickmatch_win_percentage,
             },
-        )
-        print_log(f"insert_if_nonexistant_full_user_info: Inserted stats for user {user_info.display_name}")
-        # Commit the transaction
-        database_manager.get_conn().commit()
+            )
+            print_log(f"insert_if_nonexistant_full_user_info: Inserted stats for user {user_info.display_name}")
+            # Transaction will be committed automatically by context manager
     except Exception as e:
         try:
             stringify_user_info = (

@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 import shutil
 import signal
 import subprocess
@@ -9,10 +10,12 @@ import tempfile
 import time
 from typing import List, Optional, Union
 
+import psutil
 from filelock import FileLock
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 import undetected_chromedriver as uc  # type: ignore
 from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserInformation, UserQueueForStats
@@ -24,8 +27,19 @@ from deps.functions import (
     get_url_api_user_info,
 )
 from deps.siege import siege_ranks
+from deps.browser_config import BrowserConfig
+from deps.browser_exceptions import (
+    BrowserException,
+    BrowserStartupException,
+    BrowserTimeoutException,
+    BrowserVersionMismatchException,
+    CircuitBreakerOpenException,
+)
+from deps.browser_circuit_breaker import BrowserCircuitBreaker
 
 CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
+# Shared circuit breaker across all BrowserContextManager instances
+_CIRCUIT_BREAKER: Optional[BrowserCircuitBreaker] = None
 
 
 class BrowserContextManager:
@@ -44,8 +58,9 @@ class BrowserContextManager:
     default_profile: str
     counter: int
     environment: Union[str, None]
+    config: BrowserConfig
 
-    def __init__(self, default_profile: str = "noSleep_rb6") -> None:
+    def __init__(self, default_profile: str = "noSleep_rb6", config: Optional[BrowserConfig] = None) -> None:
         self.environment = (os.getenv("ENV") or "").lower()
         self.default_profile = default_profile
         self.counter = 0
@@ -54,6 +69,23 @@ class BrowserContextManager:
         self._xvfb_proc: Optional[subprocess.Popen] = None
         self._profile_dir: Optional[str] = None
         self._lock_acquired = False
+        self.config = config or BrowserConfig.from_environment()
+
+        # Initialize global circuit breaker if needed
+        global _CIRCUIT_BREAKER  # pylint: disable=global-statement
+        if _CIRCUIT_BREAKER is None:
+            _CIRCUIT_BREAKER = BrowserCircuitBreaker(
+                failure_threshold=self.config.circuit_breaker_failure_threshold,
+                success_threshold=self.config.circuit_breaker_success_threshold,
+                timeout_seconds=self.config.circuit_breaker_timeout_seconds,
+            )
+
+    @staticmethod
+    def get_circuit_breaker_stats() -> dict:
+        """Get circuit breaker statistics for monitoring"""
+        if _CIRCUIT_BREAKER:
+            return _CIRCUIT_BREAKER.get_stats()
+        return {}
 
     def _check_file_descriptor_usage(self) -> tuple[int, int]:
         """
@@ -79,100 +111,215 @@ class BrowserContextManager:
             print_warning_log(f"Failed to check file descriptor usage: {e}")
             return 0, 0
 
+    def _calculate_backoff(self, attempt: int, is_fd_exhaustion: bool = False) -> float:
+        """
+        Calculate exponential backoff with jitter.
+
+        Args:
+            attempt: Current retry attempt (0-indexed)
+            is_fd_exhaustion: True if this is a file descriptor exhaustion error
+
+        Returns:
+            Backoff time in seconds
+        """
+        if is_fd_exhaustion:
+            # Use special longer backoff for FD exhaustion
+            return self.config.fd_exhaustion_backoff_seconds
+
+        # Exponential backoff: base * (multiplier ^ attempt)
+        backoff = self.config.base_backoff_seconds * (self.config.backoff_multiplier**attempt)
+
+        # Cap at maximum
+        backoff = min(backoff, self.config.max_backoff_seconds)
+
+        # Add jitter: ± (backoff * jitter_factor)
+        jitter = backoff * self.config.jitter_factor * (2 * random.random() - 1)
+        backoff_with_jitter = backoff + jitter
+
+        return max(0.1, backoff_with_jitter)  # Ensure minimum 0.1s
+
     def __enter__(self):
+        # Check circuit breaker first
+        if self.config.circuit_breaker_enabled and _CIRCUIT_BREAKER:
+            if not _CIRCUIT_BREAKER.allow_request():
+                stats = _CIRCUIT_BREAKER.get_stats()
+                raise CircuitBreakerOpenException(
+                    f"Circuit breaker is OPEN after {stats['total_failures']} failures. "
+                    f"Will retry after timeout. Last failure: {stats.get('last_failure_time', 'N/A')}"
+                )
+
         # Check file descriptor usage before starting
         current_fds, max_fds = self._check_file_descriptor_usage()
         if max_fds > 0:
             usage_percent = (current_fds / max_fds) * 100
-            if usage_percent > 80:
+            if usage_percent > self.config.fd_warning_threshold_percent:
                 print_warning_log(
                     f"High file descriptor usage: {current_fds}/{max_fds} ({usage_percent:.1f}%). "
                     "Browser startup may fail."
                 )
-            elif usage_percent > 50:
+            elif usage_percent > self.config.fd_info_threshold_percent:
                 print_log(f"File descriptor usage: {current_fds}/{max_fds} ({usage_percent:.1f}%)")
 
-        retries = 2
         last_exception = None
 
-        for i in range(retries):
+        for attempt in range(self.config.max_retries):
             try:
                 self._lock.acquire(timeout=120)
                 self._lock_acquired = True
                 self._config_browser()
+
+                # Success! Record with circuit breaker
+                if self.config.circuit_breaker_enabled and _CIRCUIT_BREAKER:
+                    _CIRCUIT_BREAKER.record_success()
+
                 return self
+
             except OSError as e:
                 last_exception = e
-                # If we hit file descriptor limit, don't retry immediately
-                if e.errno == 24:  # EMFILE - Too many open files
+                is_fd_exhaustion = e.errno == 24  # EMFILE - Too many open files
+
+                if is_fd_exhaustion:
                     current_fds, max_fds = self._check_file_descriptor_usage()
-                    print_error_log(f"Startup attempt {i+1} failed: {e}. " f"File descriptors: {current_fds}/{max_fds}")
+                    print_error_log(
+                        f"Startup attempt {attempt+1}/{self.config.max_retries} failed: {e}. "
+                        f"File descriptors: {current_fds}/{max_fds}"
+                    )
                     self._cleanup()
-                    if i == retries - 1:
-                        print_error_log(
-                            "Hit file descriptor limit after retries. " "Aborting to prevent resource exhaustion."
-                        )
-                        raise
-                    # Wait longer before retry to let system clean up
-                    print_log("Waiting 10 seconds for file descriptors to be released...")
-                    time.sleep(10)
+
+                    if attempt == self.config.max_retries - 1:
+                        print_error_log("Hit file descriptor limit after retries. Aborting to prevent resource exhaustion.")
+                        exc = BrowserStartupException(str(e), retryable=False)
+                        if self.config.circuit_breaker_enabled and _CIRCUIT_BREAKER:
+                            _CIRCUIT_BREAKER.record_failure(exc)
+                        raise exc
+
+                    # Calculate backoff with special handling for FD exhaustion
+                    backoff = self._calculate_backoff(attempt, is_fd_exhaustion=True)
+                    print_log(f"Waiting {backoff:.1f}s before retry {attempt+2}/{self.config.max_retries}...")
+                    time.sleep(backoff)
                 else:
-                    raise
+                    # Other OSError - not retryable
+                    exc = BrowserStartupException(str(e), retryable=False)
+                    if self.config.circuit_breaker_enabled and _CIRCUIT_BREAKER:
+                        _CIRCUIT_BREAKER.record_failure(exc)
+                    raise exc
+
             except Exception as e:
                 last_exception = e
                 error_msg = str(e).lower()
 
                 # Check for non-retryable errors
                 is_retryable = True
+                exception_to_raise = None
+
                 if "version" in error_msg or "mismatch" in error_msg:
-                    print_error_log(f"Startup attempt {i+1} failed with version issue: {e}")
+                    print_error_log(f"Startup attempt {attempt+1} failed with version issue: {e}")
                     print_error_log("This appears to be a Chrome/chromedriver version mismatch - retrying won't help")
                     is_retryable = False
+                    exception_to_raise = BrowserVersionMismatchException(str(e))
                 elif "permission" in error_msg or "access" in error_msg:
-                    print_error_log(f"Startup attempt {i+1} failed with permission issue: {e}")
+                    print_error_log(f"Startup attempt {attempt+1} failed with permission issue: {e}")
                     print_error_log("This appears to be a permissions issue - retrying won't help")
                     is_retryable = False
+                    exception_to_raise = BrowserStartupException(str(e), retryable=False)
                 elif "status code was: 1" in error_msg:
-                    print_error_log(f"Startup attempt {i+1} failed: chromedriver exited with status 1")
-                    # This could be various issues, let's try to diagnose
+                    print_error_log(f"Startup attempt {attempt+1} failed: chromedriver exited with status 1")
                     print_error_log("Chromedriver failed to start - check logs above for version info and diagnostics")
+                    exception_to_raise = BrowserStartupException(str(e), retryable=True)
                 else:
-                    print_error_log(f"Startup attempt {i+1} failed: {e}")
+                    print_error_log(f"Startup attempt {attempt+1}/{self.config.max_retries} failed: {e}")
+                    exception_to_raise = BrowserStartupException(str(e), retryable=True)
 
                 self._cleanup()  # Full wipe before retry
 
-                # Don't retry if we know it won't help
-                if not is_retryable or i == retries - 1:
+                # Don't retry if we know it won't help or if out of retries
+                if not is_retryable or attempt == self.config.max_retries - 1:
                     if not is_retryable:
                         print_error_log("Error is not retryable - aborting immediately")
-                    raise
+                    # Record failure with circuit breaker
+                    if self.config.circuit_breaker_enabled and _CIRCUIT_BREAKER:
+                        _CIRCUIT_BREAKER.record_failure(exception_to_raise or e)
+                    raise exception_to_raise or e
 
-                print_log(f"Waiting 2 seconds before retry {i+2}/{retries}...")
-                time.sleep(2)  # Breath before retry
+                # Calculate exponential backoff with jitter
+                backoff = self._calculate_backoff(attempt, is_fd_exhaustion=False)
+                print_log(f"Waiting {backoff:.1f}s before retry {attempt+2}/{self.config.max_retries}...")
+                time.sleep(backoff)
 
         # Should never reach here, but just in case
         if last_exception:
+            if self.config.circuit_breaker_enabled and _CIRCUIT_BREAKER:
+                _CIRCUIT_BREAKER.record_failure(last_exception)
             raise last_exception
+        raise BrowserStartupException("Unknown error during browser startup")
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._cleanup()
 
+    def _wait_for_process_termination(self, pids: List[int], timeout: float) -> bool:
+        """
+        Wait for processes to terminate using psutil.
+
+        Args:
+            pids: List of process IDs to wait for
+            timeout: Maximum time to wait in seconds
+
+        Returns:
+            True if all processes terminated, False if timeout
+        """
+        if not pids:
+            return True
+
+        start_time = time.time()
+        remaining_pids = set(pids)
+
+        while time.time() - start_time < timeout:
+            for pid in list(remaining_pids):
+                try:
+                    proc = psutil.Process(pid)
+                    # Check if process is zombie or dead
+                    status = proc.status()
+                    if status in (psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD):
+                        remaining_pids.remove(pid)
+                except psutil.NoSuchProcess:
+                    # Process no longer exists - good!
+                    remaining_pids.remove(pid)
+                except Exception as e:
+                    print_warning_log(f"Error checking process {pid}: {e}")
+                    remaining_pids.remove(pid)  # Assume it's gone
+
+            if not remaining_pids:
+                return True
+
+            # Only sleep if processes remain
+            time.sleep(self.config.process_poll_interval_seconds)
+
+        # Timeout - log remaining processes
+        if remaining_pids:
+            print_warning_log(f"Processes still alive after {timeout}s: {remaining_pids}")
+        return False
+
     def _cleanup(self) -> None:
         print_log("Cleaning up browser and Xvfb...")
 
-        browser_pid = None
-        xvfb_pgid = None
+        pids_to_wait = []
 
         # 1. Try to quit the driver gracefully and close all its file descriptors
         if self.driver:
             try:
                 # Get the PID before quitting
                 browser_pid = self.driver.browser_pid
+                if browser_pid:
+                    pids_to_wait.append(browser_pid)
 
                 # Close any open file descriptors the driver might have
                 try:
                     if hasattr(self.driver, "service") and self.driver.service:
                         if hasattr(self.driver.service, "process") and self.driver.service.process:
+                            # Collect chromedriver PID
+                            if self.driver.service.process.pid:
+                                pids_to_wait.append(self.driver.service.process.pid)
+
                             # Close subprocess pipes explicitly
                             if self.driver.service.process.stdin:
                                 self.driver.service.process.stdin.close()
@@ -180,62 +327,51 @@ class BrowserContextManager:
                                 self.driver.service.process.stdout.close()
                             if self.driver.service.process.stderr:
                                 self.driver.service.process.stderr.close()
-                except:
-                    pass
+                except Exception as e:
+                    print_warning_log(f"BrowserContextManager: Error closing service process pipes: {e}")
 
                 self.driver.quit()
+
                 # Force kill the specific browser PID just in case
-                try:
-                    os.kill(browser_pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass  # Already dead
-            except:
-                pass
+                if browser_pid:
+                    try:
+                        os.kill(browser_pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass  # Already dead
+            except Exception as e:
+                print_warning_log(f"BrowserContextManager: Error during driver cleanup: {e}")
             self.driver = None
 
         # 2. Kill the Xvfb process group (the nuclear option)
         if self._xvfb_proc:
             try:
+                # Collect all Xvfb children PIDs using psutil
+                try:
+                    xvfb_proc = psutil.Process(self._xvfb_proc.pid)
+                    children = xvfb_proc.children(recursive=True)
+                    for child in children:
+                        pids_to_wait.append(child.pid)
+                    pids_to_wait.append(self._xvfb_proc.pid)
+                except psutil.NoSuchProcess:
+                    pass  # Xvfb already dead
+
                 # This kills the Xvfb AND any children it spawned
                 xvfb_pgid = os.getpgid(self._xvfb_proc.pid)
                 os.killpg(xvfb_pgid, signal.SIGKILL)
-            except:
-                pass
+            except Exception as e:
+                print_warning_log(f"BrowserContextManager: Error killing Xvfb process: {e}")
             self._xvfb_proc = None
 
-        # 3. Wait for processes to fully terminate
+        # 3. Wait for processes to fully terminate using psutil
         # This prevents the "cannot connect to chrome" race condition
-        max_wait = 3.0  # seconds
-        start_time = time.time()
-        while time.time() - start_time < max_wait:
-            all_dead = True
-
-            # Check if browser process is dead
-            if browser_pid:
-                try:
-                    os.kill(browser_pid, 0)  # Check if process exists
-                    all_dead = False
-                except ProcessLookupError:
-                    browser_pid = None  # Confirmed dead
-
-            # Check if Xvfb process group is dead
-            if xvfb_pgid:
-                try:
-                    os.killpg(xvfb_pgid, 0)  # Check if process group exists
-                    all_dead = False
-                except ProcessLookupError:
-                    xvfb_pgid = None  # Confirmed dead
-
-            if all_dead:
-                print_log("All browser processes terminated successfully")
-                break
-
-            time.sleep(0.1)  # Small delay between checks
-
-        if browser_pid or xvfb_pgid:
-            print_warning_log(
-                f"Some processes may still be terminating (browser_pid={browser_pid}, xvfb_pgid={xvfb_pgid})"
+        if pids_to_wait:
+            all_terminated = self._wait_for_process_termination(
+                pids_to_wait, self.config.cleanup_max_wait_seconds
             )
+            if all_terminated:
+                print_log("All browser processes terminated successfully")
+            else:
+                print_warning_log("Some processes may still be terminating after timeout")
 
         # 4. Final Wipe of the specific profile directory
         if self._profile_dir and os.path.exists(self._profile_dir):
@@ -260,41 +396,31 @@ class BrowserContextManager:
         try:
             # Only do this in production to avoid interfering with developer's Chrome instances
             if self.environment == "prod":
-                # Kill orphaned chrome processes - explicitly close subprocess handles
-                result1 = subprocess.run(
+                # Kill orphaned chrome processes
+                # Note: capture_output=True returns strings, not file objects, so no .close() needed
+                subprocess.run(
                     ["pkill", "-9", "-f", "google-chrome.*--remote-debugging"],
                     check=False,
                     capture_output=True,
                     timeout=5,
                 )
-                if result1.stdout:
-                    result1.stdout.close()
-                if result1.stderr:
-                    result1.stderr.close()
 
-                result2 = subprocess.run(
+                subprocess.run(
                     ["pkill", "-9", "-f", "chromedriver"], check=False, capture_output=True, timeout=5
                 )
-                if result2.stdout:
-                    result2.stdout.close()
-                if result2.stderr:
-                    result2.stderr.close()
 
                 time.sleep(0.5)  # Give processes time to die
                 print_log("Cleaned up any orphaned Chrome processes")
 
                 # Clean up any leftover profile directories from previous crashes
-                result3 = subprocess.run(
+                # Note: capture_output=True returns strings, not file objects, so no .close() needed
+                subprocess.run(
                     "find /tmp -maxdepth 1 -name 'chrome_profile_*' -mmin +60 -exec rm -rf {} +",
                     shell=True,
                     check=False,
                     capture_output=True,
                     timeout=10,
                 )
-                if result3.stdout:
-                    result3.stdout.close()
-                if result3.stderr:
-                    result3.stderr.close()
 
                 time.sleep(0.5)  # Give processes time to die
         except Exception as e:
@@ -327,9 +453,6 @@ class BrowserContextManager:
                         if stderr_msg:
                             diagnostics["chrome_stderr"] = stderr_msg
                             print_warning_log(f"Chrome stderr: {stderr_msg}")
-                        result.stderr.close()
-                    if result.stdout:
-                        result.stdout.close()
 
                     # Extract version number for comparison
                     import re
@@ -365,9 +488,6 @@ class BrowserContextManager:
                 if stderr_msg:
                     diagnostics["chromedriver_stderr"] = stderr_msg
                     print_warning_log(f"Chromedriver stderr: {stderr_msg}")
-                result.stderr.close()
-            if result.stdout:
-                result.stdout.close()
         except FileNotFoundError:
             diagnostics["chromedriver_error"] = f"chromedriver not found at {driver_path}"
         except Exception as e:
@@ -440,8 +560,8 @@ class BrowserContextManager:
                                 stderr_output = service.process.stderr.read()
                                 if stderr_output:
                                     error_details += f"\nChromedriver stderr: {stderr_output}"
-                except:
-                    pass
+                except Exception as e:
+                    print_warning_log(f"BrowserContextManager: Error reading chromedriver stderr: {e}")
 
                 print_error_log(f"Failed to attach driver: {error_details}")
 
@@ -460,12 +580,10 @@ class BrowserContextManager:
                         stderr_output = test_result.stderr.strip()
                         if stderr_output:
                             print_error_log(f"Chromedriver direct test stderr: {stderr_output}")
-                        test_result.stderr.close()
                     if test_result.stdout:
                         stdout_output = test_result.stdout.strip()
                         if stdout_output:
                             print_log(f"Chromedriver direct test stdout: {stdout_output}")
-                        test_result.stdout.close()
                 except subprocess.TimeoutExpired:
                     # Timeout is expected if chromedriver starts successfully
                     print_log("Chromedriver can start standalone (timeout is expected - this is GOOD)")
@@ -491,9 +609,6 @@ class BrowserContextManager:
                                         print_error_log(f"Last lines from {log_path}:\n{''.join(last_lines)}")
                                 except Exception as read_err:
                                     print_warning_log(f"Could not read log file: {read_err}")
-                        log_files.stdout.close()
-                    if log_files.stderr:
-                        log_files.stderr.close()
                 except Exception as log_err:
                     print_warning_log(f"Could not search for chromedriver logs: {log_err}")
 
@@ -504,7 +619,7 @@ class BrowserContextManager:
                 options=options, headless=False, use_subprocess=True, port=45455  # Fixed the 454a55 typo here
             )
 
-        self.driver.set_page_load_timeout(60)
+        self.driver.set_page_load_timeout(self.config.page_load_timeout_seconds)
         # Load initial page
         self.driver.get(get_url_user_ranked_matches(self.default_profile))
 
@@ -512,27 +627,41 @@ class BrowserContextManager:
         # If the landing page is just JSON, this will fail.
         # Consider wrapping this in a try/except if it causes crashes.
         try:
-            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        except:
+            WebDriverWait(self.driver, self.config.initial_page_wait_timeout_seconds).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+        except TimeoutException:
             print_log("Initial page load wait timed out, proceeding anyway...")
+        except Exception as e:
+            print_warning_log(f"Initial page load encountered unexpected error: {e}, proceeding anyway...")
 
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
         """
         Download the matches for the given Ubisoft username
         This is version 2 of download_matches. It contains a lot more fields.
         The future goal is to replace download_matches with this function.
+
+        Raises:
+            BrowserException: If Ubisoft username not provided or JSON not found
+            BrowserTimeoutException: If page load times out
         """
         # # Step 1: Download the page content
         self.counter += 1
         ubisoft_user_name = user_queued.user_info.ubisoft_username_active
         if not ubisoft_user_name:
-            print_error_log("download_matches: Ubisoft username not found.")
-            return []
+            raise BrowserException("download_matches: Ubisoft username not found.")
+
         api_url = get_url_api_ranked_matches(ubisoft_user_name)
         self.driver.get(api_url)
         print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
+
         # Wait until the page contains the expected JSON data
-        WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+        try:
+            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+                EC.presence_of_element_located((By.TAG_NAME, "pre"))
+            )
+        except TimeoutException as e:
+            raise BrowserTimeoutException(f"download_matches: Timeout waiting for JSON data: {e}") from e
 
         # Step 2: Extract the page content, expecting JSON
         page_source = self.driver.page_source
@@ -543,28 +672,27 @@ class BrowserContextManager:
         pre_tag = soup.find("pre")
 
         # Ensure the <pre> tag is found and contains the expected JSON data
-        if pre_tag:
-            # Step 4: Extract the text content of the <pre> tag
-            json_data = pre_tag.get_text().strip()
+        if not pre_tag:
+            raise BrowserException("download_matches: JSON data not found within <pre> tag.")
 
-            try:
-                # Step 5: Parse the JSON data
-                data = json.loads(json_data)
-                print_log(f"download_matches: JSON found for {ubisoft_user_name}")
-                # Save the JSON data to a file for debugging
-                if os.getenv("ENV") == "dev":
-                    try:
-                        with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
-                            file.write(json.dumps(data, indent=4))
-                    except Exception as e:
-                        print_warning_log(f"Failed to write debug JSON file: {e}")
-                # Step 6: Parse the JSON data to extract the matches
-                return parse_json_from_full_matches(data, user_queued.user_info)
-            except json.JSONDecodeError as e:
-                print_error_log(f"download_matches: Error parsing JSON: {e}")
-        else:
-            print_error_log("download_matches: JSON data not found within <pre> tag.")
-        return []
+        # Step 4: Extract the text content of the <pre> tag
+        json_data = pre_tag.get_text().strip()
+
+        try:
+            # Step 5: Parse the JSON data
+            data = json.loads(json_data)
+            print_log(f"download_matches: JSON found for {ubisoft_user_name}")
+            # Save the JSON data to a file for debugging
+            if os.getenv("ENV") == "dev":
+                try:
+                    with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
+                        file.write(json.dumps(data, indent=4))
+                except Exception as e:
+                    print_warning_log(f"Failed to write debug JSON file: {e}")
+            # Step 6: Parse the JSON data to extract the matches
+            return parse_json_from_full_matches(data, user_queued.user_info)
+        except json.JSONDecodeError as e:
+            raise BrowserException(f"download_matches: Error parsing JSON: {e}") from e
 
     def refresh_browser(self) -> None:
         """Refresh the browser"""
@@ -573,83 +701,92 @@ class BrowserContextManager:
         print_log("refresh_browser: Browser refreshed")
 
     def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> tuple[str, int]:
-        """Download the web page, and extract the max rank"""
+        """
+        Download the web page, and extract the max rank
+
+        Raises:
+            BrowserException: If Ubisoft username not provided or JSON not found
+            BrowserTimeoutException: If page load times out
+        """
         rank = "Copper"
         # Step 1: Check if the Ubisoft username is provided, otherwise use the default profile
         if ubisoft_user_name is None:
             ubisoft_user_name = self.default_profile
 
+        # Step 2: Download the page content
+        self.counter += 1
+        if not ubisoft_user_name:
+            raise BrowserException("download_max_rank: Ubisoft username not found.")
+
+        api_url = get_url_api_user_info(ubisoft_user_name)
+        self.driver.get(api_url)
+        print_log(f"download_max_rank: Downloading profile for {ubisoft_user_name} using {api_url}")
+
+        # Wait until the page contains the expected JSON data
         try:
-            # Step 2: Download the page content
-            self.counter += 1
-            if not ubisoft_user_name:
-                print_error_log("download_max_rank: Ubisoft username not found.")
-                return rank
-            api_url = get_url_api_user_info(ubisoft_user_name)
-            self.driver.get(api_url)
-            print_log(f"download_max_rank: Downloading profile for {ubisoft_user_name} using {api_url}")
-            # Wait until the page contains the expected JSON data
-            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+                EC.presence_of_element_located((By.TAG_NAME, "pre"))
+            )
+        except TimeoutException as e:
+            raise BrowserTimeoutException(f"download_max_rank: Timeout waiting for JSON data: {e}") from e
 
-            # Step 3: Extract the page content, expecting JSON
-            page_source = self.driver.page_source
+        # Step 3: Extract the page content, expecting JSON
+        page_source = self.driver.page_source
 
-            # Step 4: Remove the HTML
-            soup = BeautifulSoup(page_source, "html.parser")
-            # Find the <pre> tag containing the JSON
-            pre_tag = soup.find("pre")
+        # Step 4: Remove the HTML
+        soup = BeautifulSoup(page_source, "html.parser")
+        # Find the <pre> tag containing the JSON
+        pre_tag = soup.find("pre")
 
-            # Ensure the <pre> tag is found and contains the expected JSON data
-            if pre_tag:
-                # Step 4: Extract the text content of the <pre> tag
-                json_data = pre_tag.get_text().strip()
+        # Ensure the <pre> tag is found and contains the expected JSON data
+        if not pre_tag:
+            raise BrowserException("download_max_rank: JSON data not found within <pre> tag.")
 
+        # Step 4: Extract the text content of the <pre> tag
+        json_data = pre_tag.get_text().strip()
+
+        try:
+            # Step 5: Parse the JSON data
+            data = json.loads(json_data)
+            print_log(f"download_max_rank: JSON found for {ubisoft_user_name}")
+            # Save the JSON data to a file for debugging
+            if os.getenv("ENV") == "dev":
                 try:
-                    # Step 5: Parse the JSON data
-                    data = json.loads(json_data)
-                    print_log(f"download_max_rank: JSON found for {ubisoft_user_name}")
-                    # Save the JSON data to a file for debugging
-                    if os.getenv("ENV") == "dev":
-                        try:
-                            with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
-                                file.write(json.dumps(data, indent=4))
-                        except Exception as e:
-                            print_warning_log(f"Failed to write debug JSON file: {e}")
-                    # Step 6: Parse the JSON data to extract the matches
-                    data_json = parse_json_max_rank(
-                        data,
-                    )
-                    return data_json
-                except json.JSONDecodeError as e:
-                    print_error_log(f"download_max_rank: Error parsing JSON: {e}")
-            else:
-                print_error_log("download_max_rank: JSON data not found within <pre> tag.")
-            return rank
-
-        except Exception as e:
-            print_error_log(f"download_max_rank: Error executing JavaScript to extract rank: {e}")
-
-        if rank in siege_ranks:
-            return rank
-        else:
-            print_error_log(f"download_max_rank: Rank {rank} not found in the list of ranks. Gave Copper instead.")
-            return "Copper"
+                    with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
+                        file.write(json.dumps(data, indent=4))
+                except Exception as e:
+                    print_warning_log(f"Failed to write debug JSON file: {e}")
+            # Step 6: Parse the JSON data to extract the matches
+            data_json = parse_json_max_rank(data)
+            return data_json
+        except json.JSONDecodeError as e:
+            raise BrowserException(f"download_max_rank: Error parsing JSON: {e}") from e
 
     def download_full_user_information(self, user_queued: UserQueueForStats) -> Union[UserInformation, None]:
         """
         Download the user stats for the given Ubisoft username
+
+        Raises:
+            BrowserException: If Ubisoft username not provided or JSON not found
+            BrowserTimeoutException: If page load times out
         """
         # # Step 1: Download the page content
         self.counter += 1
         ubisoft_user_name = user_queued.user_info.ubisoft_username_active
         if not ubisoft_user_name:
-            print_error_log("download_full_user_stats: Ubisoft username not found.")
-            return None
+            raise BrowserException("download_full_user_stats: Ubisoft username not found.")
+
         api_url = get_url_api_user_info(ubisoft_user_name)
         self.driver.get(api_url)
         print_log(f"download_full_user_stats: Downloading stats for {ubisoft_user_name} using {api_url}")
+
         # Wait until the page contains the expected JSON data
-        WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+        try:
+            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+                EC.presence_of_element_located((By.TAG_NAME, "pre"))
+            )
+        except TimeoutException as e:
+            raise BrowserTimeoutException(f"download_full_user_stats: Timeout waiting for JSON data: {e}") from e
 
         # Step 2: Extract the page content, expecting JSON
         page_source = self.driver.page_source
@@ -660,28 +797,27 @@ class BrowserContextManager:
         pre_tag = soup.find("pre")
 
         # Ensure the <pre> tag is found and contains the expected JSON data
-        if pre_tag:
-            # Step 4: Extract the text content of the <pre> tag
-            json_data = pre_tag.get_text().strip()
+        if not pre_tag:
+            raise BrowserException("download_full_user_stats: JSON data not found within <pre> tag.")
 
-            try:
-                # Step 5: Parse the JSON data
-                data = json.loads(json_data)
-                print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
-                # Save the JSON data to a file for debugging
-                if os.getenv("ENV") == "dev":
-                    try:
-                        with open(f"r6tracker_data_full_user_stats_{self.counter}.json", "w", encoding="utf8") as file:
-                            file.write(json.dumps(data, indent=4))
-                    except Exception as e:
-                        print_warning_log(f"Failed to write debug JSON file: {e}")
-                # Step 6: Parse the JSON data to extract the matches
-                return parse_json_user_info(user_queued.user_info.id, data)
-            except json.JSONDecodeError as e:
-                print_error_log(f"download_full_user_stats: Error parsing JSON: {e}")
-        else:
-            print_error_log("download_full_user_stats: JSON data not found within <pre> tag.")
-        return None
+        # Step 4: Extract the text content of the <pre> tag
+        json_data = pre_tag.get_text().strip()
+
+        try:
+            # Step 5: Parse the JSON data
+            data = json.loads(json_data)
+            print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
+            # Save the JSON data to a file for debugging
+            if os.getenv("ENV") == "dev":
+                try:
+                    with open(f"r6tracker_data_full_user_stats_{self.counter}.json", "w", encoding="utf8") as file:
+                        file.write(json.dumps(data, indent=4))
+                except Exception as e:
+                    print_warning_log(f"Failed to write debug JSON file: {e}")
+            # Step 6: Parse the JSON data to extract the matches
+            return parse_json_user_info(user_queued.user_info.id, data)
+        except json.JSONDecodeError as e:
+            raise BrowserException(f"download_full_user_stats: Error parsing JSON: {e}") from e
 
     def download_operator_stats(self, r6_tracker_user_uuid: str) -> Optional[List]:
         """
@@ -691,57 +827,58 @@ class BrowserContextManager:
             r6_tracker_user_uuid: R6 Tracker UUID for the user
 
         Returns:
-            List of operator stat dictionaries, or None if failed
+            List of operator stat dictionaries
+
+        Raises:
+            BrowserException: If UUID not provided or JSON not found/invalid
+            BrowserTimeoutException: If page load times out
         """
         self.counter += 1
 
         if not r6_tracker_user_uuid:
-            print_error_log("download_operator_stats: R6 Tracker UUID not provided.")
-            return None
+            raise BrowserException("download_operator_stats: R6 Tracker UUID not provided.")
 
         # Construct API URL
         api_url = f"https://api.tracker.gg/api/v2/r6siege/standard/profile/ubi/{r6_tracker_user_uuid}/segments/operator?sessionType=ranked&season=all"
 
+        self.driver.get(api_url)
+        print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
+
+        # Wait until the page contains the expected JSON data
         try:
-            self.driver.get(api_url)
-            print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
+            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+                EC.presence_of_element_located((By.TAG_NAME, "pre"))
+            )
+        except TimeoutException as e:
+            raise BrowserTimeoutException(f"download_operator_stats: Timeout waiting for JSON data: {e}") from e
 
-            # Wait until the page contains the expected JSON data
-            WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "pre")))
+        # Get the page source
+        page_source = self.driver.page_source
 
-            # Get the page source
-            page_source = self.driver.page_source
+        # Remove the HTML
+        soup = BeautifulSoup(page_source, "html.parser")
+        pre_tag = soup.find("pre")
 
-            # Remove the HTML
-            soup = BeautifulSoup(page_source, "html.parser")
-            pre_tag = soup.find("pre")
+        if not pre_tag:
+            raise BrowserException("download_operator_stats: JSON data not found within <pre> tag.")
 
-            if pre_tag:
-                # Extract the text content of the <pre> tag
-                json_data = pre_tag.get_text().strip()
+        # Extract the text content of the <pre> tag
+        json_data = pre_tag.get_text().strip()
 
+        try:
+            # Parse the JSON data
+            data = json.loads(json_data)
+            print_log(f"download_operator_stats: JSON found for UUID {r6_tracker_user_uuid}")
+
+            # Save the JSON data to a file for debugging in dev
+            if os.getenv("ENV") == "dev":
                 try:
-                    # Parse the JSON data
-                    data = json.loads(json_data)
-                    print_log(f"download_operator_stats: JSON found for UUID {r6_tracker_user_uuid}")
+                    with open(f"r6tracker_operator_stats_{self.counter}.json", "w", encoding="utf8") as file:
+                        file.write(json.dumps(data, indent=4))
+                except Exception as e:
+                    print_warning_log(f"Failed to write debug JSON file: {e}")
 
-                    # Save the JSON data to a file for debugging in dev
-                    if os.getenv("ENV") == "dev":
-                        try:
-                            with open(f"r6tracker_operator_stats_{self.counter}.json", "w", encoding="utf8") as file:
-                                file.write(json.dumps(data, indent=4))
-                        except Exception as e:
-                            print_warning_log(f"Failed to write debug JSON file: {e}")
+            return data
 
-                    return data
-
-                except json.JSONDecodeError as e:
-                    print_error_log(f"download_operator_stats: Error parsing JSON: {e}")
-                    return None
-            else:
-                print_error_log("download_operator_stats: JSON data not found within <pre> tag.")
-                return None
-
-        except Exception as e:
-            print_error_log(f"download_operator_stats: Error downloading operator stats: {e}")
-            return None
+        except json.JSONDecodeError as e:
+            raise BrowserException(f"download_operator_stats: Error parsing JSON: {e}") from e

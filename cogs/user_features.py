@@ -140,7 +140,8 @@ class UserFeatures(commands.Cog):
             return
         most_common_tz = most_common([user_info.time_zone for user_info in user_infos if user_info is not None])
 
-        embed.set_footer(text=f"Most common timezone: {most_common_tz}")
+        footer_text = f"Most common timezone: {most_common_tz if most_common_tz else 'Unknown'}"
+        embed.set_footer(text=footer_text)
         await interaction.followup.send(content="", embed=embed)
 
     @app_commands.command(name=COMMAND_MAX_RANK_USER_ACCOUNT)

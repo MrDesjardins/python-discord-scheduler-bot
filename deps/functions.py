@@ -61,8 +61,10 @@ def get_sha() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"]).strip().decode()
 
 
-def most_common(lst) -> str:
-    """Returns the most common element in a list."""
+def most_common(lst) -> str | None:
+    """Returns the most common element in a list, or None if the list is empty."""
+    if not lst:
+        return None
     return max(set(lst), key=lst.count)
 
 

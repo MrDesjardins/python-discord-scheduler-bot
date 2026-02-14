@@ -165,9 +165,9 @@ def reset_cache_by_prefixes(prefixes: List[str]) -> None:
         )
 
 
-async def start_periodic_cache_cleanup():
+def start_periodic_cache_cleanup():
     """Start the periodic cache cleanup task"""
-    asyncio.create_task(periodic_cache_cleanup())  # Schedule the cleanup task
+    return asyncio.create_task(periodic_cache_cleanup())  # Schedule the cleanup task
 
 
 async def periodic_cache_cleanup():

@@ -49,47 +49,48 @@ def insert_user_activity(
     """
     time = ensure_utc(time)
 
-    # FIX: Check for duplicate events within 1-second window
-    cursor = database_manager.get_cursor()
-    time_start = (time - timedelta(seconds=1)).isoformat()
-    time_end = (time + timedelta(seconds=1)).isoformat()
+    # Wrap duplicate check + insert in transaction to prevent race condition
+    with database_manager.data_access_transaction() as cursor:
+        # FIX: Check for duplicate events within 1-second window
+        time_start = (time - timedelta(seconds=1)).isoformat()
+        time_end = (time + timedelta(seconds=1)).isoformat()
 
-    cursor.execute(
-        """
-        SELECT COUNT(*) FROM user_activity
-        WHERE user_id = ? AND channel_id = ? AND guild_id = ? AND event = ?
-        AND timestamp >= ? AND timestamp <= ?
-        """,
-        (user_id, channel_id, guild_id, event, time_start, time_end),
-    )
-
-    if cursor.fetchone()[0] > 0:
-
-        print_warning_log(
-            f"Duplicate activity event detected for user {user_id} in channel {channel_id} "
-            f"(event={event}, time={time.isoformat()}). Skipping."
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM user_activity
+            WHERE user_id = ? AND channel_id = ? AND guild_id = ? AND event = ?
+            AND timestamp >= ? AND timestamp <= ?
+            """,
+            (user_id, channel_id, guild_id, event, time_start, time_end),
         )
-        return
 
-    # Original insert logic
-    cursor.execute(
-        """
-    INSERT INTO user_info(id, display_name)
-      VALUES(:user_id, :user_display_name)
-      ON CONFLICT(id) DO UPDATE SET
-        display_name = :user_display_name
-      WHERE id = :user_id;
-    """,
-        {"user_id": user_id, "user_display_name": user_display_name},
-    )
-    cursor.execute(
-        """
-    INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
-    VALUES (:user_id, :channel_id, :guild_id, :event, :time)
-    """,
-        {"user_id": user_id, "channel_id": channel_id, "guild_id": guild_id, "event": event, "time": time.isoformat()},
-    )
-    database_manager.get_conn().commit()
+        if cursor.fetchone()[0] > 0:
+
+            print_warning_log(
+                f"Duplicate activity event detected for user {user_id} in channel {channel_id} "
+                f"(event={event}, time={time.isoformat()}). Skipping."
+            )
+            return
+
+        # Original insert logic
+        cursor.execute(
+            """
+        INSERT INTO user_info(id, display_name)
+          VALUES(:user_id, :user_display_name)
+          ON CONFLICT(id) DO UPDATE SET
+            display_name = :user_display_name
+          WHERE id = :user_id;
+        """,
+            {"user_id": user_id, "user_display_name": user_display_name},
+        )
+        cursor.execute(
+            """
+        INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
+        VALUES (:user_id, :channel_id, :guild_id, :event, :time)
+        """,
+            {"user_id": user_id, "channel_id": channel_id, "guild_id": guild_id, "event": event, "time": time.isoformat()},
+        )
+        # Transaction will be committed automatically by context manager
 
 
 def fetch_user_info() -> Dict[int, UserInfo]:

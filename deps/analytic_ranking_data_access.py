@@ -127,7 +127,7 @@ def data_access_fetch_top_team_kill(from_data: date, top: int) -> list[tuple[str
     user_info.display_name,
     user_full_stats_info.total_team_kills,
     user_full_stats_info.total_matches_played,
-    user_full_stats_info.total_team_kills * 100.0 / user_full_stats_info.total_matches_played as pct
+    user_full_stats_info.total_team_kills * 100.0 / NULLIF(user_full_stats_info.total_matches_played, 0) as pct
     FROM
     user_full_stats_info
     LEFT JOIN user_info ON

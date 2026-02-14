@@ -435,9 +435,11 @@ def save_tournament_games(games: List[TournamentGame]) -> None:
     Save the tournament games.
     """
     cursor = database_manager.get_cursor()
+    tournament_ids = set()
     for game in games:
         if game is None:
             continue
+        tournament_ids.add(game.tournament_id)
         cursor.execute(
             """
             UPDATE tournament_game
@@ -453,6 +455,10 @@ def save_tournament_games(games: List[TournamentGame]) -> None:
         )
 
     database_manager.get_conn().commit()
+
+    # Invalidate cache to prevent stale bracket data
+    for tournament_id in tournament_ids:
+        cache_tournament.pop(tournament_id, None)
 
 
 cache_tournament: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds

@@ -240,7 +240,7 @@ class UserCustomGameFeatures(commands.Cog):
                     try:
                         await member.move_to(team2_channel)
                         await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
-                    except discord.Forbidden:
+                    except discord.Forbidden as e:
                         print_error_log(
                             f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Beta channel: {e}"
                         )

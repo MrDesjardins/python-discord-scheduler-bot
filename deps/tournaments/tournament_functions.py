@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from collections import deque
 import random
 from typing import Dict, List, Optional, Union
+from filelock import FileLock
 from deps.bet.bet_functions import (
     distribute_gain_on_recent_ended_game,
     system_generate_game_odd,
@@ -157,6 +158,7 @@ def has_node_without_user(dict_nodes: dict[int, TournamentGame], node: Tournamen
         dict_nodes, dict_nodes[node.next_game2_id]
     )
 
+    # Return True only if BOTH branches are completely empty (no users in entire subtree)
     return left_side_result and right_side_result
 
 
@@ -413,76 +415,83 @@ async def report_lost_tournament(tournament_id: int, user_id: int, score: str) -
         tournament_id (int): The ID of the tournament.
         user_id (int): The ID of the user.
     """
-    # Get the tournament
-    tournament = fetch_tournament_by_id(tournament_id)
+    # Use FileLock to prevent race conditions from concurrent match reports
+    # Lock file stored in /tmp - FileLock library handles stale locks automatically
+    # so no manual cleanup needed. /tmp location is acceptable for production use.
+    lock_path = f"/tmp/tournament_{tournament_id}.lock"
+    lock = FileLock(lock_path, timeout=30)
 
-    if tournament is None:
-        return Reason(False, "The tournament does not exist.")
+    with lock:
+        # Get the tournament
+        tournament = fetch_tournament_by_id(tournament_id)
 
-    # Get the list of users registered for the tournament
-    participants: List[UserInfo] = get_people_registered_for_tournament(tournament_id)
-    if not any(user.id == user_id for user in participants):
-        return Reason(False, "User is not registered for the tournament.")
+        if tournament is None:
+            return Reason(False, "The tournament does not exist.")
 
-    # Get the tournament games
-    tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+        # Get the list of users registered for the tournament
+        participants: List[UserInfo] = get_people_registered_for_tournament(tournament_id)
+        if not any(user.id == user_id for user in participants):
+            return Reason(False, "User is not registered for the tournament.")
 
-    # Get the tournament tree
-    tournament_tree = build_tournament_tree(tournament_games)
+        # Get the tournament games
+        tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
 
-    if tournament_tree is None:
-        return Reason(False, "The tournament tree is empty.")
+        # Get the tournament tree
+        tournament_tree = build_tournament_tree(tournament_games)
 
-    # Find the node where the user is present
-    node = find_first_node_of_user_not_done(tournament_tree, user_id)
+        if tournament_tree is None:
+            return Reason(False, "The tournament tree is empty.")
 
-    # If the user is already eleminated or not found in the tournament
-    if node is None:
-        return Reason(False, "User cannot report a lost because already eliminated.")
+        # Find the node where the user is present
+        node = find_first_node_of_user_not_done(tournament_tree, user_id)
 
-    if node.user1_id is None or node.user2_id is None:
-        return Reason(
-            False,
-            "User cannot report a lost because the game is not ready: one participant is not yet determine by the system.",
-        )
+        # If the user is already eleminated or not found in the tournament
+        if node is None:
+            return Reason(False, "User cannot report a lost because already eliminated.")
 
-    # Update the user_winner_id in the node
-    node.user_winner_id = node.user1_id if node.user1_id != user_id else node.user2_id
+        if node.user1_id is None or node.user2_id is None:
+            return Reason(
+                False,
+                "User cannot report a lost because the game is not ready: one participant is not yet determine by the system.",
+            )
 
-    # Update the score
-    node.score = score
+        # Update the user_winner_id in the node
+        node.user_winner_id = node.user1_id if node.user1_id != user_id else node.user2_id
 
-    # Find the parent node and assign the user
-    node_parent = find_parent_of_node(tournament_tree, node.id)
-    if node_parent is not None:
-        # None might mean root
-        # Set the winner to the parent node on an available slot
-        if node_parent.user1_id is None:
-            node_parent.user1_id = node.user_winner_id
+        # Update the score
+        node.score = score
+
+        # Find the parent node and assign the user
+        node_parent = find_parent_of_node(tournament_tree, node.id)
+        if node_parent is not None:
+            # None might mean root
+            # Set the winner to the parent node on an available slot
+            if node_parent.user1_id is None:
+                node_parent.user1_id = node.user_winner_id
+            else:
+                node_parent.user2_id = node.user_winner_id
+            # Asign the map when both are defined
+            if node_parent.user1_id is not None and node_parent.user2_id is not None:
+                node_parent.map = random.choice(tournament.maps.split(","))
+            # Save the updated tournament games
+            save_tournament_games(
+                [map_tournament_node_to_tournament_game(node), map_tournament_node_to_tournament_game(node_parent)]
+            )
         else:
-            node_parent.user2_id = node.user_winner_id
-        # Asign the map when both are defined
-        if node_parent.user1_id is not None and node_parent.user2_id is not None:
-            node_parent.map = random.choice(tournament.maps.split(","))
-        # Save the updated tournament games
-        save_tournament_games(
-            [map_tournament_node_to_tournament_game(node), map_tournament_node_to_tournament_game(node_parent)]
-        )
-    else:
-        save_tournament_games([map_tournament_node_to_tournament_game(node)])
+            save_tournament_games([map_tournament_node_to_tournament_game(node)])
 
-    # Auto assign user as a winner if there is no possible opponent in the other side of the bracket
-    # Refetch to make sure we have all the latest
-    refetch_tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
-    node_to_save2: List[TournamentGame] = auto_assign_winner(refetch_tournament_games)
-    save_tournament_games(node_to_save2)
+        # Auto assign user as a winner if there is no possible opponent in the other side of the bracket
+        # Refetch to make sure we have all the latest
+        refetch_tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament_id)
+        node_to_save2: List[TournamentGame] = auto_assign_winner(refetch_tournament_games)
+        save_tournament_games(node_to_save2)
 
-    # Close bets of the games (mostly the one reported)
-    distribute_gain_on_recent_ended_game(tournament_id)
+        # Close bets of the games (mostly the one reported)
+        distribute_gain_on_recent_ended_game(tournament_id)
 
-    # Generate bet_game
-    await system_generate_game_odd(tournament_id)
-    return Reason(True, None, node)
+        # Generate bet_game
+        await system_generate_game_odd(tournament_id)
+        return Reason(True, None, node)
 
 
 def find_parent_of_node(tree: TournamentNode, child_id: int) -> Optional[TournamentNode]:
@@ -588,6 +597,8 @@ def get_tournament_final_result_positions(root: TournamentNode) -> Optional[Tour
     second_position = final_game.user1_id if final_game.user2_id == final_game.user_winner_id else final_game.user2_id
 
     # The third nodes are the losers of the semi-final
+    if len(levels) < 2:
+        return None
     semi_finals = levels[-2]
     if len(semi_finals) != 2:
         return None

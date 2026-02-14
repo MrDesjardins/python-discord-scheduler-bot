@@ -12,7 +12,7 @@ import discord
 from deps.ai.ai_functions import BotAISingleton
 from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
-from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
+from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.bot_common_actions import (
     move_members_between_voice_channel,
     send_daily_question_to_a_guild,
@@ -54,8 +54,55 @@ class MyEventsCog(commands.Cog):
     def __init__(self, bot: MyBot):
         self.bot = bot
         self.last_task: dict[str, asyncio.Task] = {}
+        self.last_task_lock = asyncio.Lock()  # Protect concurrent access to last_task dictionary
         self.match_start_gif_locks: dict[str, asyncio.Lock] = {}
         self.match_start_gif_locks_creation_lock = asyncio.Lock()
+        self.cleanup_task: asyncio.Task | None = None  # Store reference to prevent garbage collection
+
+    @staticmethod
+    def _log_channel_move_sync(member_id: int, member_display_name: str, old_channel_id: int, new_channel_id: int, guild_id: int, move_time: datetime) -> None:
+        """Helper to log channel move in database (runs in thread pool)"""
+        with database_manager.data_access_transaction() as cursor:
+            # Upsert user_info
+            cursor.execute(
+                """
+                INSERT INTO user_info(id, display_name)
+                VALUES(:user_id, :user_display_name)
+                ON CONFLICT(id) DO UPDATE SET display_name = :user_display_name
+                WHERE id = :user_id;
+                """,
+                {"user_id": member_id, "user_display_name": member_display_name},
+            )
+
+            # Insert DISCONNECT from old channel
+            cursor.execute(
+                """
+                INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
+                VALUES (:user_id, :channel_id, :guild_id, :event, :time)
+                """,
+                {
+                    "user_id": member_id,
+                    "channel_id": old_channel_id,
+                    "guild_id": guild_id,
+                    "event": EVENT_DISCONNECT,
+                    "time": move_time.isoformat(),
+                },
+            )
+
+            # Insert CONNECT to new channel
+            cursor.execute(
+                """
+                INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
+                VALUES (:user_id, :channel_id, :guild_id, :event, :time)
+                """,
+                {
+                    "user_id": member_id,
+                    "channel_id": new_channel_id,
+                    "guild_id": guild_id,
+                    "event": EVENT_CONNECT,
+                    "time": move_time.isoformat(),
+                },
+            )
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -91,12 +138,15 @@ class MyEventsCog(commands.Cog):
             for emoji in guild.emojis:
                 bot.guild_emoji[guild.id][emoji.name] = emoji.id
                 print_log(f"Guild emoji: {emoji.name} -> {emoji.id}")
-            
-        # Cleanup task that runs every few seconds
-        tasks.append(start_periodic_cache_cleanup())
+
+        # Start cleanup task that runs in background
+        # Store reference to prevent garbage collection
+        self.cleanup_task = start_periodic_cache_cleanup()
+        print_log("✅ Started periodic cache cleanup task")
 
         # Running all tasks concurrently and waiting for them to finish
-        await asyncio.gather(*tasks)
+        if tasks:
+            await asyncio.gather(*tasks)
         print_log("✅ on_ready() completed, bot is fully initialized.")
 
     def check_bot_permissions(self, channel: discord.TextChannel) -> dict:
@@ -174,7 +224,8 @@ class MyEventsCog(commands.Cog):
                 # User left a voice channel
                 channel_id = before.channel.id
                 event = EVENT_DISCONNECT
-                insert_user_activity(
+                await asyncio.to_thread(
+                    insert_user_activity,
                     member.id,
                     member.display_name,
                     channel_id,
@@ -191,57 +242,20 @@ class MyEventsCog(commands.Cog):
                 await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                 # User switched between voice channels
-                # FIX: Use transaction to make channel move atomic
-                from deps.system_database import database_manager
-
+                # Run database operations in thread pool to avoid blocking event loop
                 try:
-                    with database_manager.data_access_transaction() as cursor:
-                        move_time = datetime.now(timezone.utc)
-
-                        # Upsert user_info
-                        cursor.execute(
-                            """
-                            INSERT INTO user_info(id, display_name)
-                            VALUES(:user_id, :user_display_name)
-                            ON CONFLICT(id) DO UPDATE SET display_name = :user_display_name
-                            WHERE id = :user_id;
-                            """,
-                            {"user_id": member.id, "user_display_name": member.display_name},
-                        )
-
-                        # Insert DISCONNECT from old channel
-                        cursor.execute(
-                            """
-                            INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
-                            VALUES (:user_id, :channel_id, :guild_id, :event, :time)
-                            """,
-                            {
-                                "user_id": member.id,
-                                "channel_id": before.channel.id,
-                                "guild_id": guild_id,
-                                "event": EVENT_DISCONNECT,
-                                "time": move_time.isoformat(),
-                            },
-                        )
-
-                        # Insert CONNECT to new channel
-                        cursor.execute(
-                            """
-                            INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
-                            VALUES (:user_id, :channel_id, :guild_id, :event, :time)
-                            """,
-                            {
-                                "user_id": member.id,
-                                "channel_id": after.channel.id,
-                                "guild_id": guild_id,
-                                "event": EVENT_CONNECT,
-                                "time": move_time.isoformat(),
-                            },
-                        )
-                        # Transaction commits on context manager exit
+                    move_time = datetime.now(timezone.utc)
+                    await asyncio.to_thread(
+                        self._log_channel_move_sync,
+                        member.id,
+                        member.display_name,
+                        before.channel.id,
+                        after.channel.id,
+                        guild_id,
+                        move_time,
+                    )
                 except Exception as e:
                     print_error_log(f"on_voice_state_update: Error logging channel move: {e}")
-                    # Transaction rolls back on exception
 
                 # Update cache (after transaction)
                 await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
@@ -290,7 +304,8 @@ class MyEventsCog(commands.Cog):
                     # Insert DISCONNECT for all members in channel
                     for member in channel.members:
                         if not member.bot:
-                            insert_user_activity(
+                            await asyncio.to_thread(
+                                insert_user_activity,
                                 member.id,
                                 member.display_name,
                                 voice_channel_id,
@@ -393,23 +408,29 @@ class MyEventsCog(commands.Cog):
         The goal is to debounce and only act on the last operation
         """
         key = f"lfg-{guild_id}-{channel_id}"
-        if key in self.last_task:
-            task = self.last_task.get(key)
-            if task is not None:
-                task.cancel()  # Cancel any pending execution
-        self.last_task[key] = asyncio.create_task(
-            self.send_automatic_lfg_message_debounced_cancellable_task(guild_id, channel_id)
-        )
+        async with self.last_task_lock:
+            if key in self.last_task:
+                task = self.last_task.get(key)
+                if task is not None:
+                    task.cancel()  # Cancel any pending execution
+            self.last_task[key] = asyncio.create_task(
+                self.send_automatic_lfg_message_debounced_cancellable_task(guild_id, channel_id)
+            )
 
     async def send_automatic_lfg_message_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
         """
         A task that can be cancelled and will wait for X seconds before sending the automatic message
         """
-        await asyncio.sleep(5)  # Wait
-        await send_automatic_lfg_message(
-            self.bot, guild_id, channel_id
-        )  # Send the actual command to see if we can send a message (depending of everyone state)
-        self.last_task.pop(f"lfg-{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
+        try:
+            await asyncio.sleep(5)  # Wait
+            await send_automatic_lfg_message(
+                self.bot, guild_id, channel_id
+            )  # Send the actual command to see if we can send a message (depending of everyone state)
+        except asyncio.CancelledError:
+            pass  # Task was cancelled, cleanup will happen in finally
+        finally:
+            async with self.last_task_lock:
+                self.last_task.pop(f"lfg-{guild_id}-{channel_id}", None)  # Remove the last task for the guild/channel
 
     async def send_match_start_gif_debounced(self, guild_id: int, channel_id: int) -> None:
         """
@@ -417,13 +438,14 @@ class MyEventsCog(commands.Cog):
         The goal is to debounce and only act on the last operation.
         """
         key = f"matchstartgif-{guild_id}-{channel_id}"
-        if key in self.last_task:
-            task = self.last_task.get(key)
-            if task is not None:
-                task.cancel()  # Cancel any pending execution
-        self.last_task[key] = asyncio.create_task(
-            self.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
-        )
+        async with self.last_task_lock:
+            if key in self.last_task:
+                task = self.last_task.get(key)
+                if task is not None:
+                    task.cancel()  # Cancel any pending execution
+            self.last_task[key] = asyncio.create_task(
+                self.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+            )
 
     async def send_match_start_gif_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
         """
@@ -465,7 +487,8 @@ class MyEventsCog(commands.Cog):
         except Exception as e:
             print_error_log(f"send_match_start_gif_debounced_cancellable_task: {e}")
         finally:
-            self.last_task.pop(f"matchstartgif-{guild_id}-{channel_id}", None)
+            async with self.last_task_lock:
+                self.last_task.pop(f"matchstartgif-{guild_id}-{channel_id}", None)
 
     async def auto_move_custom_game_debounced(self, guild_id: int, channel_id: int) -> None:
         """
@@ -473,13 +496,14 @@ class MyEventsCog(commands.Cog):
         The goal is to debounce and only act on the last operation
         """
         key = f"customgame-{guild_id}-{channel_id}"
-        if key in self.last_task:
-            task = self.last_task.get(key)
-            if task is not None:
-                task.cancel()  # Cancel any pending execution
-        self.last_task[key] = asyncio.create_task(
-            self.auto_move_custom_game_debounced_cancellable_task(guild_id, channel_id)
-        )
+        async with self.last_task_lock:
+            if key in self.last_task:
+                task = self.last_task.get(key)
+                if task is not None:
+                    task.cancel()  # Cancel any pending execution
+            self.last_task[key] = asyncio.create_task(
+                self.auto_move_custom_game_debounced_cancellable_task(guild_id, channel_id)
+            )
 
     async def auto_move_custom_game_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
         """
@@ -507,12 +531,15 @@ class MyEventsCog(commands.Cog):
             )  # Wait since many people might have the same update (10 people playing the custom game)
             await move_members_between_voice_channel(team1_channel, lobby_channel)
             await move_members_between_voice_channel(team2_channel, lobby_channel)
+        except asyncio.CancelledError:
+            pass  # Task was cancelled, cleanup will happen in finally
         except Exception as e:
             print_error_log(f"auto_move_custom_game_debounced_cancellable_task: Error moving custom game users: {e}")
         finally:
-            self.last_task.pop(
-                f"customgame-{guild_id}-{channel_id}", None
-            )  # Remove the last task for the guild/channel
+            async with self.last_task_lock:
+                self.last_task.pop(
+                    f"customgame-{guild_id}-{channel_id}", None
+                )  # Remove the last task for the guild/channel
 
     @commands.Cog.listener()
     async def on_message(self, message) -> None:

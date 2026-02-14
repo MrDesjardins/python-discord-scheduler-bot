@@ -269,7 +269,7 @@ class TestChannelMoveAtomicity:
         with (
             patch("cogs.events.data_access_get_guild_voice_channel_ids") as mock_get_voice_channels,
             patch("cogs.events.data_access_get_guild_schedule_text_channel_id") as mock_get_schedule_channel,
-            patch("deps.system_database.database_manager") as mock_db_manager,
+            patch("cogs.events.database_manager") as mock_db_manager,
             patch("cogs.events.data_access_remove_voice_user_list") as mock_remove_voice_list,
             patch("cogs.events.data_access_update_voice_user_list") as mock_update_voice_list,
             patch("cogs.events.get_any_siege_activity") as mock_get_activity,

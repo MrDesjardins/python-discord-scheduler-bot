@@ -5,6 +5,12 @@ import random
 import time
 from typing import List, Union
 from deps.browser_context_manager import BrowserContextManager
+from deps.browser_exceptions import (
+    BrowserException,
+    BrowserStartupException,
+    BrowserTimeoutException,
+    CircuitBreakerOpenException,
+)
 from deps.data_access_data_class import UserInfo
 from deps.models import (
     UserFullMatchStats,
@@ -33,13 +39,26 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
                     if len(users_queued) > 1:
                         time.sleep(random.uniform(3, 12))  # Sleep few seconds between each request
 
-                except Exception as e:
+                except BrowserTimeoutException as e:
+                    # Timeout for individual user - log and continue with next user
                     print_error_log(
-                        f"post_queued_user_stats: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
+                        f"download_full_matches: Timeout getting stats for {user_queue.user_info.display_name}: {e}"
+                    )
+                    continue
+                except BrowserException as e:
+                    # Other browser errors for individual user - log and continue
+                    print_error_log(
+                        f"download_full_matches: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
+    except CircuitBreakerOpenException as e:
+        # Circuit breaker open - abort all remaining users
+        print_error_log(f"download_full_matches: Circuit breaker open, aborting: {e}")
+    except BrowserStartupException as e:
+        # Browser failed to start - abort all
+        print_error_log(f"download_full_matches: Browser startup failed, aborting: {e}")
     except Exception as e:
-        print_error_log(f"post_queued_user_stats: Error opening the browser context: {e}")
+        print_error_log(f"download_full_matches: Error opening the browser context: {e}")
     return all_users_matches
 
 
@@ -78,11 +97,24 @@ def download_full_user_information(users_queued: List[UserQueueForStats]) -> Lis
                     if len(users_queued) > 1:
                         time.sleep(random.uniform(3, 12))  # Sleep few seconds between each request
 
-                except Exception as e:
+                except BrowserTimeoutException as e:
+                    # Timeout for individual user - log and continue with next user
+                    print_error_log(
+                        f"download_full_user_information: Timeout getting stats for {user_queue.user_info.display_name}: {e}"
+                    )
+                    continue
+                except BrowserException as e:
+                    # Other browser errors for individual user - log and continue
                     print_error_log(
                         f"download_full_user_information: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
+    except CircuitBreakerOpenException as e:
+        # Circuit breaker open - abort all remaining users
+        print_error_log(f"download_full_user_information: Circuit breaker open, aborting: {e}")
+    except BrowserStartupException as e:
+        # Browser failed to start - abort all
+        print_error_log(f"download_full_user_information: Browser startup failed, aborting: {e}")
     except Exception as e:
         print_error_log(f"download_full_user_information: Error opening the browser context: {e}")
     return all_user_stats
@@ -136,12 +168,25 @@ def download_operator_stats_for_users(users: List[UserInfo]) -> List[tuple[UserI
                         )
                         time.sleep(sleep_time)
 
-                except Exception as e:
+                except BrowserTimeoutException as e:
+                    # Timeout for individual user - log and continue with next user
+                    print_error_log(
+                        f"download_operator_stats_for_users: Timeout downloading stats for {user.display_name}: {e}"
+                    )
+                    continue
+                except BrowserException as e:
+                    # Other browser errors for individual user - log and continue
                     print_error_log(
                         f"download_operator_stats_for_users: Error downloading stats for {user.display_name}: {e}"
                     )
                     continue
 
+    except CircuitBreakerOpenException as e:
+        # Circuit breaker open - abort all remaining users
+        print_error_log(f"download_operator_stats_for_users: Circuit breaker open, aborting: {e}")
+    except BrowserStartupException as e:
+        # Browser failed to start - abort all
+        print_error_log(f"download_operator_stats_for_users: Browser startup failed, aborting: {e}")
     except Exception as e:
         print_error_log(f"download_operator_stats_for_users: Error opening the browser context: {e}")
 

@@ -3,7 +3,7 @@ Unit test for the bet functions
 """
 
 from typing import List
-from unittest.mock import patch, call
+from unittest.mock import patch, call, MagicMock
 from datetime import datetime, timezone
 import pytest
 from deps.data_access_data_class import UserInfo
@@ -133,8 +133,9 @@ def test_calculate_all_bets_for_a_game_winner_house_cut() -> None:
     assert len(all_bets) == 5
     winnings = [x for x in all_bets if x.amount > 0]
     assert len(winnings) == 2
-    assert winnings[0].amount == pytest.approx(22.727272, abs=1e-3)
-    assert winnings[1].amount == pytest.approx(45.454545, abs=1e-3)
+    # Values are rounded to 2 decimal places (money precision)
+    assert winnings[0].amount == pytest.approx(22.73, abs=1e-2)
+    assert winnings[1].amount == pytest.approx(45.45, abs=1e-2)
 
 
 def test_calculate_all_bets_for_a_game_winner_user_2() -> None:
@@ -812,13 +813,17 @@ async def test_placing_bet_on_game_teammate_bid_leader(
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_wallet_if_sufficient_balance.__name__)
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
 @patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
 @patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch("deps.bet.bet_functions.database_manager")
 async def test_placing_bet_on_game_user1(
+    mock_db_manager,
     mock_wallet,
     mock_fetch_tournament,
     mock_fetch_bet_games,
+    mock_update_wallet,
     mock_create_bet_user_game,
     mock_update_user_wallet_for_tournament,
     mock_probability_update,
@@ -829,6 +834,13 @@ async def test_placing_bet_on_game_user1(
     # Arrange
     with patch("deps.bet.bet_functions.datetime") as mock_datetime:
         mock_datetime.now.return_value = now_date
+
+        # Mock transaction context manager
+        mock_transaction = MagicMock()
+        mock_transaction.__enter__ = MagicMock(return_value=None)
+        mock_transaction.__exit__ = MagicMock(return_value=None)
+        mock_db_manager.data_access_transaction.return_value = mock_transaction
+
         list_tournament_games: List[TournamentGame] = [
             TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
             TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
@@ -848,6 +860,7 @@ async def test_placing_bet_on_game_user1(
             BetGame(4, 1, 4, 0.5, 0.5, False),
         ]
         mock_fetch_bet_games.return_value = list_existing_bet_games
+        mock_update_wallet.return_value = 1  # Successful wallet deduction
         mock_create_bet_user_game.return_value = None
         mock_update_user_wallet_for_tournament.return_value = None
         mock_fetch_tournament_by_id.return_value = tournament
@@ -855,7 +868,7 @@ async def test_placing_bet_on_game_user1(
         place_bet_for_game(1, 1, 5, 99.99, 1)
         mock_probability_update.assert_called_once()
         mock_dynamically_adjust_bet_game_odd.assert_called_once()
-        mock_create_bet_user_game.assert_called_once_with(1, 1, 5, 99.99, 1, now_date, 0.4)
+        mock_create_bet_user_game.assert_called_once_with(1, 1, 5, 99.99, 1, now_date, 0.4, auto_commit=False)
 
 
 @patch.object(bet_functions, bet_functions.fetch_tournament_by_id.__name__)
@@ -863,13 +876,17 @@ async def test_placing_bet_on_game_user1(
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_wallet_if_sufficient_balance.__name__)
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
 @patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
 @patch.object(bet_functions, bet_functions.get_bet_user_wallet_for_tournament.__name__)
+@patch("deps.bet.bet_functions.database_manager")
 async def test_placing_bet_on_game_user2(
+    mock_db_manager,
     mock_wallet,
     mock_fetch_tournament,
     mock_fetch_bet_games,
+    mock_update_wallet,
     mock_create_bet_user_game,
     mock_update_user_wallet_for_tournament,
     mock_probability_update,
@@ -880,6 +897,13 @@ async def test_placing_bet_on_game_user2(
     # Arrange
     with patch("deps.bet.bet_functions.datetime") as mock_datetime:
         mock_datetime.now.return_value = now_date
+
+        # Mock transaction context manager
+        mock_transaction = MagicMock()
+        mock_transaction.__enter__ = MagicMock(return_value=None)
+        mock_transaction.__exit__ = MagicMock(return_value=None)
+        mock_db_manager.data_access_transaction.return_value = mock_transaction
+
         list_tournament_games: List[TournamentGame] = [
             TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
             TournamentGame(2, 1, 3, 4, None, None, None, now_date, None, None),
@@ -899,6 +923,7 @@ async def test_placing_bet_on_game_user2(
             BetGame(4, 1, 4, 0.5, 0.5, False),
         ]
         mock_fetch_bet_games.return_value = list_existing_bet_games
+        mock_update_wallet.return_value = 1  # Successful wallet deduction
         mock_create_bet_user_game.return_value = None
         mock_update_user_wallet_for_tournament.return_value = None
         mock_fetch_tournament_by_id.return_value = tournament
@@ -906,7 +931,7 @@ async def test_placing_bet_on_game_user2(
         place_bet_for_game(1, 1, 5, 99.99, 2)
         mock_probability_update.assert_called_once()
         mock_dynamically_adjust_bet_game_odd.assert_called_once()
-        mock_create_bet_user_game.assert_called_once_with(1, 1, 5, 99.99, 2, now_date, 0.6)
+        mock_create_bet_user_game.assert_called_once_with(1, 1, 5, 99.99, 2, now_date, 0.6, auto_commit=False)
 
 
 @patch.object(bet_functions, bet_functions.fetch_tournament_by_id.__name__)

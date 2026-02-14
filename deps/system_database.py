@@ -263,7 +263,7 @@ class DatabaseManager:
             tournament_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             amount REAL NOT NULL,
-            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(tournament_id) REFERENCES tournament(id),
             FOREIGN KEY(user_id) REFERENCES user_info(id)
         );
         """
@@ -277,7 +277,7 @@ class DatabaseManager:
             probability_user_1_win REAL NOT NULL,
             probability_user_2_win REAL NOT NULL,
             bet_distributed BOOLEAN DEFAULT 0,
-            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(tournament_id) REFERENCES tournament(id),
             FOREIGN KEY(tournament_game_id) REFERENCES tournament_game(id)
         );
         """
@@ -294,7 +294,7 @@ class DatabaseManager:
             time_bet_placed DATETIME NOT NULL,
             probability_user_win_when_bet_placed REAL NOT NULL,
             bet_distributed BOOLEAN DEFAULT 0,
-            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(tournament_id) REFERENCES tournament(id),
             FOREIGN KEY(bet_game_id) REFERENCES bet_game(id),
             FOREIGN KEY(user_id) REFERENCES user_info(id),
             FOREIGN KEY(user_id_bet_placed) REFERENCES user_info(id)
@@ -312,7 +312,7 @@ class DatabaseManager:
             bet_user_game_id INTEGER NOT NULL,
             user_id INTEGER NOT NULL,
             amount REAL NOT NULL,
-            FOREIGN KEY(tournament_id) REFERENCES tournament_game(id),
+            FOREIGN KEY(tournament_id) REFERENCES tournament(id),
             FOREIGN KEY(tournament_game_id) REFERENCES tournament_game(id),
             FOREIGN KEY(bet_game_id) REFERENCES bet_game(id),
             FOREIGN KEY(bet_user_game_id) REFERENCES bet_user_game(id),
@@ -398,7 +398,7 @@ class DatabaseManager:
                 quickmatch_kd_ratio REAL DEFAULT 0.0,
                 quickmatch_kill_per_match REAL DEFAULT 0.0,
                 quickmatch_win_percentage REAL DEFAULT 0.0,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                FOREIGN KEY (user_id) REFERENCES user_info(id)
             );
             """
         )
@@ -410,8 +410,8 @@ class DatabaseManager:
                 user_to_follow_id INTEGER NOT NULL,
                 follow_datetime DATETIME NOT NULL,
                 PRIMARY KEY (user_id_who_want_follow_id, user_to_follow_id),
-                FOREIGN KEY (user_id_who_want_follow_id) REFERENCES user_info(user_id),
-                FOREIGN KEY (user_to_follow_id) REFERENCES user_info(user_id)
+                FOREIGN KEY (user_id_who_want_follow_id) REFERENCES user_info(id),
+                FOREIGN KEY (user_to_follow_id) REFERENCES user_info(id)
             );
         """
         )
@@ -423,7 +423,7 @@ class DatabaseManager:
                 guild_id INTEGER NOT NULL,
                 follow_datetime DATETIME NOT NULL,
                 PRIMARY KEY (user_id, guild_id),
-                FOREIGN KEY (user_id) REFERENCES user_info(user_id)
+                FOREIGN KEY (user_id) REFERENCES user_info(id)
             );
         """
         )
