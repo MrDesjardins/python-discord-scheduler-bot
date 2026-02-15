@@ -111,8 +111,9 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
     Returns:
         PIL Image object
     """
-    # Frame size
-    width, height = 800, 600
+    # Frame size - increase height for 4+ members to fit team stats
+    width = 800
+    height = 650 if len(members) > 3 else 600
     img = Image.new("RGB", (width, height), color="#2C2F33")
     draw = ImageDraw.Draw(img)
 
@@ -188,7 +189,11 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
                 win_rate_pct = win_rate * 100  # Convert to percentage
 
                 # Position stats below the last row of players
-                stats_y = y_position + (row + 1) * 220 + 30
+                # For 4-5 members (two rows), position with more margin
+                if num_members > 3:
+                    stats_y = y_position + (row + 1) * 220 + 50  # Extra margin for two rows
+                else:
+                    stats_y = y_position + (row + 1) * 220 + 30
 
                 # Format stats text
                 stats_text = f"Team: {games_played} games | {win_rate_pct:.1f}% win rate"

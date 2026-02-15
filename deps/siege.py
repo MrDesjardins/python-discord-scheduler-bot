@@ -328,9 +328,19 @@ def get_aggregation_statscc_activity(
         if _is_statscc_standard_detail(aft):
             playing_standard += 1
         # Detect ranked match START: transition TO "Picking Operators: Ranked on..."
-        # This is the clearest indicator that a ranked match just started
+        # Only count as NEW match if coming from non-match states (queue, menu)
+        # NOT from match states (Match Ending, In Round, etc.) which indicate new round
         if aft is not None and aft.startswith("Picking Operators: Ranked"):
-            looking_ranked_match += 1
+            # Check if user was NOT already in a ranked match (new round vs new match)
+            if bef is None or not (
+                bef.startswith("Picking Operators: Ranked")
+                or bef.startswith("In Round: Ranked")
+                or bef.startswith("Match Ending: Ranked")
+                or bef.startswith("Ranked on")  # Generic ranked state between rounds
+                or bef.startswith("Banning Operators: Ranked")
+                or bef.startswith("Prep Phase: Ranked")
+            ):
+                looking_ranked_match += 1
         # NOTE: We don't count "In Queue" as looking_ranked_match for stats.cc
         # because stats.cc doesn't specify which mode (ranked/standard/deathmatch/etc.)
 

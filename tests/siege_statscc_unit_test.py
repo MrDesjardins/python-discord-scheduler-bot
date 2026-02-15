@@ -218,6 +218,40 @@ def test_statscc_aggregation_playing_standard() -> None:
     assert result.playing_standard == 1
 
 
+def test_statscc_aggregation_new_round_not_new_match() -> None:
+    """Test that starting a new round (from Match Ending to Picking Operators) is NOT counted as new match"""
+    # Bug scenario: Users are losing 2-3, match ends, they start round 6 (picking operators)
+    # This should NOT trigger match start GIF
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("Match Ending: Ranked on Nighthaven Labs", "Picking Operators: Ranked on Nighthaven Labs"),
+        2: ActivityTransition("Match Ending: Ranked on Nighthaven Labs", "Picking Operators: Ranked on Nighthaven Labs"),
+    }
+    result = get_aggregation_statscc_activity(dict_users_activities)
+    assert result.looking_ranked_match == 0  # Should be 0, not 2 (this is a new round, not new match)
+    assert result.playing_rank == 2  # Both users are playing ranked
+
+
+def test_statscc_aggregation_new_round_from_generic_ranked_state() -> None:
+    """Test that transitioning from generic 'Ranked on...' state to Picking Operators is NOT a new match"""
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("Ranked on Nighthaven Labs", "Picking Operators: Ranked on Nighthaven Labs"),
+    }
+    result = get_aggregation_statscc_activity(dict_users_activities)
+    assert result.looking_ranked_match == 0  # Not a new match, just continuing
+    assert result.playing_rank == 1
+
+
+def test_statscc_aggregation_actual_new_match_from_queue() -> None:
+    """Test that transitioning from In Queue to Picking Operators IS a new match"""
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("In Queue", "Picking Operators: Ranked on Nighthaven Labs"),
+        2: ActivityTransition("At the Main Menu", "Picking Operators: Ranked on Nighthaven Labs"),
+    }
+    result = get_aggregation_statscc_activity(dict_users_activities)
+    assert result.looking_ranked_match == 2  # Both started new matches
+    assert result.playing_rank == 2
+
+
 def test_statscc_aggregation_multiple_users() -> None:
     dict_users_activities: dict[int, ActivityTransition] = {
         1: ActivityTransition("At the Main Menu", "In Queue"),
