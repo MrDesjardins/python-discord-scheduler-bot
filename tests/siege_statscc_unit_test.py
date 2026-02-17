@@ -223,8 +223,12 @@ def test_statscc_aggregation_new_round_not_new_match() -> None:
     # Bug scenario: Users are losing 2-3, match ends, they start round 6 (picking operators)
     # This should NOT trigger match start GIF
     dict_users_activities: dict[int, ActivityTransition] = {
-        1: ActivityTransition("Match Ending: Ranked on Nighthaven Labs", "Picking Operators: Ranked on Nighthaven Labs"),
-        2: ActivityTransition("Match Ending: Ranked on Nighthaven Labs", "Picking Operators: Ranked on Nighthaven Labs"),
+        1: ActivityTransition(
+            "Match Ending: Ranked on Nighthaven Labs", "Picking Operators: Ranked on Nighthaven Labs"
+        ),
+        2: ActivityTransition(
+            "Match Ending: Ranked on Nighthaven Labs", "Picking Operators: Ranked on Nighthaven Labs"
+        ),
     }
     result = get_aggregation_statscc_activity(dict_users_activities)
     assert result.looking_ranked_match == 0  # Should be 0, not 2 (this is a new round, not new match)

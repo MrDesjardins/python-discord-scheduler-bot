@@ -82,7 +82,8 @@ class MyTasksCog(commands.Cog):
     @tasks.loop(time=time_fetch_matches)
     async def daily_saving_active_user_match_stats_task(self):
         """
-        Find the active users in the last 24 hours and save their stats in the database
+        Find the active users in the last 24 hours and save their stats in the database.
+        Also includes users currently connected to voice channels.
         """
         print_log(f"Daily fetch stats and save in database, current time {datetime.now()}")
         now_utc = datetime.now(timezone.utc)
@@ -90,7 +91,8 @@ class MyTasksCog(commands.Cog):
         # end_of_day = now_utc.replace(hour=23, minute=59, second=59, microsecond=999999)
         begin_time = now_utc - timedelta(days=1)
         end_time = now_utc
-        await persist_siege_matches_cross_guilds(begin_time, end_time)
+        # Pass self.bot to include currently-connected users in the stats collection
+        await persist_siege_matches_cross_guilds(begin_time, end_time, self.bot)
 
     @tasks.loop(time=time_fetch_user_information)
     async def daily_saving_active_user_information_task(self):
@@ -128,18 +130,10 @@ class MyTasksCog(commands.Cog):
     @tasks.loop(time=time_generate_ai_summary)
     async def send_daily_ai_summary(self):
         """
-        Every day, send a message
+        Every day, send an AI-generated summary.
+        Stats are already collected by daily_saving_active_user_match_stats_task.
         """
         print_log(f"send_daily_ai_summary, current time {datetime.now()}")
-
-        # Download matches for active users in the last 24 hours BEFORE generating the summary
-        # This ensures users still in voice get their matches included
-        now_utc = datetime.now(timezone.utc)
-        begin_time = now_utc - timedelta(hours=24)
-        end_time = now_utc
-        print_log(f"send_daily_ai_summary: Downloading matches for active users from {begin_time} to {end_time}")
-        await persist_siege_matches_cross_guilds(begin_time, end_time)
-
         for guild in self.bot.guilds:
             await send_daily_ai_summary_guild(guild)
 

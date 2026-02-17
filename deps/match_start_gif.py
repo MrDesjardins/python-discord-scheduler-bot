@@ -199,9 +199,7 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
                 stats_text = f"Team: {games_played} games | {win_rate_pct:.1f}% win rate"
 
                 # Draw stats centered
-                draw.text(
-                    (width // 2, stats_y), stats_text, fill="#00FF00", font=font_stats, anchor="mm"
-                )
+                draw.text((width // 2, stats_y), stats_text, fill="#00FF00", font=font_stats, anchor="mm")
         except Exception as e:
             # Don't fail the entire frame if stats fetch fails
             print_error_log(f"_create_good_luck_frame: Failed to fetch team stats: {e}")

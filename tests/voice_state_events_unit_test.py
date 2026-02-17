@@ -509,6 +509,7 @@ class TestMatchStartGif:
             # Verify: GIF was sent
             mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
             mock_set_last_time.assert_called_once()
+
     async def test_concurrent_presence_updates_send_only_one_gif(self) -> None:
         """Test that concurrent presence updates only result in one GIF being sent due to locking"""
         from cogs.events import MyEventsCog

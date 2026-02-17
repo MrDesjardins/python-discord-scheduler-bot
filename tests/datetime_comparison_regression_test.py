@@ -111,6 +111,7 @@ def test_datetime_comparison_with_recent_match():
 
     # Insert match
     from deps.analytic_match_data_access import insert_if_nonexistant_full_match_info
+
     insert_if_nonexistant_full_match_info(user_info, [match])
 
     # Query with 24-hour window
@@ -152,6 +153,7 @@ def test_datetime_comparison_excludes_old_matches():
 
     # Insert match
     from deps.analytic_match_data_access import insert_if_nonexistant_full_match_info
+
     insert_if_nonexistant_full_match_info(user_info, [match])
 
     # Query with 24-hour window
@@ -195,6 +197,7 @@ def test_datetime_comparison_boundary_cases():
 
     # Insert matches
     from deps.analytic_match_data_access import insert_if_nonexistant_full_match_info
+
     insert_if_nonexistant_full_match_info(user_info, [match_24h, match_23h59m59s, match_24h1s])
 
     # Query with 24-hour window
@@ -241,6 +244,7 @@ def test_datetime_comparison_with_microseconds():
 
     # Insert match
     from deps.analytic_match_data_access import insert_if_nonexistant_full_match_info
+
     insert_if_nonexistant_full_match_info(user_info, [match])
 
     # Query with a wide window to include this match
@@ -277,9 +281,13 @@ def test_multiple_users_datetime_filtering():
 
     for user in [user1, user2, user3]:
         upsert_user_info(
-            user.id, user.display_name, user.ubisoft_username_max,
-            user.ubisoft_username_active, user.r6_tracker_active_id,
-            user.time_zone, user.max_mmr,
+            user.id,
+            user.display_name,
+            user.ubisoft_username_max,
+            user.ubisoft_username_active,
+            user.r6_tracker_active_id,
+            user.time_zone,
+            user.max_mmr,
         )
 
     # Create matches at different times
@@ -297,6 +305,7 @@ def test_multiple_users_datetime_filtering():
 
     # Insert matches
     from deps.analytic_match_data_access import insert_if_nonexistant_full_match_info
+
     insert_if_nonexistant_full_match_info(user1, [match1])
     insert_if_nonexistant_full_match_info(user2, [match2])
     insert_if_nonexistant_full_match_info(user3, [match3a, match3b])
@@ -305,9 +314,7 @@ def test_multiple_users_datetime_filtering():
     from_time = now - timedelta(hours=24)
     to_time = now
 
-    matches = data_access_fetch_user_matches_in_time_range(
-        [user1_id, user2_id, user3_id], from_time, to_time
-    )
+    matches = data_access_fetch_user_matches_in_time_range([user1_id, user2_id, user3_id], from_time, to_time)
 
     # User1 should have 1 match
     assert user1_id in matches, "User1 should have matches"

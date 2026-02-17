@@ -60,7 +60,14 @@ class MyEventsCog(commands.Cog):
         self.cleanup_task: asyncio.Task | None = None  # Store reference to prevent garbage collection
 
     @staticmethod
-    def _log_channel_move_sync(member_id: int, member_display_name: str, old_channel_id: int, new_channel_id: int, guild_id: int, move_time: datetime) -> None:
+    def _log_channel_move_sync(
+        member_id: int,
+        member_display_name: str,
+        old_channel_id: int,
+        new_channel_id: int,
+        guild_id: int,
+        move_time: datetime,
+    ) -> None:
         """Helper to log channel move in database (runs in thread pool)"""
         with database_manager.data_access_transaction() as cursor:
             # Upsert user_info
@@ -478,9 +485,13 @@ class MyEventsCog(commands.Cog):
                         from deps.bot_common_actions import send_match_start_gif
 
                         await send_match_start_gif(self.bot, guild_id, channel_id)
-                        await data_access_set_last_match_start_gif_time(guild_id, channel_id, datetime.now(timezone.utc))
+                        await data_access_set_last_match_start_gif_time(
+                            guild_id, channel_id, datetime.now(timezone.utc)
+                        )
                     else:
-                        print_log(f"Match start GIF recently sent for guild {guild_id}, channel {channel_id}. Skipping.")
+                        print_log(
+                            f"Match start GIF recently sent for guild {guild_id}, channel {channel_id}. Skipping."
+                        )
         except asyncio.CancelledError:
             # Task was cancelled during sleep, this is expected
             pass

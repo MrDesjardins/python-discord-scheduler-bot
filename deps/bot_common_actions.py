@@ -627,15 +627,64 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
         return
 
 
-async def persist_siege_matches_cross_guilds(from_time: datetime, to_time: datetime) -> None:
+async def get_currently_connected_user_ids(bot: MyBot) -> set[int]:
     """
-    Fetch and persist the matches between two dates for user who were active
+    Get the user IDs of all users currently connected to voice channels across all guilds.
+    Returns a set of Discord user IDs.
     """
-    # Get the list of user who were active between the time
+    connected_user_ids = set()
+
+    for guild in bot.guilds:
+        voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild.id)
+        if voice_channel_ids is None:
+            continue
+
+        for voice_channel_id in voice_channel_ids:
+            voice_channel = await data_access_get_channel(voice_channel_id)
+            if voice_channel is None:
+                continue
+
+            for member in voice_channel.members:
+                if not member.bot:  # Exclude bots
+                    connected_user_ids.add(member.id)
+
+    return connected_user_ids
+
+
+async def persist_siege_matches_cross_guilds(
+    from_time: datetime, to_time: datetime, bot: Optional[MyBot] = None
+) -> None:
+    """
+    Fetch and persist the matches between two dates for users who were active.
+    If bot is provided, also includes users currently connected to voice channels.
+    """
+    # Get the list of users who were active between the time
     users: List[UserInfo] = get_active_user_info(from_time, to_time)
+    user_ids_from_activity = {user.id for user in users}
+
+    # If bot is provided, also include currently-connected users
+    if bot is not None:
+        connected_user_ids = await get_currently_connected_user_ids(bot)
+        print_log(
+            f"persist_siege_matches_cross_guilds: Found {len(connected_user_ids)} users currently connected to voice"
+        )
+
+        # Get UserInfo for connected users who aren't already in the activity list
+        new_user_ids = connected_user_ids - user_ids_from_activity
+        if new_user_ids:
+            for user_id in new_user_ids:
+                user_info = await fetch_user_info_by_user_id(user_id)
+                if user_info is not None and user_info.ubisoft_username_active is not None:
+                    users.append(user_info)
+            print_log(
+                f"persist_siege_matches_cross_guilds: Added {len(new_user_ids)} currently-connected users to the list"
+            )
+
     # Log all users we found active
-    print_log(f"persist_siege_matches_cross_guilds: Found {len(users)} active users between {from_time} and {to_time}")
-    print_log(f"persist_siege_matches_cross_guilds: Active users: {[user.display_name for user in users]}")
+    print_log(
+        f"persist_siege_matches_cross_guilds: Found {len(users)} total users (activity + connected) between {from_time} and {to_time}"
+    )
+    print_log(f"persist_siege_matches_cross_guilds: Users: {[user.display_name for user in users]}")
     users_stats: List[UserQueueForStats] = [UserQueueForStats(user, 0, from_time) for user in users]
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API

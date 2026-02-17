@@ -88,7 +88,13 @@ def insert_user_activity(
         INSERT INTO user_activity (user_id, channel_id, guild_id, event, timestamp)
         VALUES (:user_id, :channel_id, :guild_id, :event, :time)
         """,
-            {"user_id": user_id, "channel_id": channel_id, "guild_id": guild_id, "event": event, "time": time.isoformat()},
+            {
+                "user_id": user_id,
+                "channel_id": channel_id,
+                "guild_id": guild_id,
+                "event": event,
+                "time": time.isoformat(),
+            },
         )
         # Transaction will be committed automatically by context manager
 

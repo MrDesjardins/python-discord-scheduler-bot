@@ -129,9 +129,7 @@ class BrowserCircuitBreaker:
     def get_stats(self) -> dict:
         """Get circuit breaker statistics"""
         with self._lock:
-            success_rate = (
-                (self._total_successes / self._total_calls * 100) if self._total_calls > 0 else 0.0
-            )
+            success_rate = (self._total_successes / self._total_calls * 100) if self._total_calls > 0 else 0.0
 
             return {
                 "state": self._state.value,

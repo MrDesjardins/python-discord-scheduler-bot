@@ -293,8 +293,10 @@ def test_datetime_window_boundary_consistency():
     bot_ai = BotAI()
 
     # Mock the dependencies to capture the actual time range used
-    with patch("deps.ai.ai_functions.get_active_user_info") as mock_get_users, \
-         patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range") as mock_fetch:
+    with (
+        patch("deps.ai.ai_functions.get_active_user_info") as mock_get_users,
+        patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range") as mock_fetch,
+    ):
 
         mock_get_users.return_value = []
         mock_fetch.return_value = {}
@@ -312,8 +314,9 @@ def test_datetime_window_boundary_consistency():
         expected_hours = 24
         actual_hours = time_diff.total_seconds() / 3600
 
-        assert abs(actual_hours - expected_hours) < 0.01, \
-            f"Time window should be {expected_hours}h, got {actual_hours}h"
+        assert (
+            abs(actual_hours - expected_hours) < 0.01
+        ), f"Time window should be {expected_hours}h, got {actual_hours}h"
 
         # Both times should be timezone-aware (UTC)
         assert from_time.tzinfo is not None, "from_time should be timezone-aware"
