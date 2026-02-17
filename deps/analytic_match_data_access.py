@@ -359,11 +359,13 @@ def data_access_fetch_user_matches_in_time_range(
 
     if from_timestamp is not None:
         where_clauses.append("match_timestamp >= ?")
-        params.append(from_timestamp)
+        # Convert datetime to ISO format string to ensure correct comparison with stored TEXT timestamps
+        params.append(from_timestamp.isoformat() if hasattr(from_timestamp, 'isoformat') else from_timestamp)
 
     if to_timestamp is not None:
         where_clauses.append("match_timestamp <= ?")
-        params.append(to_timestamp)
+        # Convert datetime to ISO format string to ensure correct comparison with stored TEXT timestamps
+        params.append(to_timestamp.isoformat() if hasattr(to_timestamp, 'isoformat') else to_timestamp)
 
     where_clause = " AND ".join(where_clauses)
 

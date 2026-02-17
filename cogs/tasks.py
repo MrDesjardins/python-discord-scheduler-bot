@@ -131,6 +131,15 @@ class MyTasksCog(commands.Cog):
         Every day, send a message
         """
         print_log(f"send_daily_ai_summary, current time {datetime.now()}")
+
+        # Download matches for active users in the last 24 hours BEFORE generating the summary
+        # This ensures users still in voice get their matches included
+        now_utc = datetime.now(timezone.utc)
+        begin_time = now_utc - timedelta(hours=24)
+        end_time = now_utc
+        print_log(f"send_daily_ai_summary: Downloading matches for active users from {begin_time} to {end_time}")
+        await persist_siege_matches_cross_guilds(begin_time, end_time)
+
         for guild in self.bot.guilds:
             await send_daily_ai_summary_guild(guild)
 
