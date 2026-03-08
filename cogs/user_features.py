@@ -14,6 +14,7 @@ from deps.data_access import (
     data_access_get_member,
 )
 from deps.follow_data_access import fetch_all_followed_users_by_user_id, remove_following_user, save_following_user
+from deps.streak_data_access import compute_current_streak, fetch_distinct_play_dates
 from deps.analytic_data_access import (
     data_access_fetch_first_activity,
     data_access_fetch_last_activity,
@@ -33,6 +34,7 @@ from deps.values import (
     COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL,
     COMMAND_LFG,
     COMMAND_MAX_RANK_USER_ACCOUNT,
+    COMMAND_MY_STREAK,
     COMMAND_SEE_FOLLOWED_USERS,
     COMMAND_UNFOLLOW_USER,
 )
@@ -354,6 +356,26 @@ class UserFeatures(commands.Cog):
                 "Something went wrong, please contact the moderator to check the issue.",
                 ephemeral=True,
             )
+
+    @app_commands.command(name=COMMAND_MY_STREAK)
+    async def my_streak(self, interaction: discord.Interaction, user: Optional[discord.User] = None):
+        """Check how many consecutive days you (or another user) have played on this server."""
+        await interaction.response.defer(ephemeral=True)
+
+        if interaction.guild_id is None:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+
+        target_user = user if user is not None else interaction.user
+        play_dates = fetch_distinct_play_dates(target_user.id, interaction.guild_id)
+        streak = compute_current_streak(play_dates)
+
+        if streak == 0:
+            msg = f"**{target_user.display_name}** has no active streak right now."
+        else:
+            msg = f"**{target_user.display_name}** is on a **{streak}-day streak**!"
+
+        await interaction.followup.send(msg, ephemeral=True)
 
     async def get_user_info(self, interaction: discord.Interaction, user: discord.User) -> None:
         """Callback for the 'User Info' context menu."""

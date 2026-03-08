@@ -6,6 +6,7 @@ from datetime import datetime, time, timedelta, timezone
 from discord.ext import commands, tasks
 import pytz
 from deps.ai.ai_bot_functions import send_daily_ai_summary_guild
+from deps.streak_functions import announce_streak_milestones_for_guild
 from deps.bot_common_actions import (
     check_voice_channel,
     persist_siege_matches_cross_guilds,
@@ -26,6 +27,7 @@ time_fetch_user_information = time(hour=1, minute=0, second=0, tzinfo=local_tz)
 time_send_daily_stats = time(hour=11, minute=35, second=0, tzinfo=local_tz)
 time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=local_tz)
 time_generate_ai_summary = time(hour=8, minute=45, second=0, tzinfo=local_tz)
+time_check_streaks = time(hour=23, minute=50, second=0, tzinfo=local_tz)
 
 
 class MyTasksCog(commands.Cog):
@@ -48,6 +50,7 @@ class MyTasksCog(commands.Cog):
         self.send_daily_stats_to_all_guild_task.start()  # Start the task when the cog is loaded
         self.run_db_checkpoint_task.start()  # Start the task when the cog is loaded
         self.send_daily_ai_summary.start()  # Start the task when the cog is loaded
+        self.check_daily_streaks_task.start()  # Start the task when the cog is loaded
         print_log("MyTasksCog>start_task: Bot is ready, all tasks started")
 
     @tasks.loop(minutes=16)
@@ -137,6 +140,19 @@ class MyTasksCog(commands.Cog):
         for guild in self.bot.guilds:
             await send_daily_ai_summary_guild(guild)
 
+    @tasks.loop(time=time_check_streaks)
+    async def check_daily_streaks_task(self):
+        """
+        Every day at 11:50 PM Pacific, check if any user's play streak just hit
+        a milestone (3, 7, 14, 30 days) and announce it in the main text channel.
+        """
+        print_log(f"check_daily_streaks_task, current time {datetime.now()}")
+        for guild in self.bot.guilds:
+            try:
+                await announce_streak_milestones_for_guild(guild)
+            except Exception as e:
+                print_error_log(f"check_daily_streaks_task: Error for guild {guild.name}: {e}")
+
     ### ============================ BEFORE LOOP ============================ ###
 
     @check_voice_channel_task.before_loop
@@ -187,6 +203,12 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>send_daily_ai_summary: Waiting for bot to be ready...")
         await self.bot.wait_until_ready()
 
+    @check_daily_streaks_task.before_loop
+    async def before_check_daily_streaks_task(self):
+        """Wait for the streak check task for the bot ready"""
+        print_log("MyTasksCog>check_daily_streaks_task: Waiting for bot to be ready...")
+        await self.bot.wait_until_ready()
+
     ### ============================ UNLOAD COG ============================ ###
     async def cog_unload(self):
         self.check_voice_channel_task.cancel()
@@ -197,6 +219,7 @@ class MyTasksCog(commands.Cog):
         self.send_daily_stats_to_all_guild_task.cancel()
         self.run_db_checkpoint_task.cancel()
         self.send_daily_ai_summary.cancel()
+        self.check_daily_streaks_task.cancel()
 
 
 async def setup(bot):

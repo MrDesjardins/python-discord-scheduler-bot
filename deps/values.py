@@ -93,6 +93,9 @@ COMMAND_FOLLOW_USER = "followuser"
 COMMAND_UNFOLLOW_USER = "unfollowuser"
 COMMAND_SEE_FOLLOWED_USERS = "seefollowedusers"
 
+## Streaks
+COMMAND_MY_STREAK = "mystreak"
+
 # -----------------------
 # Moderator's commands
 
