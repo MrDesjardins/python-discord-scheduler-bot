@@ -39,10 +39,16 @@ async def send_private_notification_following_user(bot: MyBot, joined_user_id: i
         # Member exists and is not in a voice channel — notify them.
         filtered2.append(user_id)
 
+    guild = await data_access_get_guild(guild_id)
+    joined_member = guild.get_member(joined_user_id) if guild else None
+    joined_name = joined_member.display_name if joined_member else str(joined_user_id)
+    channel = guild.get_channel(channel_id) if guild else None
+    channel_name = channel.name if channel else str(channel_id)
+
     for discord_user_id in filtered2:
         user = bot.get_user(discord_user_id)
         if user:
             try:
-                await user.send(f"User <@{joined_user_id}> has joined <#{channel_id}>.")
+                await user.send(f"**{joined_name}** joined **{channel_name}**!")
             except Exception as e:
                 print_error_log(f"Failed to send DM to user {discord_user_id} for user {joined_user_id}: {e}")
