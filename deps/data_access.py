@@ -519,16 +519,26 @@ def data_access_set_guild_private_channel_category_id(guild_id: int, category_id
     set_cache(False, f"{KEY_GUILD_PRIVATE_CHANNEL_CATEGORY}:{guild_id}", category_id, ALWAYS_TTL)
 
 
-async def data_access_get_guild_active_private_channel(guild_id: int) -> Union[tuple[int, int], None]:
-    """Get the active private channel (channel_id, creator_id) or None"""
-    return await get_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}")
+async def data_access_get_guild_active_private_channels(guild_id: int) -> dict[int, tuple[int, bool]]:
+    """Get all active private channels as {channel_id: (creator_id, track)}, or empty dict."""
+    result = await get_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}")
+    return result if result is not None else {}
 
 
-def data_access_set_guild_active_private_channel(guild_id: int, channel_id: int, creator_id: int) -> None:
-    """Set the active private channel"""
-    set_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}", (channel_id, creator_id), ALWAYS_TTL)
+async def data_access_set_guild_active_private_channel(
+    guild_id: int, channel_id: int, creator_id: int, track: bool = True
+) -> None:
+    """Add or update a private channel entry."""
+    channels = await data_access_get_guild_active_private_channels(guild_id)
+    channels[channel_id] = (creator_id, track)
+    set_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}", channels, ALWAYS_TTL)
 
 
-def data_access_remove_guild_active_private_channel(guild_id: int) -> None:
-    """Remove the active private channel record"""
-    remove_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}")
+async def data_access_remove_guild_active_private_channel(guild_id: int, channel_id: int) -> None:
+    """Remove a single private channel entry."""
+    channels = await data_access_get_guild_active_private_channels(guild_id)
+    channels.pop(channel_id, None)
+    if channels:
+        set_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}", channels, ALWAYS_TTL)
+    else:
+        remove_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}")

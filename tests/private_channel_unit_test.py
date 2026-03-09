@@ -153,65 +153,30 @@ class TestCreatePrivateChannelCommand:
         assert "no longer exists" in msg
 
     @pytest.mark.asyncio
-    async def test_rejected_when_active_channel_already_exists(
-        self, mock_bot, mock_interaction, mock_guild, mock_category, mock_private_channel
-    ):
-        from cogs.user_features import UserFeatures
-
-        cog = UserFeatures(mock_bot)
-        mock_guild.get_channel.side_effect = (
-            lambda cid: mock_category if cid == mock_category.id else mock_private_channel
-        )
-
-        with (
-            patch("cogs.user_features.data_access_fetch_total_hours", return_value=PRIVATE_CHANNEL_MIN_HOURS + 1),
-            patch(
-                "cogs.user_features.data_access_get_guild_private_channel_category_id",
-                return_value=mock_category.id,
-            ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=(mock_private_channel.id, 12345),
-            ),
-        ):
-            await cog.create_private_channel.callback(cog, mock_interaction)
-
-        mock_interaction.followup.send.assert_called_once()
-        msg = mock_interaction.followup.send.call_args[0][0]
-        assert "already exists" in msg
-
-    @pytest.mark.asyncio
-    async def test_stale_cache_cleared_and_new_channel_created(
+    async def test_multiple_channels_allowed_simultaneously(
         self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_category, mock_private_channel
     ):
+        """Creating a channel succeeds even when other private channels already exist."""
         from cogs.user_features import UserFeatures
 
         cog = UserFeatures(mock_bot)
-        # Stale channel id (999) doesn't exist in the guild
-        mock_guild.get_channel.side_effect = (
-            lambda cid: mock_category if cid == mock_category.id else None
-        )
+        mock_guild.get_channel.return_value = mock_category
         mock_guild.get_member.return_value = mock_creator
         mock_guild.create_voice_channel = AsyncMock(return_value=mock_private_channel)
 
+        existing = {999: (12345, True)}
+
         with (
             patch("cogs.user_features.data_access_fetch_total_hours", return_value=PRIVATE_CHANNEL_MIN_HOURS + 1),
             patch(
                 "cogs.user_features.data_access_get_guild_private_channel_category_id",
                 return_value=mock_category.id,
             ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=(999, 12345),
-            ),
-            patch("cogs.user_features.data_access_remove_guild_active_private_channel") as mock_remove,
-            patch("cogs.user_features.data_access_set_guild_active_private_channel") as mock_set,
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock),
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
-        mock_remove.assert_called_once_with(mock_guild.id)
         mock_guild.create_voice_channel.assert_called_once()
-        mock_set.assert_called_once_with(mock_guild.id, mock_private_channel.id, mock_creator.id)
 
     @pytest.mark.asyncio
     async def test_channel_name_uses_display_name(
@@ -231,11 +196,7 @@ class TestCreatePrivateChannelCommand:
                 "cogs.user_features.data_access_get_guild_private_channel_category_id",
                 return_value=mock_category.id,
             ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=None,
-            ),
-            patch("cogs.user_features.data_access_set_guild_active_private_channel"),
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock),
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
@@ -261,11 +222,7 @@ class TestCreatePrivateChannelCommand:
                 "cogs.user_features.data_access_get_guild_private_channel_category_id",
                 return_value=mock_category.id,
             ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=None,
-            ),
-            patch("cogs.user_features.data_access_set_guild_active_private_channel"),
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock),
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
@@ -308,11 +265,7 @@ class TestCreatePrivateChannelCommand:
                 "cogs.user_features.data_access_get_guild_private_channel_category_id",
                 return_value=mock_category.id,
             ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=None,
-            ),
-            patch("cogs.user_features.data_access_set_guild_active_private_channel"),
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock),
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
@@ -337,11 +290,7 @@ class TestCreatePrivateChannelCommand:
                 "cogs.user_features.data_access_get_guild_private_channel_category_id",
                 return_value=mock_category.id,
             ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=None,
-            ),
-            patch("cogs.user_features.data_access_set_guild_active_private_channel"),
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock),
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
@@ -365,11 +314,7 @@ class TestCreatePrivateChannelCommand:
                 "cogs.user_features.data_access_get_guild_private_channel_category_id",
                 return_value=mock_category.id,
             ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=None,
-            ),
-            patch("cogs.user_features.data_access_set_guild_active_private_channel"),
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock),
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
@@ -392,11 +337,7 @@ class TestCreatePrivateChannelCommand:
                 "cogs.user_features.data_access_get_guild_private_channel_category_id",
                 return_value=mock_category.id,
             ),
-            patch(
-                "cogs.user_features.data_access_get_guild_active_private_channel",
-                return_value=None,
-            ),
-            patch("cogs.user_features.data_access_set_guild_active_private_channel"),
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock),
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
@@ -457,15 +398,15 @@ class TestPrivateChannelAutoDeletion:
             patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
             patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
             patch(
-                "cogs.events.data_access_get_guild_active_private_channel",
-                return_value=(private_channel.id, 12345),
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, True)},
             ),
-            patch("cogs.events.data_access_remove_guild_active_private_channel") as mock_remove,
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
         ):
             await cog.on_voice_state_update(member, before, after)
 
         private_channel.delete.assert_called_once()
-        mock_remove.assert_called_once_with(guild.id)
+        mock_remove.assert_called_once_with(guild.id, private_channel.id)
 
     @pytest.mark.asyncio
     async def test_channel_not_deleted_when_still_has_members(self, mock_bot):
@@ -494,10 +435,10 @@ class TestPrivateChannelAutoDeletion:
             patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
             patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
             patch(
-                "cogs.events.data_access_get_guild_active_private_channel",
-                return_value=(private_channel.id, 12345),
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, True)},
             ),
-            patch("cogs.events.data_access_remove_guild_active_private_channel") as mock_remove,
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
         ):
             await cog.on_voice_state_update(member, before, after)
 
@@ -530,10 +471,10 @@ class TestPrivateChannelAutoDeletion:
             patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
             # Active private channel is a different channel
             patch(
-                "cogs.events.data_access_get_guild_active_private_channel",
-                return_value=(999999999, 12345),
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={999999999: (12345, True)},
             ),
-            patch("cogs.events.data_access_remove_guild_active_private_channel") as mock_remove,
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
         ):
             await cog.on_voice_state_update(member, before, after)
 
@@ -575,16 +516,16 @@ class TestPrivateChannelAutoDeletion:
             patch("cogs.events.data_access_update_voice_user_list", new_callable=AsyncMock),
             patch("cogs.events.get_any_siege_activity", return_value=None),
             patch(
-                "cogs.events.data_access_get_guild_active_private_channel",
-                return_value=(private_channel.id, 12345),
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, True)},
             ),
-            patch("cogs.events.data_access_remove_guild_active_private_channel") as mock_remove,
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
         ):
             mock_db.data_access_transaction.return_value = mock_transaction
             await cog.on_voice_state_update(member, before, after)
 
         private_channel.delete.assert_called_once()
-        mock_remove.assert_called_once_with(guild.id)
+        mock_remove.assert_called_once_with(guild.id, private_channel.id)
 
     @pytest.mark.asyncio
     async def test_no_deletion_when_no_active_private_channel(self, mock_bot):
@@ -611,12 +552,264 @@ class TestPrivateChannelAutoDeletion:
             patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
             patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
             patch(
-                "cogs.events.data_access_get_guild_active_private_channel",
-                return_value=None,
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={},
             ),
-            patch("cogs.events.data_access_remove_guild_active_private_channel") as mock_remove,
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
         ):
             await cog.on_voice_state_update(member, before, after)
 
         channel.delete.assert_not_called()
         mock_remove.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_two_private_channels_only_empty_one_deleted(self, mock_bot):
+        """When two private channels exist and only one becomes empty, only that one is deleted."""
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+
+        empty_private = MagicMock(spec=discord.VoiceChannel)
+        empty_private.id = 555555555
+        empty_private.members = []
+        empty_private.delete = AsyncMock()
+
+        busy_private = MagicMock(spec=discord.VoiceChannel)
+        busy_private.id = 666666666
+        busy_private.members = [MagicMock()]
+        busy_private.delete = AsyncMock()
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = empty_private
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = None
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity"),
+            patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
+            patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={
+                    empty_private.id: (12345, True),
+                    busy_private.id: (67890, True),
+                },
+            ),
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
+        ):
+            await cog.on_voice_state_update(member, before, after)
+
+        empty_private.delete.assert_called_once()
+        busy_private.delete.assert_not_called()
+        mock_remove.assert_called_once_with(guild.id, empty_private.id)
+
+
+# ---------------------------------------------------------------------------
+# Tests: activity tracking (only voice_channel_ids + tracked private channels)
+# ---------------------------------------------------------------------------
+
+
+class TestPrivateChannelTracking:
+    @pytest.fixture
+    def mock_bot(self):
+        bot = MagicMock()
+        bot.user = MagicMock()
+        bot.user.id = 99999
+        return bot
+
+    def _make_guild(self, guild_id=111111111):
+        guild = MagicMock(spec=discord.Guild)
+        guild.id = guild_id
+        guild.name = "Test Guild"
+        return guild
+
+    def _make_member(self, guild, user_id=222):
+        member = MagicMock(spec=discord.Member)
+        member.id = user_id
+        member.display_name = "TestUser"
+        member.bot = False
+        member.guild = guild
+        return member
+
+    @pytest.mark.asyncio
+    async def test_join_untracked_private_channel_skips_insert(self, mock_bot):
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        private_channel = MagicMock(spec=discord.VoiceChannel)
+        private_channel.id = 555555555
+        private_channel.members = [MagicMock()]
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = None
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = private_channel
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity") as mock_insert,
+            patch("cogs.events.data_access_update_voice_user_list", new_callable=AsyncMock),
+            patch("cogs.events.get_any_siege_activity", return_value=None),
+            patch("cogs.events.send_private_notification_following_user", new_callable=AsyncMock),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, False)},  # track=False
+            ),
+        ):
+            await cog.on_voice_state_update(member, before, after)
+
+        mock_insert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_join_tracked_private_channel_inserts_activity(self, mock_bot):
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        private_channel = MagicMock(spec=discord.VoiceChannel)
+        private_channel.id = 555555555
+        private_channel.members = [MagicMock()]
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = None
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = private_channel
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity") as mock_insert,
+            patch("cogs.events.data_access_update_voice_user_list", new_callable=AsyncMock),
+            patch("cogs.events.get_any_siege_activity", return_value=None),
+            patch("cogs.events.send_private_notification_following_user", new_callable=AsyncMock),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, True)},  # track=True
+            ),
+        ):
+            await cog.on_voice_state_update(member, before, after)
+
+        mock_insert.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_join_non_configured_non_private_channel_skips_insert(self, mock_bot):
+        """Channels that are neither in voice_channel_ids nor private channels are not tracked."""
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        random_channel = MagicMock(spec=discord.VoiceChannel)
+        random_channel.id = 888888888  # not in voice_channel_ids, not a private channel
+        random_channel.members = [MagicMock()]
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = None
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = random_channel
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity") as mock_insert,
+            patch("cogs.events.data_access_update_voice_user_list", new_callable=AsyncMock),
+            patch("cogs.events.get_any_siege_activity", return_value=None),
+            patch("cogs.events.send_private_notification_following_user", new_callable=AsyncMock),
+            patch("cogs.events.data_access_get_guild_active_private_channels", return_value={}),
+        ):
+            await cog.on_voice_state_update(member, before, after)
+
+        mock_insert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_leave_untracked_private_channel_skips_insert(self, mock_bot):
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        private_channel = MagicMock(spec=discord.VoiceChannel)
+        private_channel.id = 555555555
+        private_channel.members = []
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = private_channel
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = None
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity") as mock_insert,
+            patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
+            patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, False)},  # track=False
+            ),
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock),
+        ):
+            await cog.on_voice_state_update(member, before, after)
+
+        mock_insert.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_switch_from_untracked_private_to_tracked_logs_only_connect(self, mock_bot):
+        """Moving from untracked private → tracked channel logs only the CONNECT, no full move transaction."""
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        private_channel = MagicMock(spec=discord.VoiceChannel)
+        private_channel.id = 555555555
+        private_channel.members = []
+        private_channel.delete = AsyncMock()
+
+        other_channel = MagicMock(spec=discord.VoiceChannel)
+        other_channel.id = 666666666
+        other_channel.members = []
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = private_channel
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = other_channel
+
+        cog = MyEventsCog(mock_bot)
+
+        mock_cursor = MagicMock()
+        mock_transaction = MagicMock()
+        mock_transaction.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_transaction.__exit__ = MagicMock(return_value=None)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[other_channel.id]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.database_manager") as mock_db,
+            patch("cogs.events.insert_user_activity") as mock_insert,
+            patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
+            patch("cogs.events.data_access_update_voice_user_list", new_callable=AsyncMock),
+            patch("cogs.events.get_any_siege_activity", return_value=None),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, False)},  # track=False
+            ),
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock),
+        ):
+            mock_db.data_access_transaction.return_value = mock_transaction
+            await cog.on_voice_state_update(member, before, after)
+
+        # Full move transaction must NOT have been called
+        mock_db.data_access_transaction.assert_not_called()

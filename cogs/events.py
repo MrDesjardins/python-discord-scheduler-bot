@@ -23,7 +23,7 @@ from deps.bot_common_actions import (
 from deps.data_access import (
     data_access_get_channel,
     data_access_get_custom_game_voice_channels,
-    data_access_get_guild_active_private_channel,
+    data_access_get_guild_active_private_channels,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_main_text_channel_id,
@@ -186,33 +186,55 @@ class MyEventsCog(commands.Cog):
         if member.bot:
             return  # Ignore bot
 
-        # FIX: Process only member's guild, not all guilds
         guild = member.guild
         guild_id = guild.id
-        voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
 
-        if voice_channel_ids is None:
+        # Fetch all active private channels once; used for deletion and tracking below
+        active_private_channels = await data_access_get_guild_active_private_channels(guild_id)
+        tracked_private_ids: set[int] = {ch_id for ch_id, (_, track) in active_private_channels.items() if track}
+        all_private_ids: set[int] = set(active_private_channels.keys())
+
+        # Always delete a private channel when it becomes empty, regardless of guild config
+        left_channel = before.channel if (before.channel is not None and after.channel != before.channel) else None
+        if left_channel is not None and left_channel.id in all_private_ids:
+            try:
+                if len(left_channel.members) == 0:
+                    await left_channel.delete(reason="Private channel is empty")
+                    await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
+            except discord.NotFound:
+                await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
+            except Exception as e:
+                print_error_log(f"on_voice_state_update: Error deleting private channel: {e}")
+
+        voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
+        voice_channel_ids_set: set[int] = set(voice_channel_ids) if voice_channel_ids is not None else set()
+
+        if not voice_channel_ids_set and not tracked_private_ids:
             print_warning_log(f"Voice channel not set for guild {guild.name}. Skipping.")
             return
+
         schedule_text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
         if schedule_text_channel_id is None:
             print_warning_log(f"Schedule text channel not set for guild {guild.name}. Skipping.")
             return
 
+        def is_tracked(channel_id: int) -> bool:
+            return channel_id in voice_channel_ids_set or channel_id in tracked_private_ids
+
         # Log user activity
         try:
             if before.channel is None and after.channel is not None:
-                # User joined a voice channel but wasn't in any voice channel before
+                # User joined a voice channel
                 channel_id = after.channel.id
-                event = EVENT_CONNECT
-                insert_user_activity(
-                    member.id,
-                    member.display_name,
-                    channel_id,
-                    guild_id,
-                    event,
-                    datetime.now(timezone.utc),
-                )
+                if is_tracked(channel_id):
+                    insert_user_activity(
+                        member.id,
+                        member.display_name,
+                        channel_id,
+                        guild_id,
+                        EVENT_CONNECT,
+                        datetime.now(timezone.utc),
+                    )
 
                 # Add the user to the voice channel list with the current siege activity detail
                 user_activity = get_any_siege_activity(member)
@@ -232,16 +254,16 @@ class MyEventsCog(commands.Cog):
             elif before.channel is not None and after.channel is None:
                 # User left a voice channel
                 channel_id = before.channel.id
-                event = EVENT_DISCONNECT
-                await asyncio.to_thread(
-                    insert_user_activity,
-                    member.id,
-                    member.display_name,
-                    channel_id,
-                    guild_id,
-                    event,
-                    datetime.now(timezone.utc),
-                )
+                if is_tracked(channel_id):
+                    await asyncio.to_thread(
+                        insert_user_activity,
+                        member.id,
+                        member.display_name,
+                        channel_id,
+                        guild_id,
+                        EVENT_DISCONNECT,
+                        datetime.now(timezone.utc),
+                    )
                 try:
                     await send_session_stats_to_queue(member, guild_id)
                 except Exception as e:
@@ -249,24 +271,47 @@ class MyEventsCog(commands.Cog):
 
                 # Remove the user from the voice channel list (after.channel is None)
                 await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
+
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                 # User switched between voice channels
-                # Run database operations in thread pool to avoid blocking event loop
+                before_tracked = is_tracked(before.channel.id)
+                after_tracked = is_tracked(after.channel.id)
                 try:
                     move_time = datetime.now(timezone.utc)
-                    await asyncio.to_thread(
-                        self._log_channel_move_sync,
-                        member.id,
-                        member.display_name,
-                        before.channel.id,
-                        after.channel.id,
-                        guild_id,
-                        move_time,
-                    )
+                    if before_tracked and after_tracked:
+                        await asyncio.to_thread(
+                            self._log_channel_move_sync,
+                            member.id,
+                            member.display_name,
+                            before.channel.id,
+                            after.channel.id,
+                            guild_id,
+                            move_time,
+                        )
+                    elif before_tracked:
+                        await asyncio.to_thread(
+                            insert_user_activity,
+                            member.id,
+                            member.display_name,
+                            before.channel.id,
+                            guild_id,
+                            EVENT_DISCONNECT,
+                            move_time,
+                        )
+                    elif after_tracked:
+                        await asyncio.to_thread(
+                            insert_user_activity,
+                            member.id,
+                            member.display_name,
+                            after.channel.id,
+                            guild_id,
+                            EVENT_CONNECT,
+                            move_time,
+                        )
                 except Exception as e:
                     print_error_log(f"on_voice_state_update: Error logging channel move: {e}")
 
-                # Update cache (after transaction)
+                # Update voice user list cache (always, regardless of tracking)
                 await data_access_remove_voice_user_list(guild_id, before.channel.id, member.id)
                 user_activity = get_any_siege_activity(member)
                 await data_access_update_voice_user_list(
@@ -278,21 +323,8 @@ class MyEventsCog(commands.Cog):
         except Exception as e:
             print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
 
-        # Delete private channel if it is now empty
-        left_channel = before.channel if (before.channel is not None and after.channel != before.channel) else None
-        if left_channel is not None:
-            try:
-                active_private = await data_access_get_guild_active_private_channel(guild_id)
-                if active_private is not None and left_channel.id == active_private[0]:
-                    if len(left_channel.members) == 0:
-                        await left_channel.delete(reason="Private channel is empty")
-                        data_access_remove_guild_active_private_channel(guild_id)
-            except Exception as e:
-                print_error_log(f"on_voice_state_update: Error deleting private channel: {e}")
-
-        # Check if the user joined a voice channel to send a voice message
-        if after.channel is not None and after.channel.id in voice_channel_ids:
-            # Check if the user is the only one in the voice channel
+        # LFG notification (only for admin-configured voice channels)
+        if after.channel is not None and after.channel.id in voice_channel_ids_set:
             if len(after.channel.members) == 1:
                 await send_notification_voice_channel(
                     guild_id,

@@ -13,7 +13,7 @@ from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
 from deps.data_access import (
     data_access_get_member,
     data_access_get_guild_private_channel_category_id,
-    data_access_get_guild_active_private_channel,
+    data_access_get_guild_active_private_channels,
     data_access_set_guild_active_private_channel,
     data_access_remove_guild_active_private_channel,
 )
@@ -364,8 +364,8 @@ class UserFeatures(commands.Cog):
             )
 
     @app_commands.command(name=COMMAND_PRIVATE_CHANNEL)
-    async def create_private_channel(self, interaction: discord.Interaction):
-        """Create a private voice channel. Only you can join and drag others in. Deleted when empty. Requires 100h of activity."""
+    async def create_private_channel(self, interaction: discord.Interaction, track: bool = True):
+        """Create a private voice channel. Only you can join and drag others in. Deleted when empty. Requires 350h of activity."""
         await interaction.response.defer(ephemeral=True)
 
         guild = interaction.guild
@@ -401,19 +401,6 @@ class UserFeatures(commands.Cog):
             )
             return
 
-        active = await data_access_get_guild_active_private_channel(guild_id)
-        if active is not None:
-            existing_channel_id, _ = active
-            existing_channel = guild.get_channel(existing_channel_id)
-            if existing_channel is not None:
-                await interaction.followup.send(
-                    f"A private channel already exists: <#{existing_channel_id}>. Only one private channel is allowed at a time.",
-                    ephemeral=True,
-                )
-                return
-            # Channel no longer exists in Discord, clean up stale cache
-            data_access_remove_guild_active_private_channel(guild_id)
-
         creator = guild.get_member(user.id)
         if creator is None:
             await interaction.followup.send("Could not resolve your membership in this server.", ephemeral=True)
@@ -424,27 +411,41 @@ class UserFeatures(commands.Cog):
             creator: discord.PermissionOverwrite(view_channel=True, connect=True, move_members=True),
         }
         if guild.me is not None:
-            overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, connect=True, manage_channels=True)
+            overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, connect=True, manage_channels=True, move_members=True)
 
-        channel = await guild.create_voice_channel(
-            name=f"{creator.display_name}'s private vc",
-            category=category,
-            overwrites=overwrites,
-        )
+        channel = None
+        try:
+            channel = await guild.create_voice_channel(
+                name=f"{creator.display_name}'s private vc",
+                category=category,
+                overwrites=overwrites,
+            )
 
-        other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
-        bottom_position = max(other_positions) + 1 if other_positions else channel.position
-        await channel.edit(position=bottom_position)
+            other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
+            bottom_position = max(other_positions) + 1 if other_positions else channel.position
+            await channel.edit(position=bottom_position)
 
-        data_access_set_guild_active_private_channel(guild_id, channel.id, user.id)
+            await data_access_set_guild_active_private_channel(guild_id, channel.id, user.id, track)
 
-        if creator.voice is not None:
-            await creator.move_to(channel)
+            if creator.voice is not None:
+                await creator.move_to(channel)
 
-        await interaction.followup.send(
-            f"Your private channel <#{channel.id}> has been created. Only you can join and drag others in. It will be deleted when empty.",
-            ephemeral=True,
-        )
+            await interaction.followup.send(
+                f"Your private channel <#{channel.id}> has been created. Only you can join and drag others in. It will be deleted when empty.",
+                ephemeral=True,
+            )
+        except discord.Forbidden:
+            print_error_log(f"create_private_channel: Missing permissions in guild {guild_id} category {category_id}.")
+            if channel is not None:
+                try:
+                    await channel.delete(reason="Cleanup after permission error during creation")
+                    await data_access_remove_guild_active_private_channel(guild_id, channel.id)
+                except Exception:
+                    pass
+            await interaction.followup.send(
+                "The bot does not have the required permissions to create a channel in that category. Please ask an administrator to check the bot's permissions.",
+                ephemeral=True,
+            )
 
     @app_commands.command(name=COMMAND_MY_STREAK)
     async def my_streak(self, interaction: discord.Interaction, user: Optional[discord.User] = None):
