@@ -408,14 +408,17 @@ class UserFeatures(commands.Cog):
             return
 
         # Pre-check bot permissions in the category before touching the Discord API.
-        # create_voice_channel needs MANAGE_CHANNELS; member-level overwrites also need MANAGE_ROLES.
+        # create_voice_channel needs MANAGE_CHANNELS and MOVE_MEMBERS.
+        # We intentionally avoid member-specific overwrites to sidestep Discord's role-hierarchy
+        # restriction (bot role must be above the member's role to set member overwrites).
+        # Instead the bot uses MOVE_MEMBERS to let people in.
         if guild.me is not None:
             bot_perms = category.permissions_for(guild.me)
             missing: list[str] = []
             if not bot_perms.manage_channels:
                 missing.append("Manage Channels")
-            if not bot_perms.manage_roles:
-                missing.append("Manage Roles")
+            if not bot_perms.move_members:
+                missing.append("Move Members")
             if missing:
                 print_error_log(
                     f"create_private_channel: Bot missing {missing} in guild {guild_id} category {category_id}."
@@ -426,9 +429,11 @@ class UserFeatures(commands.Cog):
                 )
                 return
 
+        # Only role-level overwrites: no member overwrite for the creator.
+        # Member overwrites require the bot's role to be higher than the target member in the
+        # server hierarchy, which cannot be guaranteed. The bot uses MOVE_MEMBERS instead.
         overwrites: dict[Union[discord.Role, discord.Member], discord.PermissionOverwrite] = {
             guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, move_members=False),
-            creator: discord.PermissionOverwrite(view_channel=True, connect=True),
         }
         if guild.me is not None:
             overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, connect=True, manage_channels=True, move_members=True)
@@ -441,9 +446,12 @@ class UserFeatures(commands.Cog):
                 overwrites=overwrites,
             )
 
-            other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
-            bottom_position = max(other_positions) + 1 if other_positions else channel.position
-            await channel.edit(position=bottom_position)
+            try:
+                other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
+                bottom_position = max(other_positions) + 1 if other_positions else channel.position
+                await channel.edit(position=bottom_position)
+            except Exception as e:
+                print_warning_log(f"create_private_channel: Could not set channel position: {e}")
 
             await data_access_set_guild_active_private_channel(guild_id, channel.id, user.id, track)
 
@@ -451,7 +459,10 @@ class UserFeatures(commands.Cog):
                 await creator.move_to(channel)
 
             await interaction.followup.send(
-                f"Your private channel <#{channel.id}> has been created. Only you can join and drag others in. It will be deleted when empty.",
+                f"Your private channel <#{channel.id}> has been created. "
+                f"Use `/privatechannelinvite` to pull others in. "
+                f"If you leave and want to rejoin, use `/privatechannelinvite` on yourself. "
+                f"The channel is deleted when empty.",
                 ephemeral=True,
             )
         except discord.Forbidden:

@@ -440,10 +440,9 @@ class ModChannels(commands.Cog):
                 return "✅" if ok else "❌"
             lines.append("**Bot permissions in that category:**")
             lines.append(f"{status(perms.manage_channels)} Manage Channels (required to create channels)")
-            lines.append(f"{status(perms.manage_roles)} Manage Roles (required to set per-member permissions)")
             lines.append(f"{status(perms.connect)} Connect")
-            lines.append(f"{status(perms.move_members)} Move Members (required to auto-move the creator)")
-            if not perms.manage_channels or not perms.manage_roles:
+            lines.append(f"{status(perms.move_members)} Move Members (required to move members into the channel)")
+            if not perms.manage_channels or not perms.move_members:
                 lines.append(
                     "\n⚠️ One or more required permissions are missing. "
                     "Go to the category → Edit → Permissions → add the bot's role and grant the missing ones."

@@ -233,9 +233,9 @@ class TestCreatePrivateChannelCommand:
         assert everyone_ow.connect is False
         assert everyone_ow.move_members is False
 
-        # Creator: can connect (dragging is done via /privatechannelinvite, not a channel overwrite)
-        creator_ow = overwrites[mock_creator]
-        assert creator_ow.connect is True
+        # No member-specific overwrite for the creator — avoids Discord role-hierarchy 403.
+        # The bot uses MOVE_MEMBERS to let people in instead.
+        assert mock_creator not in overwrites
 
     @pytest.mark.asyncio
     async def test_channel_placed_at_bottom_of_category(
