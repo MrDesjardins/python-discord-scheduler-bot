@@ -429,14 +429,14 @@ class UserFeatures(commands.Cog):
                 )
                 return
 
-        # Only role-level overwrites: no member overwrite for the creator.
-        # Member overwrites require the bot's role to be higher than the target member in the
-        # server hierarchy, which cannot be guaranteed. The bot uses MOVE_MEMBERS instead.
+        # Only a single role-level overwrite (@everyone): blocks connect for regular members.
+        # No member overwrites at all — setting any member overwrite (even for the bot itself)
+        # requires the bot's role to outrank the target in the server hierarchy, which cannot
+        # be guaranteed. The bot's guild-level MANAGE_CHANNELS and MOVE_MEMBERS are sufficient
+        # to manage the channel and move people in without a channel-level overwrite.
         overwrites: dict[Union[discord.Role, discord.Member], discord.PermissionOverwrite] = {
             guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, move_members=False),
         }
-        if guild.me is not None:
-            overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, connect=True, manage_channels=True, move_members=True)
 
         channel = None
         try:
