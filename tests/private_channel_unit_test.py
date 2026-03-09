@@ -214,6 +214,7 @@ class TestCreatePrivateChannelCommand:
         mock_guild.get_member.return_value = mock_creator
         mock_guild.create_voice_channel = AsyncMock(return_value=mock_private_channel)
         mock_private_channel.edit = AsyncMock()
+        mock_private_channel.set_permissions = AsyncMock()
         mock_category.channels = [mock_private_channel]
 
         with (
@@ -226,16 +227,14 @@ class TestCreatePrivateChannelCommand:
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
-        overwrites = mock_guild.create_voice_channel.call_args.kwargs["overwrites"]
+        # Channel is created without overwrites (to avoid permission-check 403 during creation).
+        call_kwargs = mock_guild.create_voice_channel.call_args.kwargs
+        assert "overwrites" not in call_kwargs or call_kwargs.get("overwrites") is None
 
-        # @everyone: can see but cannot connect or drag
-        everyone_ow = overwrites[mock_guild.default_role]
-        assert everyone_ow.connect is False
-        assert everyone_ow.move_members is False
-
-        # No member-specific overwrite for the creator — avoids Discord role-hierarchy 403.
-        # The bot uses MOVE_MEMBERS to let people in instead.
-        assert mock_creator not in overwrites
+        # Permissions are set separately after creation via set_permissions (role overwrite, no hierarchy check).
+        mock_private_channel.set_permissions.assert_called_once_with(
+            mock_guild.default_role, connect=False, move_members=False
+        )
 
     @pytest.mark.asyncio
     async def test_channel_placed_at_bottom_of_category(

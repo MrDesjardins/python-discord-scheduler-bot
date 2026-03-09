@@ -2,7 +2,7 @@
 User command for anything related to the user like their max rank, active rank, timezone, etc.
 """
 
-from typing import Optional, Union
+from typing import Optional
 from datetime import datetime, timezone
 import discord
 from discord.ext import commands
@@ -429,54 +429,60 @@ class UserFeatures(commands.Cog):
                 )
                 return
 
-        # Only a single role-level overwrite (@everyone): blocks connect for regular members.
-        # No member overwrites at all — setting any member overwrite (even for the bot itself)
-        # requires the bot's role to outrank the target in the server hierarchy, which cannot
-        # be guaranteed. The bot's guild-level MANAGE_CHANNELS and MOVE_MEMBERS are sufficient
-        # to manage the channel and move people in without a channel-level overwrite.
-        overwrites: dict[Union[discord.Role, discord.Member], discord.PermissionOverwrite] = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, move_members=False),
-        }
-
+        # Create the channel without any permission overwrites so that the creation API call
+        # requires only MANAGE_CHANNELS (no role-overwrite permission checks). After the channel
+        # exists we lock it via channel.set_permissions(), which is a separate API call that
+        # only touches role overwrites and avoids Discord's member-overwrite hierarchy check.
         channel = None
         try:
             channel = await guild.create_voice_channel(
                 name=f"{creator.display_name}'s private vc",
                 category=category,
-                overwrites=overwrites,
             )
-
-            try:
-                other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
-                bottom_position = max(other_positions) + 1 if other_positions else channel.position
-                await channel.edit(position=bottom_position)
-            except Exception as e:
-                print_warning_log(f"create_private_channel: Could not set channel position: {e}")
-
-            await data_access_set_guild_active_private_channel(guild_id, channel.id, user.id, track)
-
-            if creator.voice is not None:
-                await creator.move_to(channel)
-
-            await interaction.followup.send(
-                f"Your private channel <#{channel.id}> has been created. "
-                f"Use `/privatechannelinvite` to pull others in. "
-                f"If you leave and want to rejoin, use `/privatechannelinvite` on yourself. "
-                f"The channel is deleted when empty.",
-                ephemeral=True,
-            )
+            print_log(f"create_private_channel: Channel {channel.id} created in guild {guild_id}.")
         except discord.Forbidden:
-            print_error_log(f"create_private_channel: Unexpected Forbidden in guild {guild_id} category {category_id}.")
-            if channel is not None:
-                try:
-                    await channel.delete(reason="Cleanup after permission error during creation")
-                    await data_access_remove_guild_active_private_channel(guild_id, channel.id)
-                except Exception:
-                    pass
+            print_error_log(
+                f"create_private_channel: Forbidden when creating channel in guild {guild_id} category {category_id}."
+            )
             await interaction.followup.send(
                 "The bot does not have the required permissions to create a channel in that category. Please ask an administrator to check the bot's permissions.",
                 ephemeral=True,
             )
+            return
+
+        # Move creator in while the channel is still open (before locking connect).
+        if creator.voice is not None:
+            try:
+                await creator.move_to(channel)
+            except discord.Forbidden:
+                print_warning_log(
+                    f"create_private_channel: Forbidden when moving creator {user.id} to channel {channel.id}."
+                )
+
+        # Lock the channel: deny connect for everyone. This is a role overwrite (no hierarchy check).
+        try:
+            await channel.set_permissions(guild.default_role, connect=False, move_members=False)
+        except discord.Forbidden:
+            print_warning_log(
+                f"create_private_channel: Forbidden when setting permissions on channel {channel.id}. Channel left open."
+            )
+
+        try:
+            other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
+            bottom_position = max(other_positions) + 1 if other_positions else channel.position
+            await channel.edit(position=bottom_position)
+        except Exception as e:
+            print_warning_log(f"create_private_channel: Could not set channel position: {e}")
+
+        await data_access_set_guild_active_private_channel(guild_id, channel.id, user.id, track)
+
+        await interaction.followup.send(
+            f"Your private channel <#{channel.id}> has been created. "
+            f"Use `/privatechannelinvite` to pull others in. "
+            f"If you leave and want to rejoin, use `/privatechannelinvite` on yourself. "
+            f"The channel is deleted when empty.",
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_PRIVATE_CHANNEL_INVITE)
     async def invite_to_private_channel(self, interaction: discord.Interaction, user: discord.Member):
