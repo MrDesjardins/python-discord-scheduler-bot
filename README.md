@@ -201,6 +201,7 @@ Allows to see the current bracket. The bracket is automatically updated to the t
 
 - Requires **350 hours** of tracked voice activity on the server.
 - Only the creator can connect; everyone else can see the channel but cannot join on their own.
+- The creator can click to join/rejoin their own private channel.
 - The creator uses `/privatechannelinvite @user` to have the bot move a member (who must already be in any voice channel) into the private channel.
 - The channel is **automatically deleted** when it becomes empty.
 - Multiple private channels can exist at the same time across different users.

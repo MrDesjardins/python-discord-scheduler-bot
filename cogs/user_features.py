@@ -417,6 +417,8 @@ class UserFeatures(commands.Cog):
             missing: list[str] = []
             if not bot_perms.manage_channels:
                 missing.append("Manage Channels")
+            if not bot_perms.view_channel:
+                missing.append("View Channel")
             if not bot_perms.move_members:
                 missing.append("Move Members")
             if missing:
@@ -459,12 +461,21 @@ class UserFeatures(commands.Cog):
                     f"create_private_channel: Forbidden when moving creator {user.id} to channel {channel.id}."
                 )
 
-        # Lock the channel: deny connect for everyone. This is a role overwrite (no hierarchy check).
+        # Lock the channel for everyone first.
         try:
             await channel.set_permissions(guild.default_role, connect=False, move_members=False)
         except discord.Forbidden:
             print_warning_log(
                 f"create_private_channel: Forbidden when setting permissions on channel {channel.id}. Channel left open."
+            )
+
+        # Allow the creator to rejoin by clicking the channel and let them drag members when possible.
+        # This can fail when Discord role hierarchy blocks member-specific overwrites.
+        try:
+            await channel.set_permissions(creator, connect=True, move_members=True)
+        except discord.Forbidden:
+            print_warning_log(
+                f"create_private_channel: Forbidden when setting creator permissions for {user.id} on channel {channel.id}."
             )
 
         try:
@@ -479,7 +490,7 @@ class UserFeatures(commands.Cog):
         await interaction.followup.send(
             f"Your private channel <#{channel.id}> has been created. "
             f"Use `/privatechannelinvite` to pull others in. "
-            f"If you leave and want to rejoin, use `/privatechannelinvite` on yourself. "
+            f"You can leave and click the channel to rejoin. "
             f"The channel is deleted when empty.",
             ephemeral=True,
         )

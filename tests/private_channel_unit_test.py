@@ -4,6 +4,7 @@ No database, no Discord — mocked dependencies only.
 """
 
 import pytest
+from unittest.mock import call
 from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 from deps.values import PRIVATE_CHANNEL_MIN_HOURS
@@ -231,9 +232,14 @@ class TestCreatePrivateChannelCommand:
         call_kwargs = mock_guild.create_voice_channel.call_args.kwargs
         assert "overwrites" not in call_kwargs or call_kwargs.get("overwrites") is None
 
-        # Permissions are set separately after creation via set_permissions (role overwrite, no hierarchy check).
-        mock_private_channel.set_permissions.assert_called_once_with(
-            mock_guild.default_role, connect=False, move_members=False
+        # Permissions are set separately after creation:
+        # - deny everyone connect/move
+        # - allow creator connect/move
+        mock_private_channel.set_permissions.assert_has_calls(
+            [
+                call(mock_guild.default_role, connect=False, move_members=False),
+                call(mock_creator, connect=True, move_members=True),
+            ]
         )
 
     @pytest.mark.asyncio
