@@ -425,7 +425,30 @@ class ModChannels(commands.Cog):
             print_warning_log(f"No private channel category in guild {guild.name}. Skipping.")
             await interaction.followup.send("Private channel category not set.", ephemeral=True)
             return
-        await interaction.followup.send(f"Private channels are created under <#{category_id}>.", ephemeral=True)
+
+        category = guild.get_channel(category_id)
+        if not isinstance(category, discord.CategoryChannel):
+            await interaction.followup.send(
+                f"Configured category <#{category_id}> no longer exists. Please reconfigure it.", ephemeral=True
+            )
+            return
+
+        lines = [f"Private channels are created under **{category.name}** (<#{category_id}>).\n"]
+        if guild.me is not None:
+            perms = category.permissions_for(guild.me)
+            def status(ok: bool) -> str:
+                return "✅" if ok else "❌"
+            lines.append("**Bot permissions in that category:**")
+            lines.append(f"{status(perms.manage_channels)} Manage Channels (required to create channels)")
+            lines.append(f"{status(perms.manage_roles)} Manage Roles (required to set per-member permissions)")
+            lines.append(f"{status(perms.connect)} Connect")
+            lines.append(f"{status(perms.move_members)} Move Members (required to auto-move the creator)")
+            if not perms.manage_channels or not perms.manage_roles:
+                lines.append(
+                    "\n⚠️ One or more required permissions are missing. "
+                    "Go to the category → Edit → Permissions → add the bot's role and grant the missing ones."
+                )
+        await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 
 async def setup(bot):
