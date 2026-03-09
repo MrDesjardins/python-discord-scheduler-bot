@@ -198,7 +198,13 @@ class MyEventsCog(commands.Cog):
         left_channel = before.channel if (before.channel is not None and after.channel != before.channel) else None
         if left_channel is not None and left_channel.id in all_private_ids:
             try:
-                if len(left_channel.members) == 0:
+                # Discord can momentarily keep the leaving member in before.channel.members.
+                # Treat a channel with only the leaving member as effectively empty.
+                members = list(left_channel.members)
+                is_effectively_empty = len(members) == 0 or (
+                    len(members) == 1 and any(m.id == member.id for m in members)
+                )
+                if is_effectively_empty:
                     await left_channel.delete(reason="Private channel is empty")
                     await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
             except discord.NotFound:

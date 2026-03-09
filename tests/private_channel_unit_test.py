@@ -8,6 +8,11 @@ from unittest.mock import call
 from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 from deps.values import PRIVATE_CHANNEL_MIN_HOURS
+from types import SimpleNamespace
+
+
+def _perms(view_channel: bool, connect: bool):
+    return SimpleNamespace(view_channel=view_channel, connect=connect)
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +221,7 @@ class TestCreatePrivateChannelCommand:
         mock_guild.create_voice_channel = AsyncMock(return_value=mock_private_channel)
         mock_private_channel.edit = AsyncMock()
         mock_private_channel.set_permissions = AsyncMock()
+        mock_private_channel.permissions_for = MagicMock(side_effect=[_perms(False, False), _perms(True, True)])
         mock_category.channels = [mock_private_channel]
 
         with (
@@ -233,12 +239,12 @@ class TestCreatePrivateChannelCommand:
         assert "overwrites" not in call_kwargs or call_kwargs.get("overwrites") is None
 
         # Permissions are set separately after creation:
-        # - deny everyone connect/move
-        # - allow creator connect/move
+        # - deny everyone connect/move first
+        # - then allow creator connect/view as final overwrite
         mock_private_channel.set_permissions.assert_has_calls(
             [
                 call(mock_guild.default_role, connect=False, move_members=False),
-                call(mock_creator, connect=True, move_members=True),
+                call(mock_creator, view_channel=True, connect=True, move_members=False),
             ]
         )
 
@@ -348,6 +354,225 @@ class TestCreatePrivateChannelCommand:
         mock_interaction.followup.send.assert_called_once()
         msg = mock_interaction.followup.send.call_args[0][0]
         assert str(mock_private_channel.id) in msg
+
+    @pytest.mark.asyncio
+    async def test_creation_canceled_when_creator_access_cannot_be_granted(
+        self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_category, mock_private_channel
+    ):
+        from cogs.user_features import UserFeatures
+
+        cog = UserFeatures(mock_bot)
+        mock_guild.get_channel.return_value = mock_category
+        mock_guild.get_member.return_value = mock_creator
+        mock_guild.create_voice_channel = AsyncMock(return_value=mock_private_channel)
+        mock_private_channel.delete = AsyncMock()
+
+        with (
+            patch("cogs.user_features.data_access_fetch_total_hours", return_value=PRIVATE_CHANNEL_MIN_HOURS + 1),
+            patch(
+                "cogs.user_features.data_access_get_guild_private_channel_category_id",
+                return_value=mock_category.id,
+            ),
+            patch.object(cog, "_grant_private_channel_connect", new=AsyncMock(return_value=False)),
+            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock) as mock_set,
+        ):
+            await cog.create_private_channel.callback(cog, mock_interaction)
+
+        mock_private_channel.delete.assert_called_once()
+        mock_set.assert_not_called()
+        msg = mock_interaction.followup.send.call_args[0][0]
+        assert "canceled creation" in msg
+
+
+class TestPrivateChannelInviteCommand:
+    @pytest.mark.asyncio
+    async def test_invite_grants_access_and_sends_dm(
+        self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_private_channel
+    ):
+        from cogs.user_features import UserFeatures
+
+        target_user = MagicMock(spec=discord.Member)
+        target_user.id = 333333333
+        target_user.display_name = "InvitedUser"
+        target_user.send = AsyncMock()
+
+        cog = UserFeatures(mock_bot)
+        mock_guild.get_channel.return_value = mock_private_channel
+        mock_private_channel.set_permissions = AsyncMock()
+        mock_private_channel.permissions_for = MagicMock(side_effect=[_perms(False, False), _perms(True, True)])
+
+        with patch(
+            "cogs.user_features.data_access_get_guild_active_private_channels",
+            new=AsyncMock(return_value={mock_private_channel.id: (mock_creator.id, True)}),
+        ):
+            await cog.invite_to_private_channel.callback(cog, mock_interaction, target_user)
+
+        mock_private_channel.set_permissions.assert_called_once_with(
+            target_user, view_channel=True, connect=True, move_members=False
+        )
+        target_user.send.assert_called_once()
+        msg = mock_interaction.followup.send.call_args[0][0]
+        assert "has been invited" in msg
+
+    @pytest.mark.asyncio
+    async def test_invite_reports_when_dm_closed(
+        self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_private_channel
+    ):
+        from cogs.user_features import UserFeatures
+
+        target_user = MagicMock(spec=discord.Member)
+        target_user.id = 333333333
+        target_user.display_name = "InvitedUser"
+        target_user.send = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "DM blocked"))
+
+        cog = UserFeatures(mock_bot)
+        mock_guild.get_channel.return_value = mock_private_channel
+        mock_private_channel.set_permissions = AsyncMock()
+        mock_private_channel.permissions_for = MagicMock(side_effect=[_perms(False, False), _perms(True, True)])
+
+        with patch(
+            "cogs.user_features.data_access_get_guild_active_private_channels",
+            new=AsyncMock(return_value={mock_private_channel.id: (mock_creator.id, True)}),
+        ):
+            await cog.invite_to_private_channel.callback(cog, mock_interaction, target_user)
+
+        mock_private_channel.set_permissions.assert_called_once_with(
+            target_user, view_channel=True, connect=True, move_members=False
+        )
+        msg = mock_interaction.followup.send.call_args[0][0]
+        assert "couldn't DM them" in msg
+
+    @pytest.mark.asyncio
+    async def test_invite_reports_when_access_cannot_be_granted(
+        self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_private_channel
+    ):
+        from cogs.user_features import UserFeatures
+
+        target_user = MagicMock(spec=discord.Member)
+        target_user.id = 333333333
+        target_user.display_name = "InvitedUser"
+        target_user.send = AsyncMock()
+
+        cog = UserFeatures(mock_bot)
+        mock_guild.get_channel.return_value = mock_private_channel
+        mock_private_channel.set_permissions = AsyncMock(side_effect=discord.Forbidden(MagicMock(), "Forbidden"))
+        mock_guild.me.top_role.position = 1
+        target_user.roles = [mock_guild.default_role]
+
+        with patch(
+            "cogs.user_features.data_access_get_guild_active_private_channels",
+            new=AsyncMock(return_value={mock_private_channel.id: (mock_creator.id, True)}),
+        ):
+            await cog.invite_to_private_channel.callback(cog, mock_interaction, target_user)
+
+        target_user.send.assert_not_called()
+        msg = mock_interaction.followup.send.call_args[0][0]
+        assert "couldn't grant that member access" in msg.lower()
+
+    @pytest.mark.asyncio
+    async def test_invite_fetches_channel_when_not_in_cache(
+        self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_private_channel
+    ):
+        from cogs.user_features import UserFeatures
+
+        target_user = MagicMock(spec=discord.Member)
+        target_user.id = 333333333
+        target_user.display_name = "InvitedUser"
+        target_user.send = AsyncMock()
+
+        cog = UserFeatures(mock_bot)
+        mock_guild.get_channel.return_value = None
+        mock_guild.fetch_channel = AsyncMock(return_value=mock_private_channel)
+        mock_private_channel.set_permissions = AsyncMock()
+        mock_private_channel.permissions_for = MagicMock(side_effect=[_perms(False, False), _perms(True, True)])
+
+        with patch(
+            "cogs.user_features.data_access_get_guild_active_private_channels",
+            new=AsyncMock(return_value={mock_private_channel.id: (mock_creator.id, True)}),
+        ):
+            await cog.invite_to_private_channel.callback(cog, mock_interaction, target_user)
+
+        mock_guild.fetch_channel.assert_any_call(mock_private_channel.id)
+        mock_private_channel.set_permissions.assert_called_once_with(
+            target_user, view_channel=True, connect=True, move_members=False
+        )
+        msg = mock_interaction.followup.send.call_args[0][0]
+        assert "has been invited" in msg
+
+    @pytest.mark.asyncio
+    async def test_invite_skips_stale_channel_and_uses_next_valid(
+        self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_private_channel
+    ):
+        from cogs.user_features import UserFeatures
+
+        stale_channel_id = 111111111
+        valid_channel_id = mock_private_channel.id
+        target_user = MagicMock(spec=discord.Member)
+        target_user.id = 333333333
+        target_user.display_name = "InvitedUser"
+        target_user.send = AsyncMock()
+
+        cog = UserFeatures(mock_bot)
+        mock_private_channel.set_permissions = AsyncMock()
+        mock_private_channel.permissions_for = MagicMock(side_effect=[_perms(False, False), _perms(True, True)])
+        mock_guild.get_channel.side_effect = lambda channel_id: None if channel_id == stale_channel_id else mock_private_channel
+        mock_guild.fetch_channel = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
+
+        with (
+            patch(
+                "cogs.user_features.data_access_get_guild_active_private_channels",
+                new=AsyncMock(
+                    return_value={
+                        stale_channel_id: (mock_creator.id, True),
+                        valid_channel_id: (mock_creator.id, True),
+                    }
+                ),
+            ),
+            patch(
+                "cogs.user_features.data_access_remove_guild_active_private_channel",
+                new=AsyncMock(),
+            ) as mock_remove,
+        ):
+            await cog.invite_to_private_channel.callback(cog, mock_interaction, target_user)
+
+        mock_remove.assert_called_once_with(mock_guild.id, stale_channel_id)
+        mock_private_channel.set_permissions.assert_called_once_with(
+            target_user, view_channel=True, connect=True, move_members=False
+        )
+        target_user.send.assert_called_once()
+        msg = mock_interaction.followup.send.call_args[0][0]
+        assert "has been invited" in msg
+
+    @pytest.mark.asyncio
+    async def test_invite_succeeds_when_target_already_has_access(
+        self, mock_bot, mock_interaction, mock_guild, mock_creator, mock_private_channel
+    ):
+        from cogs.user_features import UserFeatures
+
+        target_user = MagicMock(spec=discord.Member)
+        target_user.id = 333333333
+        target_user.display_name = "InvitedUser"
+        target_user.send = AsyncMock()
+
+        perms = MagicMock()
+        perms.view_channel = True
+        perms.connect = True
+
+        cog = UserFeatures(mock_bot)
+        mock_guild.get_channel.return_value = mock_private_channel
+        mock_private_channel.set_permissions = AsyncMock()
+        mock_private_channel.permissions_for.return_value = perms
+
+        with patch(
+            "cogs.user_features.data_access_get_guild_active_private_channels",
+            new=AsyncMock(return_value={mock_private_channel.id: (mock_creator.id, True)}),
+        ):
+            await cog.invite_to_private_channel.callback(cog, mock_interaction, target_user)
+
+        mock_private_channel.set_permissions.assert_not_called()
+        target_user.send.assert_called_once()
+        msg = mock_interaction.followup.send.call_args[0][0]
+        assert "has been invited" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -611,6 +836,43 @@ class TestPrivateChannelAutoDeletion:
         empty_private.delete.assert_called_once()
         busy_private.delete.assert_not_called()
         mock_remove.assert_called_once_with(guild.id, empty_private.id)
+
+    @pytest.mark.asyncio
+    async def test_channel_deleted_when_before_members_contains_only_leaving_member(self, mock_bot):
+        """Delete channel even if Discord still reports the leaving member in before.channel.members."""
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        member = self._make_member(guild, user_id=222)
+
+        private_channel = MagicMock(spec=discord.VoiceChannel)
+        private_channel.id = 555555555
+        private_channel.members = [member]  # stale state snapshot
+        private_channel.delete = AsyncMock()
+
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = private_channel
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = None
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity"),
+            patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
+            patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, True)},
+            ),
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
+        ):
+            await cog.on_voice_state_update(member, before, after)
+
+        private_channel.delete.assert_called_once()
+        mock_remove.assert_called_once_with(guild.id, private_channel.id)
 
 
 # ---------------------------------------------------------------------------

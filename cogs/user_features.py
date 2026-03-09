@@ -76,6 +76,90 @@ class UserFeatures(commands.Cog):
         self.bot.tree.add_command(self.user_follow)
         self.bot.tree.add_command(self.user_unfollow)
 
+    async def _grant_private_channel_connect(
+        self, channel: discord.VoiceChannel, guild: discord.Guild, member: discord.Member
+    ) -> bool:
+        """Grant a member view/connect permission, with role-overwrite fallback when member overwrite is blocked."""
+        # If the user already has effective access (e.g., Administrator), no overwrite is needed.
+        current_perms = channel.permissions_for(member)
+        if current_perms.view_channel is True and current_perms.connect is True:
+            return True
+
+        try:
+            await channel.set_permissions(member, view_channel=True, connect=True, move_members=False)
+            # Discord may take a short moment to reflect updated effective permissions in cache.
+            # If the API accepted the overwrite, treat it as success.
+            return True
+        except discord.Forbidden:
+            pass
+
+        if guild.me is None:
+            return False
+
+        # Fallback: grant connect to the highest role the member has that the bot can manage.
+        manageable_roles = sorted(
+            [
+                role
+                for role in member.roles
+                if role != guild.default_role and role.position < guild.me.top_role.position
+            ],
+            key=lambda role: role.position,
+            reverse=True,
+        )
+        for role in manageable_roles:
+            try:
+                await channel.set_permissions(role, view_channel=True, connect=True)
+                print_warning_log(
+                    f"_grant_private_channel_connect: Used role fallback {role.id} for member {member.id} in channel {channel.id}."
+                )
+                return True
+            except discord.Forbidden:
+                continue
+
+        return False
+
+    async def _cleanup_stale_private_channel_entries(self, guild: discord.Guild) -> dict[int, tuple[int, bool]]:
+        """Remove stale/non-voice private-channel cache entries for a guild and return cleaned mapping."""
+        guild_id = guild.id
+        active_private_channels = await data_access_get_guild_active_private_channels(guild_id)
+        if len(active_private_channels) == 0:
+            return active_private_channels
+
+        cleaned = dict(active_private_channels)
+        stale_ids: list[int] = []
+
+        for channel_id in list(cleaned.keys()):
+            channel = guild.get_channel(channel_id)
+            if isinstance(channel, discord.VoiceChannel):
+                continue
+            try:
+                fetched_channel = await guild.fetch_channel(channel_id)
+                if isinstance(fetched_channel, discord.VoiceChannel):
+                    continue
+            except discord.NotFound:
+                pass
+            except discord.Forbidden:
+                # Don't remove on permission errors; avoid destructive cleanup on transient permission config issues.
+                continue
+            except discord.HTTPException as e:
+                print_error_log(
+                    f"_cleanup_stale_private_channel_entries: Failed to fetch channel {channel_id} in guild {guild_id}: {e}"
+                )
+                continue
+
+            stale_ids.append(channel_id)
+
+        for channel_id in stale_ids:
+            await data_access_remove_guild_active_private_channel(guild_id, channel_id)
+            cleaned.pop(channel_id, None)
+
+        if stale_ids:
+            print_log(
+                f"_cleanup_stale_private_channel_entries: Removed {len(stale_ids)} stale private-channel entries in guild {guild_id}."
+            )
+
+        return cleaned
+
     @app_commands.command(name=COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL)
     async def get_users_time_zone_from_voice_channel(
         self, interaction: discord.Interaction, voice_channel: Optional[discord.VoiceChannel] = None
@@ -377,6 +461,7 @@ class UserFeatures(commands.Cog):
 
         guild_id = guild.id
         user = interaction.user
+        await self._cleanup_stale_private_channel_entries(guild)
 
         hours = data_access_fetch_total_hours(user.id)
         if hours is None or hours < PRIVATE_CHANNEL_MIN_HOURS:
@@ -408,10 +493,7 @@ class UserFeatures(commands.Cog):
             return
 
         # Pre-check bot permissions in the category before touching the Discord API.
-        # create_voice_channel needs MANAGE_CHANNELS and MOVE_MEMBERS.
-        # We intentionally avoid member-specific overwrites to sidestep Discord's role-hierarchy
-        # restriction (bot role must be above the member's role to set member overwrites).
-        # Instead the bot uses MOVE_MEMBERS to let people in.
+        # create_voice_channel needs MANAGE_CHANNELS + VIEW_CHANNEL.
         if guild.me is not None:
             bot_perms = category.permissions_for(guild.me)
             missing: list[str] = []
@@ -419,8 +501,6 @@ class UserFeatures(commands.Cog):
                 missing.append("Manage Channels")
             if not bot_perms.view_channel:
                 missing.append("View Channel")
-            if not bot_perms.move_members:
-                missing.append("Move Members")
             if missing:
                 print_error_log(
                     f"create_private_channel: Bot missing {missing} in guild {guild_id} category {category_id}."
@@ -461,22 +541,31 @@ class UserFeatures(commands.Cog):
                     f"create_private_channel: Forbidden when moving creator {user.id} to channel {channel.id}."
                 )
 
-        # Lock the channel for everyone first.
+        # Lock channel by default first, then explicitly allow creator as the final overwrite.
         try:
             await channel.set_permissions(guild.default_role, connect=False, move_members=False)
         except discord.Forbidden:
             print_warning_log(
-                f"create_private_channel: Forbidden when setting permissions on channel {channel.id}. Channel left open."
+                f"create_private_channel: Forbidden when setting default-role lock on channel {channel.id}. Channel left open."
             )
 
-        # Allow the creator to rejoin by clicking the channel and let them drag members when possible.
-        # This can fail when Discord role hierarchy blocks member-specific overwrites.
-        try:
-            await channel.set_permissions(creator, connect=True, move_members=True)
-        except discord.Forbidden:
+        creator_can_rejoin = await self._grant_private_channel_connect(channel, guild, creator)
+        if not creator_can_rejoin:
             print_warning_log(
-                f"create_private_channel: Forbidden when setting creator permissions for {user.id} on channel {channel.id}."
+                f"create_private_channel: Could not grant creator rejoin permission for {user.id} on channel {channel.id}."
             )
+            try:
+                await channel.delete(reason="Could not grant creator access to private channel")
+            except Exception as e:
+                print_warning_log(
+                    f"create_private_channel: Failed to delete unusable channel {channel.id} after permission failure: {e}"
+                )
+            await interaction.followup.send(
+                "I couldn't grant you join access to your private channel (likely role hierarchy/category permission conflict), so I canceled creation. "
+                "Please ask an admin to move the bot role higher and verify category voice permissions.",
+                ephemeral=True,
+            )
+            return
 
         try:
             other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
@@ -487,17 +576,17 @@ class UserFeatures(commands.Cog):
 
         await data_access_set_guild_active_private_channel(guild_id, channel.id, user.id, track)
 
-        await interaction.followup.send(
+        success_message = (
             f"Your private channel <#{channel.id}> has been created. "
-            f"Use `/privatechannelinvite` to pull others in. "
+            f"Use `/privatechannelinvite` to grant others access. "
             f"You can leave and click the channel to rejoin. "
-            f"The channel is deleted when empty.",
-            ephemeral=True,
+            f"The channel is deleted when empty."
         )
+        await interaction.followup.send(success_message, ephemeral=True)
 
     @app_commands.command(name=COMMAND_PRIVATE_CHANNEL_INVITE)
     async def invite_to_private_channel(self, interaction: discord.Interaction, user: discord.Member):
-        """Invite a member into your private voice channel. The bot moves them in on your behalf."""
+        """Invite a member into your private voice channel by granting join access and sending them a DM."""
         await interaction.response.defer(ephemeral=True)
 
         guild = interaction.guild
@@ -508,37 +597,83 @@ class UserFeatures(commands.Cog):
         guild_id = guild.id
         invoker_id = interaction.user.id
 
-        active_private_channels = await data_access_get_guild_active_private_channels(guild_id)
-        creator_channel_id = next(
-            (ch_id for ch_id, (creator_id, _) in active_private_channels.items() if creator_id == invoker_id),
-            None,
-        )
-        if creator_channel_id is None:
+        active_private_channels = await self._cleanup_stale_private_channel_entries(guild)
+        creator_channel_ids = [
+            ch_id for ch_id, (creator_id, _) in active_private_channels.items() if creator_id == invoker_id
+        ]
+        if len(creator_channel_ids) == 0:
             await interaction.followup.send("You do not have an active private channel.", ephemeral=True)
             return
 
-        private_channel = guild.get_channel(creator_channel_id)
-        if not isinstance(private_channel, discord.VoiceChannel):
+        private_channel: Optional[discord.VoiceChannel] = None
+        for creator_channel_id in creator_channel_ids:
+            channel = guild.get_channel(creator_channel_id)
+            if isinstance(channel, discord.VoiceChannel):
+                private_channel = channel
+                break
+
+            try:
+                fetched_channel = await guild.fetch_channel(creator_channel_id)
+            except discord.NotFound:
+                await data_access_remove_guild_active_private_channel(guild_id, creator_channel_id)
+                continue
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "I can't access your private channel right now. Please ask an admin to check channel permissions.",
+                    ephemeral=True,
+                )
+                return
+            except discord.HTTPException as e:
+                print_error_log(
+                    f"invite_to_private_channel: Failed to fetch channel {creator_channel_id} in guild {guild_id}: {e}"
+                )
+                await interaction.followup.send(
+                    "I couldn't verify your private channel right now. Please try again in a moment.",
+                    ephemeral=True,
+                )
+                return
+
+            if isinstance(fetched_channel, discord.VoiceChannel):
+                private_channel = fetched_channel
+                break
+
             await data_access_remove_guild_active_private_channel(guild_id, creator_channel_id)
+
+        if private_channel is None:
             await interaction.followup.send("Your private channel no longer exists.", ephemeral=True)
             return
 
-        if user.voice is None:
+        granted = await self._grant_private_channel_connect(private_channel, guild, user)
+        if not granted:
             await interaction.followup.send(
-                f"{user.display_name} is not in a voice channel and cannot be moved.", ephemeral=True
+                "I couldn't grant that member access. The bot role is likely too low in the role hierarchy.",
+                ephemeral=True,
             )
             return
 
+        jump_url = f"https://discord.com/channels/{guild_id}/{private_channel.id}"
+        dm_sent = True
         try:
-            await user.move_to(private_channel)
-            await interaction.followup.send(f"{user.display_name} has been moved to your private channel.", ephemeral=True)
-        except discord.Forbidden:
-            await interaction.followup.send(
-                "The bot does not have permission to move that member.", ephemeral=True
+            await user.send(
+                f"You were invited by **{interaction.user.display_name}** to join **{private_channel.name}** in **{guild.name}**.\n"
+                f"Join here: {jump_url}"
             )
+        except discord.Forbidden:
+            dm_sent = False
         except discord.HTTPException as e:
-            print_error_log(f"invite_to_private_channel: Failed to move {user.id} in guild {guild_id}: {e}")
-            await interaction.followup.send("Failed to move the member. Please try again.", ephemeral=True)
+            print_error_log(f"invite_to_private_channel: Failed to DM {user.id} in guild {guild_id}: {e}")
+            dm_sent = False
+
+        if dm_sent:
+            await interaction.followup.send(
+                f"{user.display_name} has been invited and can now click to join your private channel.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send(
+                f"{user.display_name} has been granted access, but I couldn't DM them (their DMs may be closed).",
+                ephemeral=True,
+            )
 
     @app_commands.command(name=COMMAND_MY_STREAK)
     async def my_streak(self, interaction: discord.Interaction, user: Optional[discord.User] = None):
