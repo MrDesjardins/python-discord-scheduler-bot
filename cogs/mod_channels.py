@@ -438,15 +438,26 @@ class ModChannels(commands.Cog):
             perms = category.permissions_for(guild.me)
             def status(ok: bool) -> str:
                 return "✅" if ok else "❌"
-            lines.append("**Bot permissions in that category:**")
-            lines.append(f"{status(perms.manage_channels)} Manage Channels (required to create channels)")
+            lines.append("**Bot effective permissions in that category:**")
+            lines.append(f"{status(perms.manage_channels)} Manage Channels")
+            lines.append(f"{status(perms.view_channel)} View Channel")
             lines.append(f"{status(perms.connect)} Connect")
-            lines.append(f"{status(perms.move_members)} Move Members (required to move members into the channel)")
-            if not perms.manage_channels or not perms.move_members:
+            lines.append(f"{status(perms.move_members)} Move Members")
+            lines.append(f"{status(perms.manage_roles)} Manage Roles (required to set channel overwrites)")
+            if not perms.manage_channels or not perms.move_members or not perms.manage_roles:
                 lines.append(
                     "\n⚠️ One or more required permissions are missing. "
                     "Go to the category → Edit → Permissions → add the bot's role and grant the missing ones."
                 )
+
+        lines.append("\n**Raw category permission overwrites:**")
+        for target, overwrite in category.overwrites.items():
+            allow, deny = overwrite.pair()
+            name = target.name if hasattr(target, "name") else str(target)
+            lines.append(f"  `{name}`: allow={allow.value}, deny={deny.value}")
+        if not category.overwrites:
+            lines.append("  (none)")
+
         await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 

@@ -46,7 +46,7 @@ from deps.values import (
     PRIVATE_CHANNEL_MIN_HOURS,
 )
 from deps.mybot import MyBot
-from deps.log import print_error_log, print_log
+from deps.log import print_error_log, print_log, print_warning_log
 from deps.siege import get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions import (
     get_url_user_profile_main,
