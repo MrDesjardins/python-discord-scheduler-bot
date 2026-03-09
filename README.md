@@ -8,18 +8,20 @@ The project is a Python Discord bot that aim to perform repetitive tasks for a g
 
 1. The bot sends a daily message to a specific channel of the guild asking the user when they plan to play the game. It uses reaction by emoji for user to specify many range of hours that they plan to play.
 2. The bot allows a user to specify a recurrent schedule.
-3. The bot a voice message to the first user that joins the voice channel giving who is about to come play (optional).
-4. The bot as administrative features with many statistics and analytic giving hindsight on the user's activity to pro-actively reaching folks.
+3. The bot sends a voice message to the first user that joins the voice channel giving who is about to come play (optional).
+4. The bot has administrative features with many statistics and analytics giving hindsight on the user's activity to pro-actively reaching folks.
 5. The bot allows users to know everyone's timezone in a specific voice channel to help identifying the best host.
 6. The bot has a tournament system allowing moderator to create a single elimination tournament with lost reporting and bracket visualization.
 7. The bot allows user to place fake bets on each match of a tournament.
-8. The bot has a daily stats shows the the user.
+8. The bot has a daily stats posted to a configured channel.
 9. The bot uses the Discord activity API to determine when a user in a stack is back in the menu, ready to play and send a LFG (looking for group) message if the user is not in a full stack automatically.
 10. The bot has AI generated summary of what happened in the last 24 hours in term of matches played, kills, deaths, etc. The summary is sent to a specific channel of the guild.
 11. Tournament support 1v1 but also team tournament. The bot can handle 1v1, 2v2, 3v3, 4v4 and 5v5 tournaments.
 12. User can communicate by at-mentioning the bot or replying to the bot's message. The bot will generate an answer based on the context of the conversation and the user's question. The bot can also answer questions about the game, statistics, and other information related to the game. This feature is powered by the Gemini and Open AI API and uses the database to fetch statistics and information about the game.
-13. Allows user to follow any user and get nmotified when one of their follower join a voice channel
-14. Has a custom game mode (10-man) that propose maps by using stats to find the worse maps of the 10-man and organize team using stats (KD, % win, etc)
+13. Allows user to follow any user and get notified when one of their followed users joins a voice channel.
+14. Has a custom game mode (10-man) that proposes maps by using stats to find the worst maps of the 10-man participants and organizes teams using stats (KD, % win, etc).
+15. The bot tracks consecutive daily play streaks per user and allows anyone to check their current streak or another user's streak.
+16. Users with 350+ hours of activity can create a private voice channel under a configured category. Only the creator can join and drag others in; the channel is automatically deleted when empty. Multiple private channels can exist simultaneously.
 
 # What does the Bot look like?
 
@@ -112,6 +114,12 @@ The bot can answer questions about the game, statistics, and other information r
 
 ## User Commands
 
+### Profile Commands
+
+#### setupprofile
+
+A new user must run `/setupprofile` to set up their profile. The command prompts for their Ubisoft account name, fetches their maximum rank from R6 Tracker, and assigns the corresponding role. Without this step the user will have limited access to the server.
+
 ### Game Commands
 
 #### lfg
@@ -148,9 +156,13 @@ Allows a user to get the list of timezones of all people in a specific voice cha
 
 ### Rank/Role Commands
 
-#### `adjustrank`
+#### setmymaxrankaccount
 
-Allows the user to type his Ubisoft account name to fetch the maximum rank he achieved and assign the role.
+Allows the user to set their Ubisoft account name used for fetching the maximum rank they achieved and assigning the corresponding role.
+
+#### setmyactiveaccount
+
+Allows the user to set the Ubisoft account name used for real-time stats collection after gaming sessions. This can be different from the max-rank account.
 
 ### Tournament Commands
 
@@ -169,6 +181,34 @@ Allows to report a lost. If there are many tournaments, the user needs to specif
 Allows to see the current bracket. The bracket is automatically updated to the tournament text channel on a report of a lost. The command allows to regenerate it.
 
 ![Tournament](readme_assets/TournamentSeeBracketCommand.png)
+
+### Streak Commands
+
+#### mystreak
+
+`/mystreak` shows the current consecutive daily play streak for you or another user. A streak increments each day you appear in a tracked voice channel and resets if you miss a day.
+
+```
+/mystreak               → your own streak
+/mystreak user:@Alice   → Alice's streak
+```
+
+### Private Voice Channel Commands
+
+#### privatechannel
+
+`/privatechannel` creates a private voice channel under the category configured by an administrator. Requirements and behaviour:
+
+- Requires **350 hours** of tracked voice activity on the server.
+- Only the creator can connect and drag other members in; everyone else can see the channel but cannot join on their own.
+- The channel is **automatically deleted** when it becomes empty.
+- Multiple private channels can exist at the same time across different users.
+- An optional `track` parameter (default `true`) controls whether time spent in the channel counts toward activity stats. Set `track:False` to create an off-the-record session.
+
+```
+/privatechannel                → tracked private channel
+/privatechannel track:False    → untracked private channel
+```
 
 ### Following Commands
 
@@ -254,6 +294,14 @@ Allows to see what is the voice channels configured for the guild.
 
 Remove all voice channels configuration. It is good to reset and add the voice channels again.
 
+#### modsetprivatechannelcategory
+
+Set the Discord category under which private voice channels will be created when users run `/privatechannel`. Only one category can be configured per guild.
+
+#### modseeprivatechannelcategory
+
+Display the category currently configured for private voice channels.
+
 ### Tournament Commands
 
 #### modcreatetournament
@@ -262,9 +310,17 @@ The moderator can create many tournaments. The tournament is a single eliminatio
 
 ![Tournament](readme_assets/Tournament_Creation.png)
 
-#### modreportlost
+#### modstarttournament
 
-In case a user does not report a lost, a moderator can unblock the tournament by reporting the lost on the behalf of the user
+Start a tournament that has been created and has enough registered participants. This locks registration and generates the initial bracket.
+
+#### modreportlosttournament
+
+In case a user does not report a loss, a moderator can unblock the tournament by reporting the loss on the behalf of the user.
+
+#### modshowendtournamentresult
+
+Display the final results and standings once a tournament has concluded.
 
 #### modtexttournamentchannel
 
@@ -302,7 +358,35 @@ Turn on and off the feature that the bot goes into the voice channel to send a v
 
 #### modshowcommunity
 
-Generate an image that is a network graph of the useer and with whom they play the most.
+Generate an image that is a network graph of the users and with whom they play the most.
+
+#### modstatsmatches
+
+Display match statistics for a user over a configurable time window.
+
+#### modstatsactiveusers
+
+Show which users have been most active (by voice time) over a recent period.
+
+#### moduserinformationsactiveusers
+
+Display detailed profile information for the most active users.
+
+#### moddailystats
+
+Force-send the daily stats summary to the configured channel immediately, without waiting for the scheduled task.
+
+#### modgenaisummary
+
+Force-generate and post an AI-written summary of the last 24 hours of match activity to the configured AI channel.
+
+#### modvoicecurrentactivity
+
+Display the current Siege activity state (menu, ranked, custom game, etc.) for all users currently in voice channels.
+
+#### modbotpermission
+
+Display the bot's effective permissions in the current channel. Useful for diagnosing permission issues.
 
 #### modversion
 
