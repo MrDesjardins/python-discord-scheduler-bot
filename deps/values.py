@@ -96,6 +96,10 @@ COMMAND_SEE_FOLLOWED_USERS = "seefollowedusers"
 ## Streaks
 COMMAND_MY_STREAK = "mystreak"
 
+## Private Channel
+COMMAND_PRIVATE_CHANNEL = "privatechannel"
+PRIVATE_CHANNEL_MIN_HOURS = 350
+
 # -----------------------
 # Moderator's commands
 
@@ -133,6 +137,8 @@ COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS = "modvoicecustomgamechannels"
 COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS = "modseesvoicecustomgamechannels"
 COMMAND_CHANNEL_SET_AI_CHANNEL = "modtextaichannel"
 COMMAND_CHANNEL_GET_AI_CHANNEL = "modseeaichannel"
+COMMAND_SET_PRIVATE_CHANNEL_CATEGORY = "modsetprivatechannelcategory"
+COMMAND_SEE_PRIVATE_CHANNEL_CATEGORY = "modseeprivatechannelcategory"
 
 ## Analytics
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"

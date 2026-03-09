@@ -49,6 +49,8 @@ KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY = "GuildCustomGameVoiceChannelLobby"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1 = "GuildCustomGameVoiceChannelTeam1"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2 = "GuildCustomGameVoiceChannelTeam2"
 KEY_LAST_MATCH_START_GIF = "LastMatchStartGif"
+KEY_GUILD_PRIVATE_CHANNEL_CATEGORY = "GuildPrivateChannelCategory"
+KEY_GUILD_ACTIVE_PRIVATE_CHANNEL = "GuildActivePrivateChannel"
 
 
 async def data_access_get_guild(guild_id: int) -> Union[discord.Guild, None]:
@@ -505,3 +507,28 @@ async def data_access_set_last_match_start_gif_time(guild_id: int, channel_id: i
     """Set the last time a match start GIF was sent for a specific voice channel"""
     key = f"{KEY_LAST_MATCH_START_GIF}:{guild_id}:{channel_id}"
     set_cache(False, key, time, ONE_HOUR_TTL)
+
+
+async def data_access_get_guild_private_channel_category_id(guild_id: int) -> Union[int, None]:
+    """Get the category where private channels are created"""
+    return await get_cache(False, f"{KEY_GUILD_PRIVATE_CHANNEL_CATEGORY}:{guild_id}")
+
+
+def data_access_set_guild_private_channel_category_id(guild_id: int, category_id: int) -> None:
+    """Set the category where private channels are created"""
+    set_cache(False, f"{KEY_GUILD_PRIVATE_CHANNEL_CATEGORY}:{guild_id}", category_id, ALWAYS_TTL)
+
+
+async def data_access_get_guild_active_private_channel(guild_id: int) -> Union[tuple[int, int], None]:
+    """Get the active private channel (channel_id, creator_id) or None"""
+    return await get_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}")
+
+
+def data_access_set_guild_active_private_channel(guild_id: int, channel_id: int, creator_id: int) -> None:
+    """Set the active private channel"""
+    set_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}", (channel_id, creator_id), ALWAYS_TTL)
+
+
+def data_access_remove_guild_active_private_channel(guild_id: int) -> None:
+    """Remove the active private channel record"""
+    remove_cache(False, f"{KEY_GUILD_ACTIVE_PRIVATE_CHANNEL}:{guild_id}")

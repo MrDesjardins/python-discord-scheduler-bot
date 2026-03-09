@@ -2,7 +2,7 @@
 User command for anything related to the user like their max rank, active rank, timezone, etc.
 """
 
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime, timezone
 import discord
 from discord.ext import commands
@@ -12,6 +12,10 @@ from ui.confirmation_rank_view import ConfirmCancelView
 from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
 from deps.data_access import (
     data_access_get_member,
+    data_access_get_guild_private_channel_category_id,
+    data_access_get_guild_active_private_channel,
+    data_access_set_guild_active_private_channel,
+    data_access_remove_guild_active_private_channel,
 )
 from deps.follow_data_access import fetch_all_followed_users_by_user_id, remove_following_user, save_following_user
 from deps.streak_data_access import compute_current_streak, fetch_distinct_play_dates
@@ -35,8 +39,10 @@ from deps.values import (
     COMMAND_LFG,
     COMMAND_MAX_RANK_USER_ACCOUNT,
     COMMAND_MY_STREAK,
+    COMMAND_PRIVATE_CHANNEL,
     COMMAND_SEE_FOLLOWED_USERS,
     COMMAND_UNFOLLOW_USER,
+    PRIVATE_CHANNEL_MIN_HOURS,
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
@@ -356,6 +362,89 @@ class UserFeatures(commands.Cog):
                 "Something went wrong, please contact the moderator to check the issue.",
                 ephemeral=True,
             )
+
+    @app_commands.command(name=COMMAND_PRIVATE_CHANNEL)
+    async def create_private_channel(self, interaction: discord.Interaction):
+        """Create a private voice channel. Only you can join and drag others in. Deleted when empty. Requires 100h of activity."""
+        await interaction.response.defer(ephemeral=True)
+
+        guild = interaction.guild
+        if guild is None:
+            print_error_log(f"create_private_channel: Guild is None for user {interaction.user.id}.")
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+
+        guild_id = guild.id
+        user = interaction.user
+
+        hours = data_access_fetch_total_hours(user.id)
+        if hours is None or hours < PRIVATE_CHANNEL_MIN_HOURS:
+            await interaction.followup.send(
+                f"You need at least {PRIVATE_CHANNEL_MIN_HOURS} hours of activity on this server to use this command. You currently have {hours or 0} hours.",
+                ephemeral=True,
+            )
+            return
+
+        category_id = await data_access_get_guild_private_channel_category_id(guild_id)
+        if category_id is None:
+            await interaction.followup.send(
+                "The private channel category has not been configured. Please ask an administrator to set it up.",
+                ephemeral=True,
+            )
+            return
+
+        category = guild.get_channel(category_id)
+        if not isinstance(category, discord.CategoryChannel):
+            await interaction.followup.send(
+                "The configured category no longer exists. Please ask an administrator to reconfigure it.",
+                ephemeral=True,
+            )
+            return
+
+        active = await data_access_get_guild_active_private_channel(guild_id)
+        if active is not None:
+            existing_channel_id, _ = active
+            existing_channel = guild.get_channel(existing_channel_id)
+            if existing_channel is not None:
+                await interaction.followup.send(
+                    f"A private channel already exists: <#{existing_channel_id}>. Only one private channel is allowed at a time.",
+                    ephemeral=True,
+                )
+                return
+            # Channel no longer exists in Discord, clean up stale cache
+            data_access_remove_guild_active_private_channel(guild_id)
+
+        creator = guild.get_member(user.id)
+        if creator is None:
+            await interaction.followup.send("Could not resolve your membership in this server.", ephemeral=True)
+            return
+
+        overwrites: dict[Union[discord.Role, discord.Member], discord.PermissionOverwrite] = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, move_members=False),
+            creator: discord.PermissionOverwrite(view_channel=True, connect=True, move_members=True),
+        }
+        if guild.me is not None:
+            overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, connect=True, manage_channels=True)
+
+        channel = await guild.create_voice_channel(
+            name=f"{creator.display_name}'s private vc",
+            category=category,
+            overwrites=overwrites,
+        )
+
+        other_positions = [ch.position for ch in category.channels if ch.id != channel.id]
+        bottom_position = max(other_positions) + 1 if other_positions else channel.position
+        await channel.edit(position=bottom_position)
+
+        data_access_set_guild_active_private_channel(guild_id, channel.id, user.id)
+
+        if creator.voice is not None:
+            await creator.move_to(channel)
+
+        await interaction.followup.send(
+            f"Your private channel <#{channel.id}> has been created. Only you can join and drag others in. It will be deleted when empty.",
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_MY_STREAK)
     async def my_streak(self, interaction: discord.Interaction, user: Optional[discord.User] = None):

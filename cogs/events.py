@@ -23,10 +23,12 @@ from deps.bot_common_actions import (
 from deps.data_access import (
     data_access_get_channel,
     data_access_get_custom_game_voice_channels,
+    data_access_get_guild_active_private_channel,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_voice_channel_ids,
     data_access_get_main_text_channel_id,
     data_access_get_new_user_text_channel_id,
+    data_access_remove_guild_active_private_channel,
     data_access_remove_voice_user_list,
     data_access_update_voice_user_list,
     data_access_get_voice_user_list,
@@ -275,6 +277,18 @@ class MyEventsCog(commands.Cog):
                 )
         except Exception as e:
             print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
+
+        # Delete private channel if it is now empty
+        left_channel = before.channel if (before.channel is not None and after.channel != before.channel) else None
+        if left_channel is not None:
+            try:
+                active_private = await data_access_get_guild_active_private_channel(guild_id)
+                if active_private is not None and left_channel.id == active_private[0]:
+                    if len(left_channel.members) == 0:
+                        await left_channel.delete(reason="Private channel is empty")
+                        data_access_remove_guild_active_private_channel(guild_id)
+            except Exception as e:
+                print_error_log(f"on_voice_state_update: Error deleting private channel: {e}")
 
         # Check if the user joined a voice channel to send a voice message
         if after.channel is not None and after.channel.id in voice_channel_ids:

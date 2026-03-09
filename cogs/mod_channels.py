@@ -9,6 +9,7 @@ from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.data_access import (
     data_access_get_ai_text_channel_id,
     data_access_get_gaming_session_text_channel_id,
+    data_access_get_guild_private_channel_category_id,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
@@ -17,6 +18,7 @@ from deps.data_access import (
     data_access_set_ai_text_channel_id,
     data_access_set_custom_game_voice_channels,
     data_access_set_gaming_session_text_channel_id,
+    data_access_set_guild_private_channel_category_id,
     data_access_set_guild_username_text_channel_id,
     data_access_set_main_text_channel_id,
     data_access_set_new_user_text_channel_id,
@@ -41,6 +43,8 @@ from deps.values import (
     COMMAND_SET_NEW_USER_CHANNEL,
     COMMAND_CHANNEL_SET_AI_CHANNEL,
     COMMAND_CHANNEL_GET_AI_CHANNEL,
+    COMMAND_SET_PRIVATE_CHANNEL_CATEGORY,
+    COMMAND_SEE_PRIVATE_CHANNEL_CATEGORY,
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
@@ -390,6 +394,38 @@ class ModChannels(commands.Cog):
             return
 
         await interaction.followup.send(f"The new user text channel is <#{channel_id}>", ephemeral=True)
+
+
+    @app_commands.command(name=COMMAND_SET_PRIVATE_CHANNEL_CATEGORY)
+    @commands.has_permissions(administrator=True)
+    async def set_private_channel_category(self, interaction: discord.Interaction, category: discord.CategoryChannel):
+        """Set the category where private voice channels will be created"""
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("set_private_channel_category: Guild is None.")
+            return
+        data_access_set_guild_private_channel_category_id(guild.id, category.id)
+        await interaction.followup.send(
+            f"Private voice channels will be created under the **{category.name}** category.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name=COMMAND_SEE_PRIVATE_CHANNEL_CATEGORY)
+    @commands.has_permissions(administrator=True)
+    async def see_private_channel_category(self, interaction: discord.Interaction):
+        """Display the category configured for private voice channels"""
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("see_private_channel_category: Guild is None.")
+            return
+        category_id = await data_access_get_guild_private_channel_category_id(guild.id)
+        if category_id is None:
+            print_warning_log(f"No private channel category in guild {guild.name}. Skipping.")
+            await interaction.followup.send("Private channel category not set.", ephemeral=True)
+            return
+        await interaction.followup.send(f"Private channels are created under <#{category_id}>.", ephemeral=True)
 
 
 async def setup(bot):

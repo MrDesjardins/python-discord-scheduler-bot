@@ -63,5 +63,5 @@ async def announce_streak_milestones_for_guild(guild: discord.Guild) -> None:
 
     try:
         await channel.send(content="\n".join(milestone_lines))
-    except Exception as e:
+    except discord.HTTPException as e:
         print_error_log(f"announce_streak_milestones_for_guild: Failed to send milestone message in {guild.name}: {e}")

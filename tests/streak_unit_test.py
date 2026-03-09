@@ -9,14 +9,9 @@ import pytest
 
 from deps.streak_data_access import compute_current_streak
 
-# Pin "today" for all tests so results don't change depending on when they run.
-TODAY = date.today()
-YESTERDAY = TODAY - timedelta(days=1)
-
-
 def days_ago(n: int) -> date:
     """Return the date n days before today."""
-    return TODAY - timedelta(days=n)
+    return date.today() - timedelta(days=n)
 
 
 # ---------------------------------------------------------------------------
@@ -46,11 +41,11 @@ def test_last_played_a_week_ago_returns_zero():
 
 def test_played_only_today_returns_one():
     """Playing for the first time today gives a streak of 1."""
-    assert compute_current_streak([TODAY]) == 1
+    assert compute_current_streak([days_ago(0)]) == 1
 
 
 def test_two_consecutive_days_ending_today():
-    assert compute_current_streak([TODAY, YESTERDAY]) == 2
+    assert compute_current_streak([days_ago(0), days_ago(1)]) == 2
 
 
 def test_seven_consecutive_days_ending_today():
@@ -70,7 +65,7 @@ def test_thirty_consecutive_days_ending_today():
 
 def test_played_only_yesterday_returns_one():
     """A streak is still active if the most recent day is yesterday."""
-    assert compute_current_streak([YESTERDAY]) == 1
+    assert compute_current_streak([days_ago(1)]) == 1
 
 
 def test_seven_consecutive_days_ending_yesterday():
@@ -86,19 +81,19 @@ def test_seven_consecutive_days_ending_yesterday():
 def test_gap_in_middle_counts_only_recent_run():
     """A gap two days into the past stops the streak at the recent run."""
     # Played today and yesterday, then gap, then played 3+ days ago.
-    dates = [TODAY, YESTERDAY, days_ago(3), days_ago(4)]
+    dates = [days_ago(0), days_ago(1), days_ago(3), days_ago(4)]
     assert compute_current_streak(dates) == 2
 
 
 def test_played_today_but_gap_after_today():
     """Only one day of recent play; older dates don't extend it."""
-    dates = [TODAY, days_ago(3), days_ago(4), days_ago(5)]
+    dates = [days_ago(0), days_ago(3), days_ago(4), days_ago(5)]
     assert compute_current_streak(dates) == 1
 
 
 def test_played_yesterday_gap_then_older():
     """Streak ends at the gap even when there are older consecutive days."""
-    dates = [YESTERDAY, days_ago(3), days_ago(4), days_ago(5)]
+    dates = [days_ago(1), days_ago(3), days_ago(4), days_ago(5)]
     assert compute_current_streak(dates) == 1
 
 

@@ -144,7 +144,7 @@ class MyTasksCog(commands.Cog):
     async def check_daily_streaks_task(self):
         """
         Every day at 11:50 PM Pacific, check if any user's play streak just hit
-        a milestone (3, 7, 14, 30 days) and announce it in the main text channel.
+        a milestone (3, 7, 14, 30 days) and announce it in the AI text channel.
         """
         print_log(f"check_daily_streaks_task, current time {datetime.now()}")
         for guild in self.bot.guilds:
