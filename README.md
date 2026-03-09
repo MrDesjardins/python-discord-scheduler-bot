@@ -200,7 +200,8 @@ Allows to see the current bracket. The bracket is automatically updated to the t
 `/privatechannel` creates a private voice channel under the category configured by an administrator. Requirements and behaviour:
 
 - Requires **350 hours** of tracked voice activity on the server.
-- Only the creator can connect and drag other members in; everyone else can see the channel but cannot join on their own.
+- Only the creator can connect; everyone else can see the channel but cannot join on their own.
+- The creator uses `/privatechannelinvite @user` to have the bot move a member (who must already be in any voice channel) into the private channel.
 - The channel is **automatically deleted** when it becomes empty.
 - Multiple private channels can exist at the same time across different users.
 - An optional `track` parameter (default `true`) controls whether time spent in the channel counts toward activity stats. Set `track:False` to create an off-the-record session.
@@ -208,6 +209,14 @@ Allows to see the current bracket. The bracket is automatically updated to the t
 ```
 /privatechannel                → tracked private channel
 /privatechannel track:False    → untracked private channel
+```
+
+#### privatechannelinvite
+
+Once you have a private channel, use `/privatechannelinvite @user` to have the bot move a member into it. The target user must already be in a voice channel. Only the creator of the active private channel can use this command.
+
+```
+/privatechannelinvite user:@Alice   → moves Alice into your private channel
 ```
 
 ### Following Commands

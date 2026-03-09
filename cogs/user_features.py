@@ -40,6 +40,7 @@ from deps.values import (
     COMMAND_MAX_RANK_USER_ACCOUNT,
     COMMAND_MY_STREAK,
     COMMAND_PRIVATE_CHANNEL,
+    COMMAND_PRIVATE_CHANNEL_INVITE,
     COMMAND_SEE_FOLLOWED_USERS,
     COMMAND_UNFOLLOW_USER,
     PRIVATE_CHANNEL_MIN_HOURS,
@@ -406,9 +407,28 @@ class UserFeatures(commands.Cog):
             await interaction.followup.send("Could not resolve your membership in this server.", ephemeral=True)
             return
 
+        # Pre-check bot permissions in the category before touching the Discord API.
+        # create_voice_channel needs MANAGE_CHANNELS; member-level overwrites also need MANAGE_ROLES.
+        if guild.me is not None:
+            bot_perms = category.permissions_for(guild.me)
+            missing: list[str] = []
+            if not bot_perms.manage_channels:
+                missing.append("Manage Channels")
+            if not bot_perms.manage_roles:
+                missing.append("Manage Roles")
+            if missing:
+                print_error_log(
+                    f"create_private_channel: Bot missing {missing} in guild {guild_id} category {category_id}."
+                )
+                await interaction.followup.send(
+                    f"This feature is not available yet. An administrator must grant the bot the following permissions inside the **{category.name}** category: **{', '.join(missing)}**.",
+                    ephemeral=True,
+                )
+                return
+
         overwrites: dict[Union[discord.Role, discord.Member], discord.PermissionOverwrite] = {
             guild.default_role: discord.PermissionOverwrite(view_channel=True, connect=False, move_members=False),
-            creator: discord.PermissionOverwrite(view_channel=True, connect=True, move_members=True),
+            creator: discord.PermissionOverwrite(view_channel=True, connect=True),
         }
         if guild.me is not None:
             overwrites[guild.me] = discord.PermissionOverwrite(view_channel=True, connect=True, manage_channels=True, move_members=True)
@@ -435,7 +455,7 @@ class UserFeatures(commands.Cog):
                 ephemeral=True,
             )
         except discord.Forbidden:
-            print_error_log(f"create_private_channel: Missing permissions in guild {guild_id} category {category_id}.")
+            print_error_log(f"create_private_channel: Unexpected Forbidden in guild {guild_id} category {category_id}.")
             if channel is not None:
                 try:
                     await channel.delete(reason="Cleanup after permission error during creation")
@@ -446,6 +466,51 @@ class UserFeatures(commands.Cog):
                 "The bot does not have the required permissions to create a channel in that category. Please ask an administrator to check the bot's permissions.",
                 ephemeral=True,
             )
+
+    @app_commands.command(name=COMMAND_PRIVATE_CHANNEL_INVITE)
+    async def invite_to_private_channel(self, interaction: discord.Interaction, user: discord.Member):
+        """Invite a member into your private voice channel. The bot moves them in on your behalf."""
+        await interaction.response.defer(ephemeral=True)
+
+        guild = interaction.guild
+        if guild is None:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+
+        guild_id = guild.id
+        invoker_id = interaction.user.id
+
+        active_private_channels = await data_access_get_guild_active_private_channels(guild_id)
+        creator_channel_id = next(
+            (ch_id for ch_id, (creator_id, _) in active_private_channels.items() if creator_id == invoker_id),
+            None,
+        )
+        if creator_channel_id is None:
+            await interaction.followup.send("You do not have an active private channel.", ephemeral=True)
+            return
+
+        private_channel = guild.get_channel(creator_channel_id)
+        if not isinstance(private_channel, discord.VoiceChannel):
+            await data_access_remove_guild_active_private_channel(guild_id, creator_channel_id)
+            await interaction.followup.send("Your private channel no longer exists.", ephemeral=True)
+            return
+
+        if user.voice is None:
+            await interaction.followup.send(
+                f"{user.display_name} is not in a voice channel and cannot be moved.", ephemeral=True
+            )
+            return
+
+        try:
+            await user.move_to(private_channel)
+            await interaction.followup.send(f"{user.display_name} has been moved to your private channel.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "The bot does not have permission to move that member.", ephemeral=True
+            )
+        except discord.HTTPException as e:
+            print_error_log(f"invite_to_private_channel: Failed to move {user.id} in guild {guild_id}: {e}")
+            await interaction.followup.send("Failed to move the member. Please try again.", ephemeral=True)
 
     @app_commands.command(name=COMMAND_MY_STREAK)
     async def my_streak(self, interaction: discord.Interaction, user: Optional[discord.User] = None):

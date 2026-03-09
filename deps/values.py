@@ -98,7 +98,8 @@ COMMAND_MY_STREAK = "mystreak"
 
 ## Private Channel
 COMMAND_PRIVATE_CHANNEL = "privatechannel"
-PRIVATE_CHANNEL_MIN_HOURS = 350
+COMMAND_PRIVATE_CHANNEL_INVITE = "privatechannelinvite"
+PRIVATE_CHANNEL_MIN_HOURS = 35
 
 # -----------------------
 # Moderator's commands
