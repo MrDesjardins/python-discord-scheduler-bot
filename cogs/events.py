@@ -12,6 +12,8 @@ import discord
 from deps.ai.ai_functions import BotAISingleton
 from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
+from deps.analytic_data_access import fetch_user_info_by_user_id
+from deps.data_access_data_class import UserInfo
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.bot_common_actions import (
     move_members_between_voice_channel,
@@ -112,6 +114,47 @@ class MyEventsCog(commands.Cog):
                     "time": move_time.isoformat(),
                 },
             )
+
+    @staticmethod
+    def _normalize_message_mentions(message: discord.Message) -> str:
+        """
+        Replace raw Discord mention tokens with stable display names for AI prompts.
+        """
+        content = message.content
+        for mentioned_user in message.mentions:
+            replacement = f"@{mentioned_user.display_name}"
+            content = content.replace(f"<@{mentioned_user.id}>", replacement)
+            content = content.replace(f"<@!{mentioned_user.id}>", replacement)
+            content = content.replace(mentioned_user.mention, replacement)
+        return content
+
+    @staticmethod
+    async def _resolve_user_mentions(message: discord.Message, bot_user_id: int) -> list[UserInfo]:
+        """
+        Resolve mentioned Discord users into UserInfo-like identities for AI prompts.
+        """
+        resolved_mentions: list[UserInfo] = []
+        seen_user_ids: set[int] = set()
+
+        for mentioned_user in message.mentions:
+            if mentioned_user.id == bot_user_id or mentioned_user.id in seen_user_ids:
+                continue
+
+            seen_user_ids.add(mentioned_user.id)
+            user_info = await fetch_user_info_by_user_id(mentioned_user.id)
+            if user_info is None:
+                user_info = UserInfo(
+                    id=mentioned_user.id,
+                    display_name=mentioned_user.display_name,
+                    ubisoft_username_max=None,
+                    ubisoft_username_active=None,
+                    r6_tracker_active_id=None,
+                    time_zone="US/Eastern",
+                    max_mmr=0,
+                )
+            resolved_mentions.append(user_info)
+
+        return resolved_mentions
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -638,15 +681,19 @@ class MyEventsCog(commands.Cog):
                 # Remove duplicates and sort by creation time
                 messages = list({m.id: m for m in messages}.values())
                 messages.sort(key=lambda m: m.created_at)
-                context = "\n".join(f"{m.author.display_name} said: {m.content}" for m in messages)
+                context = "\n".join(
+                    f"{m.author.display_name} said: {self._normalize_message_mentions(m)}" for m in messages
+                )
                 try:
                     user_rank = get_user_rank_siege(message.author)
+                    resolved_mentions = await self._resolve_user_mentions(message, self.bot.user.id)
                     response = await asyncio.to_thread(
                         lambda: asyncio.run(
                             BotAISingleton().bot.generate_answer_when_mentioning_bot(
                                 message.guild.id if message.guild is not None else None,
                                 context,
-                                message.content,
+                                self._normalize_message_mentions(message),
+                                resolved_mentions,
                                 message.author.display_name,
                                 message.author.id,
                                 user_rank,

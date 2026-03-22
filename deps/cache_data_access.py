@@ -63,6 +63,16 @@ def get_value(key: str) -> Union[str, None]:
     """
     Get a value from the cache
     """
+    found, value = get_value_with_presence(key)
+    if not found:
+        return None
+    return value
+
+
+def get_value_with_presence(key: str) -> tuple[bool, Any]:
+    """
+    Get a value from the cache and indicate whether the key exists.
+    """
     result = (
         database_manager.get_cursor()
         .execute(
@@ -76,12 +86,12 @@ def get_value(key: str) -> Union[str, None]:
         .fetchone()
     )
     if result is None:
-        return None
+        return False, None
 
     encoded_value = result[0]  # Get the encoded value
     pickled_value = base64.b64decode(encoded_value)  # Decode the Base64 value
     value = pickle.loads(pickled_value)  # Deserialize the value
-    return value
+    return True, value
 
 
 def remove_key(key: str) -> None:

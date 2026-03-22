@@ -280,7 +280,10 @@ class ModBasic(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         updated_context = await BotAISingleton().update_guild_ai_context(interaction.guild.id, instruction)
         if updated_context is None:
-            await interaction.followup.send("Failed to update the permanent AI context.", ephemeral=True)
+            await interaction.followup.send(
+                "Failed to update the permanent AI context because the new value could not be persisted.",
+                ephemeral=True,
+            )
             return
 
         if updated_context == "":

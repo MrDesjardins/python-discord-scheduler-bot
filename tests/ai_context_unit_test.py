@@ -115,6 +115,17 @@ async def test_guild_ai_context_data_access_round_trip():
 
 
 @pytest.mark.asyncio
+async def test_guild_ai_context_preserves_empty_document():
+    """An existing but empty AI context document should not be treated as missing."""
+    guild_id = 67890
+
+    data_access_set_guild_ai_context(guild_id, "")
+    stored_value = await data_access_get_guild_ai_context(guild_id)
+
+    assert stored_value == ""
+
+
+@pytest.mark.asyncio
 async def test_update_guild_ai_context_persists_new_document():
     """Natural-language updates should save the revised full document."""
     guild_id = 54321
@@ -167,6 +178,7 @@ async def test_generate_answer_when_mentioning_bot_includes_guild_ai_context():
             guild_id,
             "Alice said: hello",
             "@bot who is online?",
+            [],
             "Alice",
             42,
             "Gold",
@@ -186,9 +198,55 @@ async def test_ask_ai_sql_for_stats_includes_guild_ai_context():
     data_access_set_guild_ai_context(guild_id, "Use player nicknames consistently.")
 
     with patch.object(bot_ai, "ask_ai", return_value="SELECT 1") as ask_ai:
-        response = await bot_ai.ask_ai_sql_for_stats(guild_id, "show my match stats", 99)
+        response = await bot_ai.ask_ai_sql_for_stats(guild_id, "show my match stats", 99, [])
 
     prompt = ask_ai.call_args.args[0]
     assert "Use player nicknames consistently." in prompt
     assert "Generate a SQL query" in prompt
     assert response == "SELECT 1"
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_when_mentioning_bot_includes_resolved_mentions():
+    """Bot mention answers should use explicit resolved mention identities."""
+    guild_id = 909
+    bot_ai = BotAI()
+    resolved_user = create_mock_user(55, "fridge")
+
+    ask_ai_async = AsyncMock(return_value="Reply text")
+    ask_ai_sql_for_stats = AsyncMock(return_value="")
+    with patch.object(bot_ai, "ask_ai_async", ask_ai_async), patch.object(
+        bot_ai, "ask_ai_sql_for_stats", ask_ai_sql_for_stats
+    ):
+        await bot_ai.generate_answer_when_mentioning_bot(
+            guild_id,
+            "Patrick said: compare @fridge and @Deus",
+            "@R6SiegeBot who has the best K/D between @fridge and @Deus",
+            [resolved_user],
+            "Patrick",
+            77,
+            "Gold",
+        )
+
+    response_prompt = ask_ai_async.await_args.args[0]
+    sql_prompt = ask_ai_sql_for_stats.await_args.args[1]
+    assert "Resolved mentions:" in response_prompt
+    assert "display_name = fridge" in response_prompt
+    assert "never invent nicknames" in response_prompt
+    assert "@R6SiegeBot who has the best K/D between @fridge and @Deus" in sql_prompt
+
+
+@pytest.mark.asyncio
+async def test_ask_ai_sql_for_stats_includes_resolved_mentions():
+    """SQL prompts should constrain identity resolution to explicit mentioned users."""
+    bot_ai = BotAI()
+    resolved_users = [create_mock_user(10, "fridge"), create_mock_user(11, "Deus")]
+
+    with patch.object(bot_ai, "ask_ai", return_value="SELECT 1") as ask_ai:
+        await bot_ai.ask_ai_sql_for_stats(1, "who has the better k/d", 99, resolved_users)
+
+    prompt = ask_ai.call_args.args[0]
+    assert "Resolved mentioned users:" in prompt
+    assert "display_name = fridge" in prompt
+    assert "display_name = Deus" in prompt
+    assert "restrict to these user ids: 10,11" in prompt

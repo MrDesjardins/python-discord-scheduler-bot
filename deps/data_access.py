@@ -17,8 +17,9 @@ from deps.cache import (
     reset_cache_by_prefixes,
     set_cache,
 )
+from deps.cache_data_access import get_value_with_presence
 from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueueForStats
-from deps.log import print_log
+from deps.log import print_error_log, print_log
 from deps.functions_date import get_now_eastern
 from deps.system_database import database_manager
 
@@ -369,12 +370,19 @@ def data_access_set_ai_text_channel_id(guild_id: int, channel_id: int) -> None:
 
 async def data_access_get_guild_ai_context(guild_id: int) -> Union[str, None]:
     """Get the permanent AI context for a guild."""
-    return await get_cache(False, f"{KEY_GUILD_AI_CONTEXT}:{guild_id}")
+    found, value = get_value_with_presence(f"{KEY_GUILD_AI_CONTEXT}:{guild_id}")
+    if not found:
+        return None
+    return value
 
 
 def data_access_set_guild_ai_context(guild_id: int, context: str) -> None:
     """Persist the permanent AI context for a guild."""
-    set_cache(False, f"{KEY_GUILD_AI_CONTEXT}:{guild_id}", context, ALWAYS_TTL)
+    key = f"{KEY_GUILD_AI_CONTEXT}:{guild_id}"
+    set_cache(False, key, context, ALWAYS_TTL)
+    found, stored_value = get_value_with_presence(key)
+    if not found or stored_value != context:
+        print_error_log(f"data_access_set_guild_ai_context: Failed to persist AI context for guild {guild_id}")
 
 
 def data_access_clear_guild_ai_context(guild_id: int) -> None:
