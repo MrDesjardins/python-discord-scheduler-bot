@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -232,7 +233,7 @@ async def test_generate_answer_when_mentioning_bot_includes_resolved_mentions():
     sql_prompt = ask_ai_sql_for_stats.await_args.args[1]
     assert "Resolved mentions:" in response_prompt
     assert "display_name = fridge" in response_prompt
-    assert "never invent nicknames" in response_prompt
+    assert "unless the permanent server knowledge explicitly defines one" in response_prompt
     assert "@R6SiegeBot who has the best K/D between @fridge and @Deus" in sql_prompt
 
 
@@ -250,3 +251,33 @@ async def test_ask_ai_sql_for_stats_includes_resolved_mentions():
     assert "display_name = fridge" in prompt
     assert "display_name = Deus" in prompt
     assert "restrict to these user ids: 10,11" in prompt
+
+
+@pytest.mark.asyncio
+async def test_resolve_user_mentions_prefers_live_discord_display_name():
+    """Resolved mentions should use the live Discord display name over stale stored display names."""
+    from cogs.events import MyEventsCog
+
+    message = MagicMock()
+    mentioned_user = MagicMock()
+    mentioned_user.id = 111
+    mentioned_user.display_name = "t1deus"
+    mentioned_user.mention = "<@111>"
+    message.mentions = [mentioned_user]
+
+    stored_user = UserInfo(
+        id=111,
+        display_name="Deus",
+        ubisoft_username_max="deus_max",
+        ubisoft_username_active="deus_active",
+        r6_tracker_active_id="uuid-111",
+        time_zone="US/Eastern",
+        max_mmr=4200,
+    )
+
+    with patch("cogs.events.fetch_user_info_by_user_id", AsyncMock(return_value=stored_user)):
+        resolved_users = await MyEventsCog._resolve_user_mentions(message, bot_user_id=999)
+
+    assert len(resolved_users) == 1
+    assert resolved_users[0].display_name == "t1deus"
+    assert resolved_users[0].ubisoft_username_active == "deus_active"

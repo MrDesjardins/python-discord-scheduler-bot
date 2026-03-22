@@ -152,6 +152,16 @@ class MyEventsCog(commands.Cog):
                     time_zone="US/Eastern",
                     max_mmr=0,
                 )
+            else:
+                user_info = UserInfo(
+                    id=user_info.id,
+                    display_name=mentioned_user.display_name,
+                    ubisoft_username_max=user_info.ubisoft_username_max,
+                    ubisoft_username_active=user_info.ubisoft_username_active,
+                    r6_tracker_active_id=user_info.r6_tracker_active_id,
+                    time_zone=user_info.time_zone,
+                    max_mmr=user_info.max_mmr,
+                )
             resolved_mentions.append(user_info)
 
         return resolved_mentions

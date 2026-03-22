@@ -394,7 +394,8 @@ class BotAI:
         context += "Previous messages: " + context_previous_messages
         if resolved_mentions:
             context += "The current question already has these user mentions resolved. "
-            context += "Use these exact identities only, never merge them together, and never invent nicknames, aliases, or descriptors for them. "
+            context += "Use these exact identities only and never merge them together. "
+            context += "Do not invent nicknames, aliases, or descriptors unless the permanent server knowledge explicitly defines one for that resolved user. "
             context += "Resolved mentions: " + self.summarize_users_list(resolved_mentions)
         result_sql = ""
         sql_context = message_user
@@ -432,8 +433,9 @@ class BotAI:
         #     context += "The user like sarcasm, so answer in a sarcastic tone. "
         # else:
         context += "You are a bot that is friendly, helpful and professional. You should not be rude or sarcastic. "
-        context += "Use exact display names for any resolved mentioned users. "
-        context += "Do not invent titles, descriptors, or nicknames such as 'old man'. "
+        context += "Use exact resolved Discord display names for mentioned users as the canonical identity. "
+        context += "If permanent server knowledge explicitly defines a title or alias for one of those resolved users, you may apply it to that exact user only. "
+        context += "Otherwise do not invent titles, descriptors, or nicknames. "
         context += "You should answer in a way that is easy to read and understand under 800 characters. "
         try:
             context = await self.apply_guild_ai_context(guild_id, context)
