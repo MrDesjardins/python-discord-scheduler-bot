@@ -45,6 +45,7 @@ KEY_GUILD_AI_TEXT_CHANNEL = "GuildAITextChannel"
 KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
 KEY_AI_COUNT = "AI_daily_Count"
+KEY_GUILD_AI_CONTEXT = "GuildAIPermanentContext"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY = "GuildCustomGameVoiceChannelLobby"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1 = "GuildCustomGameVoiceChannelTeam1"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2 = "GuildCustomGameVoiceChannelTeam2"
@@ -364,6 +365,21 @@ async def data_access_get_ai_text_channel_id(
 def data_access_set_ai_text_channel_id(guild_id: int, channel_id: int) -> None:
     """Set the channel that the bot will send text related to AI"""
     set_cache(False, f"{KEY_GUILD_AI_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
+
+async def data_access_get_guild_ai_context(guild_id: int) -> Union[str, None]:
+    """Get the permanent AI context for a guild."""
+    return await get_cache(False, f"{KEY_GUILD_AI_CONTEXT}:{guild_id}")
+
+
+def data_access_set_guild_ai_context(guild_id: int, context: str) -> None:
+    """Persist the permanent AI context for a guild."""
+    set_cache(False, f"{KEY_GUILD_AI_CONTEXT}:{guild_id}", context, ALWAYS_TTL)
+
+
+def data_access_clear_guild_ai_context(guild_id: int) -> None:
+    """Remove the permanent AI context for a guild."""
+    remove_cache(False, f"{KEY_GUILD_AI_CONTEXT}:{guild_id}")
 
 
 def data_access_set_voice_user_list(guild_id: int, channel_id: int, user_map: dict[int, ActivityTransition]) -> None:

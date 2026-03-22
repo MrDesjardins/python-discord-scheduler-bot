@@ -21,6 +21,8 @@ from deps.bet.bet_data_access import (
     KEY_bet_user_tournament,
 )
 from deps.data_access import (
+    data_access_get_guild_ai_context,
+    data_access_set_guild_ai_context,
     data_access_execute_sql_query_from_llm,
     data_access_get_ai_daily_count,
     data_access_set_ai_daily_count,
@@ -104,6 +106,66 @@ class BotAI:
                 del self.request_counter_per_day[date_str]
         self.request_counter_per_day[today_str] = self.request_counter_per_day.get(today_str, 0) + 1
         data_access_set_ai_daily_count(self.request_counter_per_day[today_str])
+
+    async def get_guild_ai_context(self, guild_id: Union[int, None]) -> str:
+        """
+        Get the permanent AI context configured for the guild.
+        """
+        if guild_id is None:
+            return ""
+        current_context = await data_access_get_guild_ai_context(guild_id)
+        if current_context is None:
+            return ""
+        return current_context.strip()
+
+    async def apply_guild_ai_context(self, guild_id: Union[int, None], prompt: str) -> str:
+        """
+        Prepend guild permanent context to a prompt when available.
+        """
+        guild_context = await self.get_guild_ai_context(guild_id)
+        if guild_context == "":
+            return prompt
+
+        composed_prompt = (
+            "The following is permanent knowledge configured by the server administrators. "
+            "Treat it as durable context that should inform your answer unless the user explicitly overrides it.\n"
+            "Permanent server knowledge:\n"
+        )
+        composed_prompt += guild_context
+        composed_prompt += "\n\nTask instructions:\n"
+        composed_prompt += prompt
+        return composed_prompt
+
+    async def update_guild_ai_context(self, guild_id: int, instruction: str) -> Union[str, None]:
+        """
+        Use the AI to update the guild permanent context document from a natural-language instruction.
+        Returns the updated full document text.
+        """
+        current_context = await self.get_guild_ai_context(guild_id)
+
+        prompt = (
+            "You are editing a permanent context document used by a Discord bot as server knowledge. "
+            "Apply the moderator instruction to the current document. "
+            "Keep unrelated knowledge unchanged. "
+            "If the instruction asks to add something, add it only if it makes sense as durable server knowledge. "
+            "If the instruction asks to remove or rewrite something, update only the relevant portion. "
+            "Return only the full updated document as plain text with no code fences, no explanations, and no notes."
+        )
+        prompt += "\nCurrent document:\n"
+        prompt += current_context if current_context != "" else "(empty)"
+        prompt += "\nModerator instruction:\n"
+        prompt += instruction
+
+        updated_context = await self.ask_ai_async(prompt, timeout=800, use_gpt=False)
+        if updated_context is None:
+            return None
+
+        cleaned_context = updated_context.replace("```text", "").replace("```", "").strip()
+        if cleaned_context == "(empty)":
+            cleaned_context = ""
+
+        data_access_set_guild_ai_context(guild_id, cleaned_context)
+        return cleaned_context
 
     def today_count(self):
         """
@@ -239,7 +301,7 @@ class BotAI:
 
         return users_filtered, full_matches_info_by_user_id
 
-    async def generate_message_summary_matches_async(self, hours: int) -> str:
+    async def generate_message_summary_matches_async(self, guild_id: Union[int, None], hours: int) -> str:
         """
         Async version: Generate a message summary of the matches played by the users without blocking the event loop.
         Uses automatic Gemini->GPT fallback from ask_ai_async.
@@ -283,6 +345,8 @@ class BotAI:
         # context += "If the display_name is 'Dom1nator' prefix the name with 'upcoming champion'. "
         # context += "If the display_name is 'fridge ' prefix the name with 'Obey worse nightmare AKA'. "
 
+        context = await self.apply_guild_ai_context(guild_id, context)
+
         print_log(
             f"generate_message_summary_matches_async: Asking AI for {hours} hours summary "
             f"with context size of {len(context)} characters. "
@@ -308,7 +372,13 @@ class BotAI:
             return f"✨**AI summary generated of the last {hours} hours**✨\n⚠️ An error occurred while generating the summary."
 
     async def generate_answer_when_mentioning_bot(
-        self, context_previous_messages: str, message_user: str, user_display_name: str, user_id: int, user_rank: str
+        self,
+        guild_id: Union[int, None],
+        context_previous_messages: str,
+        message_user: str,
+        user_display_name: str,
+        user_id: int,
+        user_rank: str,
     ) -> Union[str, None]:
         """
         Generate an answer when the bot is mentioned.
@@ -325,7 +395,7 @@ class BotAI:
         sql_context = message_user
         while try_count < THRESHOLD_RETRY_AI and result_sql == "":
             # Ask AI to generate a SQL query to fetch stats from the database
-            sql_from_llm = self.ask_ai_sql_for_stats(sql_context, user_id)
+            sql_from_llm = await self.ask_ai_sql_for_stats(guild_id, sql_context, user_id)
             if sql_from_llm is not None and sql_from_llm != "":
                 print_log(f"SQL query generated by AI: {sql_from_llm}")
                 clean_response = sql_from_llm.strip().replace("```sql", "").replace("```", "")
@@ -361,6 +431,7 @@ class BotAI:
         context += "If someone ask about Patrick just know that he is your creator. "
         context += "You should answer in a way that is easy to read and understand under 800 characters. "
         try:
+            context = await self.apply_guild_ai_context(guild_id, context)
             response = await self.ask_ai_async(context)
         except Exception as e:
             print_error_log(f"Error while asking AI: {e}")
@@ -423,7 +494,7 @@ class BotAI:
         cleaned_discord = escape_discord_styling(cleaned_text)
         return cleaned_discord
 
-    def ask_ai_sql_for_stats(self, message_user: str, user_id: int) -> Union[str, None]:
+    async def ask_ai_sql_for_stats(self, guild_id: Union[int, None], message_user: str, user_id: int) -> Union[str, None]:
         """
         Ask AI to generate a SQL query for stats based on the user message.
         """
@@ -492,6 +563,7 @@ class BotAI:
         context += f"Table name: `{KEY_USER_INFO}`."
         context += f'The fields: {USER_INFO_SELECT_FIELD.replace(KEY_USER_INFO + ".", "")}. '
         try:
+            context = await self.apply_guild_ai_context(guild_id, context)
             response = self.ask_ai(context)
             if response is None:
                 print_error_log("ask_ai_sql_for_stats: Both Gemini and GPT failed to generate SQL query.")

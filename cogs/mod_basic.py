@@ -9,6 +9,9 @@ from discord import app_commands
 from cogs.events import MyEventsCog
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.values import (
+    COMMAND_AI_CONTEXT_CLEAR,
+    COMMAND_AI_CONTEXT_EDIT,
+    COMMAND_AI_CONTEXT_VIEW,
     COMMAND_DAILY_STATS,
     COMMAND_FORCE_SEND,
     COMMAND_GENERATE_AI_SUMMARY,
@@ -26,7 +29,9 @@ from deps.functions import (
 )
 from deps.data_access import (
     data_access_get_channel,
+    data_access_clear_guild_ai_context,
     data_access_get_custom_game_voice_channels,
+    data_access_get_guild_ai_context,
     data_access_get_guild_voice_channel_ids,
     data_access_get_main_text_channel_id,
     data_access_reset_guild_cache,
@@ -46,6 +51,22 @@ class ModBasic(commands.Cog):
 
     def __init__(self, bot: MyBot):
         self.bot = bot
+
+    async def _send_ephemeral_text_chunks(
+        self, interaction: discord.Interaction, title: str, text: str, empty_message: str
+    ) -> None:
+        """
+        Send long ephemeral text by splitting it into Discord-safe chunks.
+        """
+        normalized_text = text.strip()
+        if normalized_text == "":
+            await interaction.followup.send(empty_message, ephemeral=True)
+            return
+
+        chunks = split_message_at_paragraphs(normalized_text, max_length=1800)
+        for index, chunk in enumerate(chunks):
+            prefix = f"{title}\n" if index == 0 else ""
+            await interaction.followup.send(prefix + f"```text\n{chunk}\n```", ephemeral=True)
 
     @app_commands.command(name=COMMAND_VERSION)
     @commands.has_permissions(administrator=True)
@@ -186,6 +207,7 @@ class ModBasic(commands.Cog):
         await interaction.followup.send(f"Generating stats for id {stats_id} completed!", ephemeral=True)
 
     @app_commands.command(name=COMMAND_GENERATE_AI_SUMMARY)
+    @commands.has_permissions(administrator=True)
     async def generate_ai_summary(self, interaction: discord.Interaction, hours: int = 24):
         """
         Generate an AI summary of the matches.
@@ -214,7 +236,7 @@ class ModBasic(commands.Cog):
             print_error_log(f"\t⚠️ generate_ai_summary: Channel not found for guild {guild.name}. Skipping.")
             return
 
-        msg = await BotAISingleton().generate_message_summary_matches_async(hours)
+        msg = await BotAISingleton().generate_message_summary_matches_async(guild.id, hours)
         if msg == "":
             await interaction.followup.send("Error while generating the summary", ephemeral=True)
             return
@@ -224,6 +246,77 @@ class ModBasic(commands.Cog):
         for chunk in chunks:
             await channel.send(content=chunk)
         await interaction.followup.send("Done", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_AI_CONTEXT_VIEW)
+    @commands.has_permissions(administrator=True)
+    async def view_ai_context(self, interaction: discord.Interaction):
+        """
+        Display the permanent AI context configured for this guild.
+        """
+        if interaction.guild is None:
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        context = await data_access_get_guild_ai_context(interaction.guild.id)
+        await self._send_ephemeral_text_chunks(
+            interaction,
+            "Current permanent AI context:",
+            "" if context is None else context,
+            "No permanent AI context is configured for this guild.",
+        )
+
+    @app_commands.command(name=COMMAND_AI_CONTEXT_EDIT)
+    @app_commands.describe(instruction="Describe how to add, rewrite, or remove permanent AI knowledge")
+    @commands.has_permissions(administrator=True)
+    async def edit_ai_context(self, interaction: discord.Interaction, instruction: str):
+        """
+        Update the permanent AI context using a natural-language instruction.
+        """
+        if interaction.guild is None:
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        updated_context = await BotAISingleton().update_guild_ai_context(interaction.guild.id, instruction)
+        if updated_context is None:
+            await interaction.followup.send("Failed to update the permanent AI context.", ephemeral=True)
+            return
+
+        if updated_context == "":
+            await interaction.followup.send(
+                "Permanent AI context updated. The document is now empty.",
+                ephemeral=True,
+            )
+            return
+
+        await self._send_ephemeral_text_chunks(
+            interaction,
+            "Permanent AI context updated:",
+            updated_context,
+            "Permanent AI context updated. The document is now empty.",
+        )
+
+    @app_commands.command(name=COMMAND_AI_CONTEXT_CLEAR)
+    @app_commands.describe(confirm="Set to true to clear the permanent AI context for this guild")
+    @commands.has_permissions(administrator=True)
+    async def clear_ai_context(self, interaction: discord.Interaction, confirm: bool = False):
+        """
+        Clear the permanent AI context configured for this guild.
+        """
+        if interaction.guild is None:
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+
+        if not confirm:
+            await interaction.response.send_message(
+                "Permanent AI context was not cleared. Pass confirm=true to clear it.",
+                ephemeral=True,
+            )
+            return
+
+        data_access_clear_guild_ai_context(interaction.guild.id)
+        await interaction.response.send_message("Permanent AI context cleared.", ephemeral=True)
 
     @app_commands.command(name=COMMAND_MOD_BOT_PERMISSION)
     @commands.has_permissions(administrator=True)

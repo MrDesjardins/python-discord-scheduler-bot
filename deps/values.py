@@ -155,6 +155,9 @@ COMMAND_STATS_ACTIVE_USER = "modstatsactiveusers"
 COMMAND_USER_INFORMATION_ACTIVE_USER = "moduserinformationsactiveusers"
 COMMAND_DAILY_STATS = "moddailystats"
 COMMAND_GENERATE_AI_SUMMARY = "modgenaisummary"
+COMMAND_AI_CONTEXT_VIEW = "modaicontextview"
+COMMAND_AI_CONTEXT_EDIT = "modaicontextedit"
+COMMAND_AI_CONTEXT_CLEAR = "modaicontextclear"
 COMMAND_TEST_MATCH_START_GIF = "modtestmatchstartgif"
 
 # URL from TRN (third-party)

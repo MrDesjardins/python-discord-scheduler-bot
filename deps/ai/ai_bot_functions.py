@@ -84,7 +84,7 @@ async def send_daily_ai_summary_guild(guild: discord.Guild):
         print_error_log(f"\t⚠️ send_daily_ai_summary_guild: Channel not found for guild {guild.name}. Skipping.")
         return
     try:
-        msg = await BotAISingleton().generate_message_summary_matches_async(24)
+        msg = await BotAISingleton().generate_message_summary_matches_async(guild.id, 24)
     except Exception as e:
         print_error_log(f"send_daily_ai_summary_guild>generate_message_summary_matches_async: {e}")
         msg = ""

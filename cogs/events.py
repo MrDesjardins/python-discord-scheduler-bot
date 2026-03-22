@@ -644,7 +644,12 @@ class MyEventsCog(commands.Cog):
                     response = await asyncio.to_thread(
                         lambda: asyncio.run(
                             BotAISingleton().bot.generate_answer_when_mentioning_bot(
-                                context, message.content, message.author.display_name, message.author.id, user_rank
+                                message.guild.id if message.guild is not None else None,
+                                context,
+                                message.content,
+                                message.author.display_name,
+                                message.author.id,
+                                user_rank,
                             )
                         )
                     )
