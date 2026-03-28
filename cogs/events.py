@@ -38,7 +38,13 @@ from deps.data_access import (
     data_access_set_last_match_start_gif_time,
 )
 from deps.log import print_log, print_warning_log, print_error_log
+from deps.functions_here_hints import content_suggests_ten_man_lfg
 from deps.mybot import MyBot
+from deps.values import (
+    COMMAND_CUSTOM_GAME_LFG,
+    COMMAND_CUSTOM_GAME_SUBSCRIBE,
+    COMMAND_LFG,
+)
 from deps.models import ActivityTransition
 from deps.siege import get_any_siege_activity, get_user_rank_siege, get_aggregation_all_activities
 from deps.follow_functions import send_private_notification_following_user
@@ -665,6 +671,32 @@ class MyEventsCog(commands.Cog):
         # Ignore messages from the bot itself
         if message.author == self.bot.user:
             return
+
+        # @here education: mention_everyone is set for both @here and @everyone; only nudge on literal @here
+        if (
+            message.guild is not None
+            and not message.author.bot
+            and isinstance(message.channel, (discord.TextChannel, discord.Thread))
+            and message.mention_everyone
+            and "@here" in message.content
+        ):
+            if content_suggests_ten_man_lfg(message.content):
+                reply = (
+                    f"{message.author.mention} For 10-man / custom game LFG, `@here` is not the usual pattern — "
+                    f"use `/{COMMAND_CUSTOM_GAME_LFG}` to ping subscribers and `/{COMMAND_CUSTOM_GAME_SUBSCRIBE}` "
+                    "to join the notification list."
+                )
+            else:
+                reply = (
+                    f"{message.author.mention} For general LFG, try `/{COMMAND_LFG}` instead of `@here` "
+                    "(you need to be in a voice channel for that command to work)."
+                )
+            try:
+                await message.channel.send(reply)
+            except discord.Forbidden as e:
+                print_warning_log(f"on_message @here hint: missing permission to send in channel: {e}")
+            except discord.HTTPException as e:
+                print_error_log(f"on_message @here hint: HTTP error sending reply: {e}")
 
         # Check if the bot was mentioned
         if self.bot.user in message.mentions:

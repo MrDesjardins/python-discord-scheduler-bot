@@ -153,7 +153,13 @@ class UserCustomGameFeatures(commands.Cog):
                 member_mentions.append(f"User ID {user_id} (not found in guild)")
 
         mentions_text = ", ".join(member_mentions)
-        await interaction.followup.send(content=f"{mentions_text} are you available for a 10-man?", ephemeral=True)
+        await interaction.followup.send(
+            content=(
+                f"{mentions_text} are you available for a 10-man? "
+                f"You can add yourself to this list with `/{COMMAND_CUSTOM_GAME_SUBSCRIBE}`."
+            ),
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_CUSTOM_GAME_MAKE_TEAM)
     async def custom_game_make_team(self, interaction: discord.Interaction, team_algo: TeamAlgo):
