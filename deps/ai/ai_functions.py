@@ -206,19 +206,45 @@ class BotAI:
         # Fall back to GPT (or use it if requested explicitly)
         try:
             print_log("ask_ai: Attempting to use OpenAI GPT API...")
-            client_open_ai = OpenAI()
-            response_open_ai = client_open_ai.chat.completions.create(
-                model="gpt-4o",
-                messages=[{"role": "user", "content": question}]
-            )
+            print_log(f"ask_ai: OPENAI_API_KEY present: {bool(os.getenv('OPENAI_API_KEY'))}")
+            if os.getenv('OPENAI_API_KEY'):
+                print_log(f"ask_ai: API key starts with: {os.getenv('OPENAI_API_KEY')[:10]}...")
 
-            if response_open_ai.choices and len(response_open_ai.choices) > 0:
-                result = response_open_ai.choices[0].message.content
-                print_log("ask_ai: OpenAI GPT API response successful.")
-                return result
-            else:
-                print_error_log("ask_ai: GPT response has no choices or is empty.")
-                return None
+            client_open_ai = OpenAI()
+
+            # Try GPT-4o first, fallback to GPT-3.5-turbo if access denied
+            models_to_try = ["gpt-4o", "gpt-3.5-turbo"]
+
+            for model in models_to_try:
+                try:
+                    print_log(f"ask_ai: Trying OpenAI model: {model}")
+                    response_open_ai = client_open_ai.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": question}]
+                    )
+
+                    if response_open_ai.choices and len(response_open_ai.choices) > 0:
+                        result = response_open_ai.choices[0].message.content
+                        print_log(f"ask_ai: OpenAI {model} API response successful.")
+                        return result
+                    else:
+                        print_error_log(f"ask_ai: {model} response has no choices or is empty.")
+                        continue  # Try next model
+
+                except Exception as model_error:
+                    error_str = str(model_error).lower()
+                    print_error_log(f"ask_ai: {model} failed with error: {model_error}")
+                    if "model" in error_str and ("not found" in error_str or "access" in error_str or "permission" in error_str):
+                        print_error_log(f"ask_ai: {model} not available, trying next model.")
+                        continue  # Try next model
+                    else:
+                        # For other errors (rate limit, auth, etc.), don't try other models
+                        raise model_error
+
+            # If we get here, all models failed
+            print_error_log("ask_ai: All OpenAI models failed to return a valid response.")
+            return None
+
         except Exception as e:
             print_error_log(f"ask_ai: OpenAI GPT API error: {e}")
             return None
