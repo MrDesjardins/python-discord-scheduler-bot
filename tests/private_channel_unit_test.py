@@ -137,9 +137,7 @@ class TestCreatePrivateChannelCommand:
         assert "category" in msg.lower()
 
     @pytest.mark.asyncio
-    async def test_rejected_when_category_not_found_in_guild(
-        self, mock_bot, mock_interaction, mock_guild
-    ):
+    async def test_rejected_when_category_not_found_in_guild(self, mock_bot, mock_interaction, mock_guild):
         from cogs.user_features import UserFeatures
 
         cog = UserFeatures(mock_bot)
@@ -374,7 +372,9 @@ class TestCreatePrivateChannelCommand:
                 return_value=mock_category.id,
             ),
             patch.object(cog, "_grant_private_channel_connect", new=AsyncMock(return_value=False)),
-            patch("cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock) as mock_set,
+            patch(
+                "cogs.user_features.data_access_set_guild_active_private_channel", new_callable=AsyncMock
+            ) as mock_set,
         ):
             await cog.create_private_channel.callback(cog, mock_interaction)
 
@@ -515,7 +515,9 @@ class TestPrivateChannelInviteCommand:
         cog = UserFeatures(mock_bot)
         mock_private_channel.set_permissions = AsyncMock()
         mock_private_channel.permissions_for = MagicMock(side_effect=[_perms(False, False), _perms(True, True)])
-        mock_guild.get_channel.side_effect = lambda channel_id: None if channel_id == stale_channel_id else mock_private_channel
+        mock_guild.get_channel.side_effect = lambda channel_id: (
+            None if channel_id == stale_channel_id else mock_private_channel
+        )
         mock_guild.fetch_channel = AsyncMock(side_effect=discord.NotFound(MagicMock(), "Not found"))
 
         with (

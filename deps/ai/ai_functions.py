@@ -6,9 +6,11 @@ from __future__ import annotations  # Enables forward reference resolution
 from datetime import datetime, timedelta, timezone
 import os
 import asyncio
+import time
 from typing import List, Union
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 from openai import OpenAI
 from deps.bet.bet_data_access import (
     SELECT_BET_GAME,
@@ -58,8 +60,10 @@ from deps.functions import escape_discord_styling
 
 load_dotenv()
 
-THRESHOLD_GEMINI = 250
+THRESHOLD_GEMINI = 500
 THRESHOLD_RETRY_AI = 5
+# Gemini SDK HTTP timeout in milliseconds (large prompts; avoids stuck sockets indefinitely)
+GEMINI_HTTP_TIMEOUT_MS = 4*60*1000
 
 
 class BotAI:
@@ -174,45 +178,52 @@ class BotAI:
         today_str = self.today_key()
         return self.request_counter_per_day.get(today_str, 0)
 
-    def ask_ai(self, question: str, use_gpt: bool = False) -> Union[str, None]:
+    def _try_gemini(self, question: str) -> Union[str, None]:
         """
-        Ask AI a question and return the answer (blocking).
-        Automatically falls back from Gemini to GPT on failure.
+        Blocking Gemini-only attempt. Returns text on success, None to signal fallback.
         """
-        print_log(f"ask_ai: The number of AI count today is {self.today_count()}.")
-
-        # Determine if we should try Gemini first
-        should_try_gemini = not use_gpt and self.today_count() < THRESHOLD_GEMINI
-
-        # Try Gemini first if appropriate
-        if should_try_gemini:
-            try:
-                gemini_key = os.getenv("GEMINI_API_KEY")
-                if not gemini_key:
-                    print_error_log("ask_ai: GEMINI_API_KEY not found in environment variables. Falling back to GPT.")
-                else:
-                    print_log("ask_ai: Attempting to use Gemini API...")
-                    client_gemini = genai.Client(api_key=gemini_key)
-                    response_gemini = client_gemini.models.generate_content(model="gemini-2.5-flash", contents=question)
-
-                    if hasattr(response_gemini, "text") and response_gemini.text:
-                        print_log("ask_ai: Gemini API response successful.")
-                        return response_gemini.text
-                    else:
-                        print_error_log("ask_ai: Gemini response has no 'text' attribute or is empty. Falling back to GPT.")
-            except Exception as e:
-                print_error_log(f"ask_ai: Gemini API error: {e}. Falling back to GPT.")
-
-        # Fall back to GPT (or use it if requested explicitly)
         try:
-            print_log("ask_ai: Attempting to use OpenAI GPT API...")
-            print_log(f"ask_ai: OPENAI_API_KEY present: {bool(os.getenv('OPENAI_API_KEY'))}")
-            if os.getenv('OPENAI_API_KEY'):
-                print_log(f"ask_ai: API key starts with: {os.getenv('OPENAI_API_KEY')[:10]}...")
+            gemini_key = os.getenv("GEMINI_API_KEY")
+            if not gemini_key:
+                print_error_log("ask_ai: GEMINI_API_KEY not found in environment variables. Falling back to GPT.")
+                return None
+            key_len = len(gemini_key)
+            prefix = gemini_key[:8] if key_len >= 8 else gemini_key
+            print_log(f"ask_ai: GEMINI_API_KEY present: True, prefix: {prefix}... (len={key_len})")
+            print_log("ask_ai: Attempting to use Gemini API (model: gemini-2.5-flash)...")
+            client_gemini = genai.Client(
+                api_key=gemini_key,
+                http_options=types.HttpOptions(timeout=GEMINI_HTTP_TIMEOUT_MS),
+            )
+            print_log("ask_ai: Calling Gemini generate_content...")
+            t_call = time.monotonic()
+            response_gemini = client_gemini.models.generate_content(
+                model="gemini-2.5-flash", contents=question
+            )
+            elapsed = time.monotonic() - t_call
+            print_log(f"ask_ai: Gemini generate_content finished in {elapsed:.2f}s")
 
+            if hasattr(response_gemini, "text") and response_gemini.text:
+                print_log("ask_ai: SUCCESS - Using Gemini (gemini-2.5-flash) API response.")
+                return response_gemini.text
+            print_error_log("ask_ai: Gemini response has no 'text' attribute or is empty. Falling back to GPT.")
+            return None
+        except Exception as e:
+            print_error_log(f"ask_ai: Gemini API error ({type(e).__name__}): {e}. Falling back to GPT.")
+            return None
+
+    def _try_openai(self, question: str) -> Union[str, None]:
+        """
+        Blocking OpenAI-only attempt.
+        """
+        print_log("ask_ai: Attempting to use OpenAI GPT API...")
+        print_log(f"ask_ai: OPENAI_API_KEY present: {bool(os.getenv('OPENAI_API_KEY'))}")
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if openai_key:
+            print_log(f"ask_ai: API key starts with: {openai_key[:10]}...")
+
+        try:
             client_open_ai = OpenAI()
-
-            # Try GPT-4o first, fallback to GPT-3.5-turbo if access denied
             models_to_try = ["gpt-4o", "gpt-3.5-turbo"]
 
             for model in models_to_try:
@@ -220,28 +231,26 @@ class BotAI:
                     print_log(f"ask_ai: Trying OpenAI model: {model}")
                     response_open_ai = client_open_ai.chat.completions.create(
                         model=model,
-                        messages=[{"role": "user", "content": question}]
+                        messages=[{"role": "user", "content": question}],
                     )
 
                     if response_open_ai.choices and len(response_open_ai.choices) > 0:
                         result = response_open_ai.choices[0].message.content
-                        print_log(f"ask_ai: OpenAI {model} API response successful.")
+                        print_log(f"ask_ai: SUCCESS - Using OpenAI {model} API response.")
                         return result
-                    else:
-                        print_error_log(f"ask_ai: {model} response has no choices or is empty.")
-                        continue  # Try next model
+                    print_error_log(f"ask_ai: {model} response has no choices or is empty.")
+                    continue
 
                 except Exception as model_error:
                     error_str = str(model_error).lower()
                     print_error_log(f"ask_ai: {model} failed with error: {model_error}")
-                    if "model" in error_str and ("not found" in error_str or "access" in error_str or "permission" in error_str):
+                    if "model" in error_str and (
+                        "not found" in error_str or "access" in error_str or "permission" in error_str
+                    ):
                         print_error_log(f"ask_ai: {model} not available, trying next model.")
-                        continue  # Try next model
-                    else:
-                        # For other errors (rate limit, auth, etc.), don't try other models
-                        raise model_error
+                        continue
+                    raise model_error
 
-            # If we get here, all models failed
             print_error_log("ask_ai: All OpenAI models failed to return a valid response.")
             return None
 
@@ -249,20 +258,96 @@ class BotAI:
             print_error_log(f"ask_ai: OpenAI GPT API error: {e}")
             return None
 
-    async def ask_ai_async(self, question: str, timeout: float = 800.0, use_gpt: bool = False) -> Union[str, None]:
+    def ask_ai(self, question: str, use_gpt: bool = False) -> Union[str, None]:
+        """
+        Ask AI a question and return the answer (blocking).
+        Automatically falls back from Gemini to GPT on failure.
+        """
+        print_log(f"ask_ai: The number of AI count today is {self.today_count()}.")
+
+        should_try_gemini = not use_gpt and self.today_count() < THRESHOLD_GEMINI
+
+        if should_try_gemini:
+            print_log("ask_ai: Will try Gemini (gemini-2.5-flash) first, then fallback to OpenAI")
+        else:
+            print_log("ask_ai: Will use OpenAI directly (Gemini threshold exceeded or GPT requested)")
+
+        if should_try_gemini:
+            result = self._try_gemini(question)
+            if result is not None:
+                return result
+
+        return self._try_openai(question)
+
+    async def ask_ai_async(
+        self,
+        question: str,
+        timeout: float = 800.0,
+        use_gpt: bool = False,
+        gemini_timeout: float = 120.0,
+    ) -> Union[str, None]:
         """
         Ask AI a question and return the answer (non-blocking, async, with timeout).
-        Automatically falls back from Gemini to GPT on failure.
+        Gemini and OpenAI run in separate thread phases with independent asyncio timeouts;
+        total wall time is capped by ``timeout``.
         """
         self.increase_daily_count()
         try:
-            result = await asyncio.wait_for(asyncio.to_thread(self.ask_ai, question, use_gpt), timeout=timeout)
-            if result is None:
-                print_error_log("ask_ai_async: Both Gemini and GPT APIs failed to return a valid response.")
-            return result
-        except asyncio.TimeoutError:
-            print_error_log(f"ask_ai_async: AI API call timed out after {timeout} seconds.")
-            return None
+            print_log(f"ask_ai_async: The number of AI count today is {self.today_count()}.")
+
+            should_try_gemini = not use_gpt and self.today_count() < THRESHOLD_GEMINI
+            if should_try_gemini:
+                print_log(
+                    "ask_ai_async: Will try Gemini first (phase timeout), then OpenAI if needed"
+                )
+            else:
+                print_log("ask_ai_async: Will use OpenAI directly (Gemini skipped)")
+
+            deadline = time.monotonic() + timeout
+
+            if should_try_gemini:
+                remaining = deadline - time.monotonic()
+                phase_timeout = min(gemini_timeout, remaining) if remaining > 0 else 0.0
+                if phase_timeout > 0:
+                    try:
+                        result = await asyncio.wait_for(
+                            asyncio.to_thread(self._try_gemini, question),
+                            timeout=phase_timeout,
+                        )
+                        if result is not None:
+                            return result
+                    except asyncio.TimeoutError:
+                        print_error_log(
+                            f"ask_ai_async: Gemini phase timed out after {phase_timeout:.1f}s, "
+                            "falling back to OpenAI"
+                        )
+                elif remaining <= 0:
+                    print_error_log("ask_ai_async: No time budget remaining for Gemini phase")
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                print_error_log(
+                    f"ask_ai_async: Total timeout of {timeout}s reached before OpenAI phase could start"
+                )
+                return None
+
+            openai_phase_budget = remaining
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(self._try_openai, question),
+                    timeout=remaining,
+                )
+                if result is None:
+                    print_error_log(
+                        "ask_ai_async: Both Gemini and GPT APIs failed to return a valid response."
+                    )
+                return result
+            except asyncio.TimeoutError:
+                print_error_log(
+                    f"ask_ai_async: OpenAI phase timed out after {openai_phase_budget:.1f}s "
+                    f"(total cap {timeout}s)."
+                )
+                return None
         except Exception as e:
             print_error_log(f"ask_ai_async: Unexpected error during AI API call: {e}")
             return None

@@ -283,7 +283,7 @@ class UserFeatures(commands.Cog):
                 )
                 return
             try:
-                await data_access_set_max_mmr(member.id, max_mmr)
+                data_access_set_max_mmr(member.id, max_mmr)
             except Exception as e:
                 print_error_log(f"set_max_user_account: Error setting max mmr: {e}")
 
@@ -414,6 +414,11 @@ class UserFeatures(commands.Cog):
             return
 
         try:
+            guild = interaction.guild
+            if guild is None:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
+
             followed_user_ids = fetch_all_followed_users_by_user_id(user.id)
             if not followed_user_ids:
                 await interaction.followup.send(
@@ -426,7 +431,7 @@ class UserFeatures(commands.Cog):
             followed_user_mentions = []
             for user_info in followed_user_infos:
                 if user_info is not None:
-                    member = interaction.guild.get_member(user_info.id)
+                    member = guild.get_member(user_info.id)
                     if member is not None:
                         followed_user_mentions.append(member.mention)
 
@@ -725,12 +730,18 @@ class UserFeatures(commands.Cog):
         first_activity = data_access_fetch_first_activity(user.id)
         last_activity = data_access_fetch_last_activity(user.id)
         display_name = user_info.ubisoft_username_max if user_info.ubisoft_username_max is not None else "Not set"
+        guild_ctx = interaction.guild
+        member_ctx = guild_ctx.get_member(user.id) if guild_ctx is not None else None
+        embed_color = (
+            get_color_for_rank(member_ctx) if member_ctx is not None else int(discord.Color.from_rgb(114, 137, 218))
+        )
+        active_ubi = user_info.ubisoft_username_active or ""
         embed = discord.Embed(
             title=f"{user.display_name} Info",
-            description=f"""Top User Information""",
-            color=get_color_for_rank(user),
+            description="""Top User Information""",
+            color=embed_color,
             timestamp=datetime.now(),
-            url=get_url_user_profile_main(user_info.ubisoft_username_active),
+            url=get_url_user_profile_main(active_ubi) if active_ubi else None,
         )
         if user.avatar is not None:
             embed.set_thumbnail(url=user.avatar.url)
@@ -751,9 +762,12 @@ class UserFeatures(commands.Cog):
             value=f"{user_info.time_zone if user_info.time_zone is not None else 'Not set'}",
             inline=True,
         )
+        joined_display = "Unknown"
+        if member_ctx is not None and member_ctx.joined_at is not None:
+            joined_display = convert_to_eastern_date_time(member_ctx.joined_at)
         embed.add_field(
             name="Joined the server on",
-            value=f"{convert_to_eastern_date_time(user.joined_at) if user.joined_at is not None else 'Unknown'}",
+            value=joined_display,
             inline=True,
         )
         embed.add_field(

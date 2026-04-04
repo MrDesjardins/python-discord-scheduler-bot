@@ -3,7 +3,7 @@
 import asyncio
 import random
 import time
-from typing import List, Union
+from typing import Any, List, Union
 from deps.browser_context_manager import BrowserContextManager
 from deps.browser_exceptions import (
     BrowserException,
@@ -135,7 +135,9 @@ async def download_full_user_information_async(
         return []
 
 
-def download_operator_stats_for_users(users: List[UserInfo]) -> List[tuple[UserInfo, List]]:
+def download_operator_stats_for_users(
+    users: List[UserInfo],
+) -> List[tuple[UserInfo, dict[str, Any]]]:
     """
     Download operator statistics for a list of users using BrowserContextManager.
     Returns list of tuples: (UserInfo, operator_stats_data)
@@ -193,7 +195,9 @@ def download_operator_stats_for_users(users: List[UserInfo]) -> List[tuple[UserI
     return all_operator_stats
 
 
-async def download_operator_stats_for_users_async(users: List[UserInfo]) -> List[tuple[UserInfo, List]]:
+async def download_operator_stats_for_users_async(
+    users: List[UserInfo],
+) -> List[tuple[UserInfo, dict[str, Any]]]:
     """
     Run the blocking download_operator_stats_for_users in another thread.
     """

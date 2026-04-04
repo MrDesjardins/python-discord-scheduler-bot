@@ -17,10 +17,11 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import aiohttp
 from datetime import datetime, timedelta, date, timezone as dt_timezone
-from typing import List, Optional
+from typing import Any, List, Optional, cast
 import discord
 import pytz
 from deps.analytic_leaderboard_data_access import data_access_fetch_users_operators
+from deps.analytic_models import UserOperatorCount
 from deps.analytic_data_access import (
     data_access_fetch_recent_win_loss,
     data_access_fetch_user_full_user_info,
@@ -55,7 +56,7 @@ async def generate_match_start_gif(members: List[discord.Member], guild_id: int,
     all_operator_stats = data_access_fetch_users_operators(from_date)
 
     # Group by user display name
-    user_operator_map = {}
+    user_operator_map: dict[str, list[UserOperatorCount]] = {}
     for stat in all_operator_stats:
         if stat.user not in user_operator_map:
             user_operator_map[stat.user] = []
@@ -120,9 +121,9 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
     # Load font
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_title = ImageFont.truetype(font_path, 36)
-        font_name = ImageFont.truetype(font_path, 20)
-        font_stats = ImageFont.truetype(font_path, 18)
+        font_title: Any = ImageFont.truetype(font_path, 36)
+        font_name: Any = ImageFont.truetype(font_path, 20)
+        font_stats: Any = ImageFont.truetype(font_path, 18)
     except Exception as e:
         print_error_log(f"_create_good_luck_frame: Failed to load font: {e}")
         font_title = ImageFont.load_default()
@@ -230,9 +231,9 @@ async def _create_player_frame(
     # Load font
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_large = ImageFont.truetype(font_path, 28)
-        font_medium = ImageFont.truetype(font_path, 20)
-        font_small = ImageFont.truetype(font_path, 16)
+        font_large: Any = ImageFont.truetype(font_path, 28)
+        font_medium: Any = ImageFont.truetype(font_path, 20)
+        font_small: Any = ImageFont.truetype(font_path, 18)
     except Exception as e:
         print_error_log(f"_create_player_frame: Failed to load font: {e}")
         # Fallback to default font
@@ -349,9 +350,8 @@ async def _download_avatar(member: discord.Member) -> Image.Image:
             async with session.get(str(avatar_url)) as resp:
                 if resp.status == 200:
                     data = await resp.read()
-                    avatar = Image.open(io.BytesIO(data))
-                    avatar = avatar.resize((100, 100), Image.Resampling.LANCZOS)
-                    return avatar
+                    avatar_img = cast(Image.Image, Image.open(io.BytesIO(data)))
+                    return avatar_img.resize((100, 100), Image.Resampling.LANCZOS)
     except Exception as e:
         print_error_log(f"_download_avatar: Failed to download avatar for {member.display_name}: {e}")
 

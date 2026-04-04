@@ -395,7 +395,6 @@ class ModChannels(commands.Cog):
 
         await interaction.followup.send(f"The new user text channel is <#{channel_id}>", ephemeral=True)
 
-
     @app_commands.command(name=COMMAND_SET_PRIVATE_CHANNEL_CATEGORY)
     @commands.has_permissions(administrator=True)
     async def set_private_channel_category(self, interaction: discord.Interaction, category: discord.CategoryChannel):
@@ -436,8 +435,10 @@ class ModChannels(commands.Cog):
         lines = [f"Private channels are created under **{category.name}** (<#{category_id}>).\n"]
         if guild.me is not None:
             perms = category.permissions_for(guild.me)
+
             def status(ok: bool) -> str:
                 return "✅" if ok else "❌"
+
             lines.append("**Bot effective permissions in that category:**")
             lines.append(f"{status(perms.manage_channels)} Manage Channels")
             lines.append(f"{status(perms.view_channel)} View Channel")

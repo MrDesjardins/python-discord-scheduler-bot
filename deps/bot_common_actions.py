@@ -810,6 +810,9 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
 
         # Get text channel
         text_channel_id = await data_access_get_main_text_channel_id(guild_id)
+        if text_channel_id is None:
+            print_log(f"send_match_start_gif: No main text channel id for guild {guild_id}")
+            return
         text_channel = await data_access_get_channel(text_channel_id)
         if not text_channel:
             print_log(f"send_match_start_gif: No main text channel found for guild {guild_id}")

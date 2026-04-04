@@ -1,5 +1,5 @@
 import random
-from typing import List, Union
+from typing import Any, List, Union, cast
 
 import discord
 
@@ -31,19 +31,21 @@ async def _create_team_by_metric(
     team_suggestion = TeamSuggestion()
     users_metric: List[tuple[discord.Member, float]] = []
     for discord_member in user_ids:
+        metric_value: float
         if metric_attr == "mmr":
-            value = data_access_fetch_user_max_current_mmr(discord_member.id)
+            raw_mmr = data_access_fetch_user_max_current_mmr(discord_member.id)
+            metric_value = float(raw_mmr) if raw_mmr is not None else 1.0
         elif metric_attr == "max_mmr":
-            value = data_access_fetch_user_max_mmr(discord_member.id)
+            raw_max = data_access_fetch_user_max_mmr(discord_member.id)
+            metric_value = float(raw_max) if raw_max is not None else 1.0
         else:
             user_info: Union[UserInformation, None] = data_access_fetch_user_full_user_info(discord_member.id)
             if user_info:
-                value = getattr(user_info, metric_attr, 1.0)
+                raw_metric: object = getattr(user_info, metric_attr, None)
+                metric_value = float(cast(Any, raw_metric)) if raw_metric is not None else 1.0
             else:
-                value = 1.0
-        if value is None:
-            value = 1.0
-        users_metric.append((discord_member, float(value)))
+                metric_value = 1.0
+        users_metric.append((discord_member, metric_value))
 
     users_metric.sort(key=lambda x: x[1], reverse=True)
     team1_total = 0.0

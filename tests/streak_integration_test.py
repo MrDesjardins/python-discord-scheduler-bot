@@ -21,6 +21,7 @@ GUILD_A = 9001
 GUILD_B = 9002
 CHANNEL = 100
 
+
 def days_ago(n: int) -> date:
     return date.today() - timedelta(days=n)
 

@@ -350,9 +350,19 @@ class ModBasic(commands.Cog):
         lobby_channel_id, team1_channel_id, team2_channel_id = await data_access_get_custom_game_voice_channels(
             guild_id
         )
+        if lobby_channel_id is None or team1_channel_id is None or team2_channel_id is None:
+            await interaction.followup.send(
+                "Custom game voice channels are not configured for this server.", ephemeral=True
+            )
+            return
         lobby_channel = await data_access_get_channel(lobby_channel_id)
         team1_channel = await data_access_get_channel(team1_channel_id)
         team2_channel = await data_access_get_channel(team2_channel_id)
+        if lobby_channel is None or team1_channel is None or team2_channel is None:
+            await interaction.followup.send(
+                "Could not load custom game voice channels (channels missing).", ephemeral=True
+            )
+            return
         permissions_lobby = lobby_channel.permissions_for(bot_member)
         permissions_team1 = team1_channel.permissions_for(bot_member)
         permissions_team2 = team2_channel.permissions_for(bot_member)
@@ -381,10 +391,10 @@ class ModBasic(commands.Cog):
         self,
         interaction: discord.Interaction,
         member1: discord.Member,
-        member2: discord.Member = None,
-        member3: discord.Member = None,
-        member4: discord.Member = None,
-        member5: discord.Member = None,
+        member2: discord.Member | None = None,
+        member3: discord.Member | None = None,
+        member4: discord.Member | None = None,
+        member5: discord.Member | None = None,
     ):
         """Test the match start GIF generation with specified members"""
         await interaction.response.defer(ephemeral=True)
@@ -399,7 +409,15 @@ class ModBasic(commands.Cog):
         try:
             # Get main text channel
             guild_id = interaction.guild_id
+            if guild_id is None:
+                await interaction.followup.send("This command must be used in a server.", ephemeral=True)
+                return
             text_channel_id = await data_access_get_main_text_channel_id(guild_id)
+            if text_channel_id is None:
+                await interaction.followup.send(
+                    "❌ Main text channel not configured! Use /modtextmainchannel first.", ephemeral=True
+                )
+                return
             text_channel = await data_access_get_channel(text_channel_id)
 
             if not text_channel:

@@ -9,6 +9,7 @@ import pytest
 
 from deps.streak_data_access import compute_current_streak
 
+
 def days_ago(n: int) -> date:
     """Return the date n days before today."""
     return date.today() - timedelta(days=n)

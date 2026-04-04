@@ -5,6 +5,7 @@ Events are actions that the bot listens and reacts to
 
 import os
 import asyncio
+from typing import Any, cast
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from discord.ext import commands
@@ -635,6 +636,11 @@ class MyEventsCog(commands.Cog):
             lobby_channel_id, team1_channel_id, team2_channel_id = await data_access_get_custom_game_voice_channels(
                 guild_id
             )
+            if lobby_channel_id is None or team1_channel_id is None or team2_channel_id is None:
+                print_warning_log(
+                    f"auto_move_custom_game_debounced_cancellable_task: Custom game channel ids not configured for guild {guild_id}. Skipping."
+                )
+                return
             lobby_channel = await data_access_get_channel(lobby_channel_id)
             team1_channel = await data_access_get_channel(team1_channel_id)
             team2_channel = await data_access_get_channel(team2_channel_id)
@@ -651,8 +657,9 @@ class MyEventsCog(commands.Cog):
             await asyncio.sleep(
                 2
             )  # Wait since many people might have the same update (10 people playing the custom game)
-            await move_members_between_voice_channel(team1_channel, lobby_channel)
-            await move_members_between_voice_channel(team2_channel, lobby_channel)
+            # Voice channels; stubs type data_access_get_channel as TextChannel-only.
+            await move_members_between_voice_channel(cast(Any, team1_channel), cast(Any, lobby_channel))
+            await move_members_between_voice_channel(cast(Any, team2_channel), cast(Any, lobby_channel))
         except asyncio.CancelledError:
             pass  # Task was cancelled, cleanup will happen in finally
         except Exception as e:
@@ -728,7 +735,10 @@ class MyEventsCog(commands.Cog):
                 )
                 try:
                     user_rank = get_user_rank_siege(message.author)
-                    resolved_mentions = await self._resolve_user_mentions(message, self.bot.user.id)
+                    bot_user = self.bot.user
+                    if bot_user is None:
+                        return
+                    resolved_mentions = await self._resolve_user_mentions(message, bot_user.id)
                     response = await asyncio.to_thread(
                         lambda: asyncio.run(
                             BotAISingleton().bot.generate_answer_when_mentioning_bot(

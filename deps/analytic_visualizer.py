@@ -6,7 +6,7 @@ import io
 from collections import defaultdict
 from datetime import datetime, date, timedelta
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Union, Any
+from typing import List, Dict, Tuple, Union, Any, cast
 import plotly.graph_objs as go  # type: ignore
 import seaborn as sns
 import numpy as np
@@ -107,7 +107,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     data = _get_data(from_day, to_day)
 
     # Create a graph using NetworkX
-    graph_network = nx.Graph()
+    graph_network: nx.Graph = nx.Graph()
 
     (users_uni_direction, max_weight) = get_unidirection_users(data)
 
@@ -136,7 +136,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     plt.figure(figsize=(24, 24))
 
     # Position the nodes using the spring layout
-    pos = nx.spring_layout(graph_network, scale=None, k=5)
+    pos = nx.spring_layout(graph_network, k=5)
 
     # Draw nodes, coloring by community
     for community_id in communities:
@@ -145,7 +145,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
             graph_network,
             pos,
             nodelist=nodes_in_community,
-            node_color=[colors(community_id)],
+            node_color=cast(Any, [colors(community_id)]),
             label=f"Community {community_id}",
             node_size=700,
         )
@@ -153,7 +153,7 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
     # Draw edges, adjusting width based on the normalized weight
     normalized_weights = nx.get_edge_attributes(graph_network, "weight")
     all_width: List[float] = [weight for weight in normalized_weights.values()]
-    nx.draw_networkx_edges(graph_network, pos, width=all_width)
+    nx.draw_networkx_edges(graph_network, pos, width=cast(Any, all_width))
 
     # Draw labels for users (nodes), adjusted to be above the nodes
     label_pos = {node: (x, y + 0.15) for node, (x, y) in pos.items()}  # Adjust y-coordinate
@@ -207,7 +207,7 @@ def display_graph_cluster_people_3d_animated(
     data = _get_data(from_day, to_day)
 
     # Create a graph using NetworkX
-    graph_network = nx.Graph()
+    graph_network: nx.Graph = nx.Graph()
 
     (users_uni_direction, max_weight) = get_unidirection_users(data)
 
@@ -330,7 +330,7 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
                 }
             )
     # Sort by weight
-    data_for_plot.sort(key=lambda x: x["weight"], reverse=True)
+    data_for_plot.sort(key=lambda x: float(cast(Any, x["weight"])), reverse=True)
     # Get the top 20
     data_for_plot = data_for_plot[:top]
 
@@ -340,7 +340,7 @@ def display_time_relationship(show: bool = True, from_day: int = 3600, to_day: i
     # Get the names
     names = [f"{user['user1']} - {user['user2']}" for user in data_for_plot]
     # Get the weights
-    weights = [(user["weight"] / 3600) for user in data_for_plot]
+    weights = [float(cast(Any, user["weight"])) / 3600 for user in data_for_plot]
     # Create the bar chart
     plt.barh(names, weights)
     plt.xlabel("Hours spent together")
@@ -566,7 +566,7 @@ def display_user_timeline_voice_time_by_day(
         dates = sorted(user_daily_play_times[user_id].keys())
         times = [user_daily_play_times[user_id][date] for date in dates]
         user_name = data_user_id_name[user_id].display_name  # Fetch the user name
-        ax.plot(dates, times, label=user_name, marker="o", linestyle="-")
+        ax.plot(cast(Any, dates), times, label=user_name, marker="o", linestyle="-")
 
     # Format plot
     ax.set_xlabel("Date")
@@ -728,7 +728,7 @@ def display_user_line_graph_time(
 
     if any(user_times):  # Only plot if there's data
         user_name = data_user_id_name[user_id].display_name  # Fetch the user name
-        plt.plot(all_dates, user_times, label=user_name, marker="o", linestyle="-")
+        plt.plot(cast(Any, all_dates), user_times, label=user_name, marker="o", linestyle="-")
 
     # Format each subplot
     plt.xlabel("Week Starting (Monday)")
@@ -951,7 +951,7 @@ def display_unique_user_per_day(from_date: datetime, show: bool = True) -> Union
 
     # Plot
     fig, ax = plt.subplots(figsize=(20, 10))
-    ax.bar(dates, counts, color="skyblue")
+    ax.bar(cast(Any, dates), counts, color="skyblue")
     ax.set_xlabel("Date")
     ax.set_ylabel("Unique Users Connected")
     ax.set_title("Daily Unique Online Users")
@@ -963,9 +963,9 @@ def display_unique_user_per_day(from_date: datetime, show: bool = True) -> Union
 
     # Add vertical lines for quarters
     for q_date in quarter_starts:
-        ax.axvline(q_date, color="red", linestyle="--", linewidth=1)
+        ax.axvline(cast(Any, q_date), color="red", linestyle="--", linewidth=1)
         ax.text(
-            q_date,
+            cast(Any, q_date),
             max(counts) * 0.90,
             f"Y{q_date.year-2015}S{((q_date.month-1)//3)+1}",
             rotation=90,

@@ -140,3 +140,8 @@ line-length = 120
 [[tool.mypy.overrides]]
 module = ["google.genai.*"]
 follow_untyped_imports = true
+
+# Discord UI views: dynamic callbacks and interaction payloads are poorly typed in stubs.
+[[tool.mypy.overrides]]
+module = "ui.*"
+ignore_errors = true

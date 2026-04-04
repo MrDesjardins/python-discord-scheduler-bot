@@ -27,6 +27,9 @@ class ModAnalytics(commands.Cog):
     ):
         """Activate or deactivate the bot voice message"""
         img_bytes = display_graph_cluster_people(False, from_day_ago, to_day_ago)
+        if img_bytes is None:
+            await interaction.response.send_message("Failed to generate community graph.", ephemeral=True)
+            return
         bytesio = io.BytesIO(img_bytes)
         bytesio.seek(0)  # Ensure the BytesIO cursor is at the beginning
         file = discord.File(fp=bytesio, filename="plot.png")

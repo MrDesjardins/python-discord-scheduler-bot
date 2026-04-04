@@ -8,7 +8,7 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import psutil
 from filelock import FileLock
@@ -79,6 +79,11 @@ class BrowserContextManager:
                 success_threshold=self.config.circuit_breaker_success_threshold,
                 timeout_seconds=self.config.circuit_breaker_timeout_seconds,
             )
+
+    def _active_driver(self) -> uc.Chrome:
+        if self.driver is None:
+            raise BrowserException("Browser driver is not initialized.")
+        return self.driver
 
     @staticmethod
     def get_circuit_breaker_stats() -> dict:
@@ -424,12 +429,12 @@ class BrowserContextManager:
         except Exception as e:
             print_log(f"Failed to kill orphaned processes (non-critical): {e}")
 
-    def _check_chrome_environment(self) -> dict:
+    def _check_chrome_environment(self) -> dict[str, Any]:
         """
         Verify Chrome/chromedriver environment before attempting to launch.
         Returns diagnostic information.
         """
-        diagnostics = {}
+        diagnostics: dict[str, Any] = {}
 
         # Check Chrome binary
         chrome_path = "/usr/bin/google-chrome" if self.environment == "prod" else None
@@ -608,15 +613,16 @@ class BrowserContextManager:
                 options=options, headless=False, use_subprocess=True, port=45455  # Fixed the 454a55 typo here
             )
 
-        self.driver.set_page_load_timeout(self.config.page_load_timeout_seconds)
+        driver = self._active_driver()
+        driver.set_page_load_timeout(self.config.page_load_timeout_seconds)
         # Load initial page
-        self.driver.get(get_url_user_ranked_matches(self.default_profile))
+        driver.get(get_url_user_ranked_matches(self.default_profile))
 
         # Only wait for app-container if you are sure it's on the landing page
         # If the landing page is just JSON, this will fail.
         # Consider wrapping this in a try/except if it causes crashes.
         try:
-            WebDriverWait(self.driver, self.config.initial_page_wait_timeout_seconds).until(
+            WebDriverWait(driver, self.config.initial_page_wait_timeout_seconds).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
             )
         except TimeoutException:
@@ -641,19 +647,20 @@ class BrowserContextManager:
             raise BrowserException("download_matches: Ubisoft username not found.")
 
         api_url = get_url_api_ranked_matches(ubisoft_user_name)
-        self.driver.get(api_url)
+        driver = self._active_driver()
+        driver.get(api_url)
         print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
 
         # Wait until the page contains the expected JSON data
         try:
-            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 EC.presence_of_element_located((By.TAG_NAME, "pre"))
             )
         except TimeoutException as e:
             raise BrowserTimeoutException(f"download_matches: Timeout waiting for JSON data: {e}") from e
 
         # Step 2: Extract the page content, expecting JSON
-        page_source = self.driver.page_source
+        page_source = driver.page_source
 
         # Step 3: Remove the HTML
         soup = BeautifulSoup(page_source, "html.parser")
@@ -685,8 +692,9 @@ class BrowserContextManager:
 
     def refresh_browser(self) -> None:
         """Refresh the browser"""
-        self.driver.refresh()
-        WebDriverWait(self.driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
+        driver = self._active_driver()
+        driver.refresh()
+        WebDriverWait(driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
         print_log("refresh_browser: Browser refreshed")
 
     def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> tuple[str, int]:
@@ -708,19 +716,20 @@ class BrowserContextManager:
             raise BrowserException("download_max_rank: Ubisoft username not found.")
 
         api_url = get_url_api_user_info(ubisoft_user_name)
-        self.driver.get(api_url)
+        driver = self._active_driver()
+        driver.get(api_url)
         print_log(f"download_max_rank: Downloading profile for {ubisoft_user_name} using {api_url}")
 
         # Wait until the page contains the expected JSON data
         try:
-            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 EC.presence_of_element_located((By.TAG_NAME, "pre"))
             )
         except TimeoutException as e:
             raise BrowserTimeoutException(f"download_max_rank: Timeout waiting for JSON data: {e}") from e
 
         # Step 3: Extract the page content, expecting JSON
-        page_source = self.driver.page_source
+        page_source = driver.page_source
 
         # Step 4: Remove the HTML
         soup = BeautifulSoup(page_source, "html.parser")
@@ -766,19 +775,20 @@ class BrowserContextManager:
             raise BrowserException("download_full_user_stats: Ubisoft username not found.")
 
         api_url = get_url_api_user_info(ubisoft_user_name)
-        self.driver.get(api_url)
+        driver = self._active_driver()
+        driver.get(api_url)
         print_log(f"download_full_user_stats: Downloading stats for {ubisoft_user_name} using {api_url}")
 
         # Wait until the page contains the expected JSON data
         try:
-            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 EC.presence_of_element_located((By.TAG_NAME, "pre"))
             )
         except TimeoutException as e:
             raise BrowserTimeoutException(f"download_full_user_stats: Timeout waiting for JSON data: {e}") from e
 
         # Step 2: Extract the page content, expecting JSON
-        page_source = self.driver.page_source
+        page_source = driver.page_source
 
         # Step 3: Remove the HTML
         soup = BeautifulSoup(page_source, "html.parser")
@@ -808,7 +818,7 @@ class BrowserContextManager:
         except json.JSONDecodeError as e:
             raise BrowserException(f"download_full_user_stats: Error parsing JSON: {e}") from e
 
-    def download_operator_stats(self, r6_tracker_user_uuid: str) -> Optional[List]:
+    def download_operator_stats(self, r6_tracker_user_uuid: str) -> Optional[dict[str, Any]]:
         """
         Download operator statistics for a given R6 Tracker user UUID.
 
@@ -816,7 +826,7 @@ class BrowserContextManager:
             r6_tracker_user_uuid: R6 Tracker UUID for the user
 
         Returns:
-            List of operator stat dictionaries
+            Parsed API JSON (dict), or None if invalid
 
         Raises:
             BrowserException: If UUID not provided or JSON not found/invalid
@@ -830,19 +840,20 @@ class BrowserContextManager:
         # Construct API URL
         api_url = f"https://api.tracker.gg/api/v2/r6siege/standard/profile/ubi/{r6_tracker_user_uuid}/segments/operator?sessionType=ranked&season=all"
 
-        self.driver.get(api_url)
+        driver = self._active_driver()
+        driver.get(api_url)
         print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
 
         # Wait until the page contains the expected JSON data
         try:
-            WebDriverWait(self.driver, self.config.element_wait_timeout_seconds).until(
+            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 EC.presence_of_element_located((By.TAG_NAME, "pre"))
             )
         except TimeoutException as e:
             raise BrowserTimeoutException(f"download_operator_stats: Timeout waiting for JSON data: {e}") from e
 
         # Get the page source
-        page_source = self.driver.page_source
+        page_source = driver.page_source
 
         # Remove the HTML
         soup = BeautifulSoup(page_source, "html.parser")

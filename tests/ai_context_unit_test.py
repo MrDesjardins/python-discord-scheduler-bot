@@ -172,8 +172,9 @@ async def test_generate_answer_when_mentioning_bot_includes_guild_ai_context():
     data_access_set_guild_ai_context(guild_id, "The server owner prefers concise answers.")
 
     ask_ai_async = AsyncMock(return_value="Reply text")
-    with patch.object(bot_ai, "ask_ai_async", ask_ai_async), patch.object(
-        bot_ai, "ask_ai_sql_for_stats", AsyncMock(return_value="")
+    with (
+        patch.object(bot_ai, "ask_ai_async", ask_ai_async),
+        patch.object(bot_ai, "ask_ai_sql_for_stats", AsyncMock(return_value="")),
     ):
         response = await bot_ai.generate_answer_when_mentioning_bot(
             guild_id,
@@ -216,8 +217,9 @@ async def test_generate_answer_when_mentioning_bot_includes_resolved_mentions():
 
     ask_ai_async = AsyncMock(return_value="Reply text")
     ask_ai_sql_for_stats = AsyncMock(return_value="")
-    with patch.object(bot_ai, "ask_ai_async", ask_ai_async), patch.object(
-        bot_ai, "ask_ai_sql_for_stats", ask_ai_sql_for_stats
+    with (
+        patch.object(bot_ai, "ask_ai_async", ask_ai_async),
+        patch.object(bot_ai, "ask_ai_sql_for_stats", ask_ai_sql_for_stats),
     ):
         await bot_ai.generate_answer_when_mentioning_bot(
             guild_id,

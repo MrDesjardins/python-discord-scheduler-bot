@@ -4,7 +4,7 @@ Module to gather user activity data and calculate the time spent together
 
 from datetime import datetime, timezone
 from collections import defaultdict
-from typing import Dict, Tuple, List, Union
+from typing import Any, Dict, Tuple, List, Union, cast
 import pandas as pd
 from dateutil import parser
 from deps.analytic_models import UserInfoWithCount
@@ -201,7 +201,8 @@ def users_by_weekday(
     df["day_of_week"] = df["timestamp"].dt.dayofweek
 
     # Group by week, day_of_week, and user_id to get unique user activity per weekday for each week
-    unique_users_per_weekday = df.groupby(["week", "day_of_week", "user_id"]).size().reset_index(name="count")
+    _weekday_counts = cast(Any, df.groupby(["week", "day_of_week", "user_id"], observed=True).size())
+    unique_users_per_weekday = _weekday_counts.reset_index(name="count")
 
     # Group by day_of_week and user_id, and count distinct weeks for each user on each day_of_week
     user_activity_count = (
@@ -215,8 +216,8 @@ def users_by_weekday(
         user_activity_count.groupby("day_of_week")
         .apply(
             lambda group: [
-                UserInfoWithCount(users_id_display[user_id], row["distinct_week_count"])
-                for user_id, row in group.set_index("user_id").iterrows()
+                UserInfoWithCount(users_id_display[cast(int, user_id)], row["distinct_week_count"])
+                for user_id, row in cast(pd.DataFrame, group).set_index("user_id").iterrows()
             ]
         )
         .reset_index(name="users")

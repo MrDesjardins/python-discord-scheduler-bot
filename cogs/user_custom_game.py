@@ -187,6 +187,12 @@ class UserCustomGameFeatures(commands.Cog):
             return
 
         lobby_channel = await data_access_get_channel(lobby_channel_id)
+        if lobby_channel is None or not isinstance(lobby_channel, discord.VoiceChannel):
+            await interaction.followup.send(
+                content="Lobby channel not found or is not a voice channel. Check custom game configuration.",
+                ephemeral=True,
+            )
+            return
         users_lobby_voice_channel: List[discord.Member] = lobby_channel.members
         if len(users_lobby_voice_channel) == 0:
             await interaction.followup.send(
@@ -210,101 +216,93 @@ class UserCustomGameFeatures(commands.Cog):
             ephemeral=False,
         )
 
-        if isinstance(lobby_channel, discord.VoiceChannel):
-            users_lobby_voice_channel: List[discord.Member] = lobby_channel.members
-            teams = await select_team_by_algorithm(team_algo, users_lobby_voice_channel)
-            await interaction.followup.send(
-                content=f"Teams created using logic: {teams.logic}\n\n{teams.explanation}", ephemeral=False
-            )
-            # Show a button to move the users to their respective channels
+        teams = await select_team_by_algorithm(team_algo, users_lobby_voice_channel)
+        await interaction.followup.send(
+            content=f"Teams created using logic: {teams.logic}\n\n{teams.explanation}", ephemeral=False
+        )
+        # Show a button to move the users to their respective channels
 
-            async def on_move_into_team_channels() -> None:
-                # Move users to their respective channels
-                team1_channel = await data_access_get_channel(team1_channel_id)
-                team2_channel = await data_access_get_channel(team2_channel_id)
-                if not isinstance(team1_channel, discord.VoiceChannel) or not isinstance(
-                    team2_channel, discord.VoiceChannel
-                ):
-                    print_warning_log(f"custom_game_make_team: Team channels are not voice channels.")
-                    return
+        async def on_move_into_team_channels() -> None:
+            # Move users to their respective channels
+            team1_channel = await data_access_get_channel(team1_channel_id)
+            team2_channel = await data_access_get_channel(team2_channel_id)
+            if not isinstance(team1_channel, discord.VoiceChannel) or not isinstance(
+                team2_channel, discord.VoiceChannel
+            ):
+                print_warning_log("custom_game_make_team: Team channels are not voice channels.")
+                return
 
-                for member in teams.team1.members:
-                    try:
-                        await member.move_to(team1_channel)
-                        # Small delay to avoid hitting rate limits
-                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
-                    except discord.Forbidden as e:
-                        print_error_log(
-                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Alpha channel: {e}"
-                        )
-                    except Exception as e:
-                        print_error_log(
-                            f"custom_game_make_team: Failed to move member {member.display_name} to Team Alpha channel: {e}"
-                        )
+            for member in teams.team1.members:
+                try:
+                    await member.move_to(team1_channel)
+                    await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
+                except discord.Forbidden as e:
+                    print_error_log(
+                        f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Alpha channel: {e}"
+                    )
+                except Exception as e:
+                    print_error_log(
+                        f"custom_game_make_team: Failed to move member {member.display_name} to Team Alpha channel: {e}"
+                    )
 
-                for member in teams.team2.members:
-                    try:
-                        await member.move_to(team2_channel)
-                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
-                    except discord.Forbidden as e:
-                        print_error_log(
-                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Beta channel: {e}"
-                        )
-                    except Exception as e:
-                        print_error_log(
-                            f"custom_game_make_team: Failed to move member {member.display_name} to Team Beta channel: {e}"
-                        )
+            for member in teams.team2.members:
+                try:
+                    await member.move_to(team2_channel)
+                    await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
+                except discord.Forbidden as e:
+                    print_error_log(
+                        f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Beta channel: {e}"
+                    )
+                except Exception as e:
+                    print_error_log(
+                        f"custom_game_make_team: Failed to move member {member.display_name} to Team Beta channel: {e}"
+                    )
 
-            async def on_move_back_lobby() -> None:
-                # Move all users back to the lobby channel
-                lobby_channel = await data_access_get_channel(lobby_channel_id)
-                team1_channel = await data_access_get_channel(team1_channel_id)
-                team2_channel = await data_access_get_channel(team2_channel_id)
-                if not isinstance(lobby_channel, discord.VoiceChannel):
-                    print_warning_log(f"custom_game_make_team: Lobby channel is not a voice channel.")
-                    return
-                for member in team1_channel.members:
-                    try:
-                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
-                        await member.move_to(lobby_channel)
-                    except discord.Forbidden as e:
-                        print_error_log(
-                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
-                        )
-                    except Exception as e:
-                        print_error_log(
-                            f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
-                        )
-                for member in team2_channel.members:
-                    try:
-                        await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
-                        await member.move_to(lobby_channel)
-                    except discord.Forbidden as e:
-                        print_error_log(
-                            f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
-                        )
-                    except Exception as e:
-                        print_error_log(
-                            f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
-                        )
+        async def on_move_back_lobby() -> None:
+            # Move all users back to the lobby channel
+            lobby_ch = await data_access_get_channel(lobby_channel_id)
+            t1_ch = await data_access_get_channel(team1_channel_id)
+            t2_ch = await data_access_get_channel(team2_channel_id)
+            if not isinstance(lobby_ch, discord.VoiceChannel):
+                print_warning_log("custom_game_make_team: Lobby channel is not a voice channel.")
+                return
+            if not isinstance(t1_ch, discord.VoiceChannel) or not isinstance(t2_ch, discord.VoiceChannel):
+                print_warning_log("custom_game_make_team: Team channels are not voice channels.")
+                return
+            for member in t1_ch.members:
+                try:
+                    await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
+                    await member.move_to(lobby_ch)
+                except discord.Forbidden as e:
+                    print_error_log(
+                        f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                    )
+                except Exception as e:
+                    print_error_log(
+                        f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                    )
+            for member in t2_ch.members:
+                try:
+                    await asyncio.sleep(DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS)
+                    await member.move_to(lobby_ch)
+                except discord.Forbidden as e:
+                    print_error_log(
+                        f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                    )
+                except Exception as e:
+                    print_error_log(
+                        f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
+                    )
 
-            view = CompleteCommandView(
-                author_id=interaction.user.id,
-                on_move_into_team_channels=on_move_into_team_channels,
-                on_move_back_lobby=on_move_back_lobby,
-            )
+        view = CompleteCommandView(
+            author_id=interaction.user.id,
+            on_move_into_team_channels=on_move_into_team_channels,
+            on_move_back_lobby=on_move_back_lobby,
+        )
 
-            await interaction.followup.send(
-                content="Click the button below to auto-assign people their teams voice channels.", view=view
-            )
-
-        else:
-            print_warning_log(f"custom_game_make_team: Lobby channel ID {lobby_channel_id} is not a voice channel.")
-            await interaction.followup.send(
-                content="Lobby voice channel is not found or not a voice channel. Please contact an administrator.",
-                ephemeral=True,
-            )
-            return
+        await interaction.followup.send(
+            content="Click the button below to auto-assign people their teams voice channels.", view=view
+        )
 
 
 async def setup(bot):

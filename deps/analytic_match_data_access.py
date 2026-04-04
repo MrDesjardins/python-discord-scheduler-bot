@@ -12,7 +12,6 @@ Functions:
 - data_access_fetch_user_full_user_info: Fetch user's overall statistics
 """
 
-from dataclasses import asdict
 from datetime import datetime
 import json
 from typing import Union, List
@@ -278,7 +277,9 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     except Exception as e:
         if last_match is None:
             print_error_log("insert_if_nonexistant_full_match_info: Error inserting match: No match to insert")
-        stringify_match = json.dumps(asdict(last_match), indent=4) if last_match is not None else "No match data"
+        stringify_match = (
+            json.dumps(vars(last_match), default=str, indent=4) if last_match is not None else "No match data"
+        )
         print_error_log(f"insert_if_nonexistant_full_match_info: Error inserting match: {e}\n{stringify_match}")
         raise e
 
@@ -355,17 +356,18 @@ def data_access_fetch_user_matches_in_time_range(
 
     # Build WHERE clause components
     where_clauses = [f"user_id IN ({placeholders})"]
-    params = list(user_ids)
+    params: list[Union[int, str]] = list(user_ids)
 
     if from_timestamp is not None:
         where_clauses.append("match_timestamp >= ?")
         # Convert datetime to ISO format string to ensure correct comparison with stored TEXT timestamps
-        params.append(from_timestamp.isoformat() if hasattr(from_timestamp, "isoformat") else from_timestamp)
+        fts = from_timestamp.isoformat() if isinstance(from_timestamp, datetime) else str(from_timestamp)
+        params.append(fts)
 
     if to_timestamp is not None:
         where_clauses.append("match_timestamp <= ?")
-        # Convert datetime to ISO format string to ensure correct comparison with stored TEXT timestamps
-        params.append(to_timestamp.isoformat() if hasattr(to_timestamp, "isoformat") else to_timestamp)
+        tts = to_timestamp.isoformat() if isinstance(to_timestamp, datetime) else str(to_timestamp)
+        params.append(tts)
 
     where_clause = " AND ".join(where_clauses)
 
@@ -380,7 +382,7 @@ def data_access_fetch_user_matches_in_time_range(
     result = database_manager.get_cursor().execute(query, params).fetchall()
 
     # Group by user_id
-    matches_by_user = {}
+    matches_by_user: dict[int, list[UserFullMatchStats]] = {}
     for row in result:
         match = UserFullMatchStats.from_db_row(row)
         if match.user_id not in matches_by_user:
@@ -652,7 +654,7 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
     except Exception as e:
         try:
             stringify_user_info = (
-                json.dumps(asdict(user_information), indent=4)
+                json.dumps(vars(user_information), default=str, indent=4)
                 if user_information is not None
                 else f"No user_information for user id: {user_info.id}"
             )

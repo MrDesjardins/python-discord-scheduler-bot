@@ -114,9 +114,15 @@ async def test_get_bet_game_ready_for_distribution_with_bet_placed() -> None:
     await start_tournament(tournament)
     # Tournament started but no bet by any user
     games = fetch_tournament_games_by_tournament_id(tournament_id)
+    g0, g1 = games[0], games[1]
+    assert g0.id is not None and g0.user1_id is not None and g1.user1_id is not None
     place_bet_for_game(
-        tournament_id, games[0].id, games[1].user1_id, 10, games[0].user1_id  # Bet user 1  # Bet amount
-    )  # Bet user 1
+        tournament_id,
+        g0.id,
+        g1.user1_id,
+        10,
+        g0.user1_id,
+    )
     # Act
     bet_user_games = data_access_get_bet_user_game_waiting_match_complete(tournament_id)
     # Assert
