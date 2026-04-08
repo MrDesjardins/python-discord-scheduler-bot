@@ -2,6 +2,7 @@
 User command for anything related to the user like their max rank, active rank, timezone, etc.
 """
 
+import random
 from typing import Optional
 from datetime import datetime, timezone
 import discord
@@ -34,6 +35,7 @@ from deps.analytic_data_access import (
 )
 from deps.values import (
     COMMAND_ACTIVE_RANK_USER_ACCOUNT,
+    COMMAND_COINTOSS,
     COMMAND_FOLLOW_USER,
     COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL,
     COMMAND_LFG,
@@ -341,6 +343,12 @@ class UserFeatures(commands.Cog):
                 )
         else:
             await interaction.followup.send(f"To use the /{COMMAND_LFG} command you must be in a voice channel.")
+
+    @app_commands.command(name=COMMAND_COINTOSS)
+    async def cointoss(self, interaction: discord.Interaction):
+        """Flip a coin and return head or tail."""
+        result = random.choice(["head", "tail"])
+        await interaction.response.send_message(result)
 
     @app_commands.command(name=COMMAND_FOLLOW_USER)
     async def follow_user(self, interaction: discord.Interaction, user_to_follow: discord.User):

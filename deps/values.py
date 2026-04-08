@@ -83,6 +83,7 @@ COMMAND_GET_USERS_TIME_ZONE_FROM_VOICE_CHANNEL = "gettimezones"
 
 ## Game
 COMMAND_LFG = "lfg"
+COMMAND_COINTOSS = "cointoss"
 
 ## Rank/Role
 COMMAND_MAX_RANK_USER_ACCOUNT = "setmymaxrankaccount"  # For rank
