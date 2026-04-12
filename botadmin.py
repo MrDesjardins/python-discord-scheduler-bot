@@ -1,6 +1,6 @@
 #!uv run
 """Entry file for the Discord bot admin command"""
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import subprocess
 import glob
 import os
@@ -110,8 +110,10 @@ def get_from_to_days(menu_entry_index2: int) -> tuple[int, int]:
         to_day = 0
         return (from_day, to_day)
     elif menu_entry_index2 == 1:
-        # Current Month
-        from_day = datetime.now().day
+        # Calendar month to date (not "last N days where N = day-of-month")
+        today = datetime.now().date()
+        first_of_month = date(today.year, today.month, 1)
+        from_day = max((today - first_of_month).days, 1)
         to_day = 0
         return (from_day, to_day)
     elif menu_entry_index2 == 2:
@@ -208,7 +210,7 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     elif menu_entry_index == 3:
         display_time_voice_channel(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 4:
-        display_inactive_user(from_day=from_day)
+        display_inactive_user(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 5:
         display_user_day_week(from_day=from_day, to_day=to_day)
     elif menu_entry_index == 6:

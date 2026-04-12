@@ -2,7 +2,7 @@
 Module to gather user activity data and calculate the time spent together
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from typing import Any, Dict, Tuple, List, Union, cast
 import pandas as pd
@@ -228,6 +228,42 @@ def users_by_weekday(
     return result
 
 
+def _distribute_seconds_across_calendar_months(start: datetime, end: datetime) -> dict[str, float]:
+    """
+    Split [start, end) into seconds per 'YYYY-MM' calendar month (UTC / timestamp tz).
+
+    Avoids attributing an entire multi-day session to a single month (same issue as weekly spikes).
+    """
+    if end <= start:
+        return {}
+    t = start
+    e = end
+    if t.tzinfo is None and e.tzinfo is not None:
+        t = t.replace(tzinfo=e.tzinfo)
+    elif e.tzinfo is None and t.tzinfo is not None:
+        e = e.replace(tzinfo=t.tzinfo)
+
+    out: dict[str, float] = defaultdict(float)
+    guard = 0
+    while t < e and guard < 5000:
+        guard += 1
+        key = t.strftime("%Y-%m")
+        if t.month == 12:
+            next_boundary = datetime(t.year + 1, 1, 1)
+        else:
+            next_boundary = datetime(t.year, t.month + 1, 1)
+        if t.tzinfo is not None:
+            next_boundary = next_boundary.replace(tzinfo=t.tzinfo)
+        seg_end = e if e < next_boundary else next_boundary
+        sec = max(0.0, (seg_end - t).total_seconds())
+        if sec > 0:
+            out[key] += sec
+        if seg_end <= t:
+            break
+        t = seg_end
+    return dict(out)
+
+
 def user_times_by_month(user_activities: list[UserActivity]) -> dict[str, dict[int, float]]:
     """Calculate the total time played per user per month"""
     user_sessions = defaultdict(list)
@@ -251,10 +287,10 @@ def user_times_by_month(user_activities: list[UserActivity]) -> dict[str, dict[i
             if activity.event == EVENT_CONNECT:
                 connect_time = event_time
             elif activity.event == EVENT_DISCONNECT and connect_time:
-                # Calculate session duration in hours
-                session_duration = (event_time - connect_time).total_seconds()
-                month_year = event_time.strftime("%Y-%m")  # e.g., "2024-10"
-                time_played_per_month[month_year][user_id] += session_duration
+                for month_key, seconds in _distribute_seconds_across_calendar_months(
+                    connect_time, event_time
+                ).items():
+                    time_played_per_month[month_key][user_id] += seconds
                 connect_time = None  # Reset connect time for next session
     return time_played_per_month
 
@@ -269,21 +305,25 @@ def times_by_months(user_activities: list[UserActivity]) -> pd.Series:
     # Iterate through the dataframe and calculate session durations
     for user_id, group in df.groupby(["user_id", "guild_id"]):
         connect_time = None
-        for _, row in group.iterrows():
+        for _, row in group.sort_values("timestamp").iterrows():
             if row["event"] == EVENT_CONNECT:
                 connect_time = row["timestamp"]
             elif row["event"] == EVENT_DISCONNECT and connect_time:
-                # Calculate session duration in seconds
-                session_duration = (row["timestamp"] - connect_time).total_seconds()
-                sessions.append(
-                    {
-                        "user_id": user_id[0],
-                        "guild_id": user_id[1],
-                        "month": connect_time.strftime("%Y-%m"),
-                        "duration": session_duration,
-                    }
-                )
+                for month_key, duration_sec in _distribute_seconds_across_calendar_months(
+                    connect_time, cast(datetime, row["timestamp"])
+                ).items():
+                    sessions.append(
+                        {
+                            "user_id": user_id[0],
+                            "guild_id": user_id[1],
+                            "month": month_key,
+                            "duration": duration_sec,
+                        }
+                    )
                 connect_time = None  # Reset connect time after disconnect
+
+    if not sessions:
+        return pd.Series(dtype=float)
 
     # Convert the session list to a DataFrame and print to debug
     sessions_df = pd.DataFrame(sessions)

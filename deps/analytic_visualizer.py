@@ -3,8 +3,8 @@ Code to show the relationsip between the users
 """
 
 import io
-from collections import defaultdict
-from datetime import datetime, date, timedelta
+from collections import Counter, defaultdict
+from datetime import datetime, date, time, timedelta
 from dataclasses import dataclass
 from typing import List, Dict, Tuple, Union, Any, cast
 import plotly.graph_objs as go  # type: ignore
@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from matplotlib.dates import DateFormatter, AutoDateLocator
 import community as community_louvain  # type: ignore
 from deps.analytic_models import UserInfoWithCount
@@ -100,83 +101,245 @@ def _get_data(from_day, to_day) -> list[UsersRelationship]:
     return data
 
 
+def _add_voice_minutes_across_iso_weeks(
+    user_weekly_play_times: dict[int, dict[str, float]],
+    user_id: int,
+    start_time: datetime,
+    end_time: datetime,
+) -> None:
+    """
+    Spread each voice session across ISO weeks (Mon 00:00 UTC boundary).
+
+    Previously the chart credited the entire session to the disconnect's week only,
+    which made long sessions (or AFK in one channel) look like a single huge spike.
+    """
+    if end_time <= start_time:
+        return
+    t = start_time
+    end_t = end_time
+    if t.tzinfo is None and end_t.tzinfo is not None:
+        t = t.replace(tzinfo=end_t.tzinfo)
+    elif end_t.tzinfo is None and t.tzinfo is not None:
+        end_t = end_t.replace(tzinfo=t.tzinfo)
+
+    guard = 0
+    while t < end_t and guard < 5000:
+        guard += 1
+        year, week, _ = t.isocalendar()
+        monday_naive = datetime.strptime(f"{year}-W{week}-1", "%G-W%V-%u")
+        monday = monday_naive.replace(tzinfo=t.tzinfo) if t.tzinfo is not None else monday_naive
+        next_monday = monday + timedelta(days=7)
+        seg_end = min(end_t, next_monday)
+        minutes = max(0.0, (seg_end - t).total_seconds() / 60.0)
+        if minutes > 0:
+            user_weekly_play_times[user_id][f"{year}-{week}"] += minutes
+        if seg_end <= t:
+            break
+        t = seg_end
+
+
+def _add_voice_minutes_across_calendar_days(
+    user_daily_play_times: dict[int, dict[date, float]],
+    user_id: int,
+    start_time: datetime,
+    end_time: datetime,
+) -> None:
+    """Spread session minutes across calendar dates (midnight boundary in the session timestamps' tz)."""
+    if end_time <= start_time:
+        return
+    t = start_time
+    end_t = end_time
+    if t.tzinfo is None and end_t.tzinfo is not None:
+        t = t.replace(tzinfo=end_t.tzinfo)
+    elif end_t.tzinfo is None and t.tzinfo is not None:
+        end_t = end_t.replace(tzinfo=t.tzinfo)
+
+    guard = 0
+    while t < end_t and guard < 5000:
+        guard += 1
+        d = t.date()
+        next_mid = datetime.combine(d + timedelta(days=1), time.min)
+        if t.tzinfo is not None:
+            next_mid = next_mid.replace(tzinfo=t.tzinfo)
+        seg_end = min(end_t, next_mid)
+        minutes = max(0.0, (seg_end - t).total_seconds() / 60.0)
+        if minutes > 0:
+            user_daily_play_times[user_id][d] += minutes
+        if seg_end <= t:
+            break
+        t = seg_end
+
+
 def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day: int = 0) -> Union[bytes, None]:
     """
-    Determine the clusters of users and display them in a graph
+    Clusters from co-voice time (Louvain) with a layout and styling that highlight subgroups.
     """
     data = _get_data(from_day, to_day)
+    from_date = datetime.now().date() - timedelta(days=from_day)
+    to_date = datetime.now().date() - timedelta(days=to_day)
 
-    # Create a graph using NetworkX
-    graph_network: nx.Graph = nx.Graph()
+    if not data:
+        plt.figure(figsize=(10, 6))
+        plt.text(0.5, 0.5, "No co-voice pairs above 1h for this period.", ha="center", va="center")
+        plt.axis("off")
+        return _plot_return(plt, show)
 
-    (users_uni_direction, max_weight) = get_unidirection_users(data)
+    (users_uni_direction, _max_weight) = get_unidirection_users(data)
 
-    # Get the names of the users
+    # Undirected seconds-together; merge (u,v) and (v,u) from directional dict
+    edge_weights_sec: Dict[Tuple[int, int], float] = defaultdict(float)
+    for u, neighbors in users_uni_direction.items():
+        for v, w in neighbors.items():
+            a, b = (u, v) if u < v else (v, u)
+            edge_weights_sec[(a, b)] += float(w)
+
     users_name: Dict[int, str] = {}
     for user in data:
         users_name[user.user1_id] = user.user1_display_name
         users_name[user.user2_id] = user.user2_display_name
 
-    # Add edges with normalized weights between users
-    for user_1_id, value in users_uni_direction.items():
-        for user_2_id, weight in value.items():
-            normalized_weight = (weight / max_weight) * 14  # Normalize to max 14 (width line)
-            user_a = users_name[user_1_id][:8]  # Truncate to 8 characters for better visualization
-            user_b = users_name[user_2_id][:8]  # Truncate to 8 characters for better visualization
-            graph_network.add_edge(user_a, user_b, weight=normalized_weight)
+    graph_network: nx.Graph = nx.Graph()
+    max_sec = max(edge_weights_sec.values()) if edge_weights_sec else 1.0
+    for (u, v), sec in edge_weights_sec.items():
+        graph_network.add_edge(u, v, weight=sec, together_sec=sec)
 
-    # Detect communities using Louvain method
-    partition = community_louvain.best_partition(graph_network)
+    if graph_network.number_of_nodes() == 0:
+        plt.figure(figsize=(10, 6))
+        plt.text(0.5, 0.5, "No graph nodes for this period.", ha="center", va="center")
+        plt.axis("off")
+        return _plot_return(plt, show)
 
-    # Get unique community IDs and colors for visualization
-    communities = set(partition.values())
-    colors = plt.cm.get_cmap("viridis", len(communities))
+    partition = community_louvain.best_partition(graph_network, weight="weight")
+    communities_sorted = sorted(set(partition.values()))
+    n_comm = len(communities_sorted)
 
-    # Draw the graph
-    plt.figure(figsize=(24, 24))
+    cmap = plt.colormaps["tab20"]
+    if n_comm > 20:
+        cmap = plt.colormaps["hsv"]
 
-    # Position the nodes using the spring layout
-    pos = nx.spring_layout(graph_network, k=5)
+    def color_for_community(cid: int) -> Any:
+        if n_comm > 20:
+            return cast(Any, cmap(cid / max(n_comm, 1)))
+        return cast(Any, cmap((cid % 20) / 20.0))
 
-    # Draw nodes, coloring by community
-    for community_id in communities:
-        nodes_in_community = [node for node in partition if partition[node] == community_id]
-        nx.draw_networkx_nodes(
-            graph_network,
-            pos,
-            nodelist=nodes_in_community,
-            node_color=cast(Any, [colors(community_id)]),
-            label=f"Community {community_id}",
-            node_size=700,
-        )
-
-    # Draw edges, adjusting width based on the normalized weight
-    normalized_weights = nx.get_edge_attributes(graph_network, "weight")
-    all_width: List[float] = [weight for weight in normalized_weights.values()]
-    nx.draw_networkx_edges(graph_network, pos, width=cast(Any, all_width))
-
-    # Draw labels for users (nodes), adjusted to be above the nodes
-    label_pos = {node: (x, y + 0.15) for node, (x, y) in pos.items()}  # Adjust y-coordinate
-    nx.draw_networkx_labels(
+    n_nodes = max(graph_network.number_of_nodes(), 1)
+    pos = nx.spring_layout(
         graph_network,
-        label_pos,
-        labels={node: node for node in graph_network.nodes()},
-        font_size=12,
-        font_family="sans-serif",
-        font_color="#209ef7",
+        weight="weight",
+        k=2.4 / np.sqrt(n_nodes),
+        iterations=220,
+        seed=42,
     )
 
-    # Draw edge labels (normalized weights)
-    # nx.draw_networkx_edge_labels(
-    #     graph_network,
-    #     pos,
-    #     edge_labels={k: f"{v:.2f}" for k, v in normalized_weights.items()},
-    # )
+    strengths = dict(graph_network.degree(weight="weight"))
+    max_strength = max(strengths.values()) if strengths else 1.0
 
-    # Show plot
-    plt.title("User Relationship Graph with Clusters (Edge Tickness = More Time Together)")
-    plt.axis("off")  # Turn off the axis
-    plt.legend()
+    fig, ax = plt.subplots(figsize=(20, 18))
+    ax.set_facecolor("#f7f7f8")
+
+    intra: List[Tuple[int, int, Dict[str, Any]]] = []
+    inter: List[Tuple[int, int, Dict[str, Any]]] = []
+    for u, v, ed in graph_network.edges(data=True):
+        if partition[u] == partition[v]:
+            intra.append((u, v, ed))
+        else:
+            inter.append((u, v, ed))
+
+    def edge_linewidth(sec: float) -> float:
+        t = (sec / max_sec) ** 0.55
+        return 0.35 + 4.2 * t
+
+    for u, v, ed in inter:
+        sec = float(ed.get("together_sec", ed.get("weight", 0.0)))
+        xdata = (pos[u][0], pos[v][0])
+        ydata = (pos[u][1], pos[v][1])
+        ax.plot(
+            xdata,
+            ydata,
+            color="#9aa0a6",
+            alpha=0.28,
+            linewidth=edge_linewidth(sec) * 0.55,
+            solid_capstyle="round",
+            zorder=1,
+        )
+
+    for u, v, ed in intra:
+        sec = float(ed.get("together_sec", ed.get("weight", 0.0)))
+        cid = partition[u]
+        xdata = (pos[u][0], pos[v][0])
+        ydata = (pos[u][1], pos[v][1])
+        ax.plot(
+            xdata,
+            ydata,
+            color=color_for_community(cid),
+            alpha=0.55 + 0.35 * (sec / max_sec) ** 0.5,
+            linewidth=edge_linewidth(sec),
+            solid_capstyle="round",
+            zorder=2,
+        )
+
+    for node in graph_network.nodes():
+        cid = partition[node]
+        size = 320 + 1450 * (strengths.get(node, 0.0) / max_strength) ** 0.5
+        ax.scatter(
+            pos[node][0],
+            pos[node][1],
+            s=size,
+            c=[color_for_community(cid)],
+            edgecolors="#1a1a1a",
+            linewidths=0.6,
+            zorder=3,
+        )
+
+    def short_label(uid: int) -> str:
+        name = users_name.get(uid, str(uid))
+        return name if len(name) <= 18 else f"{name[:16]}…"
+
+    for node in graph_network.nodes():
+        ax.annotate(
+            short_label(node),
+            (pos[node][0], pos[node][1]),
+            xytext=(0, 7),
+            textcoords="offset points",
+            ha="center",
+            fontsize=9,
+            color="#0b3d6d",
+            zorder=4,
+        )
+
+    comm_counts = Counter(partition.values())
+    legend_patches: List[Patch] = []
+    for cid in communities_sorted[:18]:
+        legend_patches.append(
+            Patch(
+                facecolor=color_for_community(cid),
+                edgecolor="#333333",
+                linewidth=0.5,
+                label=f"Subgroup {cid + 1} — {comm_counts[cid]} people",
+            )
+        )
+    if n_comm > 18:
+        legend_patches.append(Patch(facecolor="#cccccc", label=f"… +{n_comm - 18} more subgroups"))
+
+    ax.legend(
+        handles=legend_patches,
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        frameon=True,
+        fontsize=9,
+        title="Louvain clusters\n(co-voice time)",
+        title_fontsize=10,
+    )
+
+    ax.set_title(
+        "Thicker, brighter lines = more hours in voice together. Same color = same subgroup; gray = ties across subgroups.\n"
+        f"Window: {from_date} → {to_date}",
+        fontsize=11,
+        pad=12,
+    )
+    fig.suptitle("Community map — who hangs out in voice together", fontsize=16, y=0.995)
+    ax.axis("off")
+    plt.tight_layout(rect=(0.0, 0.0, 0.84, 0.96))
     return _plot_return(plt, show)
 
 
@@ -189,7 +352,14 @@ def _plot_return(plot: Any, show: bool = True) -> Union[bytes, None]:
         return None
 
     buf = io.BytesIO()
-    plot.savefig(buf, format="png")
+    if hasattr(plot, "write_image"):
+        try:
+            plot.write_image(buf, format="png")
+        except ValueError:
+            buf.close()
+            return None
+    else:
+        plot.savefig(buf, format="png")
     buf.seek(0)
 
     # Get the bytes data
@@ -380,18 +550,19 @@ def display_time_voice_channel(show: bool = True, from_day: int = 3600, to_day: 
     users, times_in_hours = zip(*sorted_users)
     users_display_name: List[str] = [data_user_id_name[user_id].display_name for user_id in users]  # Convert user
 
-    # Create the bar plot
+    # Create the bar plot (horizontal: user names on y-axis, time on x-axis)
     fig, ax = plt.subplots(figsize=(10, 8))
 
-    plt.bar(users_display_name, times_in_hours, color="skyblue")
+    plt.barh(users_display_name, times_in_hours, color="skyblue")
 
     # Add labels and title
-    plt.xlabel("Users")
-    plt.ylabel("Total Time (Hours)")
+    plt.xlabel("Total Time (Hours)")
+    plt.ylabel("Users")
     fig.suptitle(f"Top {top} Users by Total Voice Channel Time (in Hours)", fontsize=16)
     ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
 
-    plt.xticks(rotation=90)  # Rotate user names for better readability
+    plt.yticks(fontsize=8)
+    plt.gca().invert_yaxis()  # Highest voice time at the top
     plt.tight_layout()  # Adjust layout to fit labels better
     return _plot_return(plt, show)
 
@@ -494,9 +665,9 @@ def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day
     # Dictionary to hold total time played per user per month [month_year][user_id] = time_played
     time_played_per_month = user_times_by_month(user_activities)
 
-    # Convert data to a pandas DataFrame for easy plotting
+    # Convert data to a pandas DataFrame for easy plotting (stored values are seconds → hours)
     df = pd.DataFrame(time_played_per_month).fillna(0)
-    df = df.T  # Transpose to have months as index and users as columns
+    df = df.T / 3600.0  # Transpose to have months as index and users as columns; seconds → hours
 
     # Calculate the total playtime per user and sort in descending order
     total_time_per_user = df.sum(axis=0)
@@ -518,9 +689,9 @@ def display_user_voice_per_month(show: bool = True, from_day: int = 3600, to_day
     # Plot stacked bar chart
     df.plot(kind="bar", stacked=True, figsize=(12, 6), colormap="viridis")
     plt.xlabel("Month")
-    plt.ylabel("Time Played")
+    plt.ylabel("Time Played (hours)")
     plt.title("Time Played per Month (Stacked by User)")
-    plt.legend(title="User ID", bbox_to_anchor=(1.05, 1), loc="upper left")
+    plt.legend(title="Users", bbox_to_anchor=(1.05, 1), loc="upper left")
     plt.tight_layout()
     return _plot_return(plt, show)
 
@@ -552,9 +723,10 @@ def display_user_timeline_voice_time_by_day(
             if start_key in start_times:
                 start_time = start_times.pop(start_key)
                 play_duration: float = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
-                play_date: date = start_time.date()
                 user_play_times[activity.user_id] += play_duration
-                user_daily_play_times[activity.user_id][play_date] += play_duration
+                _add_voice_minutes_across_calendar_days(
+                    user_daily_play_times, activity.user_id, start_time, timestamp
+                )
 
     # Get top 20 most active users by total play time
     top_users = sorted(user_play_times.items(), key=lambda x: x[1], reverse=True)[:20]
@@ -570,11 +742,11 @@ def display_user_timeline_voice_time_by_day(
 
     # Format plot
     ax.set_xlabel("Date")
-    ax.set_ylabel("Time Played (seconds)")
+    ax.set_ylabel("Time Played (minutes)")
     fig.suptitle("Daily Playtime for Top 20 Active Users", fontsize=16)
     ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
 
-    ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1), title="User ID")
+    ax.legend(loc="upper right", bbox_to_anchor=(1.15, 1), title="Users")
     ax.xaxis.set_major_formatter(plt.matplotlib.dates.DateFormatter("%Y-%m-%d"))
     ax.grid(True)
     fig.autofmt_xdate()
@@ -615,10 +787,10 @@ def display_user_timeline_voice_time_by_week(
             if start_key in start_times:
                 start_time = start_times.pop(start_key)
                 play_duration: float = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
-
-                week_start = f"{timestamp.isocalendar().year}-{timestamp.isocalendar().week}"
-                user_weekly_play_times[activity.user_id][week_start] += play_duration
                 user_play_times[activity.user_id] += play_duration  # Track total time per user
+                _add_voice_minutes_across_iso_weeks(
+                    user_weekly_play_times, activity.user_id, start_time, timestamp
+                )
 
     # Get top 30 most active users by total play time
     top_users = sorted(user_play_times.items(), key=lambda x: x[1], reverse=True)[:30]
@@ -669,7 +841,6 @@ def display_user_timeline_voice_by_months(
     plt.title("Total Voice Session Time per Month")
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.tight_layout()
     return _plot_return(plt, show)
 
 
@@ -706,10 +877,13 @@ def display_user_line_graph_time(
             if start_key in start_times:
                 start_time = start_times.pop(start_key)
                 play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
-
-                week_start = f"{timestamp.isocalendar().year}-{timestamp.isocalendar().week}"
-                user_weekly_play_times[week_start] += play_duration
                 user_play_times += play_duration  # Track total time per user
+                tmp_weekly: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
+                _add_voice_minutes_across_iso_weeks(
+                    tmp_weekly, activity.user_id, start_time, timestamp
+                )
+                for wk, mins in tmp_weekly[activity.user_id].items():
+                    user_weekly_play_times[wk] += mins
 
     all_weeks = sorted(set(user_weekly_play_times.keys()))
 
@@ -932,9 +1106,7 @@ def display_user_rank_match_win_rate_played_server(
 
 
 def display_unique_user_per_day(from_date: datetime, show: bool = True) -> Union[bytes, None]:
-    """
-    Graph that display the amount of time played per month using stacked bar. Each bar is a month. The stacked information if every user.
-    """
+    """Bar chart of distinct users seen in voice per day, from from_date through today."""
     rows = data_access_fetch_unique_user_per_day(from_date)
 
     # Parse data
@@ -942,10 +1114,10 @@ def display_unique_user_per_day(from_date: datetime, show: bool = True) -> Union
     counts = [row[1] for row in rows]
     dates = [datetime.strptime(d, "%Y-%m-%d").date() for d in dates_str]
 
-    # Identify quarter boundaries
+    # Calendar quarter starts (Jan / Apr / Jul / Oct)
     quarter_starts: list[date] = []
     for d in dates:
-        if d.month in [3, 6, 9, 12] and d.day == 1:
+        if d.month in (1, 4, 7, 10) and d.day == 1:
             quarter_starts.append(d)
     quarter_starts = sorted(quarter_starts)
 

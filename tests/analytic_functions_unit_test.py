@@ -542,6 +542,18 @@ def test_multiple_month_two_users() -> None:
     assert result == expected_result
 
 
+def test_user_times_by_month_splits_session_across_months() -> None:
+    """Long session spanning two months should credit both months, not only disconnect month."""
+    activity_data = [
+        UserActivity(1, 100, EVENT_CONNECT, "2024-10-30 12:00:00+00:00", 1),
+        UserActivity(1, 100, EVENT_DISCONNECT, "2024-11-02 12:00:00+00:00", 1),
+    ]
+    result = user_times_by_month(activity_data)
+    # 72h total: 36h in Oct (Oct 30 12:00 → Nov 1 00:00), 36h in Nov (Nov 1 00:00 → Nov 2 12:00)
+    assert result["2024-10"][1] == 36 * 3600
+    assert result["2024-11"][1] == 36 * 3600
+
+
 def test_times_by_months() -> None:
     """Test multiple months with two users"""
     activity_data = [
