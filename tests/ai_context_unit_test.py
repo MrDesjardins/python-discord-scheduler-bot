@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deps.ai.ai_functions import BotAI
+from deps.ai.ai_functions import DAILY_SUMMARY_MAX_CONTEXT_CHARS, BotAI
 from deps.data_access import (
     data_access_clear_guild_ai_context,
     data_access_get_guild_ai_context,
@@ -161,6 +161,44 @@ async def test_generate_message_summary_includes_guild_ai_context(mock_fetch_mat
     prompt = ask_ai_async.await_args.args[0]
     assert "Call Friday ranked night 'The Gauntlet'." in prompt
     assert "Your goal is to generate a summary of the ranked matches" in prompt
+    assert result.endswith("Summary text")
+
+
+@pytest.mark.asyncio
+@patch("deps.ai.ai_functions.get_active_user_info")
+@patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range")
+async def test_generate_message_summary_caps_large_match_context(mock_fetch_matches, mock_get_active_users):
+    """Large daily summaries should stay small enough for the OpenAI fallback."""
+    guild_id = 1000
+    bot_ai = BotAI()
+    users = [create_mock_user(user_id, f"Player{user_id}") for user_id in range(1, 4)]
+    matches = []
+    for index in range(80):
+        user_id = (index % len(users)) + 1
+        match = create_mock_match(user_id, f"match-{index}")
+        match.kill_count = index % 20
+        match.points_gained = index
+        matches.append(match)
+
+    mock_get_active_users.return_value = users
+    mock_fetch_matches.return_value = {
+        user.id: [match for match in matches if match.user_id == user.id] for user in users
+    }
+
+    ask_ai_async = AsyncMock(return_value="Summary text")
+
+    def verbose_match_summary(match):
+        return f"match_uuid `{match.match_uuid}` for user_id `{match.user_id}`\n" + ("x" * 2000)
+
+    with (
+        patch.object(bot_ai, "ask_ai_async", ask_ai_async),
+        patch.object(bot_ai, "summarize_full_match", side_effect=verbose_match_summary),
+    ):
+        result = await bot_ai.generate_message_summary_matches_async(guild_id, 24)
+
+    prompt = ask_ai_async.await_args.args[0]
+    assert len(prompt) <= DAILY_SUMMARY_MAX_CONTEXT_CHARS
+    assert "lower-priority match records were omitted" in prompt
     assert result.endswith("Summary text")
 
 

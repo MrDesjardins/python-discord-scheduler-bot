@@ -63,7 +63,8 @@ load_dotenv()
 THRESHOLD_GEMINI = 500
 THRESHOLD_RETRY_AI = 5
 # Gemini SDK HTTP timeout in milliseconds (large prompts; avoids stuck sockets indefinitely)
-GEMINI_HTTP_TIMEOUT_MS = 4*60*1000
+GEMINI_HTTP_TIMEOUT_MS = 4 * 60 * 1000
+DAILY_SUMMARY_MAX_CONTEXT_CHARS = 90_000
 
 
 class BotAI:
@@ -412,6 +413,82 @@ class BotAI:
 
         return users_filtered, full_matches_info_by_user_id
 
+    def daily_summary_match_score(self, match: UserFullMatchStats) -> float:
+        """
+        Rank matches by usefulness for the daily AI summary when the prompt needs trimming.
+        """
+        score = 0.0
+        score += abs(match.points_gained) * 2
+        score += match.kill_count
+        score += match.assist_count * 0.5
+        score += match.clutches_win_count * 10
+        score += match.ace_count * 20
+        score += match.tk_count * 8
+        score += match.first_kill_count * 2
+        score += match.first_death_count * 2
+        score += max(match.kd_ratio - 1.0, 0) * 10
+        if match.has_win:
+            score += 5
+        return score
+
+    def summarize_matches_for_daily_summary(self, matches: List[UserFullMatchStats], max_chars: int) -> tuple[str, int]:
+        """
+        Serialize match records for the daily AI summary without exceeding a character budget.
+
+        The OpenAI fallback has a tighter effective TPM/request limit than Gemini for this bot.
+        Keep at least one notable match per user when possible, then spend the remaining budget
+        on the most interesting matches.
+        """
+        if max_chars <= 0:
+            return "", len(matches)
+
+        summarized_matches = [(index, match, self.summarize_full_match(match)) for index, match in enumerate(matches)]
+        total_match_chars = sum(len(summary) for _, _, summary in summarized_matches)
+        total_match_chars += max(len(summarized_matches) - 1, 0)
+        if total_match_chars <= max_chars:
+            return "\n".join(summary for _, _, summary in summarized_matches), 0
+
+        selected_indexes: set[int] = set()
+        selected_length = 0
+
+        def add_if_fits(index: int, summary: str) -> bool:
+            nonlocal selected_length
+            separator_length = 1 if selected_indexes else 0
+            projected_length = selected_length + separator_length + len(summary)
+            if projected_length > max_chars:
+                return False
+            selected_indexes.add(index)
+            selected_length = projected_length
+            return True
+
+        best_match_by_user: dict[int, tuple[int, UserFullMatchStats, str]] = {}
+        for index, match, summary in summarized_matches:
+            current_best = best_match_by_user.get(match.user_id)
+            if current_best is None or self.daily_summary_match_score(match) > self.daily_summary_match_score(
+                current_best[1]
+            ):
+                best_match_by_user[match.user_id] = (index, match, summary)
+
+        for index, _, summary in sorted(best_match_by_user.values(), key=lambda item: item[0]):
+            add_if_fits(index, summary)
+
+        remaining_matches = sorted(
+            summarized_matches,
+            key=lambda item: (self.daily_summary_match_score(item[1]), item[1].match_timestamp),
+            reverse=True,
+        )
+        for index, _, summary in remaining_matches:
+            if index in selected_indexes:
+                continue
+            add_if_fits(index, summary)
+
+        omitted_count = len(matches) - len(selected_indexes)
+        selected_text = "\n".join(summary for index, _, summary in summarized_matches if index in selected_indexes)
+        omission_note = f"\n{omitted_count} lower-priority match records were omitted to keep this request under the AI fallback limit."
+        if omitted_count > 0 and selected_length + len(omission_note) <= max_chars:
+            selected_text += omission_note
+        return selected_text, omitted_count
+
     async def generate_message_summary_matches_async(self, guild_id: Union[int, None], hours: int) -> str:
         """
         Async version: Generate a message summary of the matches played by the users without blocking the event loop.
@@ -423,39 +500,55 @@ class BotAI:
         print_log(f"Users display name {', '.join([u.display_name for u in users])}")
 
         user_info_serialized = self.summarize_users_list(users)
-        match_info_serialized = "\n".join([self.summarize_full_match(m) for m in full_matches_info_by_user_id])
-
-        context = "Your goal is to generate a summary of the ranked matches played by the users I will provide belows under 12000 characters. Provide data for each user."
-        context += "I am providing you a list of users and a list of their matches. You can use the match_uuid and user id to make some relationship with the user and the match. You need to use both. "
-        context += "Your message must never have more than 100 words per user and have a blank line (two line breaks: \\n\\n) between each user's section. "
-        context += "If no match, say nothing, don't say they did not play. "
-        context += (
+        context_before_matches = "Your goal is to generate a summary of the ranked matches played by the users I will provide belows under 12000 characters. Provide data for each user."
+        context_before_matches += "I am providing you a list of users and a list of their matches. You can use the match_uuid and user id to make some relationship with the user and the match. You need to use both. "
+        context_before_matches += "Your message must never have more than 100 words per user and have a blank line (two line breaks: \\n\\n) between each user's section. "
+        context_before_matches += "If no match, say nothing, don't say they did not play. "
+        context_before_matches += (
             "Please mention every user by their display_name, so you must match the user id with the display_name. "
         )
-        context += "Provide an highlight of the matches played when something interesting happened. Try to find the best match of the user and the worst match. "
-        context += "Try to make relationship between the users who played the same match using the r6_tracker_active_id and r6_tracker_user_uuid. "
-        context += "Information that are valuable are the number of clutches, ace and 1v2, 1v3, 1v4 and 1v5 especially against multiple enemies, kd ratios above 1, and number of kills above 5. "
-        context += "The value of team kills is interesting since they show a huge blunder. A head shot percentage above 0.5 is also interesting. "
-        context += "A number of kills above 8 is good, above 12 is very good, above 15 is exceptional. "
-        context += "For the match summary, write if something stand out (win, clutch, ace, k/d) and talk about the overall wins within all the stats for each user. "
-        context += "If a user won more than half of the matches, mention it because it is very good. "
-        context += "A summary of the total points gained when interesting. Keep it short and concise. "
-        context += "Here is the list of the users:\n"
-        context += user_info_serialized
-        context += "\nHere is the list of the matches summarized:\n"
-        context += match_info_serialized
-        context += "\nFormat in a way that does not mention the request of this message and that it is easy to split in chunk of 2000 characters. "
-        context += "Try to have the tone of a sport commentary. "
-        context += "Dont mention anything about what I asked you to do, just the result. No notes in the result concerning your task. "
-        context += "Dont mention any ID, for example do not talk about r6_tracker_active_id or match_uuid. "
-        context += "Dont mention any thing about the time. I provide the time and match_uuid for your to correlate the users and matches. "
-        context += "IMPORTANT: Separate each user's summary with a blank line (\\n\\n) to make it easy to read and split into Discord messages. Within a user's section, use single line breaks (\\n) for sentences. "
-        context += "Format your text not in bullet point, but in a text like we would read in a sport news paper. "
-        context += "Be professional, sport and concise. Do not add any emoji or special character. "
+        context_before_matches += "Provide an highlight of the matches played when something interesting happened. Try to find the best match of the user and the worst match. "
+        context_before_matches += "Try to make relationship between the users who played the same match using the r6_tracker_active_id and r6_tracker_user_uuid. "
+        context_before_matches += "Information that are valuable are the number of clutches, ace and 1v2, 1v3, 1v4 and 1v5 especially against multiple enemies, kd ratios above 1, and number of kills above 5. "
+        context_before_matches += "The value of team kills is interesting since they show a huge blunder. A head shot percentage above 0.5 is also interesting. "
+        context_before_matches += "A number of kills above 8 is good, above 12 is very good, above 15 is exceptional. "
+        context_before_matches += "For the match summary, write if something stand out (win, clutch, ace, k/d) and talk about the overall wins within all the stats for each user. "
+        context_before_matches += "If a user won more than half of the matches, mention it because it is very good. "
+        context_before_matches += "A summary of the total points gained when interesting. Keep it short and concise. "
+        context_before_matches += "Here is the list of the users:\n"
+        context_before_matches += user_info_serialized
+        context_before_matches += "\nHere is the list of the matches summarized:\n"
+        context_after_matches = "\nFormat in a way that does not mention the request of this message and that it is easy to split in chunk of 2000 characters. "
+        context_after_matches += "Try to have the tone of a sport commentary. "
+        context_after_matches += "Dont mention anything about what I asked you to do, just the result. No notes in the result concerning your task. "
+        context_after_matches += (
+            "Dont mention any ID, for example do not talk about r6_tracker_active_id or match_uuid. "
+        )
+        context_after_matches += "Dont mention any thing about the time. I provide the time and match_uuid for your to correlate the users and matches. "
+        context_after_matches += "IMPORTANT: Separate each user's summary with a blank line (\\n\\n) to make it easy to read and split into Discord messages. Within a user's section, use single line breaks (\\n) for sentences. "
+        context_after_matches += (
+            "Format your text not in bullet point, but in a text like we would read in a sport news paper. "
+        )
+        context_after_matches += "Be professional, sport and concise. Do not add any emoji or special character. "
         # context += "If the display_name is 'Obey' prefix with the name with 'ultimate head shot machine'. "
         # context += "If the display_name is 'Dom1nator' prefix the name with 'upcoming champion'. "
         # context += "If the display_name is 'fridge ' prefix the name with 'Obey worse nightmare AKA'. "
 
+        context_without_matches = await self.apply_guild_ai_context(
+            guild_id, context_before_matches + context_after_matches
+        )
+        max_match_chars = DAILY_SUMMARY_MAX_CONTEXT_CHARS - len(context_without_matches)
+        match_info_serialized, omitted_match_count = self.summarize_matches_for_daily_summary(
+            full_matches_info_by_user_id, max_match_chars
+        )
+        if omitted_match_count > 0:
+            print_log(
+                f"generate_message_summary_matches_async: Omitted {omitted_match_count} "
+                f"of {len(full_matches_info_by_user_id)} match records to keep context under "
+                f"{DAILY_SUMMARY_MAX_CONTEXT_CHARS} characters."
+            )
+
+        context = context_before_matches + match_info_serialized + context_after_matches
         context = await self.apply_guild_ai_context(guild_id, context)
 
         print_log(
@@ -471,7 +564,9 @@ class BotAI:
             if ai_response is None:
                 # Dump context for debugging if both APIs failed
                 file_name = "ai_context_failed.txt"
-                print_error_log(f"generate_message_summary_matches_async: Both Gemini and GPT failed. Context dumped to {file_name}")
+                print_error_log(
+                    f"generate_message_summary_matches_async: Both Gemini and GPT failed. Context dumped to {file_name}"
+                )
                 with open(file_name, "w", encoding="utf-8") as f:
                     f.write(context)
                 return f"✨**AI summary generated of the last {hours} hours**✨\n⚠️ Unable to generate summary. Both AI services are currently unavailable."
