@@ -37,6 +37,9 @@ from deps.data_access import (
     data_access_get_main_text_channel_id,
     data_access_get_member,
     data_access_get_message,
+    data_access_get_pending_match_start_gif_message,
+    data_access_set_pending_match_start_gif_message,
+    data_access_clear_pending_match_start_gif_message,
     data_access_get_r6tracker_max_rank,
     data_access_get_reaction_message,
     data_access_get_voice_user_list,
@@ -70,7 +73,14 @@ from deps.values import (
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
-from deps.siege import get_aggregation_all_activities, get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
+from deps.siege import (
+    get_aggregation_all_activities,
+    get_color_for_rank,
+    get_list_users_with_rank,
+    get_statscc_activity,
+    get_user_rank_emoji,
+    parse_statscc_ranked_match_ending,
+)
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
     adjust_reaction,
@@ -820,7 +830,8 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
 
         # Generate GIF
         print_log(f"send_match_start_gif: Generating GIF for {len(vc_channel.members)} members in {vc_channel.name}")
-        gif_bytes = await generate_match_start_gif(vc_channel.members, guild_id, bot.guild_emoji.get(guild_id, {}))
+        members_for_gif = list(vc_channel.members[:5])
+        gif_bytes = await generate_match_start_gif(members_for_gif, guild_id, bot.guild_emoji.get(guild_id, {}))
 
         if not gif_bytes:
             print_log("send_match_start_gif: GIF generation returned no data")
@@ -828,10 +839,17 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
 
         # Send to Discord with automatic deletion
         file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")
-        await text_channel.send(
+        sent_message = await text_channel.send(
             f"🎮 Match starting in <#{voice_channel_id}>! Good luck!",
             file=file,
             delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+        )
+        data_access_set_pending_match_start_gif_message(
+            guild_id,
+            voice_channel_id,
+            text_channel.id,
+            sent_message.id,
+            [m.id for m in members_for_gif],
         )
         print_log(
             f"send_match_start_gif: Successfully sent GIF to {text_channel.name} "
@@ -840,3 +858,87 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
 
     except Exception as e:
         print_error_log(f"send_match_start_gif: Error: {e}")
+
+
+async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guild, voice_channel_id: int) -> None:
+    """
+    If a pending match-start GIF exists and stats.cc reports Match Ending with score, regenerate GIF with a result
+    frame and replace the message attachment.
+    """
+    try:
+        pending = await data_access_get_pending_match_start_gif_message(guild.id, voice_channel_id)
+        if not pending:
+            return
+        raw_ids = pending.get("member_ids")
+        if not isinstance(raw_ids, list):
+            return
+        member_ids = [int(x) for x in raw_ids]
+
+        parsed_result = None
+        for uid in member_ids:
+            member = guild.get_member(uid)
+            if (
+                member is None
+                or member.voice is None
+                or member.voice.channel is None
+                or member.voice.channel.id != voice_channel_id
+            ):
+                continue
+            act = get_statscc_activity(member)
+            parsed_result = parse_statscc_ranked_match_ending(act)
+            if parsed_result is not None:
+                break
+        if parsed_result is None:
+            return
+
+        members_for_gif: List[discord.Member] = []
+        for uid in member_ids:
+            m = guild.get_member(uid)
+            if m is not None:
+                members_for_gif.append(m)
+        if not members_for_gif:
+            print_log(
+                "try_update_match_start_gif_with_result: could not resolve any members; clearing pending GIF metadata"
+            )
+            data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
+            return
+
+        gif_bytes = await generate_match_start_gif(
+            members_for_gif,
+            guild.id,
+            bot.guild_emoji.get(guild.id, {}),
+            match_result=parsed_result,
+        )
+        if not gif_bytes:
+            print_log("try_update_match_start_gif_with_result: GIF generation returned no data")
+            return
+
+        text_channel_id = int(pending["text_channel_id"])
+        message_id = int(pending["message_id"])
+        message = await data_access_get_message(guild.id, text_channel_id, message_id)
+        if message is None:
+            data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
+            return
+
+        wl = "WIN" if parsed_result.won else "LOSS"
+        new_content = (
+            f"🎮 Match starting in <#{voice_channel_id}>! Good luck!\n"
+            f"**{wl}** `{parsed_result.our_score}`–`{parsed_result.their_score}`"
+        )
+        if parsed_result.map_name:
+            new_content += f" · {parsed_result.map_name}"
+
+        await message.edit(
+            content=new_content,
+            attachments=[discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")],
+        )
+        data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
+        print_log(
+            f"try_update_match_start_gif_with_result: updated match GIF message {message_id} in guild {guild.id}"
+        )
+    except discord.NotFound:
+        data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
+    except discord.HTTPException as e:
+        print_error_log(f"try_update_match_start_gif_with_result: HTTP error: {e}")
+    except Exception as e:
+        print_error_log(f"try_update_match_start_gif_with_result: {e}")

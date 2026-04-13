@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import aiohttp
 from datetime import datetime, timedelta, date, timezone as dt_timezone
-from typing import Any, List, Optional, cast
+from typing import Any, List, Optional, Sequence, Union, cast
 import discord
 import pytz
 from deps.analytic_leaderboard_data_access import data_access_fetch_users_operators
@@ -29,11 +29,51 @@ from deps.analytic_data_access import (
 )
 from deps.analytic_profile_data_access import data_access_fetch_total_hours
 from deps.operator_mapping import get_operator_role
-from deps.siege import get_user_rank_emoji
-from deps.log import print_error_log, print_log
+from deps.siege import StatsCcRankedMatchEndResult, get_user_rank_emoji
+from deps.log import print_error_log
+
+FRAME_DURATION_MS = 4000
+RESULT_FRAME_DURATION_MS = 7000
 
 
-async def generate_match_start_gif(members: List[discord.Member], guild_id: int, guild_emoji: dict) -> Optional[bytes]:
+def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Image:
+    """Final GIF frame: large WIN/LOSS, score, optional map (stats.cc match end)."""
+    width, height = 800, 600
+    img = Image.new("RGB", (width, height), color="#1E2124")
+    draw = ImageDraw.Draw(img)
+
+    font_path = "./fonts/Minecraft.ttf"
+    try:
+        font_huge: Any = ImageFont.truetype(font_path, 72)
+        font_score: Any = ImageFont.truetype(font_path, 48)
+        font_sub: Any = ImageFont.truetype(font_path, 22)
+    except Exception as e:
+        print_error_log(f"_create_match_result_frame: Failed to load font: {e}")
+        font_huge = ImageFont.load_default()
+        font_score = ImageFont.load_default()
+        font_sub = ImageFont.load_default()
+
+    headline = "WIN" if result.won else "LOSS"
+    head_color = "#3BA55D" if result.won else "#ED4245"
+    draw.text((width // 2, height // 2 - 80), headline, fill=head_color, font=font_huge, anchor="mm")
+
+    score_text = f"{result.our_score}  —  {result.their_score}"
+    draw.text((width // 2, height // 2 + 20), score_text, fill="white", font=font_score, anchor="mm")
+
+    sub = "Ranked match result (stats.cc)"
+    if result.map_name:
+        sub = f"Map: {result.map_name}"
+    draw.text((width // 2, height // 2 + 90), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
+
+    return img
+
+
+async def generate_match_start_gif(
+    members: List[discord.Member],
+    guild_id: int,
+    guild_emoji: dict,
+    match_result: Optional[StatsCcRankedMatchEndResult] = None,
+) -> Optional[bytes]:
     """
     Generate animated GIF with player stats.
 
@@ -41,6 +81,7 @@ async def generate_match_start_gif(members: List[discord.Member], guild_id: int,
         members: List of Discord members in the voice channel
         guild_id: Guild ID for fetching stats
         guild_emoji: Dictionary of guild emojis for rank display
+        match_result: When set, append a final frame showing WIN/LOSS and score (stats.cc).
 
     Returns:
         GIF bytes, or None if generation fails or no members
@@ -81,18 +122,32 @@ async def generate_match_start_gif(members: List[discord.Member], guild_id: int,
             print_error_log(f"generate_match_start_gif: Failed to create frame for {member.display_name}: {e}")
             continue
 
+    appended_result_frame = False
+    if match_result is not None:
+        try:
+            frames.append(_create_match_result_frame(match_result))
+            appended_result_frame = True
+        except Exception as e:
+            print_error_log(f"generate_match_start_gif: Failed to create result frame: {e}")
+
     # Combine into animated GIF
     if not frames:
         return None
 
     try:
         output = io.BytesIO()
+        n = len(frames)
+        duration: Union[int, Sequence[int]]
+        if appended_result_frame and n >= 2:
+            duration = [FRAME_DURATION_MS] * (n - 1) + [RESULT_FRAME_DURATION_MS]
+        else:
+            duration = FRAME_DURATION_MS
         frames[0].save(
             output,
             format="GIF",
             save_all=True,
             append_images=frames[1:],
-            duration=4000,  # 4 seconds per frame
+            duration=duration,
             loop=0,  # Infinite loop
         )
         output.seek(0)

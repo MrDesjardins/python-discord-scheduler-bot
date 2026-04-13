@@ -1,6 +1,9 @@
 """Information about Siege"""
 
+import re
+from dataclasses import dataclass
 from typing import List, Mapping, Optional, Union
+
 import discord
 
 from deps.models import ActivityTransition, SiegeActivityAggregation
@@ -209,6 +212,50 @@ def get_any_siege_activity(member: discord.Member) -> Optional[discord.Activity]
     Tries native Siege first, then falls back to stats.cc.
     """
     return get_siege_activity(member) or get_statscc_activity(member)
+
+
+_STATSCC_MATCH_END_SCORE_RE = re.compile(
+    r"(?P<outcome>Winning|Losing)\s*:\s*(?P<a>\d+)\s*[-–]\s*(?P<b>\d+)",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class StatsCcRankedMatchEndResult:
+    """Ranked match outcome parsed from stats.cc rich presence at match end."""
+
+    won: bool
+    our_score: int
+    their_score: int
+    map_name: Optional[str] = None
+
+
+def parse_statscc_ranked_match_ending(activity: Optional[discord.Activity]) -> Optional[StatsCcRankedMatchEndResult]:
+    """
+    Parse win/loss and round score from stats.cc when the match is ending (details + state).
+
+    Native Rainbow Six Siege rich presence does not expose the same ``Winning:`` / ``Losing:`` state strings;
+    this returns None for non-stats.cc activities or when state is missing or unparsable.
+    """
+    if activity is None or activity.name != "stats.cc":
+        return None
+    details = activity.details or ""
+    if not details.startswith("Match Ending: Ranked"):
+        return None
+    state = activity.state or ""
+    score_match = _STATSCC_MATCH_END_SCORE_RE.search(state)
+    if not score_match:
+        return None
+    outcome = score_match.group("outcome").casefold()
+    our_score = int(score_match.group("a"))
+    their_score = int(score_match.group("b"))
+    won = outcome == "winning"
+    map_name: Optional[str] = None
+    marker = "Ranked on "
+    if marker in details:
+        tail = details.split(marker, 1)[1].strip()
+        map_name = tail or None
+    return StatsCcRankedMatchEndResult(won=won, our_score=our_score, their_score=their_score, map_name=map_name)
 
 
 _STATSCC_MAIN_MENU = ("At the Main Menu", "Idle - at Main Menu")

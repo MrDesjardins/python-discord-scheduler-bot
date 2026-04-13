@@ -47,7 +47,12 @@ from deps.values import (
     COMMAND_LFG,
 )
 from deps.models import ActivityTransition
-from deps.siege import get_any_siege_activity, get_user_rank_siege, get_aggregation_all_activities
+from deps.siege import (
+    get_any_siege_activity,
+    get_aggregation_all_activities,
+    get_statscc_activity,
+    get_user_rank_siege,
+)
 from deps.follow_functions import send_private_notification_following_user
 
 load_dotenv()
@@ -516,6 +521,11 @@ class MyEventsCog(commands.Cog):
         # Check for match start and send animated GIF
         await self.send_match_start_gif_debounced(guild_id, after.voice.channel.id)
 
+        # Match ended (stats.cc): debounce then update pending match-start GIF with result frame
+        after_stats_cc = get_statscc_activity(after)
+        if after_stats_cc and after_details and after_details.startswith("Match Ending: Ranked"):
+            await self.update_match_start_gif_result_debounced(guild_id, after.voice.channel.id)
+
         # Check that the detail variables exist BEFORE checking their contents
         # if before_details and after_details and after.voice and after.voice.channel:
         #     if "CUSTOM GAME match" in before_details and "MENU" in after_details:
@@ -612,6 +622,35 @@ class MyEventsCog(commands.Cog):
         finally:
             async with self.last_task_lock:
                 self.last_task.pop(f"matchstartgif-{guild_id}-{channel_id}", None)
+
+    async def update_match_start_gif_result_debounced(self, guild_id: int, channel_id: int) -> None:
+        """Debounce stats.cc Match Ending updates so multiple members do not race GIF regeneration."""
+        key = f"matchgifresult-{guild_id}-{channel_id}"
+        async with self.last_task_lock:
+            if key in self.last_task:
+                task = self.last_task.get(key)
+                if task is not None:
+                    task.cancel()
+            self.last_task[key] = asyncio.create_task(
+                self.update_match_start_gif_result_debounced_cancellable_task(guild_id, channel_id)
+            )
+
+    async def update_match_start_gif_result_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
+        try:
+            await asyncio.sleep(4)
+            guild = self.bot.get_guild(guild_id)
+            if guild is None:
+                return
+            from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+            await try_update_match_start_gif_with_result(self.bot, guild, channel_id)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print_error_log(f"update_match_start_gif_result_debounced_cancellable_task: {e}")
+        finally:
+            async with self.last_task_lock:
+                self.last_task.pop(f"matchgifresult-{guild_id}-{channel_id}", None)
 
     async def auto_move_custom_game_debounced(self, guild_id: int, channel_id: int) -> None:
         """

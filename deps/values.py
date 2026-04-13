@@ -63,8 +63,8 @@ MSG_UNIQUE_STRING = "What time will you play"
 DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS = 0.1
 
 # Time in seconds before match start GIF is automatically deleted
-# 25 minutes to prevent channel clutter
-MATCH_START_GIF_DELETE_AFTER_SECONDS = 25 * 60
+# 90 minutes so the post (and optional match-result edit) stays visible longer
+MATCH_START_GIF_DELETE_AFTER_SECONDS = 90 * 60
 
 # -----------------------
 # User's commands

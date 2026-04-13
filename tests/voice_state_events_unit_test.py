@@ -560,3 +560,64 @@ class TestMatchStartGif:
             assert mock_send_gif.call_count == 1, f"Expected 1 GIF to be sent, but got {mock_send_gif.call_count}"
             mock_send_gif.assert_called_with(mock_bot, guild_id, channel_id)
             assert mock_set_last_time.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_match_gif_result_debounce_invokes_try_update(self, mock_bot, mock_guild):
+        """After debounce sleep, Match Ending handler should call try_update_match_start_gif_with_result."""
+        from cogs.events import MyEventsCog
+
+        mock_bot.get_guild = MagicMock(return_value=mock_guild)
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+
+        with (
+            patch("cogs.events.asyncio.sleep", new_callable=AsyncMock),
+            patch("deps.bot_common_actions.try_update_match_start_gif_with_result", new_callable=AsyncMock) as mock_try,
+        ):
+            await cog.update_match_start_gif_result_debounced_cancellable_task(guild_id, channel_id)
+            mock_try.assert_awaited_once_with(mock_bot, mock_guild, channel_id)
+
+    @pytest.mark.asyncio
+    async def test_try_update_match_start_gif_edits_message(self, mock_bot, mock_guild):
+        """Pending GIF + stats.cc Match Ending should regenerate GIF and edit the Discord message."""
+        from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+        voice_id = 333333333
+        act = discord.Activity(
+            name="stats.cc",
+            details="Match Ending: Ranked on Oregon",
+            state="Winning: 4 - 1",
+            type=discord.ActivityType.playing,
+        )
+        m1 = MagicMock(spec=discord.Member)
+        m1.id = 101
+        m1.voice = MagicMock()
+        m1.voice.channel = MagicMock()
+        m1.voice.channel.id = voice_id
+        m1.activities = [act]
+
+        def _get_member(uid: int):
+            return m1 if uid == 101 else None
+
+        mock_guild.get_member = MagicMock(side_effect=_get_member)
+
+        pending = {"text_channel_id": 555, "message_id": 999, "member_ids": [101]}
+        msg = MagicMock()
+        msg.edit = AsyncMock()
+
+        with (
+            patch(
+                "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
+                AsyncMock(return_value=pending),
+            ),
+            patch("deps.bot_common_actions.generate_match_start_gif", AsyncMock(return_value=b"GIFBYTES")),
+            patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
+            patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+        ):
+            await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
+            msg.edit.assert_awaited_once()
+            call_kw = msg.edit.await_args.kwargs
+            assert "attachments" in call_kw
+            assert "WIN" in call_kw["content"]
+            mock_clear.assert_called_once_with(mock_guild.id, voice_id)

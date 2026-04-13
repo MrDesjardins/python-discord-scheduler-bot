@@ -2,7 +2,7 @@
 Unit tests for stats.cc activity detection and aggregation
 """
 
-from typing import Union
+from typing import Optional, Union
 from unittest.mock import MagicMock
 
 import discord
@@ -13,15 +13,19 @@ from deps.siege import (
     get_aggregation_statscc_activity,
     get_aggregation_all_activities,
     _is_statscc_detail,
+    parse_statscc_ranked_match_ending,
 )
 
 
 # --- get_statscc_activity tests ---
 
 
-def _make_activity(name: str, details: str = "") -> discord.Activity:
+def _make_activity(name: str, details: str = "", state: Optional[str] = None) -> discord.Activity:
     """Create a real discord.Activity so isinstance checks work."""
-    return discord.Activity(name=name, details=details, type=discord.ActivityType.playing)
+    kw: dict = {"name": name, "details": details, "type": discord.ActivityType.playing}
+    if state is not None:
+        kw["state"] = state
+    return discord.Activity(**kw)
 
 
 def test_get_statscc_activity_found() -> None:
@@ -324,3 +328,45 @@ def test_all_activities_done_match_mixed() -> None:
     result = get_aggregation_all_activities(dict_users_activities)
     assert result.done_match_waiting_in_menu == 2
     assert result.count_in_menu == 2
+
+
+# --- parse_statscc_ranked_match_ending ---
+
+
+def test_parse_statscc_ranked_match_ending_winning() -> None:
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Oregon", state="Winning: 4 - 1")
+    r = parse_statscc_ranked_match_ending(act)
+    assert r is not None
+    assert r.won is True
+    assert r.our_score == 4
+    assert r.their_score == 1
+    assert r.map_name == "Oregon"
+
+
+def test_parse_statscc_ranked_match_ending_losing_en_dash() -> None:
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Bank", state="Losing: 1 \u2013 4")
+    r = parse_statscc_ranked_match_ending(act)
+    assert r is not None
+    assert r.won is False
+    assert r.our_score == 1
+    assert r.their_score == 4
+    assert r.map_name == "Bank"
+
+
+def test_parse_statscc_ranked_match_ending_wrong_activity_name() -> None:
+    act = _make_activity("Rainbow Six Siege", "Match Ending: Ranked on Bank", state="Winning: 1 - 0")
+    assert parse_statscc_ranked_match_ending(act) is None
+
+
+def test_parse_statscc_ranked_match_ending_not_match_ending_details() -> None:
+    act = _make_activity("stats.cc", "In round: Ranked on Villa", state="Winning: 3 - 1")
+    assert parse_statscc_ranked_match_ending(act) is None
+
+
+def test_parse_statscc_ranked_match_ending_missing_state() -> None:
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Villa", state="")
+    assert parse_statscc_ranked_match_ending(act) is None
+
+
+def test_parse_statscc_ranked_match_ending_none_activity() -> None:
+    assert parse_statscc_ranked_match_ending(None) is None

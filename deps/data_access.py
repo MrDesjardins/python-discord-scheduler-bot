@@ -12,6 +12,7 @@ from deps.cache import (
     ONE_HOUR_TTL,
     ONE_MONTH_TTL,
     THREE_DAY_TTL,
+    TWO_HOUR_TTL,
     get_cache,
     remove_cache,
     reset_cache_by_prefixes,
@@ -51,6 +52,7 @@ KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY = "GuildCustomGameVoiceChannelLobby"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1 = "GuildCustomGameVoiceChannelTeam1"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2 = "GuildCustomGameVoiceChannelTeam2"
 KEY_LAST_MATCH_START_GIF = "LastMatchStartGif"
+KEY_PENDING_MATCH_START_GIF = "PendingMatchStartGif"
 KEY_GUILD_PRIVATE_CHANNEL_CATEGORY = "GuildPrivateChannelCategory"
 KEY_GUILD_ACTIVE_PRIVATE_CHANNEL = "GuildActivePrivateChannel"
 
@@ -531,6 +533,37 @@ async def data_access_set_last_match_start_gif_time(guild_id: int, channel_id: i
     """Set the last time a match start GIF was sent for a specific voice channel"""
     key = f"{KEY_LAST_MATCH_START_GIF}:{guild_id}:{channel_id}"
     set_cache(False, key, time, ONE_HOUR_TTL)
+
+
+async def data_access_get_pending_match_start_gif_message(
+    guild_id: int, voice_channel_id: int,
+) -> Optional[dict[str, Any]]:
+    """Pending match-start GIF message to update when stats.cc reports match end (2h TTL)."""
+    key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
+    return await get_cache(False, key)
+
+
+def data_access_set_pending_match_start_gif_message(
+    guild_id: int,
+    voice_channel_id: int,
+    text_channel_id: int,
+    message_id: int,
+    member_ids: list[int],
+) -> None:
+    """Store the text channel/message id and GIF member ids after posting a match-start GIF."""
+    key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
+    set_cache(
+        False,
+        key,
+        {"text_channel_id": text_channel_id, "message_id": message_id, "member_ids": member_ids},
+        TWO_HOUR_TTL,
+    )
+
+
+def data_access_clear_pending_match_start_gif_message(guild_id: int, voice_channel_id: int) -> None:
+    """Remove pending match-start GIF metadata (after successful result edit or abandon)."""
+    key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
+    remove_cache(False, key)
 
 
 async def data_access_get_guild_private_channel_category_id(guild_id: int) -> Union[int, None]:
