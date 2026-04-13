@@ -52,6 +52,7 @@ from deps.siege import (
     get_aggregation_all_activities,
     get_statscc_activity,
     get_user_rank_siege,
+    parse_statscc_ranked_score_from_activity,
 )
 from deps.follow_functions import send_private_notification_following_user
 
@@ -521,9 +522,28 @@ class MyEventsCog(commands.Cog):
         # Check for match start and send animated GIF
         await self.send_match_start_gif_debounced(guild_id, after.voice.channel.id)
 
-        # Match ended (stats.cc): debounce then update pending match-start GIF with result frame
+        # stats.cc ranked score changes: debounce then update pending match-start GIF (in-round or match end)
         after_stats_cc = get_statscc_activity(after)
-        if after_stats_cc and after_details and after_details.startswith("Match Ending: Ranked"):
+        before_stats_cc = get_statscc_activity(before)
+        parsed_ranked_after = (
+            parse_statscc_ranked_score_from_activity(after_stats_cc) if after_stats_cc is not None else None
+        )
+        parsed_ranked_before = (
+            parse_statscc_ranked_score_from_activity(before_stats_cc) if before_stats_cc is not None else None
+        )
+        schedule_gif_result_update = False
+        if parsed_ranked_after is not None:
+            before_state = before_stats_cc.state if before_stats_cc else None
+            after_state = after_stats_cc.state
+            before_details_cc = before_stats_cc.details if before_stats_cc else None
+            after_details_cc = after_stats_cc.details
+            if before_state != after_state or before_details_cc != after_details_cc:
+                schedule_gif_result_update = True
+        elif parsed_ranked_before is not None and parsed_ranked_after is None:
+            # Lost parseable ranked score (menu, queue, activity cleared) — schedule one more read so we can
+            # still pick up the final score from debounced member fetch or from another player in the VC.
+            schedule_gif_result_update = True
+        if schedule_gif_result_update:
             await self.update_match_start_gif_result_debounced(guild_id, after.voice.channel.id)
 
         # Check that the detail variables exist BEFORE checking their contents
@@ -624,7 +644,7 @@ class MyEventsCog(commands.Cog):
                 self.last_task.pop(f"matchstartgif-{guild_id}-{channel_id}", None)
 
     async def update_match_start_gif_result_debounced(self, guild_id: int, channel_id: int) -> None:
-        """Debounce stats.cc Match Ending updates so multiple members do not race GIF regeneration."""
+        """Debounce stats.cc ranked score updates so multiple members do not race GIF regeneration."""
         key = f"matchgifresult-{guild_id}-{channel_id}"
         async with self.last_task_lock:
             if key in self.last_task:

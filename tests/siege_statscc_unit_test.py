@@ -14,6 +14,7 @@ from deps.siege import (
     get_aggregation_all_activities,
     _is_statscc_detail,
     parse_statscc_ranked_match_ending,
+    parse_statscc_ranked_score_from_activity,
 )
 
 
@@ -338,9 +339,11 @@ def test_parse_statscc_ranked_match_ending_winning() -> None:
     r = parse_statscc_ranked_match_ending(act)
     assert r is not None
     assert r.won is True
+    assert r.is_tie is False
     assert r.our_score == 4
     assert r.their_score == 1
     assert r.map_name == "Oregon"
+    assert parse_statscc_ranked_score_from_activity(act) == r
 
 
 def test_parse_statscc_ranked_match_ending_losing_en_dash() -> None:
@@ -348,9 +351,42 @@ def test_parse_statscc_ranked_match_ending_losing_en_dash() -> None:
     r = parse_statscc_ranked_match_ending(act)
     assert r is not None
     assert r.won is False
+    assert r.is_tie is False
     assert r.our_score == 1
     assert r.their_score == 4
     assert r.map_name == "Bank"
+
+
+def test_parse_statscc_ranked_score_tied_match_ending() -> None:
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Border", state="Tied: 2 - 2")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.is_tie is True
+    assert r.won is False
+    assert r.our_score == 2
+    assert r.their_score == 2
+    assert r.map_name == "Border"
+
+
+def test_parse_statscc_ranked_score_tied_ranked_on_details_only() -> None:
+    act = _make_activity("stats.cc", "Ranked on Border", state="Tied: 2 - 2")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.is_tie is True
+    assert r.our_score == 2
+    assert r.their_score == 2
+    assert r.map_name == "Border"
+
+
+def test_parse_statscc_ranked_score_winning_in_round_details() -> None:
+    act = _make_activity("stats.cc", "Ranked on Nighthaven Labs", state="Winning: 3 - 2")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.won is True
+    assert r.is_tie is False
+    assert r.our_score == 3
+    assert r.their_score == 2
+    assert r.map_name == "Nighthaven Labs"
 
 
 def test_parse_statscc_ranked_match_ending_wrong_activity_name() -> None:
@@ -358,9 +394,14 @@ def test_parse_statscc_ranked_match_ending_wrong_activity_name() -> None:
     assert parse_statscc_ranked_match_ending(act) is None
 
 
-def test_parse_statscc_ranked_match_ending_not_match_ending_details() -> None:
+def test_parse_statscc_ranked_match_ending_in_round_ranked_details() -> None:
     act = _make_activity("stats.cc", "In round: Ranked on Villa", state="Winning: 3 - 1")
-    assert parse_statscc_ranked_match_ending(act) is None
+    r = parse_statscc_ranked_match_ending(act)
+    assert r is not None
+    assert r.won is True
+    assert r.our_score == 3
+    assert r.their_score == 1
+    assert r.map_name == "Villa"
 
 
 def test_parse_statscc_ranked_match_ending_missing_state() -> None:

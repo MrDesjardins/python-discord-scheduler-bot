@@ -563,7 +563,7 @@ class TestMatchStartGif:
 
     @pytest.mark.asyncio
     async def test_match_gif_result_debounce_invokes_try_update(self, mock_bot, mock_guild):
-        """After debounce sleep, Match Ending handler should call try_update_match_start_gif_with_result."""
+        """After debounce sleep, ranked-score update task should call try_update_match_start_gif_with_result."""
         from cogs.events import MyEventsCog
 
         mock_bot.get_guild = MagicMock(return_value=mock_guild)
@@ -580,7 +580,7 @@ class TestMatchStartGif:
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_edits_message(self, mock_bot, mock_guild):
-        """Pending GIF + stats.cc Match Ending should regenerate GIF and edit the Discord message."""
+        """Pending GIF + stats.cc ranked score should regenerate GIF and edit the Discord message."""
         from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
@@ -620,4 +620,65 @@ class TestMatchStartGif:
             call_kw = msg.edit.await_args.kwargs
             assert "attachments" in call_kw
             assert "WIN" in call_kw["content"]
-            mock_clear.assert_called_once_with(mock_guild.id, voice_id)
+            assert "`4-1`" in call_kw["content"]
+            mock_clear.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_try_update_match_start_gif_score_from_other_vc_member(self, mock_bot, mock_guild):
+        """When GIF roster has no parseable stats.cc, use final score from another player in the same VC."""
+        from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+        voice_id = 333333333
+        m_primary = MagicMock(spec=discord.Member)
+        m_primary.id = 101
+        m_primary.bot = False
+        m_primary.voice = MagicMock()
+        m_primary.voice.channel = MagicMock()
+        m_primary.voice.channel.id = voice_id
+        m_primary.activities = []
+
+        act_scout = discord.Activity(
+            name="stats.cc",
+            details="Ranked on Oregon",
+            state="Winning: 7 - 5",
+            type=discord.ActivityType.playing,
+        )
+        m_scout = MagicMock(spec=discord.Member)
+        m_scout.id = 202
+        m_scout.bot = False
+        m_scout.voice = MagicMock()
+        m_scout.voice.channel = MagicMock()
+        m_scout.voice.channel.id = voice_id
+        m_scout.activities = [act_scout]
+
+        def _get_member(uid: int):
+            if uid == 101:
+                return m_primary
+            if uid == 202:
+                return m_scout
+            return None
+
+        mock_guild.get_member = MagicMock(side_effect=_get_member)
+
+        pending = {"text_channel_id": 555, "message_id": 999, "member_ids": [101]}
+        msg = MagicMock()
+        msg.edit = AsyncMock()
+
+        with (
+            patch(
+                "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
+                AsyncMock(return_value=pending),
+            ),
+            patch(
+                "deps.bot_common_actions._members_in_voice_channel",
+                return_value=[m_primary, m_scout],
+            ),
+            patch("deps.bot_common_actions.generate_match_start_gif", AsyncMock(return_value=b"GIFBYTES")),
+            patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
+            patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+        ):
+            await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
+            call_kw = msg.edit.await_args.kwargs
+            assert "WIN" in call_kw["content"]
+            assert "`7-5`" in call_kw["content"]
+            mock_clear.assert_not_called()

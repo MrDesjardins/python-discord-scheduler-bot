@@ -79,7 +79,7 @@ from deps.siege import (
     get_list_users_with_rank,
     get_statscc_activity,
     get_user_rank_emoji,
-    parse_statscc_ranked_match_ending,
+    parse_statscc_ranked_score_from_activity,
 )
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
@@ -802,6 +802,14 @@ async def move_members_between_voice_channel(
             print_error_log(f"Error moving member {member.display_name}: {e}")
 
 
+def _members_in_voice_channel(guild: discord.Guild, voice_channel_id: int) -> list[discord.Member]:
+    """Return connected members in a voice or stage channel, or empty list if channel is missing or wrong type."""
+    ch = guild.get_channel(voice_channel_id)
+    if isinstance(ch, (discord.VoiceChannel, discord.StageChannel)):
+        return list(ch.members)
+    return []
+
+
 async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int) -> None:
     """
     Generate and send match start GIF to main text channel.
@@ -862,8 +870,8 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
 
 async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guild, voice_channel_id: int) -> None:
     """
-    If a pending match-start GIF exists and stats.cc reports Match Ending with score, regenerate GIF with a result
-    frame and replace the message attachment.
+    If a pending match-start GIF exists and stats.cc reports a ranked score in presence, regenerate GIF with a result
+    frame and replace the message attachment. Pending metadata is kept so later score changes can update the same GIF.
     """
     try:
         pending = await data_access_get_pending_match_start_gif_message(guild.id, voice_channel_id)
@@ -885,9 +893,21 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             ):
                 continue
             act = get_statscc_activity(member)
-            parsed_result = parse_statscc_ranked_match_ending(act)
+            parsed_result = parse_statscc_ranked_score_from_activity(act)
             if parsed_result is not None:
                 break
+
+        # Fallback: anyone in the same VC may still show the final score on stats.cc after the GIF
+        # roster drops "Match Ending" / ranked details first (common with debounce + per-user presence).
+        if parsed_result is None:
+            for vm in _members_in_voice_channel(guild, voice_channel_id):
+                if vm.bot:
+                    continue
+                act = get_statscc_activity(vm)
+                parsed_result = parse_statscc_ranked_score_from_activity(act)
+                if parsed_result is not None:
+                    break
+
         if parsed_result is None:
             return
 
@@ -920,10 +940,13 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
             return
 
-        wl = "WIN" if parsed_result.won else "LOSS"
+        if parsed_result.is_tie:
+            wl = "TIE"
+        else:
+            wl = "WIN" if parsed_result.won else "LOSS"
         new_content = (
             f"🎮 Match starting in <#{voice_channel_id}>! Good luck!\n"
-            f"**{wl}** `{parsed_result.our_score}`–`{parsed_result.their_score}`"
+            f"**{wl}** `{parsed_result.our_score}-{parsed_result.their_score}`"
         )
         if parsed_result.map_name:
             new_content += f" · {parsed_result.map_name}"
@@ -932,7 +955,6 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             content=new_content,
             attachments=[discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")],
         )
-        data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
         print_log(
             f"try_update_match_start_gif_with_result: updated match GIF message {message_id} in guild {guild.id}"
         )

@@ -215,32 +215,45 @@ def get_any_siege_activity(member: discord.Member) -> Optional[discord.Activity]
 
 
 _STATSCC_MATCH_END_SCORE_RE = re.compile(
-    r"(?P<outcome>Winning|Losing)\s*:\s*(?P<a>\d+)\s*[-–]\s*(?P<b>\d+)",
+    r"(?P<outcome>Winning|Losing|Tied)\s*:\s*(?P<a>\d+)\s*[-–]\s*(?P<b>\d+)",
     re.IGNORECASE,
 )
 
 
+def _details_allowed_for_statscc_ranked_score(details: str) -> bool:
+    """
+    True when stats.cc details plausibly describe ranked play where ``state`` may carry a live score.
+
+    Includes ``Ranked on <map>`` (post-debounce presence often drops the ``Match Ending:`` prefix).
+    """
+    if not details:
+        return False
+    if details.startswith("Ranked on ") and len(details) > len("Ranked on "):
+        return True
+    return _is_statscc_ranked_detail(details)
+
+
 @dataclass(frozen=True)
 class StatsCcRankedMatchEndResult:
-    """Ranked match outcome parsed from stats.cc rich presence at match end."""
+    """Ranked match outcome parsed from stats.cc rich presence (in-round, match ending, or post-round)."""
 
     won: bool
     our_score: int
     their_score: int
     map_name: Optional[str] = None
+    is_tie: bool = False
 
 
-def parse_statscc_ranked_match_ending(activity: Optional[discord.Activity]) -> Optional[StatsCcRankedMatchEndResult]:
+def parse_statscc_ranked_score_from_activity(activity: Optional[discord.Activity]) -> Optional[StatsCcRankedMatchEndResult]:
     """
-    Parse win/loss and round score from stats.cc when the match is ending (details + state).
+    Parse win/loss/tie and round score from stats.cc when details indicate ranked play and ``state`` has a score.
 
-    Native Rainbow Six Siege rich presence does not expose the same ``Winning:`` / ``Losing:`` state strings;
-    this returns None for non-stats.cc activities or when state is missing or unparsable.
+    Works for ``Match Ending: Ranked on …``, ``In round: …``, bare ``Ranked on …``, etc., not only match end.
     """
     if activity is None or activity.name != "stats.cc":
         return None
     details = activity.details or ""
-    if not details.startswith("Match Ending: Ranked"):
+    if not _details_allowed_for_statscc_ranked_score(details):
         return None
     state = activity.state or ""
     score_match = _STATSCC_MATCH_END_SCORE_RE.search(state)
@@ -249,13 +262,21 @@ def parse_statscc_ranked_match_ending(activity: Optional[discord.Activity]) -> O
     outcome = score_match.group("outcome").casefold()
     our_score = int(score_match.group("a"))
     their_score = int(score_match.group("b"))
-    won = outcome == "winning"
+    is_tie = outcome == "tied"
+    won = outcome == "winning" and not is_tie
     map_name: Optional[str] = None
     marker = "Ranked on "
     if marker in details:
         tail = details.split(marker, 1)[1].strip()
         map_name = tail or None
-    return StatsCcRankedMatchEndResult(won=won, our_score=our_score, their_score=their_score, map_name=map_name)
+    return StatsCcRankedMatchEndResult(
+        won=won, our_score=our_score, their_score=their_score, map_name=map_name, is_tie=is_tie
+    )
+
+
+def parse_statscc_ranked_match_ending(activity: Optional[discord.Activity]) -> Optional[StatsCcRankedMatchEndResult]:
+    """Backward-compatible alias for :func:`parse_statscc_ranked_score_from_activity`."""
+    return parse_statscc_ranked_score_from_activity(activity)
 
 
 _STATSCC_MAIN_MENU = ("At the Main Menu", "Idle - at Main Menu")

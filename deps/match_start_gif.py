@@ -44,20 +44,27 @@ def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Ima
 
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_huge: Any = ImageFont.truetype(font_path, 72)
-        font_score: Any = ImageFont.truetype(font_path, 48)
-        font_sub: Any = ImageFont.truetype(font_path, 22)
+        font_huge: Any = ImageFont.truetype(font_path, 92)
+        font_score: Any = ImageFont.truetype(font_path, 60)
+        font_sub: Any = ImageFont.truetype(font_path, 26)
     except Exception as e:
         print_error_log(f"_create_match_result_frame: Failed to load font: {e}")
         font_huge = ImageFont.load_default()
         font_score = ImageFont.load_default()
         font_sub = ImageFont.load_default()
 
-    headline = "WIN" if result.won else "LOSS"
-    head_color = "#3BA55D" if result.won else "#ED4245"
+    if result.is_tie:
+        headline = "TIE"
+        head_color = "#FEE75C"
+    elif result.won:
+        headline = "WIN"
+        head_color = "#3BA55D"
+    else:
+        headline = "LOSS"
+        head_color = "#ED4245"
     draw.text((width // 2, height // 2 - 80), headline, fill=head_color, font=font_huge, anchor="mm")
 
-    score_text = f"{result.our_score}  —  {result.their_score}"
+    score_text = f"{result.our_score}  -  {result.their_score}"
     draw.text((width // 2, height // 2 + 20), score_text, fill="white", font=font_score, anchor="mm")
 
     sub = "Ranked match result (stats.cc)"
@@ -176,9 +183,9 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
     # Load font
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_title: Any = ImageFont.truetype(font_path, 36)
-        font_name: Any = ImageFont.truetype(font_path, 20)
-        font_stats: Any = ImageFont.truetype(font_path, 18)
+        font_title: Any = ImageFont.truetype(font_path, 40)
+        font_name: Any = ImageFont.truetype(font_path, 22)
+        font_stats: Any = ImageFont.truetype(font_path, 20)
     except Exception as e:
         print_error_log(f"_create_good_luck_frame: Failed to load font: {e}")
         font_title = ImageFont.load_default()
@@ -286,9 +293,9 @@ async def _create_player_frame(
     # Load font
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_large: Any = ImageFont.truetype(font_path, 28)
-        font_medium: Any = ImageFont.truetype(font_path, 20)
-        font_small: Any = ImageFont.truetype(font_path, 18)
+        font_large: Any = ImageFont.truetype(font_path, 32)
+        font_medium: Any = ImageFont.truetype(font_path, 22)
+        font_small: Any = ImageFont.truetype(font_path, 20)
     except Exception as e:
         print_error_log(f"_create_player_frame: Failed to load font: {e}")
         # Fallback to default font
