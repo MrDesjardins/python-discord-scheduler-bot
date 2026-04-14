@@ -75,6 +75,17 @@ class MyEventsCog(commands.Cog):
         self.match_start_gif_locks: dict[str, asyncio.Lock] = {}
         self.match_start_gif_locks_creation_lock = asyncio.Lock()
         self.cleanup_task: asyncio.Task | None = None  # Store reference to prevent garbage collection
+        # Track repeated private-channel deletion access failures to prune stale entries.
+        self.private_channel_delete_failures: dict[tuple[int, int], int] = {}
+
+    def _record_private_channel_delete_failure(self, guild_id: int, channel_id: int) -> int:
+        key = (guild_id, channel_id)
+        current = self.private_channel_delete_failures.get(key, 0) + 1
+        self.private_channel_delete_failures[key] = current
+        return current
+
+    def _clear_private_channel_delete_failure(self, guild_id: int, channel_id: int) -> None:
+        self.private_channel_delete_failures.pop((guild_id, channel_id), None)
 
     @staticmethod
     def _log_channel_move_sync(
@@ -271,10 +282,52 @@ class MyEventsCog(commands.Cog):
                     len(members) == 1 and any(m.id == member.id for m in members)
                 )
                 if is_effectively_empty:
-                    await left_channel.delete(reason="Private channel is empty")
-                    await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
+                    bot_member = guild.me
+                    if bot_member is None:
+                        print_warning_log(
+                            f"on_voice_state_update: Cannot delete private channel {left_channel.id} in guild {guild_id} because bot member is unavailable."
+                        )
+                    else:
+                        bot_permissions = left_channel.permissions_for(bot_member)
+                        if not bot_permissions.view_channel or not bot_permissions.manage_channels:
+                            missing: list[str] = []
+                            if not bot_permissions.view_channel:
+                                missing.append("View Channel")
+                            if not bot_permissions.manage_channels:
+                                missing.append("Manage Channels")
+                            print_warning_log(
+                                "on_voice_state_update: Cannot delete private channel "
+                                f"{left_channel.id} in guild {guild_id}; missing {', '.join(missing)}."
+                            )
+                        else:
+                            await left_channel.delete(reason="Private channel is empty")
+                            await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
+                            self._clear_private_channel_delete_failure(guild_id, left_channel.id)
+                        if not bot_permissions.view_channel or not bot_permissions.manage_channels:
+                            failure_count = self._record_private_channel_delete_failure(guild_id, left_channel.id)
+                            if failure_count >= 3:
+                                await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
+                                self._clear_private_channel_delete_failure(guild_id, left_channel.id)
+                                print_warning_log(
+                                    "on_voice_state_update: Removed stale private channel entry after repeated "
+                                    f"missing-access deletion failures for channel {left_channel.id} in guild {guild_id}."
+                                )
             except discord.NotFound:
                 await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
+                self._clear_private_channel_delete_failure(guild_id, left_channel.id)
+            except discord.Forbidden as e:
+                failure_count = self._record_private_channel_delete_failure(guild_id, left_channel.id)
+                print_warning_log(
+                    "on_voice_state_update: Missing access deleting private channel "
+                    f"{left_channel.id} in guild {guild_id} (attempt {failure_count}/3): {e}"
+                )
+                if failure_count >= 3:
+                    await data_access_remove_guild_active_private_channel(guild_id, left_channel.id)
+                    self._clear_private_channel_delete_failure(guild_id, left_channel.id)
+                    print_warning_log(
+                        "on_voice_state_update: Removed stale private channel entry after repeated "
+                        f"forbidden deletion failures for channel {left_channel.id} in guild {guild_id}."
+                    )
             except Exception as e:
                 print_error_log(f"on_voice_state_update: Error deleting private channel: {e}")
 

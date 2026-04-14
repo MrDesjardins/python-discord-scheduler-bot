@@ -640,6 +640,82 @@ class TestPrivateChannelAutoDeletion:
         mock_remove.assert_called_once_with(guild.id, private_channel.id)
 
     @pytest.mark.asyncio
+    async def test_channel_not_deleted_when_bot_lacks_permissions(self, mock_bot):
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        guild.me = MagicMock(spec=discord.Member)
+        private_channel = MagicMock(spec=discord.VoiceChannel)
+        private_channel.id = 555555555
+        private_channel.members = []
+        private_channel.delete = AsyncMock()
+        private_channel.permissions_for.return_value = SimpleNamespace(view_channel=False, manage_channels=False)
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = private_channel
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = None
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity"),
+            patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
+            patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, True)},
+            ),
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
+        ):
+            await cog.on_voice_state_update(member, before, after)
+
+        private_channel.delete.assert_not_called()
+        mock_remove.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_stale_entry_removed_after_repeated_missing_access(self, mock_bot):
+        from cogs.events import MyEventsCog
+
+        guild = self._make_guild()
+        guild.me = MagicMock(spec=discord.Member)
+        private_channel = MagicMock(spec=discord.VoiceChannel)
+        private_channel.id = 555555555
+        private_channel.members = []
+        private_channel.delete = AsyncMock()
+        private_channel.permissions_for.return_value = SimpleNamespace(view_channel=False, manage_channels=False)
+
+        member = self._make_member(guild)
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = private_channel
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = None
+
+        cog = MyEventsCog(mock_bot)
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[111]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id", return_value=333),
+            patch("cogs.events.insert_user_activity"),
+            patch("cogs.events.send_session_stats_to_queue", new_callable=AsyncMock),
+            patch("cogs.events.data_access_remove_voice_user_list", new_callable=AsyncMock),
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels",
+                return_value={private_channel.id: (12345, True)},
+            ),
+            patch("cogs.events.data_access_remove_guild_active_private_channel", new_callable=AsyncMock) as mock_remove,
+        ):
+            await cog.on_voice_state_update(member, before, after)
+            await cog.on_voice_state_update(member, before, after)
+            await cog.on_voice_state_update(member, before, after)
+
+        private_channel.delete.assert_not_called()
+        mock_remove.assert_called_once_with(guild.id, private_channel.id)
+
+    @pytest.mark.asyncio
     async def test_channel_not_deleted_when_still_has_members(self, mock_bot):
         from cogs.events import MyEventsCog
 
