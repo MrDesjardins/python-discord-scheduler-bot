@@ -580,7 +580,7 @@ class TestMatchStartGif:
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_edits_message(self, mock_bot, mock_guild):
-        """Pending GIF + stats.cc ranked score should regenerate GIF and edit the Discord message."""
+        """Match Ending + pending should post static PNG, WINNING label, and clear pending."""
         from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
@@ -592,6 +592,7 @@ class TestMatchStartGif:
         )
         m1 = MagicMock(spec=discord.Member)
         m1.id = 101
+        m1.display_name = "PlayerOne"
         m1.voice = MagicMock()
         m1.voice.channel = MagicMock()
         m1.voice.channel.id = voice_id
@@ -606,22 +607,30 @@ class TestMatchStartGif:
         msg = MagicMock()
         msg.edit = AsyncMock()
 
+        mock_static = AsyncMock(return_value=b"PNGBYTES")
+        mock_gif = AsyncMock(return_value=b"GIFBYTES")
+
         with (
             patch(
                 "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
                 AsyncMock(return_value=pending),
             ),
-            patch("deps.bot_common_actions.generate_match_start_gif", AsyncMock(return_value=b"GIFBYTES")),
+            patch("deps.bot_common_actions.generate_match_end_static_summary", mock_static),
+            patch("deps.bot_common_actions.generate_match_start_gif", mock_gif),
             patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
             patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
         ):
             await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
             msg.edit.assert_awaited_once()
+            mock_static.assert_awaited_once()
+            mock_gif.assert_not_awaited()
             call_kw = msg.edit.await_args.kwargs
             assert "attachments" in call_kw
-            assert "WIN" in call_kw["content"]
+            att = call_kw["attachments"][0]
+            assert att.filename == "match_result.png"
+            assert "WINNING" in call_kw["content"]
             assert "`4-1`" in call_kw["content"]
-            mock_clear.assert_not_called()
+            mock_clear.assert_called_once_with(mock_guild.id, voice_id)
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_score_from_other_vc_member(self, mock_bot, mock_guild):
@@ -631,6 +640,7 @@ class TestMatchStartGif:
         voice_id = 333333333
         m_primary = MagicMock(spec=discord.Member)
         m_primary.id = 101
+        m_primary.display_name = "Primary"
         m_primary.bot = False
         m_primary.voice = MagicMock()
         m_primary.voice.channel = MagicMock()
@@ -645,6 +655,7 @@ class TestMatchStartGif:
         )
         m_scout = MagicMock(spec=discord.Member)
         m_scout.id = 202
+        m_scout.display_name = "Scout"
         m_scout.bot = False
         m_scout.voice = MagicMock()
         m_scout.voice.channel = MagicMock()
@@ -673,12 +684,14 @@ class TestMatchStartGif:
                 "deps.bot_common_actions._members_in_voice_channel",
                 return_value=[m_primary, m_scout],
             ),
+            patch("deps.bot_common_actions.generate_match_end_static_summary", AsyncMock(return_value=b"PNG")),
             patch("deps.bot_common_actions.generate_match_start_gif", AsyncMock(return_value=b"GIFBYTES")),
             patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
             patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
         ):
             await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
             call_kw = msg.edit.await_args.kwargs
-            assert "WIN" in call_kw["content"]
+            assert "WINNING" in call_kw["content"]
             assert "`7-5`" in call_kw["content"]
+            assert call_kw["attachments"][0].filename == "match_start.gif"
             mock_clear.assert_not_called()

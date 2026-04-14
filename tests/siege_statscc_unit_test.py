@@ -343,6 +343,7 @@ def test_parse_statscc_ranked_match_ending_winning() -> None:
     assert r.our_score == 4
     assert r.their_score == 1
     assert r.map_name == "Oregon"
+    assert r.is_match_complete is True
     assert parse_statscc_ranked_score_from_activity(act) == r
 
 
@@ -355,6 +356,7 @@ def test_parse_statscc_ranked_match_ending_losing_en_dash() -> None:
     assert r.our_score == 1
     assert r.their_score == 4
     assert r.map_name == "Bank"
+    assert r.is_match_complete is True
 
 
 def test_parse_statscc_ranked_score_tied_match_ending() -> None:
@@ -366,6 +368,7 @@ def test_parse_statscc_ranked_score_tied_match_ending() -> None:
     assert r.our_score == 2
     assert r.their_score == 2
     assert r.map_name == "Border"
+    assert r.is_match_complete is True
 
 
 def test_parse_statscc_ranked_score_tied_ranked_on_details_only() -> None:
@@ -376,6 +379,7 @@ def test_parse_statscc_ranked_score_tied_ranked_on_details_only() -> None:
     assert r.our_score == 2
     assert r.their_score == 2
     assert r.map_name == "Border"
+    assert r.is_match_complete is False
 
 
 def test_parse_statscc_ranked_score_winning_in_round_details() -> None:
@@ -387,6 +391,7 @@ def test_parse_statscc_ranked_score_winning_in_round_details() -> None:
     assert r.our_score == 3
     assert r.their_score == 2
     assert r.map_name == "Nighthaven Labs"
+    assert r.is_match_complete is False
 
 
 def test_parse_statscc_ranked_match_ending_wrong_activity_name() -> None:
@@ -402,6 +407,7 @@ def test_parse_statscc_ranked_match_ending_in_round_ranked_details() -> None:
     assert r.our_score == 3
     assert r.their_score == 1
     assert r.map_name == "Villa"
+    assert r.is_match_complete is False
 
 
 def test_parse_statscc_ranked_match_ending_missing_state() -> None:

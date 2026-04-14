@@ -36,15 +36,24 @@ FRAME_DURATION_MS = 4000
 RESULT_FRAME_DURATION_MS = 7000
 
 
+def match_result_status_display(result: StatsCcRankedMatchEndResult) -> tuple[str, str]:
+    """Stats.cc-style status label and accent color (WINNING / LOSING / TIED)."""
+    if result.is_tie:
+        return "TIED", "#FEE75C"
+    if result.won:
+        return "WINNING", "#3BA55D"
+    return "LOSING", "#ED4245"
+
+
 def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Image:
-    """Final GIF frame: large WIN/LOSS, score, optional map (stats.cc match end)."""
+    """Final GIF frame: large WINNING/LOSING/TIED, score, optional map (stats.cc)."""
     width, height = 800, 600
     img = Image.new("RGB", (width, height), color="#1E2124")
     draw = ImageDraw.Draw(img)
 
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_huge: Any = ImageFont.truetype(font_path, 92)
+        font_huge: Any = ImageFont.truetype(font_path, 72)
         font_score: Any = ImageFont.truetype(font_path, 60)
         font_sub: Any = ImageFont.truetype(font_path, 26)
     except Exception as e:
@@ -53,15 +62,7 @@ def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Ima
         font_score = ImageFont.load_default()
         font_sub = ImageFont.load_default()
 
-    if result.is_tie:
-        headline = "TIE"
-        head_color = "#FEE75C"
-    elif result.won:
-        headline = "WIN"
-        head_color = "#3BA55D"
-    else:
-        headline = "LOSS"
-        head_color = "#ED4245"
+    headline, head_color = match_result_status_display(result)
     draw.text((width // 2, height // 2 - 80), headline, fill=head_color, font=font_huge, anchor="mm")
 
     score_text = f"{result.our_score}  -  {result.their_score}"
@@ -73,6 +74,76 @@ def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Ima
     draw.text((width // 2, height // 2 + 90), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
 
     return img
+
+
+async def generate_match_end_static_summary(
+    members: List[discord.Member],
+    result: StatsCcRankedMatchEndResult,
+) -> Optional[bytes]:
+    """
+    Single static PNG: participant avatars + display names and final score (no animation).
+
+    Used when stats.cc reports ``Match Ending:`` so the Discord post stops cycling GIF frames.
+    """
+    if not members:
+        return None
+    members = members[:5]
+    width = 800
+    row_top = 220
+    avatar_size = 72 if len(members) >= 4 else 88
+    spacing = 140 if len(members) <= 3 else 118
+    height = max(560, row_top + avatar_size + 56)
+
+    img = Image.new("RGB", (width, height), color="#1E2124")
+    draw = ImageDraw.Draw(img)
+    font_path = "./fonts/Minecraft.ttf"
+    try:
+        font_head: Any = ImageFont.truetype(font_path, 56)
+        font_score: Any = ImageFont.truetype(font_path, 44)
+        font_sub: Any = ImageFont.truetype(font_path, 22)
+        font_name: Any = ImageFont.truetype(font_path, 18)
+    except Exception as e:
+        print_error_log(f"generate_match_end_static_summary: Failed to load font: {e}")
+        font_head = ImageFont.load_default()
+        font_score = ImageFont.load_default()
+        font_sub = ImageFont.load_default()
+        font_name = ImageFont.load_default()
+
+    headline, head_color = match_result_status_display(result)
+    draw.text((width // 2, 48), headline, fill=head_color, font=font_head, anchor="mm")
+    score_line = f"{result.our_score}  -  {result.their_score}"
+    draw.text((width // 2, 112), score_line, fill="white", font=font_score, anchor="mm")
+    sub = "Ranked match result (stats.cc)"
+    if result.map_name:
+        sub = f"Map: {result.map_name}"
+    draw.text((width // 2, 162), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
+
+    total_w = (len(members) - 1) * spacing + avatar_size
+    start_x = (width - total_w) // 2
+    for i, member in enumerate(members):
+        x = start_x + i * spacing
+        try:
+            av = await _download_avatar(member)
+            av = av.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
+            if av.mode == "RGBA":
+                img.paste(av, (x, row_top), av)
+            else:
+                img.paste(av, (x, row_top))
+        except Exception as e:
+            print_error_log(f"generate_match_end_static_summary: avatar for {member.display_name}: {e}")
+        name = member.display_name
+        if len(name) > 14:
+            name = name[:14] + "..."
+        draw.text((x + avatar_size // 2, row_top + avatar_size + 8), name, fill="white", font=font_name, anchor="mt")
+
+    try:
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        buf.seek(0)
+        return buf.getvalue()
+    except Exception as e:
+        print_error_log(f"generate_match_end_static_summary: Failed to encode PNG: {e}")
+        return None
 
 
 async def generate_match_start_gif(
@@ -88,7 +159,7 @@ async def generate_match_start_gif(
         members: List of Discord members in the voice channel
         guild_id: Guild ID for fetching stats
         guild_emoji: Dictionary of guild emojis for rank display
-        match_result: When set, append a final frame showing WIN/LOSS and score (stats.cc).
+        match_result: When set, append a final frame showing WINNING/LOSING/TIED and score (stats.cc).
 
     Returns:
         GIF bytes, or None if generation fails or no members

@@ -88,7 +88,11 @@ from deps.functions_schedule import (
     auto_assign_user_to_daily_question,
     update_vote_message,
 )
-from deps.match_start_gif import generate_match_start_gif
+from deps.match_start_gif import (
+    generate_match_end_static_summary,
+    generate_match_start_gif,
+    match_result_status_display,
+)
 from ui.schedule_buttons import ScheduleButtons
 
 
@@ -870,8 +874,10 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
 
 async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guild, voice_channel_id: int) -> None:
     """
-    If a pending match-start GIF exists and stats.cc reports a ranked score in presence, regenerate GIF with a result
-    frame and replace the message attachment. Pending metadata is kept so later score changes can update the same GIF.
+    If a pending match-start GIF exists and stats.cc reports a ranked score, replace the message attachment.
+
+    In-round updates keep pending metadata so later score ticks can edit the same message (animated GIF).
+    When stats.cc details are ``Match Ending:`` (``is_match_complete``), posts a static PNG summary and clears pending.
     """
     try:
         pending = await data_access_get_pending_match_start_gif_message(guild.id, voice_channel_id)
@@ -923,14 +929,22 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
             return
 
-        gif_bytes = await generate_match_start_gif(
-            members_for_gif,
-            guild.id,
-            bot.guild_emoji.get(guild.id, {}),
-            match_result=parsed_result,
-        )
-        if not gif_bytes:
-            print_log("try_update_match_start_gif_with_result: GIF generation returned no data")
+        wl, _ = match_result_status_display(parsed_result)
+        if parsed_result.is_match_complete:
+            media_bytes = await generate_match_end_static_summary(members_for_gif, parsed_result)
+            media_filename = "match_result.png"
+            result_log = "static match summary PNG"
+        else:
+            media_bytes = await generate_match_start_gif(
+                members_for_gif,
+                guild.id,
+                bot.guild_emoji.get(guild.id, {}),
+                match_result=parsed_result,
+            )
+            media_filename = "match_start.gif"
+            result_log = "animated match GIF"
+        if not media_bytes:
+            print_log("try_update_match_start_gif_with_result: media generation returned no data")
             return
 
         text_channel_id = int(pending["text_channel_id"])
@@ -940,10 +954,6 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
             return
 
-        if parsed_result.is_tie:
-            wl = "TIE"
-        else:
-            wl = "WIN" if parsed_result.won else "LOSS"
         new_content = (
             f"🎮 Match starting in <#{voice_channel_id}>! Good luck!\n"
             f"**{wl}** `{parsed_result.our_score}-{parsed_result.their_score}`"
@@ -953,10 +963,13 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
 
         await message.edit(
             content=new_content,
-            attachments=[discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")],
+            attachments=[discord.File(fp=io.BytesIO(media_bytes), filename=media_filename)],
         )
+        if parsed_result.is_match_complete:
+            data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
         print_log(
-            f"try_update_match_start_gif_with_result: updated match GIF message {message_id} in guild {guild.id}"
+            f"try_update_match_start_gif_with_result: updated match message {message_id} "
+            f"({result_log}) in guild {guild.id}"
         )
     except discord.NotFound:
         data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)

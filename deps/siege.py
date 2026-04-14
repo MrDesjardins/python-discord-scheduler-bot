@@ -242,6 +242,8 @@ class StatsCcRankedMatchEndResult:
     their_score: int
     map_name: Optional[str] = None
     is_tie: bool = False
+    #: True when stats.cc details are ``Match Ending: ...`` (definitive end screen, not mid-round).
+    is_match_complete: bool = False
 
 
 def parse_statscc_ranked_score_from_activity(activity: Optional[discord.Activity]) -> Optional[StatsCcRankedMatchEndResult]:
@@ -269,8 +271,14 @@ def parse_statscc_ranked_score_from_activity(activity: Optional[discord.Activity
     if marker in details:
         tail = details.split(marker, 1)[1].strip()
         map_name = tail or None
+    is_match_complete = details.casefold().startswith("match ending:")
     return StatsCcRankedMatchEndResult(
-        won=won, our_score=our_score, their_score=their_score, map_name=map_name, is_tie=is_tie
+        won=won,
+        our_score=our_score,
+        their_score=their_score,
+        map_name=map_name,
+        is_tie=is_tie,
+        is_match_complete=is_match_complete,
     )
 
 
