@@ -91,7 +91,8 @@ from deps.functions_schedule import (
 from deps.match_start_gif import (
     generate_match_end_static_summary,
     generate_match_start_gif,
-    match_result_status_display,
+    match_result_final_plain_summary,
+    match_result_live_status_display,
 )
 from ui.schedule_buttons import ScheduleButtons
 
@@ -877,7 +878,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
     If a pending match-start GIF exists and stats.cc reports a ranked score, replace the message attachment.
 
     In-round updates keep pending metadata so later score ticks can edit the same message (animated GIF).
-    When stats.cc details are ``Match Ending:`` (``is_match_complete``), posts a static PNG summary and clears pending.
+    When stats.cc details are ``Match Ending:`` (``is_match_complete``), posts a static PNG (``Win 4-1`` / ``Loss 1-4`` / ``Tie 2-2`` style) and clears pending. In-progress lines keep ``LEADING`` / ``TRAILING`` plus `` `score` `` in the message and attachment description.
     """
     try:
         pending = await data_access_get_pending_match_start_gif_message(guild.id, voice_channel_id)
@@ -929,12 +930,13 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
             return
 
-        wl, _ = match_result_status_display(parsed_result)
         if parsed_result.is_match_complete:
+            wl, _ = match_result_final_plain_summary(parsed_result, spaced_hyphen=False)
             media_bytes = await generate_match_end_static_summary(members_for_gif, parsed_result)
             media_filename = "match_result.png"
             result_log = "static match summary PNG"
         else:
+            wl, _ = match_result_live_status_display(parsed_result)
             media_bytes = await generate_match_start_gif(
                 members_for_gif,
                 guild.id,
@@ -954,16 +956,30 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
             return
 
-        new_content = (
-            f"🎮 Match starting in <#{voice_channel_id}>! Good luck!\n"
-            f"**{wl}** `{parsed_result.our_score}-{parsed_result.their_score}`"
-        )
+        new_content = f"🎮 Match starting in <#{voice_channel_id}>! Good luck!\n**{wl}**"
+        if not parsed_result.is_match_complete:
+            new_content += f" `{parsed_result.our_score}-{parsed_result.their_score}`"
         if parsed_result.map_name:
             new_content += f" · {parsed_result.map_name}"
 
+        if parsed_result.is_match_complete:
+            att_desc = wl[:1024]
+            attachment = discord.File(
+                fp=io.BytesIO(media_bytes),
+                filename=media_filename,
+                description=att_desc,
+            )
+        else:
+            score_compact = f"{parsed_result.our_score}-{parsed_result.their_score}"
+            attachment = discord.File(
+                fp=io.BytesIO(media_bytes),
+                filename=media_filename,
+                description=f"{wl} {score_compact}"[:1024],
+            )
+
         await message.edit(
             content=new_content,
-            attachments=[discord.File(fp=io.BytesIO(media_bytes), filename=media_filename)],
+            attachments=[attachment],
         )
         if parsed_result.is_match_complete:
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)

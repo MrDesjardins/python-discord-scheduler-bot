@@ -580,7 +580,7 @@ class TestMatchStartGif:
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_edits_message(self, mock_bot, mock_guild):
-        """Match Ending + pending should post static PNG, WINNING label, and clear pending."""
+        """Match Ending + pending should post static PNG, Win 4-1 line, attachment description, clear pending."""
         from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
@@ -628,9 +628,55 @@ class TestMatchStartGif:
             assert "attachments" in call_kw
             att = call_kw["attachments"][0]
             assert att.filename == "match_result.png"
-            assert "WINNING" in call_kw["content"]
-            assert "`4-1`" in call_kw["content"]
+            assert "**Win 4-1**" in call_kw["content"]
+            assert att.description == "Win 4-1"
             mock_clear.assert_called_once_with(mock_guild.id, voice_id)
+
+    @pytest.mark.asyncio
+    async def test_try_update_match_start_gif_match_ending_low_score_stays_animated(self, mock_bot, mock_guild):
+        """Match Ending at 1-0 must not use static PNG; message uses LEADING, not WINNING."""
+        from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+        voice_id = 333333333
+        act = discord.Activity(
+            name="stats.cc",
+            details="Match Ending: Ranked on Oregon",
+            state="Winning: 1 - 0",
+            type=discord.ActivityType.playing,
+        )
+        m1 = MagicMock(spec=discord.Member)
+        m1.id = 101
+        m1.display_name = "PlayerOne"
+        m1.voice = MagicMock()
+        m1.voice.channel = MagicMock()
+        m1.voice.channel.id = voice_id
+        m1.activities = [act]
+        mock_guild.get_member = MagicMock(return_value=m1)
+        pending = {"text_channel_id": 555, "message_id": 999, "member_ids": [101]}
+        msg = MagicMock()
+        msg.edit = AsyncMock()
+        mock_static = AsyncMock(return_value=b"PNG")
+        mock_gif = AsyncMock(return_value=b"GIF")
+
+        with (
+            patch(
+                "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
+                AsyncMock(return_value=pending),
+            ),
+            patch("deps.bot_common_actions.generate_match_end_static_summary", mock_static),
+            patch("deps.bot_common_actions.generate_match_start_gif", mock_gif),
+            patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
+            patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+        ):
+            await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
+            mock_gif.assert_awaited_once()
+            mock_static.assert_not_awaited()
+            assert "LEADING" in msg.edit.await_args.kwargs["content"]
+            assert "`1-0`" in msg.edit.await_args.kwargs["content"]
+            assert "Win 1-0" not in msg.edit.await_args.kwargs["content"]
+            assert msg.edit.await_args.kwargs["attachments"][0].filename == "match_start.gif"
+            assert msg.edit.await_args.kwargs["attachments"][0].description == "LEADING 1-0"
+            mock_clear.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_score_from_other_vc_member(self, mock_bot, mock_guild):
@@ -691,7 +737,8 @@ class TestMatchStartGif:
         ):
             await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
             call_kw = msg.edit.await_args.kwargs
-            assert "WINNING" in call_kw["content"]
+            assert "LEADING" in call_kw["content"]
             assert "`7-5`" in call_kw["content"]
             assert call_kw["attachments"][0].filename == "match_start.gif"
+            assert call_kw["attachments"][0].description == "LEADING 7-5"
             mock_clear.assert_not_called()

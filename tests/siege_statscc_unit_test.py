@@ -399,6 +399,24 @@ def test_parse_statscc_ranked_match_ending_wrong_activity_name() -> None:
     assert parse_statscc_ranked_match_ending(act) is None
 
 
+def test_parse_statscc_match_ending_early_score_not_match_complete() -> None:
+    """Match Ending with 1-0 is still parsed but must not trigger final PNG (not enough rounds)."""
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Oregon", state="Winning: 1 - 0")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.won is True
+    assert r.our_score == 1
+    assert r.their_score == 0
+    assert r.is_match_complete is False
+
+
+def test_parse_statscc_match_ending_3_0_not_complete_without_tie() -> None:
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Oregon", state="Winning: 3 - 0")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.is_match_complete is False
+
+
 def test_parse_statscc_ranked_match_ending_in_round_ranked_details() -> None:
     act = _make_activity("stats.cc", "In round: Ranked on Villa", state="Winning: 3 - 1")
     r = parse_statscc_ranked_match_ending(act)

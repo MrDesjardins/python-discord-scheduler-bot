@@ -36,17 +36,34 @@ FRAME_DURATION_MS = 4000
 RESULT_FRAME_DURATION_MS = 7000
 
 
-def match_result_status_display(result: StatsCcRankedMatchEndResult) -> tuple[str, str]:
-    """Stats.cc-style status label and accent color (WINNING / LOSING / TIED)."""
+def match_result_live_status_display(result: StatsCcRankedMatchEndResult) -> tuple[str, str]:
+    """In-progress score line: ahead / behind / tied in rounds (not final match outcome)."""
     if result.is_tie:
         return "TIED", "#FEE75C"
     if result.won:
-        return "WINNING", "#3BA55D"
-    return "LOSING", "#ED4245"
+        return "LEADING", "#3BA55D"
+    return "TRAILING", "#ED4245"
+
+
+def match_result_final_plain_summary(
+    result: StatsCcRankedMatchEndResult, *, spaced_hyphen: bool = True
+) -> tuple[str, str]:
+    """
+    Final outcome text with score: ``Win 4 - 1``, ``Loss 1 - 4``, ``Tie 2 - 2`` (ASCII only).
+
+    ``spaced_hyphen`` uses ``' - '`` for PNG/Minecraft font; use ``False`` for compact Discord text.
+    """
+    sep = " - " if spaced_hyphen else "-"
+    score_part = f"{result.our_score}{sep}{result.their_score}"
+    if result.is_tie:
+        return f"Tie {score_part}", "#FEE75C"
+    if result.won:
+        return f"Win {score_part}", "#3BA55D"
+    return f"Loss {score_part}", "#ED4245"
 
 
 def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Image:
-    """Final GIF frame: large WINNING/LOSING/TIED, score, optional map (stats.cc)."""
+    """Final GIF frame: live LEADING/TRAILING or final Win/Loss line with score (stats.cc)."""
     width, height = 800, 600
     img = Image.new("RGB", (width, height), color="#1E2124")
     draw = ImageDraw.Draw(img)
@@ -62,16 +79,21 @@ def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Ima
         font_score = ImageFont.load_default()
         font_sub = ImageFont.load_default()
 
-    headline, head_color = match_result_status_display(result)
-    draw.text((width // 2, height // 2 - 80), headline, fill=head_color, font=font_huge, anchor="mm")
-
-    score_text = f"{result.our_score}  -  {result.their_score}"
-    draw.text((width // 2, height // 2 + 20), score_text, fill="white", font=font_score, anchor="mm")
+    if result.is_match_complete:
+        headline, head_color = match_result_final_plain_summary(result, spaced_hyphen=True)
+        draw.text((width // 2, height // 2 - 70), headline, fill=head_color, font=font_huge, anchor="mm")
+        sub_y = height // 2 + 35
+    else:
+        headline, head_color = match_result_live_status_display(result)
+        draw.text((width // 2, height // 2 - 80), headline, fill=head_color, font=font_huge, anchor="mm")
+        score_text = f"{result.our_score}  -  {result.their_score}"
+        draw.text((width // 2, height // 2 + 20), score_text, fill="white", font=font_score, anchor="mm")
+        sub_y = height // 2 + 90
 
     sub = "Ranked match result (stats.cc)"
     if result.map_name:
         sub = f"Map: {result.map_name}"
-    draw.text((width // 2, height // 2 + 90), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
+    draw.text((width // 2, sub_y), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
 
     return img
 
@@ -89,34 +111,30 @@ async def generate_match_end_static_summary(
         return None
     members = members[:5]
     width = 800
-    row_top = 220
+    row_top = 200
     avatar_size = 72 if len(members) >= 4 else 88
     spacing = 140 if len(members) <= 3 else 118
-    height = max(560, row_top + avatar_size + 56)
+    height = max(540, row_top + avatar_size + 56)
 
     img = Image.new("RGB", (width, height), color="#1E2124")
     draw = ImageDraw.Draw(img)
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_head: Any = ImageFont.truetype(font_path, 56)
-        font_score: Any = ImageFont.truetype(font_path, 44)
+        font_head: Any = ImageFont.truetype(font_path, 52)
         font_sub: Any = ImageFont.truetype(font_path, 22)
         font_name: Any = ImageFont.truetype(font_path, 18)
     except Exception as e:
         print_error_log(f"generate_match_end_static_summary: Failed to load font: {e}")
         font_head = ImageFont.load_default()
-        font_score = ImageFont.load_default()
         font_sub = ImageFont.load_default()
         font_name = ImageFont.load_default()
 
-    headline, head_color = match_result_status_display(result)
-    draw.text((width // 2, 48), headline, fill=head_color, font=font_head, anchor="mm")
-    score_line = f"{result.our_score}  -  {result.their_score}"
-    draw.text((width // 2, 112), score_line, fill="white", font=font_score, anchor="mm")
+    headline, head_color = match_result_final_plain_summary(result, spaced_hyphen=True)
+    draw.text((width // 2, 52), headline, fill=head_color, font=font_head, anchor="mm")
     sub = "Ranked match result (stats.cc)"
     if result.map_name:
         sub = f"Map: {result.map_name}"
-    draw.text((width // 2, 162), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
+    draw.text((width // 2, 128), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
 
     total_w = (len(members) - 1) * spacing + avatar_size
     start_x = (width - total_w) // 2
@@ -159,7 +177,8 @@ async def generate_match_start_gif(
         members: List of Discord members in the voice channel
         guild_id: Guild ID for fetching stats
         guild_emoji: Dictionary of guild emojis for rank display
-        match_result: When set, append a final frame showing WINNING/LOSING/TIED and score (stats.cc).
+        match_result: When set, append a final frame: LEADING/TRAILING/TIED while in progress,
+        WINNING/LOSING/TIED only when ``result.is_match_complete`` (see ``deps.siege``).
 
     Returns:
         GIF bytes, or None if generation fails or no members
