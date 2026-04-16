@@ -242,8 +242,8 @@ class StatsCcRankedMatchEndResult:
     their_score: int
     map_name: Optional[str] = None
     is_tie: bool = False
-    #: True when stats.cc shows ``Match Ending:`` and score looks like a finished ranked match
-    #: (non-tie: max rounds >= 4 per Siege first-to-4; ties: any score).
+    #: True when stats.cc shows ``Match Ending:`` and max(round score) >= 4 (Siege first-to-4).
+    #: Ties use the same rule: ``Tied: 1-1`` with Match Ending is often between rounds, not match over.
     is_match_complete: bool = False
 
 
@@ -272,15 +272,12 @@ def parse_statscc_ranked_score_from_activity(activity: Optional[discord.Activity
     if marker in details:
         tail = details.split(marker, 1)[1].strip()
         map_name = tail or None
-    # "Match Ending:" can appear with early round scores (e.g. 1-0); ranked needs 4 round wins to finish
-    # unless the score is tied (end-of-regulation / draw-style screens).
+    # "Match Ending:" appears between rounds too (logs: 1-1 tied then Picking Operators). Require max >= 4
+    # for first-to-4 ranked so low ties (1-1, 2-2) stay animated until a plausible match end.
     details_l = details.casefold()
     has_match_ending = details_l.startswith("match ending:")
     high = max(our_score, their_score)
-    if has_match_ending and (is_tie or high >= 4):
-        is_match_complete = True
-    else:
-        is_match_complete = False
+    is_match_complete = bool(has_match_ending and high >= 4)
     return StatsCcRankedMatchEndResult(
         won=won,
         our_score=our_score,

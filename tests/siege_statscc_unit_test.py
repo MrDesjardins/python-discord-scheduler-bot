@@ -359,15 +359,31 @@ def test_parse_statscc_ranked_match_ending_losing_en_dash() -> None:
     assert r.is_match_complete is True
 
 
-def test_parse_statscc_ranked_score_tied_match_ending() -> None:
+def test_parse_statscc_ranked_score_tied_match_ending_low_not_complete() -> None:
+    """stats.cc uses Match Ending between rounds; low ties must not trigger final PNG."""
     act = _make_activity("stats.cc", "Match Ending: Ranked on Border", state="Tied: 2 - 2")
     r = parse_statscc_ranked_score_from_activity(act)
     assert r is not None
     assert r.is_tie is True
-    assert r.won is False
     assert r.our_score == 2
     assert r.their_score == 2
     assert r.map_name == "Border"
+    assert r.is_match_complete is False
+
+
+def test_parse_statscc_match_ending_tied_1_1_not_complete() -> None:
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Fortress", state="Tied: 1 - 1")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.is_tie is True
+    assert r.is_match_complete is False
+
+
+def test_parse_statscc_ranked_score_tied_match_ending_high_complete() -> None:
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Border", state="Tied: 4 - 4")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.is_tie is True
     assert r.is_match_complete is True
 
 
