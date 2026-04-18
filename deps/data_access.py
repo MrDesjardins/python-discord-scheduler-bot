@@ -536,7 +536,8 @@ async def data_access_set_last_match_start_gif_time(guild_id: int, channel_id: i
 
 
 async def data_access_get_pending_match_start_gif_message(
-    guild_id: int, voice_channel_id: int,
+    guild_id: int,
+    voice_channel_id: int,
 ) -> Optional[dict[str, Any]]:
     """Pending match-start GIF message to update when stats.cc reports match end (2h TTL)."""
     key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"

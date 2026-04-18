@@ -247,7 +247,9 @@ class StatsCcRankedMatchEndResult:
     is_match_complete: bool = False
 
 
-def parse_statscc_ranked_score_from_activity(activity: Optional[discord.Activity]) -> Optional[StatsCcRankedMatchEndResult]:
+def parse_statscc_ranked_score_from_activity(
+    activity: Optional[discord.Activity],
+) -> Optional[StatsCcRankedMatchEndResult]:
     """
     Parse win/loss/tie and round score from stats.cc when details indicate ranked play and ``state`` has a score.
 

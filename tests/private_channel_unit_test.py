@@ -981,7 +981,8 @@ class TestPrivateChannelTracking:
         return member
 
     @pytest.mark.asyncio
-    async def test_join_untracked_private_channel_skips_insert(self, mock_bot):
+    async def test_join_untracked_private_channel_inserts_activity(self, mock_bot):
+        """Private channels are VoiceChannels; analytics logs all VCs regardless of private track flag."""
         from cogs.events import MyEventsCog
 
         guild = self._make_guild()
@@ -1011,7 +1012,7 @@ class TestPrivateChannelTracking:
         ):
             await cog.on_voice_state_update(member, before, after)
 
-        mock_insert.assert_not_called()
+        mock_insert.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_join_tracked_private_channel_inserts_activity(self, mock_bot):
@@ -1047,8 +1048,8 @@ class TestPrivateChannelTracking:
         mock_insert.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_join_non_configured_non_private_channel_skips_insert(self, mock_bot):
-        """Channels that are neither in voice_channel_ids nor private channels are not tracked."""
+    async def test_join_non_configured_voice_channel_inserts_activity(self, mock_bot):
+        """Any VoiceChannel is logged; LFG list does not gate insert_user_activity."""
         from cogs.events import MyEventsCog
 
         guild = self._make_guild()
@@ -1075,10 +1076,10 @@ class TestPrivateChannelTracking:
         ):
             await cog.on_voice_state_update(member, before, after)
 
-        mock_insert.assert_not_called()
+        mock_insert.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_leave_untracked_private_channel_skips_insert(self, mock_bot):
+    async def test_leave_untracked_private_channel_inserts_disconnect(self, mock_bot):
         from cogs.events import MyEventsCog
 
         guild = self._make_guild()
@@ -1108,11 +1109,11 @@ class TestPrivateChannelTracking:
         ):
             await cog.on_voice_state_update(member, before, after)
 
-        mock_insert.assert_not_called()
+        mock_insert.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_switch_from_untracked_private_to_tracked_logs_only_connect(self, mock_bot):
-        """Moving from untracked private → tracked channel logs only the CONNECT, no full move transaction."""
+    async def test_switch_between_voice_channels_uses_move_transaction(self, mock_bot):
+        """Both endpoints are VoiceChannels: atomic DISCONNECT+CONNECT via _log_channel_move_sync."""
         from cogs.events import MyEventsCog
 
         guild = self._make_guild()
@@ -1155,5 +1156,6 @@ class TestPrivateChannelTracking:
             mock_db.data_access_transaction.return_value = mock_transaction
             await cog.on_voice_state_update(member, before, after)
 
-        # Full move transaction must NOT have been called
-        mock_db.data_access_transaction.assert_not_called()
+        mock_db.data_access_transaction.assert_called_once()
+        mock_insert.assert_not_called()
+        assert mock_cursor.execute.call_count >= 2

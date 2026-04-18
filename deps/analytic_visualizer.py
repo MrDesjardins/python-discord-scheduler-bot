@@ -6,7 +6,7 @@ import io
 from collections import Counter, defaultdict
 from datetime import datetime, date, time, timedelta
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Union, Any, cast
+from typing import Any, Dict, Iterable, List, Tuple, Union, cast
 import plotly.graph_objs as go  # type: ignore
 import seaborn as sns
 import numpy as np
@@ -231,7 +231,8 @@ def display_graph_cluster_people(show: bool = True, from_day: int = 3600, to_day
         seed=42,
     )
 
-    strengths = dict(graph_network.degree(weight="weight"))
+    degree_pairs = cast(Iterable[Tuple[Any, Any]], graph_network.degree(weight="weight"))
+    strengths = {node: float(weight) for node, weight in degree_pairs}
     max_strength = max(strengths.values()) if strengths else 1.0
 
     fig, ax = plt.subplots(figsize=(20, 18))
@@ -724,9 +725,7 @@ def display_user_timeline_voice_time_by_day(
                 start_time = start_times.pop(start_key)
                 play_duration: float = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
                 user_play_times[activity.user_id] += play_duration
-                _add_voice_minutes_across_calendar_days(
-                    user_daily_play_times, activity.user_id, start_time, timestamp
-                )
+                _add_voice_minutes_across_calendar_days(user_daily_play_times, activity.user_id, start_time, timestamp)
 
     # Get top 20 most active users by total play time
     top_users = sorted(user_play_times.items(), key=lambda x: x[1], reverse=True)[:20]
@@ -788,9 +787,7 @@ def display_user_timeline_voice_time_by_week(
                 start_time = start_times.pop(start_key)
                 play_duration: float = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
                 user_play_times[activity.user_id] += play_duration  # Track total time per user
-                _add_voice_minutes_across_iso_weeks(
-                    user_weekly_play_times, activity.user_id, start_time, timestamp
-                )
+                _add_voice_minutes_across_iso_weeks(user_weekly_play_times, activity.user_id, start_time, timestamp)
 
     # Get top 30 most active users by total play time
     top_users = sorted(user_play_times.items(), key=lambda x: x[1], reverse=True)[:30]
@@ -879,9 +876,7 @@ def display_user_line_graph_time(
                 play_duration = (timestamp - start_time).total_seconds() / 60  # Convert to minutes
                 user_play_times += play_duration  # Track total time per user
                 tmp_weekly: dict[int, dict[str, float]] = defaultdict(lambda: defaultdict(float))
-                _add_voice_minutes_across_iso_weeks(
-                    tmp_weekly, activity.user_id, start_time, timestamp
-                )
+                _add_voice_minutes_across_iso_weeks(tmp_weekly, activity.user_id, start_time, timestamp)
                 for wk, mins in tmp_weekly[activity.user_id].items():
                     user_weekly_play_times[wk] += mins
 

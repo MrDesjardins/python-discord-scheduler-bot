@@ -91,6 +91,8 @@ class TestGuildLoopBug:
 
         after = MagicMock(spec=discord.VoiceState)
         after.channel = mock_voice_channel
+        # Solo member triggers LFG path, which fetches schedule text channel
+        mock_voice_channel.members = [mock_member]
 
         # Mock data access functions
         with (
@@ -100,6 +102,7 @@ class TestGuildLoopBug:
             patch("cogs.events.data_access_update_voice_user_list") as mock_update_voice_list,
             patch("cogs.events.get_any_siege_activity") as mock_get_activity,
             patch("cogs.events.send_private_notification_following_user") as mock_send_notification,
+            patch("cogs.events.send_notification_voice_channel", new_callable=AsyncMock) as mock_lfg,
         ):
 
             # Setup mocks
@@ -121,6 +124,38 @@ class TestGuildLoopBug:
             # Verify: Only queried member's guild settings
             mock_get_voice_channels.assert_called_once_with(mock_guild.id)
             mock_get_schedule_channel.assert_called_once_with(mock_guild.id)
+            mock_lfg.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_user_join_voice_channel_logs_without_lfg_or_schedule(
+        self, mock_bot, mock_guild, mock_member, mock_voice_channel
+    ):
+        """Analytics run for any VoiceChannel; schedule is not required when LFG does not fire."""
+        from cogs.events import MyEventsCog
+
+        mock_bot.guilds = [mock_guild]
+        cog = MyEventsCog(mock_bot)
+
+        before = MagicMock(spec=discord.VoiceState)
+        before.channel = None
+        after = MagicMock(spec=discord.VoiceState)
+        after.channel = mock_voice_channel
+        mock_voice_channel.members = [mock_member, MagicMock(spec=discord.Member)]  # not alone: no LFG
+
+        with (
+            patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[]),
+            patch("cogs.events.data_access_get_guild_schedule_text_channel_id") as mock_get_schedule_channel,
+            patch("cogs.events.insert_user_activity") as mock_insert,
+            patch("cogs.events.data_access_update_voice_user_list", new_callable=AsyncMock),
+            patch("cogs.events.get_any_siege_activity", return_value=None),
+            patch("cogs.events.send_private_notification_following_user", new_callable=AsyncMock),
+            patch("cogs.events.send_notification_voice_channel", new_callable=AsyncMock) as mock_lfg,
+        ):
+            await cog.on_voice_state_update(mock_member, before, after)
+
+            assert mock_insert.call_count == 1
+            mock_get_schedule_channel.assert_not_called()
+            mock_lfg.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_bot_user_ignored(self, mock_bot, mock_guild, mock_member, mock_voice_channel):
@@ -171,18 +206,12 @@ class TestShutdownHandler:
 
         mock_voice_channel.members = [user1, user2, bot_user]
         mock_bot.guilds = [mock_guild]
+        mock_guild.voice_channels = [mock_voice_channel]
+        mock_guild.stage_channels = []
 
         cog = MyEventsCog(mock_bot)
 
-        with (
-            patch("cogs.events.data_access_get_guild_voice_channel_ids") as mock_get_channels,
-            patch("cogs.events.data_access_get_channel") as mock_get_channel,
-            patch("cogs.events.insert_user_activity") as mock_insert,
-        ):
-
-            mock_get_channels.return_value = [mock_voice_channel.id]
-            mock_get_channel.return_value = mock_voice_channel
-
+        with patch("cogs.events.insert_user_activity") as mock_insert:
             # Execute
             await cog.on_close()
 

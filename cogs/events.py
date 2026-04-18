@@ -61,6 +61,11 @@ load_dotenv()
 ENV = os.getenv("ENV")
 
 
+def _is_loggable_voice_channel(channel: discord.abc.GuildChannel | None) -> bool:
+    """Voice surfaces we record in user_activity and run follow notifications for."""
+    return isinstance(channel, (discord.VoiceChannel, discord.StageChannel))
+
+
 class MyEventsCog(commands.Cog):
     """
     Main events cog for the bot
@@ -266,9 +271,8 @@ class MyEventsCog(commands.Cog):
         guild = member.guild
         guild_id = guild.id
 
-        # Fetch all active private channels once; used for deletion and tracking below
+        # Fetch all active private channels once; used for deletion below
         active_private_channels = await data_access_get_guild_active_private_channels(guild_id)
-        tracked_private_ids: set[int] = {ch_id for ch_id, (_, track) in active_private_channels.items() if track}
         all_private_ids: set[int] = set(active_private_channels.keys())
 
         # Always delete a private channel when it becomes empty, regardless of guild config
@@ -331,27 +335,15 @@ class MyEventsCog(commands.Cog):
             except Exception as e:
                 print_error_log(f"on_voice_state_update: Error deleting private channel: {e}")
 
-        voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
-        voice_channel_ids_set: set[int] = set(voice_channel_ids) if voice_channel_ids is not None else set()
+        lfg_voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
+        lfg_voice_channel_ids_set: set[int] = set(lfg_voice_channel_ids) if lfg_voice_channel_ids is not None else set()
 
-        if not voice_channel_ids_set and not tracked_private_ids:
-            print_warning_log(f"Voice channel not set for guild {guild.name}. Skipping.")
-            return
-
-        schedule_text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
-        if schedule_text_channel_id is None:
-            print_warning_log(f"Schedule text channel not set for guild {guild.name}. Skipping.")
-            return
-
-        def is_tracked(channel_id: int) -> bool:
-            return channel_id in voice_channel_ids_set or channel_id in tracked_private_ids
-
-        # Log user activity
+        # Log user activity (all voice/stage channels). LFG stays admin-configured only (below).
         try:
             if before.channel is None and after.channel is not None:
                 # User joined a voice channel
-                channel_id = after.channel.id
-                if is_tracked(channel_id):
+                if _is_loggable_voice_channel(after.channel):
+                    channel_id = after.channel.id
                     insert_user_activity(
                         member.id,
                         member.display_name,
@@ -361,25 +353,25 @@ class MyEventsCog(commands.Cog):
                         datetime.now(timezone.utc),
                     )
 
-                # Add the user to the voice channel list with the current siege activity detail
-                user_activity = get_any_siege_activity(member)
-                await data_access_update_voice_user_list(
-                    guild_id,
-                    after.channel.id,
-                    member.id,
-                    user_activity.details if user_activity else None,
-                )
+                    # Add the user to the voice channel list with the current siege activity detail
+                    user_activity = get_any_siege_activity(member)
+                    await data_access_update_voice_user_list(
+                        guild_id,
+                        after.channel.id,
+                        member.id,
+                        user_activity.details if user_activity else None,
+                    )
 
-                # When a user joins a voice channel, we see if someone is following that new user to send a private message
-                try:
-                    await send_private_notification_following_user(self.bot, member.id, guild_id, channel_id)
-                except Exception as e:
-                    print_error_log(f"on_voice_state_update: Error sending follow notification: {e}")
+                    # When a user joins a voice channel, notify users who follow this member (any loggable VC)
+                    try:
+                        await send_private_notification_following_user(self.bot, member.id, guild_id, channel_id)
+                    except Exception as e:
+                        print_error_log(f"on_voice_state_update: Error sending follow notification: {e}")
 
             elif before.channel is not None and after.channel is None:
                 # User left a voice channel
-                channel_id = before.channel.id
-                if is_tracked(channel_id):
+                if _is_loggable_voice_channel(before.channel):
+                    channel_id = before.channel.id
                     await asyncio.to_thread(
                         insert_user_activity,
                         member.id,
@@ -399,11 +391,11 @@ class MyEventsCog(commands.Cog):
 
             elif before.channel is not None and after.channel is not None and before.channel.id != after.channel.id:
                 # User switched between voice channels
-                before_tracked = is_tracked(before.channel.id)
-                after_tracked = is_tracked(after.channel.id)
+                before_loggable = _is_loggable_voice_channel(before.channel)
+                after_loggable = _is_loggable_voice_channel(after.channel)
                 try:
                     move_time = datetime.now(timezone.utc)
-                    if before_tracked and after_tracked:
+                    if before_loggable and after_loggable:
                         await asyncio.to_thread(
                             self._log_channel_move_sync,
                             member.id,
@@ -413,7 +405,7 @@ class MyEventsCog(commands.Cog):
                             guild_id,
                             move_time,
                         )
-                    elif before_tracked:
+                    elif before_loggable:
                         await asyncio.to_thread(
                             insert_user_activity,
                             member.id,
@@ -423,7 +415,7 @@ class MyEventsCog(commands.Cog):
                             EVENT_DISCONNECT,
                             move_time,
                         )
-                    elif after_tracked:
+                    elif after_loggable:
                         await asyncio.to_thread(
                             insert_user_activity,
                             member.id,
@@ -448,15 +440,21 @@ class MyEventsCog(commands.Cog):
         except Exception as e:
             print_error_log(f"on_voice_state_update: Error logging user activity: {e}")
 
-        # LFG notification (only for admin-configured voice channels)
-        if after.channel is not None and after.channel.id in voice_channel_ids_set:
+        # LFG notification (only for admin-configured voice channels; schedule channel required for that only)
+        if after.channel is not None and after.channel.id in lfg_voice_channel_ids_set:
             if len(after.channel.members) == 1:
-                await send_notification_voice_channel(
-                    guild_id,
-                    member,
-                    after.channel,
-                    schedule_text_channel_id,
-                )
+                schedule_text_channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)
+                if schedule_text_channel_id is None:
+                    print_warning_log(
+                        f"Schedule text channel not set for guild {guild.name}; cannot send LFG notification."
+                    )
+                else:
+                    await send_notification_voice_channel(
+                        guild_id,
+                        member,
+                        after.channel,
+                        schedule_text_channel_id,
+                    )
 
     @commands.Cog.listener()
     async def on_close(self):
@@ -468,32 +466,26 @@ class MyEventsCog(commands.Cog):
 
         for guild in self.bot.guilds:
             guild_id = guild.id
-            voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
-
-            if voice_channel_ids is None:
-                continue
-
-            for voice_channel_id in voice_channel_ids:
+            voice_like_channels: list[discord.VoiceChannel | discord.StageChannel] = [
+                *guild.voice_channels,
+                *guild.stage_channels,
+            ]
+            for channel in voice_like_channels:
                 try:
-                    channel = await data_access_get_channel(voice_channel_id)
-                    if channel is None or not isinstance(channel, discord.VoiceChannel):
-                        continue
-
-                    # Insert DISCONNECT for all members in channel
                     for member in channel.members:
                         if not member.bot:
                             await asyncio.to_thread(
                                 insert_user_activity,
                                 member.id,
                                 member.display_name,
-                                voice_channel_id,
+                                channel.id,
                                 guild_id,
                                 EVENT_DISCONNECT,
                                 datetime.now(timezone.utc),
                             )
                             print_log(f"Shutdown cleanup: Disconnected {member.display_name} from {channel.name}")
                 except Exception as e:
-                    print_error_log(f"on_close: Error processing channel {voice_channel_id}: {e}")
+                    print_error_log(f"on_close: Error processing channel {channel.id} in guild {guild_id}: {e}")
 
         print_log("Shutdown cleanup completed")
 
@@ -585,7 +577,7 @@ class MyEventsCog(commands.Cog):
             parse_statscc_ranked_score_from_activity(before_stats_cc) if before_stats_cc is not None else None
         )
         schedule_gif_result_update = False
-        if parsed_ranked_after is not None:
+        if parsed_ranked_after is not None and after_stats_cc is not None:
             before_state = before_stats_cc.state if before_stats_cc else None
             after_state = after_stats_cc.state
             before_details_cc = before_stats_cc.details if before_stats_cc else None

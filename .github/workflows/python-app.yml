@@ -40,6 +40,11 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Static checks (black cogs + mypy)
+        run: |
+          uv run black --check cogs/
+          uv run mypy deps cogs tests
+
       - name: Run Unit Test Coverage
         run: make unit-test-coverage
 

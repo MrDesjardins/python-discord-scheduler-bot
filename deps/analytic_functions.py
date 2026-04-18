@@ -287,9 +287,7 @@ def user_times_by_month(user_activities: list[UserActivity]) -> dict[str, dict[i
             if activity.event == EVENT_CONNECT:
                 connect_time = event_time
             elif activity.event == EVENT_DISCONNECT and connect_time:
-                for month_key, seconds in _distribute_seconds_across_calendar_months(
-                    connect_time, event_time
-                ).items():
+                for month_key, seconds in _distribute_seconds_across_calendar_months(connect_time, event_time).items():
                     time_played_per_month[month_key][user_id] += seconds
                 connect_time = None  # Reset connect time for next session
     return time_played_per_month
