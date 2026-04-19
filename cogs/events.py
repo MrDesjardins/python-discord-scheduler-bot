@@ -544,6 +544,11 @@ class MyEventsCog(commands.Cog):
         if not after.voice or not after.voice.channel:
             return  # Ignore users not in a voice channel
 
+        lfg_voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
+        lfg_voice_channel_ids_set: set[int] = (
+            set(lfg_voice_channel_ids) if lfg_voice_channel_ids is not None else set()
+        )
+
         # Check for activity changes
         before_activity = get_any_siege_activity(before)
         after_activity = get_any_siege_activity(after)
@@ -561,8 +566,9 @@ class MyEventsCog(commands.Cog):
             ActivityTransition(before_details, after_details),
         )
 
-        # Automatic send in the Siege text message a "looking for game" message
-        await self.send_automatic_lfg_message_debounced(guild_id, after.voice.channel.id)
+        # Automatic LFG only for mod-configured voice channels (`/modvoicechannel`), same list as schedule LFG pings
+        if after.voice.channel.id in lfg_voice_channel_ids_set:
+            await self.send_automatic_lfg_message_debounced(guild_id, after.voice.channel.id)
 
         # Check for match start and send animated GIF
         await self.send_match_start_gif_debounced(guild_id, after.voice.channel.id)
