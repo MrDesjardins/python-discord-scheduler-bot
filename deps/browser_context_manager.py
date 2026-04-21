@@ -23,8 +23,8 @@ from deps.log import print_error_log, print_log, print_warning_log
 from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_max_rank, parse_json_user_info
 from deps.functions import (
     get_url_api_ranked_matches,
-    get_url_user_ranked_matches,
     get_url_api_user_info,
+    get_url_user_profile_main,
 )
 from deps.siege import siege_ranks
 from deps.browser_config import BrowserConfig
@@ -149,7 +149,7 @@ class BrowserContextManager:
             if not _CIRCUIT_BREAKER.allow_request():
                 stats = _CIRCUIT_BREAKER.get_stats()
                 raise CircuitBreakerOpenException(
-                    f"Circuit breaker is OPEN after {stats['total_failures']} failures. "
+                    f"Circuit breaker is OPEN after {stats['consecutive_failures']} consecutive failures. "
                     f"Will retry after timeout. Last failure: {stats.get('last_failure_time', 'N/A')}"
                 )
 
@@ -532,6 +532,8 @@ class BrowserContextManager:
         # Add verbose logging to help diagnose issues
         options.add_argument("--enable-logging")
         options.add_argument("--v=1")
+        # Tracker warm-up pages are heavy; we only need the DOM/cookies, not every asset.
+        options.page_load_strategy = "eager"
 
         if self.environment == "prod":
             print_log("Launching Chrome in System-Level Xvfb environment...")
@@ -615,8 +617,24 @@ class BrowserContextManager:
 
         driver = self._active_driver()
         driver.set_page_load_timeout(self.config.page_load_timeout_seconds)
-        # Load initial page
-        driver.get(get_url_user_ranked_matches(self.default_profile))
+        warmup_url = get_url_user_profile_main(self.default_profile)
+        try:
+            driver.get(warmup_url)
+        except TimeoutException as e:
+            # The browser process is healthy at this point; a slow warm-up page should not be
+            # treated as a fatal startup error because later API requests may still succeed.
+            print_warning_log(f"Warm-up navigation timed out for {warmup_url}: {e}")
+            try:
+                driver.execute_script("window.stop();")
+            except Exception as stop_error:
+                print_warning_log(f"Failed to stop warm-up page load cleanly: {stop_error}")
+
+            try:
+                print_warning_log(
+                    f"Warm-up page diagnostic: url={driver.current_url!r}, title={driver.title!r}"
+                )
+            except Exception as diagnostic_error:
+                print_warning_log(f"Failed to collect warm-up diagnostics: {diagnostic_error}")
 
         # Only wait for app-container if you are sure it's on the landing page
         # If the landing page is just JSON, this will fail.

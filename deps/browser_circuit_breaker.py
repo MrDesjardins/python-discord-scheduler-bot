@@ -150,3 +150,7 @@ class BrowserCircuitBreaker:
             self._consecutive_failures = 0
             self._consecutive_successes = 0
             self._last_failure_time = None
+            self._total_calls = 0
+            self._total_successes = 0
+            self._total_failures = 0
+            self._state_transitions = 0
