@@ -100,7 +100,7 @@ this new one will add on top of the previous schedule with the new hours for the
         guild = interaction.guild
         if guild is None:
             print_error_log("apply_schedule: Guild is None.")
-            await interaction.response.send_message("apply_schedule: No guild", ephemeral=True)
+            await interaction.followup.send("apply_schedule: No guild", ephemeral=True)
             return
         guild_id = guild.id
         channel_id = await data_access_get_guild_schedule_text_channel_id(guild_id)

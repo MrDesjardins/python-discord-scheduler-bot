@@ -1,3 +1,6 @@
+"""Discord commands for custom-game subscriptions, pings, and team generation."""
+# pylint: disable=line-too-long
+
 import asyncio
 from datetime import datetime, timezone
 from typing import List, Union
@@ -13,7 +16,6 @@ from deps.custom_match.custom_match_functions import (
     select_team_by_algorithm,
 )
 from deps.data_access import (
-    data_access_get_channel,
     data_access_get_channel,
     data_access_get_custom_game_voice_channels,
     data_access_get_member,
@@ -51,16 +53,20 @@ class UserCustomGameFeatures(commands.Cog):
         display_name = interaction.user.display_name
         if interaction.guild is None:
             print_error_log(
-                f"register_custom_game: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+                "register_custom_game: No guild available for user "
+                f"{interaction.user.display_name}({interaction.user.id})."
             )
-            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            await interaction.followup.send("Cannot perform this operation in this guild.", ephemeral=True)
             return
         guild = interaction.guild
         guild_id = guild.id
         current_datetime = datetime.now(timezone.utc)
         data_access_subscribe_custom_game(user_id, guild_id, current_datetime)
         await interaction.followup.send(
-            content=f"{display_name} subscribed to future 10-man notifications using the /{COMMAND_CUSTOM_GAME_SUBSCRIBE}. To unsubscribe use /{COMMAND_CUSTOM_GAME_UNSUBSCRIBE}",
+            content=(
+                f"{display_name} subscribed to future 10-man notifications using the "
+                f"/{COMMAND_CUSTOM_GAME_SUBSCRIBE}. To unsubscribe use /{COMMAND_CUSTOM_GAME_UNSUBSCRIBE}"
+            ),
             ephemeral=False,
         )
 
@@ -74,7 +80,7 @@ class UserCustomGameFeatures(commands.Cog):
         display_name = interaction.user.display_name
         if interaction.guild is None:
             print_error_log(f"see_custom_game_subscriptions: No guild available for user {display_name}({user_id}).")
-            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            await interaction.followup.send("Cannot perform this operation in this guild.", ephemeral=True)
             return
         guild = interaction.guild
         guild_id = guild.id
@@ -97,9 +103,10 @@ class UserCustomGameFeatures(commands.Cog):
         await interaction.response.defer()
         if interaction.guild is None:
             print_error_log(
-                f"see_custom_game_subscriptions: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+                "see_custom_game_subscriptions: No guild available for user "
+                f"{interaction.user.display_name}({interaction.user.id})."
             )
-            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            await interaction.followup.send("Cannot perform this operation in this guild.", ephemeral=True)
             return
         guild = interaction.guild
         guild_id = guild.id
@@ -133,7 +140,7 @@ class UserCustomGameFeatures(commands.Cog):
         display_name = interaction.user.display_name
         if interaction.guild is None:
             print_error_log(f"custom_game_lfg: No guild available for user {display_name}({user_id}).")
-            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            await interaction.followup.send("Cannot perform this operation in this guild.", ephemeral=True)
             return
         guild = interaction.guild
         guild_id = guild.id
@@ -158,20 +165,23 @@ class UserCustomGameFeatures(commands.Cog):
                 f"{mentions_text} are you available for a 10-man? "
                 f"You can add yourself to this list with `/{COMMAND_CUSTOM_GAME_SUBSCRIBE}`."
             ),
-            ephemeral=True,
+            ephemeral=False,
         )
 
     @app_commands.command(name=COMMAND_CUSTOM_GAME_MAKE_TEAM)
-    async def custom_game_make_team(self, interaction: discord.Interaction, team_algo: TeamAlgo):
+    async def custom_game_make_team(  # pylint: disable=too-many-locals,too-many-statements
+        self, interaction: discord.Interaction, team_algo: TeamAlgo
+    ):
         """
         Get all the users from the custom game voice channels and make two teams depending of a selected algorithm
         """
         await interaction.response.defer()
         if interaction.guild is None:
             print_error_log(
-                f"custom_game_make_team: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+                "custom_game_make_team: No guild available for user "
+                f"{interaction.user.display_name}({interaction.user.id})."
             )
-            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            await interaction.followup.send("Cannot perform this operation in this guild.", ephemeral=True)
             return
         guild = interaction.guild
         guild_id = guild.id
@@ -240,7 +250,7 @@ class UserCustomGameFeatures(commands.Cog):
                     print_error_log(
                         f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Alpha channel: {e}"
                     )
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     print_error_log(
                         f"custom_game_make_team: Failed to move member {member.display_name} to Team Alpha channel: {e}"
                     )
@@ -253,7 +263,7 @@ class UserCustomGameFeatures(commands.Cog):
                     print_error_log(
                         f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} to Team Beta channel: {e}"
                     )
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     print_error_log(
                         f"custom_game_make_team: Failed to move member {member.display_name} to Team Beta channel: {e}"
                     )
@@ -277,7 +287,7 @@ class UserCustomGameFeatures(commands.Cog):
                     print_error_log(
                         f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
                     )
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     print_error_log(
                         f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
                     )
@@ -289,7 +299,7 @@ class UserCustomGameFeatures(commands.Cog):
                     print_error_log(
                         f"custom_game_make_team: Forbidden: Failed to move member {member.display_name} back to Lobby channel: {e}"
                     )
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     print_error_log(
                         f"custom_game_make_team: Failed to move member {member.display_name} back to Lobby channel: {e}"
                     )
@@ -311,6 +321,7 @@ async def setup(bot):
 
 
 def format_map(map_suggestions: List[MapSuggestion]) -> str:
+    """Render suggested maps as a Discord-friendly bulleted list."""
     formatted_maps = []
     for suggestion in map_suggestions:
         formatted_maps.append(f"- {suggestion.map_name} ({suggestion.count})")

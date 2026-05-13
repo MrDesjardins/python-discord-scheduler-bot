@@ -1,8 +1,11 @@
 """Common Actions that the bots Cogs or Bots can invoke"""
+# pylint: disable=line-too-long,too-many-locals,too-many-branches,too-many-statements
+# pylint: disable=broad-exception-caught,too-many-return-statements,unused-import,too-many-lines
 
 import asyncio
 import io
 import os
+import tempfile
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Union
 from gtts import gTTS  # type: ignore
@@ -274,27 +277,29 @@ async def send_notification_voice_channel(
             text_message = f"Hello {member.display_name}! Use the slash lfg command in the rainbow six siege channel to find partners and check the {channel_name} channel."
 
     print_log(f"Sending voice message to {member.display_name}")
-    # Convert text to speech using gTTS
-    tts = gTTS(text_message, lang="en")
-    tts.save("welcome.mp3")
+    temp_audio_path: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio_file:
+            temp_audio_path = temp_audio_file.name
+        await asyncio.to_thread(gTTS(text_message, lang="en").save, temp_audio_path)
 
-    # Connect to the voice channel
-    if member.guild.voice_client is None:  # Bot isn't already in a channel
-        voice_client: discord.VoiceClient = await voice_channel.connect()
+        # Connect to the voice channel
+        if member.guild.voice_client is None:  # Bot isn't already in a channel
+            voice_client: discord.VoiceClient = await voice_channel.connect()
 
-        # Play the audio
-        audio_source = discord.FFmpegPCMAudio("welcome.mp3")
-        voice_client.play(audio_source)
+            # Play the audio
+            audio_source = discord.FFmpegPCMAudio(temp_audio_path)
+            voice_client.play(audio_source)
 
-        # Wait for the audio to finish playing
-        while voice_client.is_playing():
-            await discord.utils.sleep_until(datetime.now() + timedelta(seconds=1))
+            # Wait for the audio to finish playing
+            while voice_client.is_playing():
+                await asyncio.sleep(1)
 
-        # Disconnect after playing the audio
-        await voice_client.disconnect()
-
-        # Clean up the saved audio file
-        os.remove("welcome.mp3")
+            # Disconnect after playing the audio
+            await voice_client.disconnect()
+    finally:
+        if temp_audio_path is not None and os.path.exists(temp_audio_path):
+            os.remove(temp_audio_path)
 
 
 async def get_users_scheduled_today_current_hour(guild_id: int, current_hour_str: str) -> List[SimpleUser]:
@@ -357,10 +362,11 @@ async def adjust_role_from_ubisoft_max_account(
         return ("", 0)
     channel = await data_access_get_channel(text_channel_id)
     if ubisoft_active_account is None or channel is None:
-        active_msg = ""
         return ("", 0)
-    else:
-        active_msg = f"""\nCurrently playing on the [{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."""
+    active_msg = (
+        "\nCurrently playing on the "
+        f"[{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."
+    )
 
     await channel.send(
         content=f"""{member.mention} main account is [{ubisoft_connect_name}]({get_url_user_profile_overview(ubisoft_connect_name)}) with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.""",

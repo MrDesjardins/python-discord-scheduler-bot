@@ -949,7 +949,7 @@ async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
                 tournament_id
             )
             assert bet_user_games_to_assert[0].amount == 100
-            assert bet_user_games_to_assert[1].amount == pytest.approx(363.636, abs=1e-3)
+            assert bet_user_games_to_assert[1].amount == pytest.approx(363.64, abs=1e-2)
             assert bet_user_games_to_assert[2].amount == 0
             wallet: Union[BetUserTournament, None] = data_access_get_bet_user_wallet_for_tournament(
                 tournament_id, mock_user4.id
@@ -960,7 +960,7 @@ async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
             wallet = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user5.id)
             if wallet is None:
                 assert False, "Wallet is None"
-            assert wallet.amount == pytest.approx(1163.636, abs=1e-3)
+            assert wallet.amount == pytest.approx(1163.64, abs=1e-2)
             wallet = data_access_get_bet_user_wallet_for_tournament(tournament_id, mock_user6.id)
             if wallet is None:
                 assert False, "Wallet is None"

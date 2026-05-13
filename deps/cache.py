@@ -1,11 +1,10 @@
-"""Cache value for the bot. It acts as the persistent storage for the bot to store the data that needs to be kept between restarts."""
+"""Cache helpers for short-lived in-memory state and persistent restart-safe values."""
 
 import dataclasses
 import asyncio
 import time
 from typing import Callable, Awaitable, List, Union, Optional, Any
 import inspect
-import threading
 
 from deps.cache_data_access import (
     clear_expired_cache,
@@ -101,9 +100,8 @@ class TTLCache:
         """Start the task to clean up in the background."""
         try:
             loop = asyncio.get_running_loop()
-        except RuntimeError:  # No running event loop
-            loop = asyncio.new_event_loop()
-            threading.Thread(target=loop.run_forever, daemon=True).start()
+        except RuntimeError:
+            return
 
         asyncio.run_coroutine_threadsafe(self._cleanup(), loop)
 

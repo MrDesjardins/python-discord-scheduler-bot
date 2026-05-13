@@ -19,6 +19,17 @@ KEY_TOURNAMENT_GAME = "tournament_game"
 KEY_USER_TOURNAMENT = "user_tournament"
 KEY_TOURNAMENT_TEAM_MEMBERS = "tournament_team_members"
 
+cache_tournament: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+cache_leader_teammates: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+cache_team_labels: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+
+
+def clear_tournament_caches() -> None:
+    """Clear in-process tournament caches after DB resets or mutations."""
+    cache_tournament.clear()
+    cache_leader_teammates.clear()
+    cache_team_labels.clear()
+
 SELECT_TOURNAMENT = """
     tournament.id,
     tournament.guild_id,
@@ -60,7 +71,7 @@ SELECT_TOURNAMENT_TEAM_MEMBERS = """
 """
 
 
-def data_access_insert_tournament(
+def data_access_insert_tournament(  # pylint: disable=too-many-arguments
     guild_id: int,
     name: str,
     registration_date_start: datetime,
@@ -99,6 +110,7 @@ def data_access_insert_tournament(
 
     # Commit the transaction
     database_manager.get_conn().commit()
+    clear_tournament_caches()
 
     return tournament_id
 
@@ -167,7 +179,8 @@ def fetch_tournament_start_today(guild_id: int) -> List[Tournament]:
         0 as current_user_count
         FROM tournament
         WHERE tournament.guild_id = :guild_id
-        AND date(tournament.start_date) == date(:current_time)
+        AND tournament.start_date <= :current_time
+        AND tournament.end_date >= :current_time
         and has_started = 0;
         """
     result = (
@@ -198,8 +211,8 @@ def fetch_tournament_open_registration(guild_id: int) -> List[Tournament]:
                 ON
                     tournament.id = user_tournament.tournament_id
                 WHERE tournament.guild_id = :guild_id
-                    AND date(tournament.start_date) > date(:current_time)
-                    AND date(tournament.registration_date) <= date(:current_time)
+                    AND tournament.start_date > :current_time
+                    AND tournament.registration_date <= :current_time
                 GROUP BY tournament.id
                 HAVING
                     tournament.max_players > current_user_count;
@@ -225,8 +238,8 @@ def fetch_tournament_active_to_interact_for_user(guild_id: int, user_id: int) ->
                 FROM tournament
                 WHERE tournament.guild_id = :guild_id
                 AND has_finished = 0
-                AND date(tournament.end_date) >= date(:current_time)
-                AND date(tournament.start_date) <= date(:current_time)
+                AND tournament.end_date >= :current_time
+                AND tournament.start_date <= :current_time
                 AND (
                     EXISTS (
                         SELECT 1
@@ -267,7 +280,7 @@ def fetch_tournament_not_completed_for_user(guild_id: int, user_id: int) -> List
                     tournament.id = user_tournament.tournament_id
                     AND user_tournament.user_id = :user_id
                 WHERE tournament.guild_id = :guild_id
-                    AND date(tournament.end_date) >= date(:current_time);
+                    AND tournament.end_date >= :current_time;
                 """
     result = (
         database_manager.get_cursor()
@@ -291,8 +304,8 @@ def fetch_tournament_by_guild_user_can_register(guild_id: int, user_id: int) -> 
                 0 as current_user_count
             FROM tournament
             WHERE tournament.guild_id = :guild_id
-                AND date(tournament.registration_date) <= date(:current_time)
-                AND date(tournament.start_date) > date(:current_time)
+                AND tournament.registration_date <= :current_time
+                AND tournament.start_date > :current_time
                 AND NOT EXISTS (
                     SELECT 1 
                     FROM user_tournament 
@@ -324,8 +337,8 @@ def fetch_active_tournament_by_guild(guild_id: int) -> List[Tournament]:
             WHERE guild_id = :guild_id 
                 AND has_started = 1
                 AND has_finished = 0
-                AND date(start_date) <= date(:current_time) 
-                AND date(end_date) >= date(:current_time);
+                AND start_date <= :current_time
+                AND end_date >= :current_time;
             """
     result = (
         database_manager.get_cursor()
@@ -356,9 +369,8 @@ def fetch_tournament_games_by_tournament_id(tournament_id: int) -> List[Tourname
     )
     if result is not None:
         return [TournamentGame.from_db_row(row) for row in result]
-    else:
-        # Handle the case where no user was found, e.g., return None or raise an exception
-        return []
+    # Handle the case where no user was found, e.g., return None or raise an exception
+    return []
 
 
 def block_registration_today_tournament_start(date_to_start: datetime) -> None:
@@ -377,6 +389,7 @@ def block_registration_today_tournament_start(date_to_start: datetime) -> None:
         {"date_only": date_only},
     )
     database_manager.get_conn().commit()
+    clear_tournament_caches()
 
 
 def data_access_end_tournament(tournament_id: int) -> None:
@@ -393,6 +406,7 @@ def data_access_end_tournament(tournament_id: int) -> None:
         {"tournament_id": tournament_id},
     )
     database_manager.get_conn().commit()
+    clear_tournament_caches()
 
 
 def get_people_registered_for_tournament(tournament_id: int) -> List[UserInfo]:
@@ -428,6 +442,7 @@ def save_tournament(tournament: Tournament) -> None:
     )
 
     database_manager.get_conn().commit()
+    clear_tournament_caches()
 
 
 def save_tournament_games(games: List[TournamentGame]) -> None:
@@ -455,13 +470,7 @@ def save_tournament_games(games: List[TournamentGame]) -> None:
         )
 
     database_manager.get_conn().commit()
-
-    # Invalidate cache to prevent stale bracket data
-    for tournament_id in tournament_ids:
-        cache_tournament.pop(tournament_id, None)
-
-
-cache_tournament: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+    clear_tournament_caches()
 
 
 @cached(cache_tournament)
@@ -486,8 +495,7 @@ def fetch_tournament_by_id(tournament_id: int) -> Optional[Tournament]:
     )
     if result is not None:
         return Tournament.from_db_row(result)
-    else:
-        return None
+    return None
 
 
 def register_user_for_tournament(tournament_id: int, user_id: int, registration_date: datetime) -> None:
@@ -503,6 +511,7 @@ def register_user_for_tournament(tournament_id: int, user_id: int, registration_
         {"tournament_id": tournament_id, "user_id": user_id, "registration_date": registration_date},
     )
     database_manager.get_conn().commit()
+    clear_tournament_caches()
 
 
 def register_user_teammate_to_leader(tournament_id: int, leader_user_id: int, teammate_user_id: int) -> None:
@@ -518,9 +527,7 @@ def register_user_teammate_to_leader(tournament_id: int, leader_user_id: int, te
         {"tournament_id": tournament_id, "user_leader_id": leader_user_id, "user_id": teammate_user_id},
     )
     database_manager.get_conn().commit()
-
-
-cache_leader_teammates: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
+    clear_tournament_caches()
 
 
 @cached(cache_leader_teammates)
@@ -546,9 +553,6 @@ def fetch_tournament_team_members_by_leader(tournament_id: int) -> dict[int, Lis
         team_members[leader_id].append(member_id)
 
     return team_members
-
-
-cache_team_labels: TTLCache = TTLCache(maxsize=100, ttl=30)  # 30 seconds
 
 
 @cached(cache_team_labels)

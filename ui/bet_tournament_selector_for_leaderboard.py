@@ -1,10 +1,10 @@
+# pylint: disable=cyclic-import
 """User interface for the bot"""
 
 import traceback
 from typing import List
 import discord
 from discord.ui import View
-from deps.bet.bet_functions import generate_msg_bet_leaderboard
 from deps.tournaments.tournament_data_class import Tournament
 from deps.values import COMMAND_BET
 from deps.log import print_error_log
@@ -51,18 +51,20 @@ class BetTournamentSelectorForLeaderboard(View):
                 if tournament is None:
                     msg = "Tournament not found."
                 else:
+                    from deps.bet.bet_leaderboard import generate_msg_bet_leaderboard  # pylint: disable=import-outside-toplevel
+
                     msg = await generate_msg_bet_leaderboard(tournament)
                     if msg == "":
                         msg = f"No user who betted on this tournament. Use the command `/{COMMAND_BET}` to place a bet."
                     else:
                         msg = f'Top betters tournament "**{tournament.name}**":\n\n' + msg
-                        # Update the interaction message with the new view
-                        await interaction.followup.edit_message(
-                            message_id=interaction.message.id,
-                            content=msg,
-                            view=self,
-                        )
-            except Exception as e:
+                # Update the interaction message with the new view
+                await interaction.followup.edit_message(
+                    message_id=interaction.message.id,
+                    content=msg,
+                    view=self,
+                )
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 print_error_log(f"BetTournamentSelectorForLeaderboard>An error occurred: {e}")
                 traceback.print_exc()  # This prints the full error traceback
                 await interaction.followup.send(

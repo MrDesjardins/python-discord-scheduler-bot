@@ -26,7 +26,9 @@ class TournamentRegistration(View):
 
         self.first_response = None
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    async def interaction_check(  # pylint: disable=arguments-differ,too-many-return-statements
+        self, interaction: discord.Interaction
+    ) -> bool:
         """Callback function to check if the interaction is valid"""
         try:
             # Defer the interaction to prevent timeout issues
@@ -39,6 +41,17 @@ class TournamentRegistration(View):
                 await interaction.followup.send("Guild not found in the interaction.", ephemeral=True)
                 return True
             guild_id = guild.id
+
+            channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
+            if channel_id is None:
+                print_warning_log(f"TournamentRegistration UI> Channel id not found for guild id: {guild_id}")
+                await interaction.followup.send("Tournament channel not found.", ephemeral=True)
+                return True
+            channel = await data_access_get_channel(channel_id)
+            if channel is None:
+                print_warning_log(f"TournamentRegistration UI> Channel not found for id: {channel_id}")
+                await interaction.followup.send("Tournament channel not found.", ephemeral=True)
+                return True
 
             # Save user responses
             tournament_id = int(interaction.data["custom_id"])
@@ -64,29 +77,26 @@ class TournamentRegistration(View):
             )
 
             # Send a message in the tournament channel to encourage other to join
-            channel_id = await data_access_get_guild_tournament_text_channel_id(guild_id)
-            if channel_id is None:
-                print_warning_log(f"TournamentRegistration UI> Channel id not found for guild id: {guild_id}")
-                await interaction.followup.send("Tournament channel not found.", ephemeral=True)
-                return True
-            channel = await data_access_get_channel(channel_id)
-            if channel is None:
-                print_warning_log(f"TournamentRegistration UI> Channel not found for id: {channel_id}")
-                await interaction.followup.send("Tournament channel not found.", ephemeral=True)
-                return True
             tournament_users = get_people_registered_for_tournament(tournament_id)
             place_available = tournament.max_players - len(tournament_users)
             if place_available == 0:
                 await channel.send(
-                    f'{interaction.user.mention} has registered for the tournament "{tournament.name}".\n\nThe tournament is full and will start on {date_start}.'
+                    (
+                        f'{interaction.user.mention} has registered for the tournament "{tournament.name}".\n\n'
+                        f"The tournament is full and will start on {date_start}."
+                    )
                 )
             else:
                 await channel.send(
-                    f'{interaction.user.mention} has registered for the tournament "{tournament.name}"!\n\nOnly {place_available} more spots available. Hurry, the tournament starts on {date_start}. Use the command /`{COMMAND_TOURNAMENT_REGISTER_TOURNAMENT}` to join.'
+                    (
+                        f'{interaction.user.mention} has registered for the tournament "{tournament.name}"!\n\n'
+                        f"Only {place_available} more spots available. Hurry, the tournament starts on "
+                        f"{date_start}. Use the command /`{COMMAND_TOURNAMENT_REGISTER_TOURNAMENT}` to join."
+                    )
                 )
 
             return True
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print_error_log(f"TournamentRegistration UI>An error occurred: {e}")
             traceback.print_exc()  # This prints the full error traceback
             await interaction.followup.send("An unexpected error occurred. Please contact a moderator.", ephemeral=True)

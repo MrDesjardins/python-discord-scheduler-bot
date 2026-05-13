@@ -1,6 +1,8 @@
 """
 Function to calculate the gain and lost of bets
 """
+# pylint: disable=line-too-long,too-many-locals,too-many-branches,too-many-statements
+# pylint: disable=broad-exception-caught,consider-using-generator
 
 import math
 from datetime import datetime, timezone
@@ -185,7 +187,6 @@ def calculate_gain_lost_for_open_bet_game(
             else:
                 fair_odd = 1 / bet.probability_user_win_when_bet_placed
                 adjusted_odd = fair_odd / (1 + houst_cut_fraction)
-                # Round to 2 decimal places to prevent floating-point precision issues
                 winning_amount = round(bet.amount * adjusted_odd, 2)
         else:
             winning_amount = 0
@@ -362,7 +363,7 @@ def place_bet_for_game(
             if user_who_is_betting_id in team_ids and user_id_bet_placed_on in team_ids:
                 raise ValueError("The user cannot bet on a game where a member of their team is playing")
     else:
-        if single_game.user1_id == user_who_is_betting_id or single_game.user2_id == user_who_is_betting_id:
+        if user_who_is_betting_id in (single_game.user1_id, single_game.user2_id):
             raise ValueError("The user cannot bet on a game where he/she is playing")
     # Validate bet amount
     if not isinstance(amount, (int, float)):
@@ -397,9 +398,7 @@ def place_bet_for_game(
         rows_updated = data_access_update_wallet_if_sufficient_balance(wallet.id, amount)
         if rows_updated == 0:
             # Concurrent bet detected or insufficient balance
-            raise ValueError(
-                f"Not enough money in wallet. Another bet may have been placed concurrently."
-            )
+            raise ValueError("Not enough money in wallet. Another bet may have been placed concurrently.")
 
         # Only insert bet after successful wallet deduction (within same transaction)
         data_access_create_bet_user_game(
@@ -435,29 +434,27 @@ def dynamically_adjust_bet_game_odd(game: BetGame, reduce_probability_user_1: bo
 
 
 async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
-    """
-    Get a message that is a list of all the user who betted on a tournament in order of larger amountin their wallet
-    """
+    """Build a leaderboard message ranked by wallet amount for one tournament."""
     if tournament.id is None:
         return ""
-    wallets: List[BetUserTournament] = data_access_get_all_wallet_for_tournament(tournament_id=tournament.id)
-    open_bets_not_distributed: List[BetUserGame] = data_access_get_bet_user_game_waiting_match_complete(tournament.id)
-    # Get all wallet amount by member
-    for bet in open_bets_not_distributed:
-        # Find user wallet
-        wallet = next((w for w in wallets if w.user_id == bet.user_id), None)
-        amount_bet = bet.amount
-        if wallet:
-            wallet.amount += amount_bet
 
-    wallets_sorted = sorted(wallets, key=lambda x: x.amount, reverse=True)
+    wallets: List[BetUserTournament] = data_access_get_all_wallet_for_tournament(tournament_id=tournament.id)
+    open_bets_not_distributed: List[BetUserGame] = data_access_get_bet_user_game_waiting_match_complete(
+        tournament.id
+    )
+
+    for bet in open_bets_not_distributed:
+        wallet = next((w for w in wallets if w.user_id == bet.user_id), None)
+        if wallet:
+            wallet.amount += bet.amount
+
+    wallets_sorted = sorted(wallets, key=lambda wallet: wallet.amount, reverse=True)
     msg = ""
     rank = 1
     for wallet in wallets_sorted:
-        member1 = await fetch_user_info_by_user_id(wallet.user_id)
-        user1_display = member1.display_name if member1 else wallet.user_id
-
-        msg += f"{rank} - {user1_display} - ${wallet.amount:.2f}\n"
+        member = await fetch_user_info_by_user_id(wallet.user_id)
+        user_display = member.display_name if member else wallet.user_id
+        msg += f"{rank} - {user_display} - ${wallet.amount:.2f}\n"
         rank += 1
     return msg.strip()
 

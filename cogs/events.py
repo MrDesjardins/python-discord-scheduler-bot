@@ -2,6 +2,9 @@
 Events cog for the bot
 Events are actions that the bot listens and reacts to
 """
+# pylint: disable=too-many-instance-attributes,too-many-arguments,too-many-locals
+# pylint: disable=too-many-branches,too-many-statements,too-many-nested-blocks
+# pylint: disable=broad-exception-caught,line-too-long
 
 import os
 import asyncio
@@ -18,7 +21,6 @@ from deps.data_access_data_class import UserInfo
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 from deps.bot_common_actions import (
     move_members_between_voice_channel,
-    send_daily_question_to_a_guild,
     send_automatic_lfg_message,
     send_notification_voice_channel,
     send_session_stats_to_queue,
@@ -80,6 +82,7 @@ class MyEventsCog(commands.Cog):
         self.match_start_gif_locks: dict[str, asyncio.Lock] = {}
         self.match_start_gif_locks_creation_lock = asyncio.Lock()
         self.cleanup_task: asyncio.Task | None = None  # Store reference to prevent garbage collection
+        self.synced_guild_ids: set[int] = set()
         # Track repeated private-channel deletion access failures to prune stale entries.
         self.private_channel_delete_failures: dict[tuple[int, int], int] = {}
 
@@ -215,15 +218,19 @@ class MyEventsCog(commands.Cog):
             #     print_log(f"\tDeleting command {command.name}")
             #     await bot.tree.remove_command(command=command.name, guild=guild_obj)
 
-            bot.tree.copy_global_to(guild=guild_obj)
-            synced = await bot.tree.sync(guild=guild_obj)
-            print_log(f"\tSynced {len(synced)} commands for guild {guild.name}.")
+            if guild.id not in self.synced_guild_ids:
+                bot.tree.copy_global_to(guild=guild_obj)
+                synced = await bot.tree.sync(guild=guild_obj)
+                self.synced_guild_ids.add(guild.id)
+                print_log(f"\tSynced {len(synced)} commands for guild {guild.name}.")
 
-            commands_reg = await bot.tree.fetch_commands(guild=guild_obj)
-            names = [command.name for command in commands_reg]
-            sorted_names = sorted(names)
-            for command in sorted_names:
-                print_log(f"\t✅ /{command}")
+                commands_reg = await bot.tree.fetch_commands(guild=guild_obj)
+                names = [command.name for command in commands_reg]
+                sorted_names = sorted(names)
+                for command in sorted_names:
+                    print_log(f"\t✅ /{command}")
+            else:
+                print_log(f"\tCommands already synced for guild {guild.name}. Skipping.")
 
             bot.guild_emoji[guild.id] = {}
             for emoji in guild.emojis:
@@ -232,8 +239,9 @@ class MyEventsCog(commands.Cog):
 
         # Start cleanup task that runs in background
         # Store reference to prevent garbage collection
-        self.cleanup_task = start_periodic_cache_cleanup()
-        print_log("✅ Started periodic cache cleanup task")
+        if self.cleanup_task is None or self.cleanup_task.done():
+            self.cleanup_task = start_periodic_cache_cleanup()
+            print_log("✅ Started periodic cache cleanup task")
 
         # Running all tasks concurrently and waiting for them to finish
         if tasks:
@@ -456,8 +464,7 @@ class MyEventsCog(commands.Cog):
                         schedule_text_channel_id,
                     )
 
-    @commands.Cog.listener()
-    async def on_close(self):
+    async def handle_bot_shutdown(self) -> None:
         """
         Handle bot shutdown by closing all open voice sessions.
         Ensures every CONNECT event has a matching DISCONNECT.
@@ -488,6 +495,10 @@ class MyEventsCog(commands.Cog):
                     print_error_log(f"on_close: Error processing channel {channel.id} in guild {guild_id}: {e}")
 
         print_log("Shutdown cleanup completed")
+
+    async def on_close(self) -> None:
+        """Backward-compatible shutdown entrypoint used by tests and manual callers."""
+        await self.handle_bot_shutdown()
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
@@ -670,12 +681,12 @@ class MyEventsCog(commands.Cog):
                 user_activities = await data_access_get_voice_user_list(guild_id, channel_id)
                 aggregation = get_aggregation_all_activities(user_activities)
                 number_users = len(user_activities)
-                if aggregation.looking_ranked_match >= 1 and number_users >= 2:
+                if aggregation.looking_ranked_match >= 1 and number_users >= 1:
                     print_log(f"Detected ranked match start in guild {guild_id}, channel {channel_id}. Sending GIF.")
                     # Rate limit: once per hour per channel
                     last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
                     if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(minutes=15):
-                        from deps.bot_common_actions import send_match_start_gif
+                        from deps.bot_common_actions import send_match_start_gif  # pylint: disable=import-outside-toplevel
 
                         await send_match_start_gif(self.bot, guild_id, channel_id)
                         await data_access_set_last_match_start_gif_time(
@@ -707,12 +718,13 @@ class MyEventsCog(commands.Cog):
             )
 
     async def update_match_start_gif_result_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
+        """Debounce result GIF updates so one ranked result produces one final image update."""
         try:
             await asyncio.sleep(4)
             guild = self.bot.get_guild(guild_id)
             if guild is None:
                 return
-            from deps.bot_common_actions import try_update_match_start_gif_with_result
+            from deps.bot_common_actions import try_update_match_start_gif_with_result  # pylint: disable=import-outside-toplevel
 
             await try_update_match_start_gif_with_result(self.bot, guild, channel_id)
         except asyncio.CancelledError:
@@ -826,24 +838,25 @@ class MyEventsCog(commands.Cog):
                     message.author.mention
                     + " Hi! I am here to help you. Please wait a moment (might take a minute) while I process your request... I will edit this message with the response if I can figure it out."
                 )
-                # Fetch the last 8 messages in the same channel
-                before_replied_msg = []
-                if message.reference is not None:
-                    replied_message = await message.channel.fetch_message(message.reference.message_id)
-                    # If the message is a reply, we can fetch the last x messages before the replied message
-                    before_replied_msg = [
-                        msg async for msg in message.channel.history(limit=8, before=replied_message.created_at)
-                    ]
-                current_replied_msg = [message]
-                last_messages_channel = [msg async for msg in message.channel.history(limit=8)]
-                messages: list[discord.Message] = before_replied_msg + current_replied_msg + last_messages_channel
-                # Remove duplicates and sort by creation time
-                messages = list({m.id: m for m in messages}.values())
-                messages.sort(key=lambda m: m.created_at)
-                context = "\n".join(
-                    f"{m.author.display_name} said: {self._normalize_message_mentions(m)}" for m in messages
-                )
                 try:
+                    before_replied_msg = []
+                    if message.reference is not None:
+                        try:
+                            replied_message = await message.channel.fetch_message(message.reference.message_id)
+                        except (discord.NotFound, discord.Forbidden, discord.HTTPException):
+                            replied_message = None
+                        if replied_message is not None:
+                            before_replied_msg = [
+                                msg async for msg in message.channel.history(limit=8, before=replied_message.created_at)
+                            ]
+                    current_replied_msg = [message]
+                    last_messages_channel = [msg async for msg in message.channel.history(limit=8)]
+                    messages: list[discord.Message] = before_replied_msg + current_replied_msg + last_messages_channel
+                    messages = list({m.id: m for m in messages}.values())
+                    messages.sort(key=lambda m: m.created_at)
+                    context = "\n".join(
+                        f"{m.author.display_name} said: {self._normalize_message_mentions(m)}" for m in messages
+                    )
                     user_rank = get_user_rank_siege(message.author)
                     bot_user = self.bot.user
                     if bot_user is None:
@@ -863,16 +876,21 @@ class MyEventsCog(commands.Cog):
                         )
                     )
                     if response is not None:
-                        await message_ref.edit(content="✅ " + message.author.mention + " " + response)
+                        await message_ref.edit(
+                            content="✅ " + message.author.mention + " " + response,
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
                     else:
                         await message_ref.edit(
-                            content="⛔ " + message.author.mention + " I am sorry, I could not process your request."
+                            content="⛔ " + message.author.mention + " I am sorry, I could not process your request.",
+                            allowed_mentions=discord.AllowedMentions.none(),
                         )
                 except Exception as e:
                     print_error_log(f"on_message: Error processing message: {e}")
                     await message_ref.edit(
                         content=message.author.mention
-                        + " I am sorry, I encountered an error while processing your request."
+                        + " I am sorry, I encountered an error while processing your request.",
+                        allowed_mentions=discord.AllowedMentions.none(),
                     )
         # Make sure other commands still work
         await self.bot.process_commands(message)

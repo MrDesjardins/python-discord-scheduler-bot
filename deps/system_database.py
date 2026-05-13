@@ -25,6 +25,16 @@ def convert_datetime(s):
     return datetime.datetime.fromisoformat(s)
 
 
+def _clear_tournament_caches_safely() -> None:
+    """Clear tournament cache state without forcing a hard import dependency."""
+    try:
+        from deps.tournaments.tournament_data_access import clear_tournament_caches  # pylint: disable=import-outside-toplevel
+
+        clear_tournament_caches()
+    except (ImportError, AttributeError):
+        pass
+
+
 class DatabaseManager:
     """Handle the database connection to the right file"""
 
@@ -39,11 +49,18 @@ class DatabaseManager:
         """
         Set the database name
         """
+        old_conn = getattr(self, "conn", None)
+        if old_conn is not None:
+            try:
+                old_conn.close()
+            except sqlite3.Error:
+                pass
         self.name = name
         self.conn = sqlite3.connect(name, check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL;")  # Performance gain on write
         self.cursor = self.conn.cursor()
         self.init_database()
+        _clear_tournament_caches_safely()
 
     def get_database_name(self):
         """Get the database name, useful to know if test or prod"""
@@ -67,6 +84,9 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_user_game")
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_ledger_entry")
         self.get_cursor().execute("DROP TABLE IF EXISTS custom_game_user_subscription")
+        self.get_cursor().execute("DROP TABLE IF EXISTS operator_stats")
+        self.get_conn().commit()
+        _clear_tournament_caches_safely()
 
     def init_database(self):
         """Ensure that database has all the tables"""
@@ -430,7 +450,8 @@ class DatabaseManager:
 
         self.get_cursor().execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_user_activity_event ON user_activity(user_id, channel_id, guild_id, event, timestamp);
+            CREATE INDEX IF NOT EXISTS idx_user_activity_event
+            ON user_activity(user_id, channel_id, guild_id, event, timestamp);
             """
         )
         self.get_cursor().execute(
@@ -457,7 +478,8 @@ class DatabaseManager:
         )
         self.get_cursor().execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_full_stats_info_r6_tracker_user_uuid ON user_full_stats_info(r6_tracker_user_uuid);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_user_full_stats_info_r6_tracker_user_uuid
+            ON user_full_stats_info(r6_tracker_user_uuid);
             """
         )
 
@@ -543,10 +565,14 @@ class DatabaseManager:
 
     def get_conn(self):
         """Access to the database connection"""
+        if not hasattr(self, "conn") or self.conn is None:
+            self.set_database_name(self.name)
         return self.conn
 
     def get_cursor(self):
         """Access to the database cursor"""
+        if not hasattr(self, "cursor") or self.cursor is None:
+            self.set_database_name(self.name)
         return self.cursor
 
     def data_access_transaction(self):
@@ -582,7 +608,7 @@ class DatabaseManager:
             if hasattr(self, "conn") and self.conn:
                 self.conn.close()
                 self.conn = None  # pylint: disable=attribute-defined-outside-init
-        except Exception as e:
+        except sqlite3.Error as e:
             print_error_log(f"DatabaseManager.close: {e}")
 
 
