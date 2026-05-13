@@ -2,9 +2,10 @@
 Events cog for the bot
 Events are actions that the bot listens and reacts to
 """
+
 # pylint: disable=too-many-instance-attributes,too-many-arguments,too-many-locals
 # pylint: disable=too-many-branches,too-many-statements,too-many-nested-blocks
-# pylint: disable=broad-exception-caught,line-too-long
+# pylint: disable=broad-exception-caught,line-too-long,import-outside-toplevel
 
 import os
 import asyncio
@@ -556,9 +557,7 @@ class MyEventsCog(commands.Cog):
             return  # Ignore users not in a voice channel
 
         lfg_voice_channel_ids = await data_access_get_guild_voice_channel_ids(guild_id)
-        lfg_voice_channel_ids_set: set[int] = (
-            set(lfg_voice_channel_ids) if lfg_voice_channel_ids is not None else set()
-        )
+        lfg_voice_channel_ids_set: set[int] = set(lfg_voice_channel_ids) if lfg_voice_channel_ids is not None else set()
 
         # Check for activity changes
         before_activity = get_any_siege_activity(before)
@@ -686,7 +685,7 @@ class MyEventsCog(commands.Cog):
                     # Rate limit: once per hour per channel
                     last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
                     if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(minutes=15):
-                        from deps.bot_common_actions import send_match_start_gif  # pylint: disable=import-outside-toplevel
+                        from deps.bot_common_actions import send_match_start_gif
 
                         await send_match_start_gif(self.bot, guild_id, channel_id)
                         await data_access_set_last_match_start_gif_time(
@@ -724,7 +723,7 @@ class MyEventsCog(commands.Cog):
             guild = self.bot.get_guild(guild_id)
             if guild is None:
                 return
-            from deps.bot_common_actions import try_update_match_start_gif_with_result  # pylint: disable=import-outside-toplevel
+            from deps.bot_common_actions import try_update_match_start_gif_with_result
 
             await try_update_match_start_gif_with_result(self.bot, guild, channel_id)
         except asyncio.CancelledError:

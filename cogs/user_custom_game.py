@@ -1,4 +1,5 @@
 """Discord commands for custom-game subscriptions, pings, and team generation."""
+
 # pylint: disable=line-too-long
 
 import asyncio
