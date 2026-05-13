@@ -1,4 +1,3 @@
-# pylint: disable=cyclic-import
 """User interface for the bot"""
 
 import traceback

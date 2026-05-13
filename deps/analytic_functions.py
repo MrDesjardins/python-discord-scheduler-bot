@@ -2,7 +2,7 @@
 Module to gather user activity data and calculate the time spent together
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from collections import defaultdict
 from typing import Any, Dict, Tuple, List, Union, cast
 import pandas as pd
@@ -51,12 +51,15 @@ def calculate_user_connections(
         elif activity.event == EVENT_DISCONNECT and user_connections[activity.channel_id][activity.user_id]:
             # Update the latest disconnect time for the most recent connect entry
             if user_connections[activity.channel_id][activity.user_id][-1][1] is None:
-                # The check of None ensure we don't update the disconnect time if it's already set (e.g., if the user disconnects multiple times, data corruption)
+                # Do not overwrite a valid disconnect time if duplicate disconnect
+                # events are recorded.
                 user_connections[activity.channel_id][activity.user_id][-1][1] = timestamp
     return user_connections
 
 
-def compute_users_weights(activity_data: list[UserActivity]) -> Dict[Tuple[int, int, int], float]:
+def compute_users_weights(  # pylint: disable=too-many-locals,too-many-nested-blocks
+    activity_data: list[UserActivity],
+) -> Dict[Tuple[int, int, int], float]:
     """
     Compute the weights of users in the same channel in seconds
     The return is (channel_id, user_a, user_b) -> total time in seconds
@@ -146,7 +149,8 @@ def users_last_played_over_day(
     days_threshold: int = 1,
 ) -> Dict[int, int]:
     """
-    Compute the number of days since each user last played, and only return users who have not played for over `days_threshold` days.
+    Compute the number of days since each user last played, and only return users
+    who have not played for over `days_threshold` days.
     """
     inactive_users: Dict[int, int] = {}
 
@@ -162,8 +166,7 @@ def users_last_played_over_day(
                 if last_disconnect is None or disconnect is None:
                     last_disconnect = disconnect
                 else:
-                    if disconnect > last_disconnect:
-                        last_disconnect = disconnect
+                    last_disconnect = max(last_disconnect, disconnect)
 
             if last_disconnect is not None:
                 # Calculate the number of days since the last disconnect
@@ -211,19 +214,15 @@ def users_by_weekday(
         .reset_index()
     )
 
-    # Create a dictionary mapping each user_id to their distinct week count
-    weekday_group = (
-        user_activity_count.groupby("day_of_week")
-        .apply(
-            lambda group: [
-                UserInfoWithCount(users_id_display[cast(int, user_id)], row["distinct_week_count"])
-                for user_id, row in cast(pd.DataFrame, group).set_index("user_id").iterrows()
-            ]
-        )
-        .reset_index(name="users")
-    )
-    # Convert the result to a dictionary where the key is the day_of_week
-    result = {row["day_of_week"]: row["users"] for _, row in weekday_group.iterrows()}
+    # Convert the grouped counts to a dictionary keyed by weekday without DataFrameGroupBy.apply,
+    # which is deprecated when it operates on grouping columns.
+    result: Dict[int, list[UserInfoWithCount]] = {}
+    for day_of_week, group in user_activity_count.groupby("day_of_week", observed=True):
+        users_for_day = [
+            UserInfoWithCount(users_id_display[cast(int, row["user_id"])], row["distinct_week_count"])
+            for _, row in cast(pd.DataFrame, group).iterrows()
+        ]
+        result[cast(int, day_of_week)] = users_for_day
 
     return result
 

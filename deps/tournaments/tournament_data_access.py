@@ -30,6 +30,9 @@ def clear_tournament_caches() -> None:
     cache_leader_teammates.clear()
     cache_team_labels.clear()
 
+
+database_manager.register_reset_hook(clear_tournament_caches)
+
 SELECT_TOURNAMENT = """
     tournament.id,
     tournament.guild_id,

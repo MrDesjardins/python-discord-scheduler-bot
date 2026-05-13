@@ -4,6 +4,7 @@ Common code for the gatherer and analyse
 
 import datetime
 import sqlite3
+from typing import Callable
 
 from deps.log import print_error_log, print_log
 
@@ -25,16 +26,6 @@ def convert_datetime(s):
     return datetime.datetime.fromisoformat(s)
 
 
-def _clear_tournament_caches_safely() -> None:
-    """Clear tournament cache state without forcing a hard import dependency."""
-    try:
-        from deps.tournaments.tournament_data_access import clear_tournament_caches  # pylint: disable=import-outside-toplevel
-
-        clear_tournament_caches()
-    except (ImportError, AttributeError):
-        pass
-
-
 class DatabaseManager:
     """Handle the database connection to the right file"""
 
@@ -43,7 +34,21 @@ class DatabaseManager:
         # Register the adapters and converters with sqlite3
         sqlite3.register_adapter(datetime.datetime, adapt_datetime)
         sqlite3.register_converter("datetime", convert_datetime)
+        self._reset_hooks: list[Callable[[], None]] = []
         self.set_database_name(name)
+
+    def register_reset_hook(self, hook: Callable[[], None]) -> None:
+        """Register a callback to run after DB resets or file switches."""
+        if hook not in self._reset_hooks:
+            self._reset_hooks.append(hook)
+
+    def _run_reset_hooks(self) -> None:
+        """Run registered reset hooks without coupling this layer to feature modules."""
+        for hook in self._reset_hooks:
+            try:
+                hook()
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                print_error_log(f"DatabaseManager._run_reset_hooks: {e}")
 
     def set_database_name(self, name: str) -> None:
         """
@@ -60,7 +65,7 @@ class DatabaseManager:
         self.conn.execute("PRAGMA journal_mode=WAL;")  # Performance gain on write
         self.cursor = self.conn.cursor()
         self.init_database()
-        _clear_tournament_caches_safely()
+        self._run_reset_hooks()
 
     def get_database_name(self):
         """Get the database name, useful to know if test or prod"""
@@ -86,7 +91,7 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS custom_game_user_subscription")
         self.get_cursor().execute("DROP TABLE IF EXISTS operator_stats")
         self.get_conn().commit()
-        _clear_tournament_caches_safely()
+        self._run_reset_hooks()
 
     def init_database(self):
         """Ensure that database has all the tables"""
