@@ -40,7 +40,7 @@ from deps.data_access import (
     data_access_set_bot_voice_first_user,
 )
 from deps.mybot import MyBot
-from deps.log import print_error_log, print_warning_log
+from deps.log import print_error_log, print_log, print_warning_log
 from deps.siege import NO_RANK_ROLE, get_any_siege_activity, is_no_rank_role, siege_ranks
 from deps.functions_stats import send_daily_stats_to_a_guild
 from deps.match_start_gif import generate_match_start_gif
@@ -76,6 +76,27 @@ class ModBasic(commands.Cog):
         if member.guild_permissions.administrator:
             return True
         return any(role.name == "Mod" for role in member.roles)
+
+    @staticmethod
+    def _bot_can_manage_member_roles(guild: discord.Guild, member: discord.Member) -> bool:
+        """
+        Return True when the bot may add or remove roles on this member.
+        Fails for the guild owner and members whose top role is at or above the bot's top role (e.g. Mods).
+        """
+        if member.id == guild.owner_id:
+            return False
+        bot_member = guild.me
+        if bot_member is None:
+            return False
+        return member.top_role.position < bot_member.top_role.position
+
+    @staticmethod
+    def _bot_manageable_roles(guild: discord.Guild, roles: list[discord.Role]) -> list[discord.Role]:
+        """Return roles the bot is allowed to assign or remove (below bot top role, not managed)."""
+        bot_member = guild.me
+        if bot_member is None:
+            return []
+        return [role for role in roles if not role.managed and role.position < bot_member.top_role.position]
 
     @app_commands.command(name=COMMAND_VERSION)
     @commands.has_permissions(administrator=True)
@@ -140,8 +161,19 @@ class ModBasic(commands.Cog):
 
         updated_count = 0
         skipped_count = 0
+        skipped_hierarchy_count = 0
         failed_count = 0
         rank_role_names = set(siege_ranks)
+        bot_member = guild.me
+        if bot_member is None:
+            await interaction.followup.send("Bot member is not available in this guild.", ephemeral=True)
+            return
+        if no_rank_role.position >= bot_member.top_role.position:
+            await interaction.followup.send(
+                f"The bot's highest role must be above `{NO_RANK_ROLE}` to reset ranks.",
+                ephemeral=True,
+            )
+            return
         members_by_id = {member.id: member for member in guild.members}
         try:
             async for member in guild.fetch_members(limit=None):
@@ -164,35 +196,47 @@ class ModBasic(commands.Cog):
         human_members = [member for member in members_by_id.values() if not member.bot]
         bots_ignored = len(members_by_id) - len(human_members)
 
+        reset_reason = "Mod reset ranks for the start of a new season."
+
         for member in human_members:
-            rank_roles_to_remove = [
-                role for role in member.roles if role.name in rank_role_names and not is_no_rank_role(role.name)
-            ]
-            preserved_roles = [
-                role
-                for role in member.roles
-                if role.name not in rank_role_names
-                and role != guild.default_role
-                and not getattr(role, "managed", False)
-            ]
-            if no_rank_role not in preserved_roles:
-                preserved_roles.append(no_rank_role)
-            if len(rank_roles_to_remove) == 0 and no_rank_role in member.roles:
+            if not self._bot_can_manage_member_roles(guild, member):
+                skipped_hierarchy_count += 1
+                print_log(
+                    f"reset_rank_roles: Skipping {member.display_name} in {guild.name} "
+                    f"(top role {member.top_role.name} is not below the bot role)."
+                )
+                continue
+
+            rank_roles_to_remove = self._bot_manageable_roles(
+                guild,
+                [role for role in member.roles if role.name in rank_role_names and not is_no_rank_role(role.name)],
+            )
+            needs_unranked = no_rank_role not in member.roles
+            if len(rank_roles_to_remove) == 0 and not needs_unranked:
                 skipped_count += 1
                 continue
 
             try:
-                await member.edit(
-                    roles=preserved_roles,
-                    reason="Mod reset ranks for the start of a new season.",
-                )
+                if rank_roles_to_remove:
+                    try:
+                        await member.remove_roles(*rank_roles_to_remove, reason=reset_reason)
+                    except discord.Forbidden:
+                        for role in rank_roles_to_remove:
+                            await member.remove_roles(role, reason=reset_reason)
+                if needs_unranked:
+                    await member.add_roles(no_rank_role, reason=reset_reason)
                 updated_count += 1
                 if updated_count % 25 == 0:
                     await asyncio.sleep(1)
             except discord.Forbidden:
                 failed_count += 1
+                managed_role_names = [role.name for role in member.roles if role.managed]
                 print_warning_log(
-                    f"reset_rank_roles: Missing permission to update rank roles for {member.display_name} in {guild.name}."
+                    f"reset_rank_roles: Missing permission to update rank roles for {member.display_name} "
+                    f"in {guild.name} (bot top role position {bot_member.top_role.position}, "
+                    f"member top role {member.top_role.name} position {member.top_role.position}, "
+                    f"managed roles on member: {managed_role_names or 'none'}, "
+                    f"rank roles targeted: {[role.name for role in rank_roles_to_remove]})."
                 )
             except discord.HTTPException as e:
                 failed_count += 1
@@ -202,6 +246,11 @@ class ModBasic(commands.Cog):
             f"Rank reset complete. Updated {updated_count} human member(s), "
             f"skipped {skipped_count} (already {NO_RANK_ROLE}), failed {failed_count}."
         )
+        if skipped_hierarchy_count:
+            summary += (
+                f" Skipped {skipped_hierarchy_count} member(s) whose top role is Mod/admin "
+                f"(above the bot — reset those manually or raise the bot role)."
+            )
         if bots_ignored:
             summary += f" Ignored {bots_ignored} bot(s)."
         await interaction.followup.send(summary, ephemeral=True)
