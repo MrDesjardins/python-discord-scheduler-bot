@@ -1,0 +1,25 @@
+{
+  "data": {
+    "metadata": {
+      "currentSeason": 42
+    },
+    "segments": [
+      {
+        "type": "season",
+        "attributes": {
+          "season": 41,
+          "gamemode": "pvp_ranked",
+          "sessionType": "ranked"
+        },
+        "stats": {
+          "rankPoints": {
+            "value": 3046,
+            "metadata": {
+              "name": "PLATINUM V"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

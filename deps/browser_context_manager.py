@@ -3,6 +3,7 @@
 import json
 import os
 import random
+import re
 import shutil
 import signal
 import subprocess
@@ -20,7 +21,12 @@ import undetected_chromedriver as uc  # type: ignore
 from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserInformation, UserQueueForStats
 from deps.log import print_error_log, print_log, print_warning_log
-from deps.functions_r6_tracker import parse_json_from_full_matches, parse_json_max_rank, parse_json_user_info
+from deps.functions_r6_tracker import (
+    parse_json_current_season_rank,
+    parse_json_from_full_matches,
+    parse_json_max_rank,
+    parse_json_user_info,
+)
 from deps.functions import (
     get_url_api_ranked_matches,
     get_url_api_user_info,
@@ -40,6 +46,38 @@ from deps.browser_circuit_breaker import BrowserCircuitBreaker
 CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
 # Shared circuit breaker across all BrowserContextManager instances
 _CIRCUIT_BREAKER: Optional[BrowserCircuitBreaker] = None
+
+_CHROME_BINARY_CANDIDATES = (
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+)
+
+
+def detect_chrome_major_version(chrome_paths: Optional[List[str]] = None) -> Optional[int]:
+    """
+    Return the installed Chrome major version (e.g. 145), or None if it cannot be detected.
+    Override with CHROME_VERSION_MAIN when auto-detection is wrong.
+    """
+    env_override = os.getenv("CHROME_VERSION_MAIN", "").strip()
+    if env_override:
+        try:
+            return int(env_override)
+        except ValueError:
+            print_warning_log(f"Invalid CHROME_VERSION_MAIN={env_override!r}; falling back to auto-detect.")
+
+    paths = chrome_paths if chrome_paths is not None else list(_CHROME_BINARY_CANDIDATES)
+    for chrome_path in paths:
+        if not os.path.exists(chrome_path) or not os.access(chrome_path, os.X_OK):
+            continue
+        try:
+            result = subprocess.run([chrome_path, "--version"], capture_output=True, text=True, timeout=5)
+            version_line = (result.stdout or result.stderr or "").strip()
+            version_match = re.search(r"(\d+)\.", version_line)
+            if version_match:
+                return int(version_match.group(1))
+        except Exception as e:
+            print_warning_log(f"Could not read Chrome version from {chrome_path}: {e}")
+    return None
 
 
 class BrowserContextManager:
@@ -437,31 +475,13 @@ class BrowserContextManager:
         diagnostics: dict[str, Any] = {}
 
         # Check Chrome binary
-        chrome_path = "/usr/bin/google-chrome" if self.environment == "prod" else None
-        if chrome_path:
-            if os.path.exists(chrome_path) and os.access(chrome_path, os.X_OK):
-                try:
-                    result = subprocess.run([chrome_path, "--version"], capture_output=True, text=True, timeout=5)
-                    chrome_version = result.stdout.strip()
-                    diagnostics["chrome_version"] = chrome_version
-
-                    # Check for stderr errors
-                    if result.stderr:
-                        stderr_msg = result.stderr.strip()
-                        if stderr_msg:
-                            diagnostics["chrome_stderr"] = stderr_msg
-                            print_warning_log(f"Chrome stderr: {stderr_msg}")
-
-                    # Extract version number for comparison
-                    import re
-
-                    version_match = re.search(r"(\d+)\.", chrome_version)
-                    if version_match:
-                        diagnostics["chrome_major_version"] = int(version_match.group(1))
-                except Exception as e:
-                    diagnostics["chrome_error"] = str(e)
-            else:
-                diagnostics["chrome_error"] = f"Not found or not executable at {chrome_path}"
+        chrome_paths = ["/usr/bin/google-chrome"] if self.environment == "prod" else list(_CHROME_BINARY_CANDIDATES)
+        chrome_major_version = detect_chrome_major_version(chrome_paths)
+        if chrome_major_version is not None:
+            diagnostics["chrome_major_version"] = chrome_major_version
+            diagnostics["chrome_version"] = f"major {chrome_major_version}"
+        else:
+            diagnostics["chrome_error"] = f"Not found or not executable in {chrome_paths}"
 
         # Check chromedriver binary
         driver_path = "/usr/bin/chromedriver" if self.environment == "prod" else "chromedriver"
@@ -469,9 +489,6 @@ class BrowserContextManager:
             result = subprocess.run([driver_path, "--version"], capture_output=True, text=True, timeout=5)
             driver_version = result.stdout.strip()
             diagnostics["chromedriver_version"] = driver_version
-
-            # Extract version number for comparison
-            import re
 
             version_match = re.search(r"(\d+)\.", driver_version)
             if version_match:
@@ -611,9 +628,22 @@ class BrowserContextManager:
                 raise
         else:
             # --- WSL (DEV) ---
-            self.driver = uc.Chrome(
-                options=options, headless=False, use_subprocess=True, port=45455  # Fixed the 454a55 typo here
-            )
+            chrome_major_version = detect_chrome_major_version()
+            chrome_kwargs: dict[str, Any] = {
+                "options": options,
+                "headless": False,
+                "use_subprocess": True,
+                "port": 45455,
+            }
+            if chrome_major_version is not None:
+                chrome_kwargs["version_main"] = chrome_major_version
+                print_log(f"Launching Chrome with chromedriver for major version {chrome_major_version}.")
+            else:
+                print_warning_log(
+                    "Could not detect Chrome version; chromedriver may not match. "
+                    "Set CHROME_VERSION_MAIN (e.g. 145) or update Google Chrome."
+                )
+            self.driver = uc.Chrome(**chrome_kwargs)
 
         driver = self._active_driver()
         driver.set_page_load_timeout(self.config.page_load_timeout_seconds)
@@ -630,9 +660,7 @@ class BrowserContextManager:
                 print_warning_log(f"Failed to stop warm-up page load cleanly: {stop_error}")
 
             try:
-                print_warning_log(
-                    f"Warm-up page diagnostic: url={driver.current_url!r}, title={driver.title!r}"
-                )
+                print_warning_log(f"Warm-up page diagnostic: url={driver.current_url!r}, title={driver.title!r}")
             except Exception as diagnostic_error:
                 print_warning_log(f"Failed to collect warm-up diagnostics: {diagnostic_error}")
 
@@ -715,68 +743,72 @@ class BrowserContextManager:
         WebDriverWait(driver, 15).until(EC.visibility_of_element_located((By.ID, "app-container")))
         print_log("refresh_browser: Browser refreshed")
 
-    def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> tuple[str, int]:
+    def _download_rank_from_profile(
+        self,
+        ubisoft_user_name: Optional[str],
+        parser,
+        log_name: str,
+    ) -> tuple[str, int]:
         """
-        Download the web page, and extract the max rank
+        Download the profile JSON and parse a rank tuple.
 
         Raises:
             BrowserException: If Ubisoft username not provided or JSON not found
             BrowserTimeoutException: If page load times out
         """
-        rank = "Copper"
-        # Step 1: Check if the Ubisoft username is provided, otherwise use the default profile
         if ubisoft_user_name is None:
             ubisoft_user_name = self.default_profile
 
-        # Step 2: Download the page content
         self.counter += 1
         if not ubisoft_user_name:
-            raise BrowserException("download_max_rank: Ubisoft username not found.")
+            raise BrowserException(f"{log_name}: Ubisoft username not found.")
 
         api_url = get_url_api_user_info(ubisoft_user_name)
         driver = self._active_driver()
         driver.get(api_url)
-        print_log(f"download_max_rank: Downloading profile for {ubisoft_user_name} using {api_url}")
+        print_log(f"{log_name}: Downloading profile for {ubisoft_user_name} using {api_url}")
 
-        # Wait until the page contains the expected JSON data
         try:
             WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 EC.presence_of_element_located((By.TAG_NAME, "pre"))
             )
         except TimeoutException as e:
-            raise BrowserTimeoutException(f"download_max_rank: Timeout waiting for JSON data: {e}") from e
+            raise BrowserTimeoutException(f"{log_name}: Timeout waiting for JSON data: {e}") from e
 
-        # Step 3: Extract the page content, expecting JSON
         page_source = driver.page_source
 
-        # Step 4: Remove the HTML
         soup = BeautifulSoup(page_source, "html.parser")
-        # Find the <pre> tag containing the JSON
         pre_tag = soup.find("pre")
 
-        # Ensure the <pre> tag is found and contains the expected JSON data
         if not pre_tag:
-            raise BrowserException("download_max_rank: JSON data not found within <pre> tag.")
+            raise BrowserException(f"{log_name}: JSON data not found within <pre> tag.")
 
-        # Step 4: Extract the text content of the <pre> tag
         json_data = pre_tag.get_text().strip()
 
         try:
-            # Step 5: Parse the JSON data
             data = json.loads(json_data)
-            print_log(f"download_max_rank: JSON found for {ubisoft_user_name}")
-            # Save the JSON data to a file for debugging
+            print_log(f"{log_name}: JSON found for {ubisoft_user_name}")
             if os.getenv("ENV") == "dev":
                 try:
                     with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
                         file.write(json.dumps(data, indent=4))
                 except Exception as e:
                     print_warning_log(f"Failed to write debug JSON file: {e}")
-            # Step 6: Parse the JSON data to extract the matches
-            data_json = parse_json_max_rank(data)
-            return data_json
+            return parser(data)
         except json.JSONDecodeError as e:
-            raise BrowserException(f"download_max_rank: Error parsing JSON: {e}") from e
+            raise BrowserException(f"{log_name}: Error parsing JSON: {e}") from e
+
+    def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> tuple[str, int]:
+        """Download the web page, and extract the max rank."""
+        return self._download_rank_from_profile(ubisoft_user_name, parse_json_max_rank, "download_max_rank")
+
+    def download_current_season_rank(self, ubisoft_user_name: Optional[str] = None) -> tuple[str, int]:
+        """Download the profile API JSON and extract the current ranked season rank."""
+        return self._download_rank_from_profile(
+            ubisoft_user_name,
+            parse_json_current_season_rank,
+            "download_current_season_rank",
+        )
 
     def download_full_user_information(self, user_queued: UserQueueForStats) -> Union[UserInformation, None]:
         """

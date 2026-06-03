@@ -18,7 +18,7 @@ from deps.values import (
     URL_TRN_RANKED_PAGE,
 )
 from deps.mybot import MyBot
-from deps.siege import siege_ranks
+from deps.siege import resolve_rank_role_name, siege_ranks
 from deps.functions_date import get_now_eastern
 
 
@@ -70,19 +70,22 @@ def most_common(lst) -> str | None:
 
 async def set_member_role_from_rank(guild: discord.Guild, member: discord.Member, rank: str) -> None:
     """Set the user role based on the rank."""
-    # Remove all roles
-    for r_name in siege_ranks:
-        role_to_remove = discord.utils.get(guild.roles, name=r_name)
-        if role_to_remove in member.roles:
-            await member.remove_roles(role_to_remove, reason=f"Bot removed {r_name} before assigning new rank role.")
-
-    # Get the Role object from the guild using the rank string
+    rank = resolve_rank_role_name(rank)
     role = discord.utils.get(guild.roles, name=rank)
-
     if role is None:
         raise ValueError(f"The guild does not have a role named '{rank}'.")
-    # Pass the role object (not the name/str)
+
+    roles_to_remove = []
+    for r_name in siege_ranks:
+        if r_name == rank:
+            continue
+        role_to_remove = discord.utils.get(guild.roles, name=r_name)
+        if role_to_remove in member.roles:
+            roles_to_remove.append(role_to_remove)
+
     await member.add_roles(role, reason="Bot assigned role based on rank from R6 Tracker")
+    if roles_to_remove:
+        await member.remove_roles(*roles_to_remove, reason=f"Bot removed prior rank roles before assigning {rank}.")
 
 
 def get_url_user_profile_main(ubisoft_user_name: str) -> str:

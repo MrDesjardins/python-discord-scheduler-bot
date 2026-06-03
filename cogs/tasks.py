@@ -12,6 +12,7 @@ from deps.bot_common_actions import (
     persist_siege_matches_cross_guilds,
     persist_user_full_information_cross_guilds,
     post_queued_user_stats,
+    refresh_current_rank_roles_cross_guilds,
     send_daily_question_to_a_guild,
 )
 from deps.mybot import MyBot
@@ -96,6 +97,7 @@ class MyTasksCog(commands.Cog):
         end_time = now_utc
         # Pass self.bot to include currently-connected users in the stats collection
         await persist_siege_matches_cross_guilds(begin_time, end_time, self.bot)
+        await refresh_current_rank_roles_cross_guilds(begin_time, end_time, self.bot)
 
     @tasks.loop(time=time_fetch_user_information)
     async def daily_saving_active_user_information_task(self):

@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from unittest.mock import call, patch, Mock, AsyncMock
 import discord
+import pytest
 from deps.functions_model import get_empty_votes, get_supported_time_time_label
 from deps.functions import (
     get_last_schedule_message,
@@ -17,6 +18,7 @@ from deps.functions import (
 )
 from deps.models import TimeLabel
 import deps.functions
+import deps.bot_common_actions
 from deps.mybot import MyBot
 from deps.values import MSG_UNIQUE_STRING
 import deps.siege
@@ -266,8 +268,8 @@ async def test_get_last_schedule_message_with_last_message_is_bot_with_right_msg
 async def test_set_member_role_from_rank_with_role_to_remove_remove_all_possibles_rank_then_add():
     """
     The test ensures that the function
-    1) Removes all the possible roles
-    2) Adds the new role
+    1) Adds the new role
+    2) Removes the other managed rank roles
     Tag: #good_test, #good_practice
     """
     # Arrange
@@ -277,6 +279,7 @@ async def test_set_member_role_from_rank_with_role_to_remove_remove_all_possible
     role_2 = Mock(spec=discord.Role, name="rank2")  # Create a new role for rank2
     member.roles = [role_1, role_2]
     member.add_roles = AsyncMock()
+    member.remove_roles = AsyncMock()
 
     def mock_discord_get(roles, name):
         """Return different roles based on name lookup."""
@@ -288,13 +291,56 @@ async def test_set_member_role_from_rank_with_role_to_remove_remove_all_possible
 
     discord.utils.get = Mock(side_effect=mock_discord_get)
     # Act
-    with patch("deps.functions.siege_ranks", ["rank1", "rank2"]):
+    with patch("deps.functions.siege_ranks", ["rank1", "rank2"]), patch(
+        "deps.functions.resolve_rank_role_name", side_effect=lambda rank: rank
+    ):
         await deps.functions.set_member_role_from_rank(guild, member, "rank2")
         # Assert
-        member.remove_roles.assert_has_calls(
-            [
-                call(role_1, reason="Bot removed rank1 before assigning new rank role."),
-                call(role_2, reason="Bot removed rank2 before assigning new rank role."),
-            ]
-        )
         member.add_roles.assert_called_once_with(role_2, reason="Bot assigned role based on rank from R6 Tracker")
+        member.remove_roles.assert_called_once_with(
+            role_1, reason="Bot removed prior rank roles before assigning rank2."
+        )
+
+
+async def test_set_member_role_from_rank_missing_target_role_preserves_existing_roles():
+    """If the target role is missing, the function should fail before mutating roles."""
+    guild = Mock(spec=discord.Guild)
+    member = Mock(spec=discord.Member)
+    role_1 = Mock(spec=discord.Role, name="rank1")
+    member.roles = [role_1]
+    member.add_roles = AsyncMock()
+    member.remove_roles = AsyncMock()
+
+    def mock_discord_get(roles, name):
+        if name == "rank1":
+            return role_1
+        return None
+
+    discord.utils.get = Mock(side_effect=mock_discord_get)
+    with patch("deps.functions.siege_ranks", ["rank1", "rank2"]):
+        with pytest.raises(ValueError):
+            await deps.functions.set_member_role_from_rank(guild, member, "rank2")
+
+    member.add_roles.assert_not_called()
+    member.remove_roles.assert_not_called()
+
+
+async def test_sync_member_current_rank_role_uses_current_rank():
+    """Current-season rank sync assigns the fetched current rank role."""
+    guild = Mock(spec=discord.Guild)
+    member = Mock(spec=discord.Member)
+    member.display_name = "Player"
+
+    with (
+        patch(
+            "deps.bot_common_actions.data_access_get_r6tracker_current_season_rank",
+            new_callable=AsyncMock,
+            return_value=("Unranked", 0),
+        ) as mock_fetch,
+        patch("deps.bot_common_actions.set_member_role_from_rank", new_callable=AsyncMock) as mock_set_role,
+    ):
+        result = await deps.bot_common_actions.sync_member_current_rank_role(guild, member, "active_ubi")
+
+    assert result == ("Unranked", 0)
+    mock_fetch.assert_awaited_once_with("active_ubi", True)
+    mock_set_role.assert_awaited_once_with(guild, member, "Unranked")

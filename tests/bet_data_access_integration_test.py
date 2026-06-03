@@ -307,12 +307,17 @@ async def test_distribute_gain_on_recent_ended_game_error_rollback(update_wallet
         10,
         user_1,
     )  # Bet user 1
+    wallet_before_distribution = get_bet_user_wallet_for_tournament(
+        tournament_id=tournament_id, user_id=user_placing_the_bet_id
+    )
+    assert wallet_before_distribution is not None
     update_wallet_mock.side_effect = Exception("Error")  # <----- Mock the error
     # Act (report lost call distribute_gain_on_recent_ended_game(tournament_id)  # Loser bet here
     await report_lost_tournament(tournament_id, user_2, "1-1")  # User 1 win
     # Assert user wallet (bet_user_tournament)
-    user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=1009)
-    assert user_wallet.amount == 1000  # did not change! because of the error (rollback)
+    user_wallet = get_bet_user_wallet_for_tournament(tournament_id=tournament_id, user_id=user_placing_the_bet_id)
+    assert user_wallet is not None
+    assert user_wallet.amount == wallet_before_distribution.amount  # did not change during failed distribution
     # Assert ledger
     full_ledger_entries = data_access_get_bet_ledger_entry_for_tournament(tournament_id)
     assert len(full_ledger_entries) == 0  # No entry because of the error (rollback)

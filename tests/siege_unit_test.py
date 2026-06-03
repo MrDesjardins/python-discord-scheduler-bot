@@ -2,9 +2,18 @@
 Siege functions logics
 """
 
+from types import SimpleNamespace
 from typing import Union
-from deps.siege import get_aggregation_siege_activity
+from unittest.mock import Mock
+
 from deps.models import ActivityTransition
+from deps.siege import (
+    get_adjacent_rank_names,
+    get_aggregation_siege_activity,
+    get_guild_rank_emoji,
+    get_lfg_rank_role_mentions,
+    get_user_rank_siege,
+)
 
 
 def test_get_aggregation_siege_activity_no_data() -> None:
@@ -22,6 +31,66 @@ def test_get_aggregation_siege_activity_no_data() -> None:
     assert result.playing_rank == 0
     assert result.playing_standard == 0
     assert result.looking_ranked_match == 0
+
+
+def test_get_user_rank_siege_prefers_highest_rank_role() -> None:
+    """When Unranked is kept alongside a competitive rank, use the competitive rank."""
+    unranked_role = SimpleNamespace(name="Unranked")
+    bronze_role = SimpleNamespace(name="Bronze")
+    member = Mock(bot=False, roles=[unranked_role, bronze_role])
+
+    assert get_user_rank_siege(member) == "Bronze"
+
+
+def test_get_guild_rank_emoji_uses_unranked_icon() -> None:
+    """Unranked rank displays the Unranked guild emoji."""
+    guild_emoji = {"Unranked": "1234567890"}
+    assert get_guild_rank_emoji(guild_emoji, "Unranked") == "<:Unranked:1234567890>"
+
+
+def test_get_lfg_rank_role_mentions_unranked_only() -> None:
+    """Unranked LFG pings only the Unranked role."""
+    guild = Mock()
+    guild.roles = [
+        SimpleNamespace(name="Copper", mention="<@&Copper>"),
+        SimpleNamespace(name="Unranked", mention="<@&Unranked>"),
+    ]
+    member = Mock(bot=False, roles=[guild.roles[1]])
+
+    assert get_lfg_rank_role_mentions(guild, [member]) == "<@&Unranked>"
+
+
+def test_get_adjacent_rank_names_diamond() -> None:
+    """Diamond pings Champion, Diamond, and Emerald."""
+    assert get_adjacent_rank_names("Diamond") == ["Champion", "Diamond", "Emerald"]
+
+
+def test_get_adjacent_rank_names_boundaries() -> None:
+    """Boundary ranks only include available neighbors."""
+    assert get_adjacent_rank_names("Champion") == ["Champion", "Diamond"]
+    assert get_adjacent_rank_names("Unranked") == ["Unranked"]
+
+
+def test_get_adjacent_rank_names_bronze_and_copper() -> None:
+    """Low tiers ping same rank and one below; Unranked is never included."""
+    assert get_adjacent_rank_names("Bronze") == ["Bronze", "Copper"]
+    assert get_adjacent_rank_names("Copper") == ["Bronze", "Copper"]
+
+
+def test_get_lfg_rank_role_mentions_uses_dominant_rank_band() -> None:
+    """Mixed-rank groups ping the dominant rank band instead of every member band."""
+    role_names = ["Champion", "Diamond", "Emerald", "Platinum", "Bronze", "Copper", "Unranked"]
+    guild = Mock()
+    guild.roles = [SimpleNamespace(name=role_name, mention=f"<@&{role_name}>") for role_name in role_names]
+
+    diamond_role = SimpleNamespace(name="Diamond")
+    copper_role = SimpleNamespace(name="Copper")
+    member_1 = Mock(bot=False, roles=[diamond_role])
+    member_2 = Mock(bot=False, roles=[diamond_role])
+    member_3 = Mock(bot=False, roles=[copper_role])
+
+    assert get_lfg_rank_role_mentions(guild, [member_1, member_2]) == ("<@&Champion> <@&Diamond> <@&Emerald>")
+    assert get_lfg_rank_role_mentions(guild, [member_1, member_2, member_3]) == "<@&Champion> <@&Diamond> <@&Emerald>"
 
 
 def test_get_aggregation_siege_activity_none_entry() -> None:

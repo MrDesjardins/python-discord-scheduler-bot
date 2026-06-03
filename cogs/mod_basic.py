@@ -2,6 +2,7 @@
 Basic moderator commands
 """
 
+import asyncio
 import io
 import discord
 from discord.ext import commands
@@ -17,6 +18,7 @@ from deps.values import (
     COMMAND_GENERATE_AI_SUMMARY,
     COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY,
     COMMAND_MOD_BOT_PERMISSION,
+    COMMAND_RESET_RANK,
     COMMAND_TEST_JOIN,
     COMMAND_VERSION,
     COMMAND_RESET_CACHE,
@@ -39,7 +41,7 @@ from deps.data_access import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
-from deps.siege import get_any_siege_activity
+from deps.siege import NO_RANK_ROLE, get_any_siege_activity, is_no_rank_role, siege_ranks
 from deps.functions_stats import send_daily_stats_to_a_guild
 from deps.match_start_gif import generate_match_start_gif
 from deps.ai.ai_functions import BotAISingleton
@@ -67,6 +69,13 @@ class ModBasic(commands.Cog):
         for index, chunk in enumerate(chunks):
             prefix = f"{title}\n" if index == 0 else ""
             await interaction.followup.send(prefix + f"```text\n{chunk}\n```", ephemeral=True)
+
+    @staticmethod
+    def _is_admin_or_mod(member: discord.Member) -> bool:
+        """Return True when a member is an administrator or has the Mod role."""
+        if member.guild_permissions.administrator:
+            return True
+        return any(role.name == "Mod" for role in member.roles)
 
     @app_commands.command(name=COMMAND_VERSION)
     @commands.has_permissions(administrator=True)
@@ -98,6 +107,104 @@ class ModBasic(commands.Cog):
                 "Only the owner of the guild can reset the cache",
                 ephemeral=True,
             )
+
+    @app_commands.command(name=COMMAND_RESET_RANK)
+    async def reset_rank_roles(self, interaction: discord.Interaction):
+        """
+        Reset all human guild members to the Unranked role for the start of a new season.
+        Bot accounts are not modified.
+        """
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            print_error_log(
+                f"reset_rank_roles: No guild available for user {interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        if not self._is_admin_or_mod(interaction.user):
+            await interaction.response.send_message(
+                "Only administrators or users with the Mod role can reset ranks.",
+                ephemeral=True,
+            )
+            return
+
+        guild = interaction.guild
+        no_rank_role = next((role for role in guild.roles if role.name == NO_RANK_ROLE), None)
+        if no_rank_role is None:
+            await interaction.response.send_message(
+                f"The guild does not have a role named `{NO_RANK_ROLE}`.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        updated_count = 0
+        skipped_count = 0
+        failed_count = 0
+        rank_role_names = set(siege_ranks)
+        members_by_id = {member.id: member for member in guild.members}
+        try:
+            async for member in guild.fetch_members(limit=None):
+                members_by_id[member.id] = member
+        except discord.Forbidden:
+            print_warning_log(f"reset_rank_roles: Missing permission to fetch all members in {guild.name}.")
+            await interaction.followup.send(
+                "Could not fetch the full member list, so the rank reset was aborted.",
+                ephemeral=True,
+            )
+            return
+        except discord.HTTPException as e:
+            print_warning_log(f"reset_rank_roles: Could not fetch all members in {guild.name}: {e}")
+            await interaction.followup.send(
+                "Could not fetch the full member list, so the rank reset was aborted.",
+                ephemeral=True,
+            )
+            return
+
+        human_members = [member for member in members_by_id.values() if not member.bot]
+        bots_ignored = len(members_by_id) - len(human_members)
+
+        for member in human_members:
+            rank_roles_to_remove = [
+                role for role in member.roles if role.name in rank_role_names and not is_no_rank_role(role.name)
+            ]
+            preserved_roles = [
+                role
+                for role in member.roles
+                if role.name not in rank_role_names
+                and role != guild.default_role
+                and not getattr(role, "managed", False)
+            ]
+            if no_rank_role not in preserved_roles:
+                preserved_roles.append(no_rank_role)
+            if len(rank_roles_to_remove) == 0 and no_rank_role in member.roles:
+                skipped_count += 1
+                continue
+
+            try:
+                await member.edit(
+                    roles=preserved_roles,
+                    reason="Mod reset ranks for the start of a new season.",
+                )
+                updated_count += 1
+                if updated_count % 25 == 0:
+                    await asyncio.sleep(1)
+            except discord.Forbidden:
+                failed_count += 1
+                print_warning_log(
+                    f"reset_rank_roles: Missing permission to update rank roles for {member.display_name} in {guild.name}."
+                )
+            except discord.HTTPException as e:
+                failed_count += 1
+                print_error_log(f"reset_rank_roles: Failed updating {member.display_name} in {guild.name}: {e}")
+
+        summary = (
+            f"Rank reset complete. Updated {updated_count} human member(s), "
+            f"skipped {skipped_count} (already {NO_RANK_ROLE}), failed {failed_count}."
+        )
+        if bots_ignored:
+            summary += f" Ignored {bots_ignored} bot(s)."
+        await interaction.followup.send(summary, ephemeral=True)
 
     @app_commands.command(name=COMMAND_GUILD_ENABLE_BOT_VOICE)
     @commands.has_permissions(administrator=True)

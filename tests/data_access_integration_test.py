@@ -14,12 +14,21 @@ from deps.data_access import (
     data_access_get_r6tracker_max_rank,
     data_acess_remove_list_member_stats,
 )
+from deps.browser_exceptions import BrowserStartupException, CircuitBreakerOpenException
 from deps.models import UserQueueForStats
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 from tests.mock_model import mock_user1, mock_user2
 
 lock = asyncio.Lock()
 DELAY_SECOND = 5  # Delay to avoid rate limiting
+
+
+async def get_r6tracker_max_rank_or_skip(ubisoft_user_name: str) -> tuple[str, int]:
+    """Fetch live R6 Tracker rank, or skip when the local browser integration is unavailable."""
+    try:
+        return await data_access_get_r6tracker_max_rank(ubisoft_user_name, True)
+    except (BrowserStartupException, CircuitBreakerOpenException) as e:
+        pytest.skip(f"Live R6 Tracker browser integration unavailable: {e}")
 
 
 @pytest.fixture(autouse=True)
@@ -114,7 +123,7 @@ async def test_data_access_get_r6tracker_max_rank_test_diamond() -> None:
     Test the function to get the max rank from R6Tracker
     """
 
-    result = await data_access_get_r6tracker_max_rank("noSleep_rb6", True)
+    result = await get_r6tracker_max_rank_or_skip("noSleep_rb6")
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
     await asyncio.sleep(DELAY_SECOND)
     assert result == ("Diamond", 4343)
@@ -125,7 +134,7 @@ async def test_data_access_get_r6tracker_max_rank_test_platinum() -> None:
     Test the function to get the max rank from R6Tracker
     """
 
-    result = await data_access_get_r6tracker_max_rank("LebronsCock", True)
+    result = await get_r6tracker_max_rank_or_skip("LebronsCock")
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
     await asyncio.sleep(DELAY_SECOND)
     assert result == ("Platinum", 3211)
@@ -136,7 +145,7 @@ async def test_data_access_get_r6tracker_max_rank_test_does_not_exist() -> None:
     Test the function to get the max rank from R6Tracker
     """
 
-    result = await data_access_get_r6tracker_max_rank("DoesNotExist123000Name", True)
+    result = await get_r6tracker_max_rank_or_skip("DoesNotExist123000Name")
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
     await asyncio.sleep(DELAY_SECOND)
     assert result == ("Copper", 0)
@@ -147,7 +156,7 @@ async def test_data_access_get_r6tracker_max_rank_test_champion() -> None:
     Test the function to get the max rank from R6Tracker
     """
 
-    result = await data_access_get_r6tracker_max_rank("Funkyshmug", True)
+    result = await get_r6tracker_max_rank_or_skip("Funkyshmug")
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
     await asyncio.sleep(DELAY_SECOND)
     assert result == ("Champion", 4561)
@@ -158,7 +167,7 @@ async def test_data_access_get_r6tracker_max_rank_test_emerald_period() -> None:
     Test the function to get the max rank from R6Tracker
     """
 
-    result = await data_access_get_r6tracker_max_rank("Adahdf.", True)
+    result = await get_r6tracker_max_rank_or_skip("Adahdf.")
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
     await asyncio.sleep(DELAY_SECOND)
     assert result == ("Emerald", 3787)
@@ -169,7 +178,7 @@ async def test_data_access_get_r6tracker_max_rank_test_gold() -> None:
     Test the function to get the max rank from R6Tracker
     """
 
-    result = await data_access_get_r6tracker_max_rank("J0hn_Th1cc", True)
+    result = await get_r6tracker_max_rank_or_skip("J0hn_Th1cc")
     # Add a delay between each individual test of 5 seconds to avoid spamming the TRN API
     await asyncio.sleep(DELAY_SECOND)
     assert result == ("Gold", 0)

@@ -1,5 +1,6 @@
 """Information about Siege"""
 
+from collections import Counter
 import re
 from dataclasses import dataclass
 from typing import List, Mapping, Optional, Union
@@ -10,6 +11,8 @@ from deps.models import ActivityTransition, SiegeActivityAggregation
 from deps.mybot import MyBot
 from deps.log import print_log
 
+NO_RANK_ROLE = "Unranked"
+
 siege_ranks = [
     "Champion",
     "Diamond",
@@ -19,7 +22,23 @@ siege_ranks = [
     "Silver",
     "Bronze",
     "Copper",
+    NO_RANK_ROLE,
 ]
+
+# Competitive tiers used for LFG pings; Unranked is handled separately.
+RANKED_LFG_RANKS = siege_ranks[:-1]
+
+
+def is_no_rank_role(role_name: str) -> bool:
+    """Return True for the Discord role used when a player has no current ranked tier."""
+    return role_name == NO_RANK_ROLE
+
+
+def resolve_rank_role_name(rank: str) -> str:
+    """Map API labels to the Discord rank role name."""
+    if rank in siege_ranks:
+        return rank
+    return NO_RANK_ROLE
 
 
 def get_color_for_rank(member: discord.Member) -> int:
@@ -33,25 +52,31 @@ def get_color_for_rank(member: discord.Member) -> int:
         "Silver": 0x808080,  # Gray
         "Bronze": 0xD2691E,  # Dark Orange
         "Copper": 0x8B0000,  # Dark Red
+        NO_RANK_ROLE: 0x2F3136,  # Discord dark gray
     }
     for role in member.roles:
-        if role.name in siege_ranks:
-            return color_map.get(role.name, 0x8B0000)
+        if role.name in color_map:
+            return color_map[role.name]
 
-    return color_map.get("Copper", 0x8B0000)
+    return color_map[NO_RANK_ROLE]
 
 
 def get_user_rank_siege(user: discord.Member) -> str:
     """
-    Check the user's roles to determine their rank
+    Return the member's Siege rank from their roles.
+    When multiple rank roles are present, use the highest competitive tier.
     """
     if user is None:
-        return "Copper"
+        return NO_RANK_ROLE
 
-    for role in user.roles:
-        if role.name in siege_ranks:
-            return role.name
-    return "Copper"
+    member_ranks = [
+        resolve_rank_role_name(role.name)
+        for role in user.roles
+        if role.name in siege_ranks or is_no_rank_role(role.name)
+    ]
+    if not member_ranks:
+        return NO_RANK_ROLE
+    return min(member_ranks, key=siege_ranks.index)
 
 
 def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> str:
@@ -64,13 +89,13 @@ def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> st
         guild_emoji = {}
 
     if user is None:
-        return get_guild_rank_emoji(guild_emoji, "Copper")
+        return get_guild_rank_emoji(guild_emoji, NO_RANK_ROLE)
 
     for role in user.roles:
-        if role.name in siege_ranks:
+        if role.name in siege_ranks or is_no_rank_role(role.name):
             return get_guild_rank_emoji(guild_emoji, role.name)
 
-    return get_guild_rank_emoji(guild_emoji, "Copper")
+    return get_guild_rank_emoji(guild_emoji, NO_RANK_ROLE)
 
 
 def get_guild_rank_emoji(guild_emoji: dict[str, str], emoji_name: str) -> str:
@@ -82,12 +107,15 @@ def get_guild_rank_emoji(guild_emoji: dict[str, str], emoji_name: str) -> str:
         # Should never happen
         guild_emoji = {}
 
-    if emoji_name in siege_ranks:
-        if emoji_name in guild_emoji:
-            emoji_id = guild_emoji[emoji_name]
-            return f"<:{emoji_name}:{emoji_id}>"
+    display_name = resolve_rank_role_name(emoji_name)
+    if display_name in siege_ranks and display_name in guild_emoji:
+        emoji_id = guild_emoji[display_name]
+        return f"<:{display_name}:{emoji_id}>"
 
-    return f"<:Copper:{guild_emoji['Copper']}>" if "Copper" in guild_emoji else "N/A"
+    for fallback_name in (NO_RANK_ROLE, "Copper"):
+        if fallback_name in guild_emoji:
+            return f"<:{fallback_name}:{guild_emoji[fallback_name]}>"
+    return "N/A"
 
 
 def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:
@@ -495,3 +523,49 @@ def get_list_users_with_rank(bot: MyBot, members: List[discord.Member], guild_id
         list_users += f"{rank} {member.mention}, "
     list_users = list_users[:-2]
     return list_users
+
+
+def get_adjacent_rank_names(rank: str) -> list[str]:
+    """
+    Return rank role names to ping for LFG.
+    Unranked players only ping Unranked. Ranked players ping adjacent competitive
+    tiers (Champion through Copper) and never include Unranked.
+    Bronze and Copper only ping their tier and the one below (no Silver for Bronze).
+    """
+    rank = resolve_rank_role_name(rank)
+    if rank == NO_RANK_ROLE:
+        return [NO_RANK_ROLE]
+    if rank not in RANKED_LFG_RANKS:
+        return [NO_RANK_ROLE]
+
+    rank_index = RANKED_LFG_RANKS.index(rank)
+    compatible_ranks = [rank]
+    bronze_index = len(RANKED_LFG_RANKS) - 2
+
+    if rank_index > 0 and rank_index < bronze_index:
+        compatible_ranks.insert(0, RANKED_LFG_RANKS[rank_index - 1])
+    elif rank_index == len(RANKED_LFG_RANKS) - 1:
+        compatible_ranks.insert(0, RANKED_LFG_RANKS[rank_index - 1])
+
+    if rank_index + 1 < len(RANKED_LFG_RANKS):
+        compatible_ranks.append(RANKED_LFG_RANKS[rank_index + 1])
+
+    return compatible_ranks
+
+
+def get_lfg_rank_role_mentions(guild: discord.Guild, members: List[discord.Member]) -> str:
+    """
+    Return role mentions for the dominant voice rank plus adjacent ranks.
+    """
+    member_ranks = [get_user_rank_siege(member) for member in members if not member.bot]
+    if not member_ranks:
+        return ""
+
+    rank_counts = Counter(member_ranks)
+    focus_rank = max(
+        rank_counts.items(),
+        key=lambda item: (item[1], -siege_ranks.index(item[0]) if item[0] in siege_ranks else 0),
+    )[0]
+    ordered_ranks = get_adjacent_rank_names(focus_rank)
+    roles = [next((role for role in guild.roles if role.name == rank_name), None) for rank_name in ordered_ranks]
+    return " ".join(role.mention for role in roles if role is not None)

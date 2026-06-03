@@ -221,6 +221,11 @@ def _download_max_rank_sync(ubisoft_user_name: str) -> tuple[str, int]:
         return context.download_max_rank(ubisoft_user_name)
 
 
+def _download_current_season_rank_sync(ubisoft_user_name: str) -> tuple[str, int]:
+    with BrowserContextManager(ubisoft_user_name) as context:
+        return context.download_current_season_rank(ubisoft_user_name)
+
+
 async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch: bool = False) -> tuple[str, int]:
     """
     Get from R6 Tracker website the max rank for the user
@@ -230,6 +235,15 @@ async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch
     #     remove_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}")
 
     # return await get_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}", fetch, ttl_in_seconds=ONE_HOUR_TTL)
+
+
+async def data_access_get_r6tracker_current_season_rank(
+    ubisoft_user_name: str, force_fetch: bool = False
+) -> tuple[str, int]:
+    """
+    Get from R6 Tracker website the user's current ranked season rank.
+    """
+    return await asyncio.to_thread(_download_current_season_rank_sync, ubisoft_user_name)
 
 
 async def data_access_get_guild_username_text_channel_id(

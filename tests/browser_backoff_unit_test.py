@@ -1,8 +1,26 @@
 """Unit tests for browser exponential backoff"""
 
 import pytest
-from deps.browser_context_manager import BrowserContextManager
+from unittest.mock import patch
+
+from deps.browser_context_manager import BrowserContextManager, detect_chrome_major_version
 from deps.browser_config import BrowserConfig
+
+
+def test_detect_chrome_major_version_from_env_override(monkeypatch) -> None:
+    """CHROME_VERSION_MAIN overrides auto-detection when chromedriver must be pinned."""
+    monkeypatch.setenv("CHROME_VERSION_MAIN", "145")
+    assert detect_chrome_major_version() == 145
+
+
+def test_detect_chrome_major_version_parses_binary_output() -> None:
+    """Chrome --version output is parsed into the major version number."""
+    completed = type("Completed", (), {"stdout": "Google Chrome 145.0.7632.109\n", "stderr": ""})()
+    with patch("deps.browser_context_manager.os.path.exists", return_value=True):
+        with patch("deps.browser_context_manager.os.access", return_value=True):
+            with patch("deps.browser_context_manager.subprocess.run", return_value=completed):
+                with patch.dict("os.environ", {}, clear=True):
+                    assert detect_chrome_major_version(["/usr/bin/google-chrome"]) == 145
 
 
 def test_calculate_backoff_exponential_growth():

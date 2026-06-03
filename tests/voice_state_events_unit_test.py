@@ -97,6 +97,9 @@ class TestGuildLoopBug:
         # Mock data access functions
         with (
             patch("cogs.events.data_access_get_guild_voice_channel_ids") as mock_get_voice_channels,
+            patch(
+                "cogs.events.data_access_get_guild_active_private_channels", new_callable=AsyncMock
+            ) as mock_private_channels,
             patch("cogs.events.data_access_get_guild_schedule_text_channel_id") as mock_get_schedule_channel,
             patch("cogs.events.insert_user_activity") as mock_insert,
             patch("cogs.events.data_access_update_voice_user_list") as mock_update_voice_list,
@@ -107,6 +110,7 @@ class TestGuildLoopBug:
 
             # Setup mocks
             mock_get_voice_channels.return_value = [mock_voice_channel.id]
+            mock_private_channels.return_value = {}
             mock_get_schedule_channel.return_value = 444444444
             mock_get_activity.return_value = None
             mock_send_notification.return_value = None
@@ -144,6 +148,7 @@ class TestGuildLoopBug:
 
         with (
             patch("cogs.events.data_access_get_guild_voice_channel_ids", return_value=[]),
+            patch("cogs.events.data_access_get_guild_active_private_channels", new_callable=AsyncMock, return_value={}),
             patch("cogs.events.data_access_get_guild_schedule_text_channel_id") as mock_get_schedule_channel,
             patch("cogs.events.insert_user_activity") as mock_insert,
             patch("cogs.events.data_access_update_voice_user_list", new_callable=AsyncMock),
@@ -297,6 +302,7 @@ class TestChannelMoveAtomicity:
 
         with (
             patch("cogs.events.data_access_get_guild_voice_channel_ids") as mock_get_voice_channels,
+            patch("cogs.events.data_access_get_guild_active_private_channels", new_callable=AsyncMock, return_value={}),
             patch("cogs.events.data_access_get_guild_schedule_text_channel_id") as mock_get_schedule_channel,
             patch("cogs.events.database_manager") as mock_db_manager,
             patch("cogs.events.data_access_remove_voice_user_list") as mock_remove_voice_list,

@@ -3,7 +3,7 @@
 from typing import Union
 import discord
 from deps.data_access import data_access_get_gaming_session_text_channel_id
-from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
+from deps.bot_common_actions import fetch_current_and_max_rank_for_accounts, set_member_role_from_current_rank
 from deps.analytic_data_access import upsert_user_info
 from deps.values import valid_time_zone_options
 from deps.mybot import MyBot
@@ -84,9 +84,9 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
         # Acknowledge the submission and close the modal
         await interaction.response.defer()  # This closes the modal after the submission
 
-        # Adjust user roles based on the max rank
-        max_rank, max_mmr = await adjust_role_from_ubisoft_max_account(
-            self.view.guild, self.view.member, self.view.max_rank_account, self.view.active_account
+        # Fetch ranks before saving, then apply the Discord role after the profile is persisted.
+        current_rank, _, _, max_mmr = await fetch_current_and_max_rank_for_accounts(
+            self.view.max_rank_account, self.view.active_account
         )
 
         # Perform the profile save actions
@@ -107,11 +107,17 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
                 ephemeral=True,
             )
             return
+        if not await set_member_role_from_current_rank(self.view.guild, self.view.member, current_rank):
+            await interaction.followup.send(
+                "❌ Profile saved, but I could not adjust your rank role. Please contact a moderator.",
+                ephemeral=True,
+            )
+            return
         # Get stats channel
         channel_id = await data_access_get_gaming_session_text_channel_id(self.view.guild.id)
 
         # Send the follow-up message
         await interaction.followup.send(
-            f"✅ Profile saved, role adjusted to {get_guild_rank_emoji(self.view.bot.guild_emoji.get(self.view.guild.id, {}), max_rank)} {max_rank} and after completing a voice session you will get your stats for `{self.view.active_account}` in <#{channel_id}>.",
+            f"✅ Profile saved, role adjusted to {get_guild_rank_emoji(self.view.bot.guild_emoji.get(self.view.guild.id, {}), current_rank)} {current_rank} and after completing a voice session you will get your stats for `{self.view.active_account}` in <#{channel_id}>.",
             ephemeral=True,
         )

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
+from deps.bot_common_actions import sync_member_current_rank_role
 from deps.bot_common_actions import (
     persist_siege_matches_cross_guilds,
     persist_user_full_information_cross_guilds,
@@ -18,6 +19,7 @@ from deps.data_access import (
     data_access_get_reaction_message,
     data_access_set_reaction_message,
 )
+from deps.analytic_activity_data_access import fetch_user_info_by_user_id
 from deps.analytic_data_access import (
     data_access_set_max_mmr,
     data_access_set_ubisoft_username_active,
@@ -71,8 +73,21 @@ class ModeratorOnUserBehalf(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         data_access_set_ubisoft_username_max(member.id, ubisoft_username)
+        rank_message = ""
+        user_info = await fetch_user_info_by_user_id(member.id)
+        active_account = (
+            user_info.ubisoft_username_active
+            if user_info is not None and user_info.ubisoft_username_active is not None
+            else ubisoft_username
+        )
+        if interaction.guild is not None:
+            current_rank, _ = await sync_member_current_rank_role(interaction.guild, member, active_account)
+            if current_rank:
+                rank_message = f" and role adjusted to `{current_rank}`"
+            else:
+                rank_message = " but I could not update the rank role right now"
         await interaction.followup.send(
-            f"Max Account for {member.mention} -> `{ubisoft_username}`",
+            f"Max Account for {member.mention} -> `{ubisoft_username}`{rank_message}",
             ephemeral=True,
         )
 
@@ -88,8 +103,15 @@ class ModeratorOnUserBehalf(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         data_access_set_ubisoft_username_active(member.id, ubisoft_username)
+        rank_message = ""
+        if interaction.guild is not None:
+            current_rank, _ = await sync_member_current_rank_role(interaction.guild, member, ubisoft_username)
+            if current_rank:
+                rank_message = f" and role adjusted to `{current_rank}`"
+            else:
+                rank_message = " but I could not update the rank role right now"
         await interaction.followup.send(
-            f"Active Account for {member.mention} -> `{ubisoft_username}`",
+            f"Active Account for {member.mention} -> `{ubisoft_username}`{rank_message}",
             ephemeral=True,
         )
 

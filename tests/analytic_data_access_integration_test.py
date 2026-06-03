@@ -26,6 +26,7 @@ from deps.functions_r6_tracker import (
     parse_json_user_info,
 )
 from deps import analytic_data_access
+from deps import analytic_match_data_access
 
 fake_date = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
 CHANNEL1_ID = 100
@@ -329,7 +330,7 @@ def test_insert_if_nonexistant_no_match():
     insert_if_nonexistant_full_match_info(user_info, [])
 
 
-@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+@patch.object(analytic_match_data_access, analytic_match_data_access.print_log.__name__)
 def test_insert_if_nonexistant_with_duplicate(mock_log):
     """
     Test if there isn't any match to insert
@@ -360,7 +361,7 @@ def test_insert_if_nonexistant_with_duplicate(mock_log):
     )
 
 
-@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+@patch.object(analytic_match_data_access, analytic_match_data_access.print_log.__name__)
 def test_insert_if_nonexistant_with_no_duplicate(mock_log):
     """
     Test if there isn't any match to insert
@@ -400,7 +401,7 @@ def test_insert_if_nonexistant_with_no_duplicate(mock_log):
     )
 
 
-@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+@patch.object(analytic_match_data_access, analytic_match_data_access.print_log.__name__)
 def test_insert_if_nonexistant_with_no_match(mock_log):
     """
     Test if there isn't any match to insert

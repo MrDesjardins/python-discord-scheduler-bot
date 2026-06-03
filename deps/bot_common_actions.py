@@ -1,4 +1,5 @@
 """Common Actions that the bots Cogs or Bots can invoke"""
+
 # pylint: disable=line-too-long,too-many-locals,too-many-branches,too-many-statements
 # pylint: disable=broad-exception-caught,too-many-return-statements,unused-import,too-many-lines
 
@@ -43,6 +44,7 @@ from deps.data_access import (
     data_access_get_pending_match_start_gif_message,
     data_access_set_pending_match_start_gif_message,
     data_access_clear_pending_match_start_gif_message,
+    data_access_get_r6tracker_current_season_rank,
     data_access_get_r6tracker_max_rank,
     data_access_get_reaction_message,
     data_access_get_voice_user_list,
@@ -79,6 +81,7 @@ from deps.values import (
 from deps.siege import (
     get_aggregation_all_activities,
     get_color_for_rank,
+    get_lfg_rank_role_mentions,
     get_list_users_with_rank,
     get_statscc_activity,
     get_user_rank_emoji,
@@ -336,15 +339,15 @@ async def adjust_role_from_ubisoft_max_account(
     ubisoft_connect_name: str,
     ubisoft_active_account: Union[str, None] = None,
 ) -> tuple[str, int]:
-    """Adjust the server's role of a user based on their max rank in R6 Tracker"""
-    max_rank, max_mmr = await data_access_get_r6tracker_max_rank(ubisoft_connect_name, True)
-    print_log(
-        f"""adjust_role_from_ubisoft_max_account: R6 Tracker Downloaded Info for user {member.display_name} and found for user name {ubisoft_connect_name} the max role: {max_rank}"""
+    """Adjust the server's role of a user based on their current ranked season rank."""
+    rank_account = ubisoft_active_account or ubisoft_connect_name
+    current_rank, _, max_rank, max_mmr = await fetch_current_and_max_rank_for_accounts(
+        ubisoft_connect_name, rank_account
     )
-    try:
-        await set_member_role_from_rank(guild, member, max_rank)
-    except Exception as e:
-        print_error_log(f"adjust_role_from_ubisoft_max_account: Error setting the role: {e}")
+    print_log(
+        f"""adjust_role_from_ubisoft_max_account: R6 Tracker downloaded info for {member.display_name}; current rank for {rank_account}: {current_rank}, max rank for {ubisoft_connect_name}: {max_rank}"""
+    )
+    if not await set_member_role_from_current_rank(guild, member, current_rank):
         return ("", 0)
 
     text_channel_id = await data_access_get_guild_username_text_channel_id(guild.id)
@@ -352,26 +355,68 @@ async def adjust_role_from_ubisoft_max_account(
         print_warning_log(
             f"adjust_role_from_ubisoft_max_account: Text channel not set for guild {guild.name}. Skipping."
         )
-        return max_rank, max_mmr
+        return current_rank, max_mmr
 
     # Retrieve the moderator role by name
     mod_role = discord.utils.get(guild.roles, name="Mod")
 
     if mod_role is None:
         print_warning_log(f"adjust_role_from_ubisoft_max_account: Mod role not found in guild {guild.name}. Skipping.")
-        return ("", 0)
+        return current_rank, max_mmr
     channel = await data_access_get_channel(text_channel_id)
     if ubisoft_active_account is None or channel is None:
-        return ("", 0)
+        return current_rank, max_mmr
     active_msg = (
         "\nCurrently playing on the "
         f"[{ubisoft_active_account}]({get_url_user_profile_overview(ubisoft_active_account)}) account."
     )
 
     await channel.send(
-        content=f"""{member.mention} main account is [{ubisoft_connect_name}]({get_url_user_profile_overview(ubisoft_connect_name)}) with max rank of `{max_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.""",
+        content=f"""{member.mention} main account is [{ubisoft_connect_name}]({get_url_user_profile_overview(ubisoft_connect_name)}) with max rank of `{max_rank}`. Current active rank is `{current_rank}`.{active_msg}\n{mod_role.mention} please confirm the max account belong to this person.""",
     )
-    return max_rank, max_mmr
+    return current_rank, max_mmr
+
+
+async def fetch_current_and_max_rank_for_accounts(
+    ubisoft_connect_name: str,
+    ubisoft_active_account: str,
+) -> tuple[str, int, str, int]:
+    """Fetch current active-account rank and max-account rank without changing Discord roles."""
+    current_rank, current_rank_points = await fetch_current_season_rank_for_account(ubisoft_active_account)
+    max_rank, max_mmr = await data_access_get_r6tracker_max_rank(ubisoft_connect_name, True)
+    return current_rank, current_rank_points, max_rank, max_mmr
+
+
+async def sync_member_current_rank_role(
+    guild: discord.Guild,
+    member: discord.Member,
+    ubisoft_active_account: str,
+) -> tuple[str, int]:
+    """Fetch the active account's current season rank and sync the member's managed rank role."""
+    current_rank, current_rank_points = await fetch_current_season_rank_for_account(ubisoft_active_account)
+    if not await set_member_role_from_current_rank(guild, member, current_rank):
+        return ("", 0)
+    return current_rank, current_rank_points
+
+
+async def fetch_current_season_rank_for_account(ubisoft_active_account: str) -> tuple[str, int]:
+    """Fetch the active account's current season rank without changing Discord roles."""
+    return await data_access_get_r6tracker_current_season_rank(ubisoft_active_account, True)
+
+
+async def set_member_role_from_current_rank(
+    guild: discord.Guild,
+    member: discord.Member,
+    current_rank: str,
+) -> bool:
+    """Apply an already-fetched current rank to a guild member."""
+    print_log(f"set_member_role_from_current_rank: Setting current rank for {member.display_name}: {current_rank}")
+    try:
+        await set_member_role_from_rank(guild, member, current_rank)
+    except Exception as e:
+        print_error_log(f"set_member_role_from_current_rank: Error setting role for {member.display_name}: {e}")
+        return False
+    return True
 
 
 async def send_session_stats_directly(member: discord.Member, guild_id: int) -> None:
@@ -638,9 +683,12 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
         already_playing = aggregation.playing_rank + aggregation.playing_standard
         if ready_to_play > 0 and ready_to_play > already_playing:
             list_users = get_list_users_with_rank(bot, vc_channel.members, guild_id)
+            rank_mentions = get_lfg_rank_role_mentions(vc_channel.guild, vc_channel.members)
+            mention_prefix = f"{rank_mentions} " if rank_mentions else ""
             print_log(f"🎮 {list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
             await channel.send(
-                f"🎮 {list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>"
+                f"🎮 {mention_prefix}{list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>",
+                allowed_mentions=discord.AllowedMentions(everyone=False, roles=True, users=True),
             )
             data_access_set_last_bot_message_in_main_text_channel(guild_id, voice_channel_id, current_time)
     except Exception as e:
@@ -730,6 +778,58 @@ async def persist_siege_matches_cross_guilds(
             # Update user with the R6 tracker if if it wasn't available before
             r6_id = match_stats[0].r6_tracker_user_uuid
             data_access_set_r6_tracker_id(user_info.id, r6_id)
+
+
+async def get_active_user_info_with_connected_voice(
+    from_time: datetime,
+    to_time: datetime,
+    bot: Optional[MyBot] = None,
+) -> List[UserInfo]:
+    """Return recently active users, optionally including users currently connected to configured voice channels."""
+    users: List[UserInfo] = get_active_user_info(from_time, to_time)
+    user_ids_from_activity = {user.id for user in users}
+
+    if bot is None:
+        return users
+
+    connected_user_ids = await get_currently_connected_user_ids(bot)
+    new_user_ids = connected_user_ids - user_ids_from_activity
+    for user_id in new_user_ids:
+        user_info = await fetch_user_info_by_user_id(user_id)
+        if user_info is not None and user_info.ubisoft_username_active is not None:
+            users.append(user_info)
+    return users
+
+
+async def refresh_current_rank_roles_cross_guilds(
+    from_time: datetime,
+    to_time: datetime,
+    bot: MyBot,
+) -> None:
+    """Refresh current-season rank roles for users who played or are connected to voice."""
+    users = await get_active_user_info_with_connected_voice(from_time, to_time, bot)
+    print_log(f"refresh_current_rank_roles_cross_guilds: Refreshing rank roles for {len(users)} users")
+
+    for user_info in users:
+        if user_info.ubisoft_username_active is None:
+            continue
+        try:
+            current_rank, _ = await fetch_current_season_rank_for_account(user_info.ubisoft_username_active)
+        except Exception as e:
+            print_error_log(
+                f"refresh_current_rank_roles_cross_guilds: Error fetching current rank for {user_info.display_name}: {e}"
+            )
+            continue
+        for guild in bot.guilds:
+            member = guild.get_member(user_info.id)
+            if member is None:
+                continue
+            try:
+                await set_member_role_from_current_rank(guild, member, current_rank)
+            except Exception as e:
+                print_error_log(
+                    f"refresh_current_rank_roles_cross_guilds: Error refreshing {user_info.display_name} in {guild.name}: {e}"
+                )
 
 
 async def fetch_and_persist_operator_stats(users: List[UserInfo]) -> None:

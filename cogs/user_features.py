@@ -10,7 +10,11 @@ from discord.ext import commands
 from discord import app_commands
 from deps.functions_date import convert_to_eastern_date_time
 from ui.confirmation_rank_view import ConfirmCancelView
-from deps.bot_common_actions import adjust_role_from_ubisoft_max_account
+from deps.bot_common_actions import (
+    fetch_current_and_max_rank_for_accounts,
+    fetch_current_season_rank_for_account,
+    set_member_role_from_current_rank,
+)
 from deps.data_access import (
     data_access_get_member,
     data_access_get_guild_private_channel_category_id,
@@ -49,7 +53,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log, print_warning_log
-from deps.siege import get_color_for_rank, get_list_users_with_rank, get_user_rank_emoji
+from deps.siege import get_color_for_rank, get_lfg_rank_role_mentions, get_list_users_with_rank, get_user_rank_emoji
 from deps.functions import (
     get_url_user_profile_main,
     most_common,
@@ -273,12 +277,18 @@ class UserFeatures(commands.Cog):
                 print_error_log(f"adjust_rank: Cannot find a member from user id {interaction.user.id}.")
                 await interaction.followup.send("Cannot find the member", ephemeral=True)
                 return
-            data_access_set_ubisoft_username_max(interaction.user.id, ubisoft_connect_name)
-
-            max_rank, max_mmr = await adjust_role_from_ubisoft_max_account(
-                interaction.guild, member, ubisoft_connect_name
+            user_info = await fetch_user_info_by_user_id(interaction.user.id)
+            active_account = (
+                user_info.ubisoft_username_active
+                if user_info is not None and user_info.ubisoft_username_active is not None
+                else ubisoft_connect_name
             )
-            if max_rank is None:
+
+            current_rank, _, _, max_mmr = await fetch_current_and_max_rank_for_accounts(
+                ubisoft_connect_name, active_account
+            )
+            data_access_set_ubisoft_username_max(interaction.user.id, ubisoft_connect_name)
+            if not await set_member_role_from_current_rank(interaction.guild, member, current_rank):
                 await interaction.followup.send(
                     """Sorry, we cannot change your role for the moment. Please contact a moderator to manually change it.""",
                     ephemeral=True,
@@ -289,7 +299,7 @@ class UserFeatures(commands.Cog):
             except Exception as e:
                 print_error_log(f"set_max_user_account: Error setting max mmr: {e}")
 
-            await interaction.followup.send(f"Found max rank {max_rank}, role adjusted", ephemeral=True)
+            await interaction.followup.send(f"Found current rank {current_rank}, role adjusted", ephemeral=True)
         # Add code to perform the actual action here
         else:
             await interaction.followup.send("Action was canceled.", ephemeral=True)
@@ -300,8 +310,17 @@ class UserFeatures(commands.Cog):
         Set the Ubisoft Connect account user name that you are playing on
         """
         await interaction.response.defer(ephemeral=True)
-        data_access_set_ubisoft_username_active(interaction.user.id, ubisoft_connect_name)
-        await interaction.followup.send(f"You are playing on `{ubisoft_connect_name}`", ephemeral=True)
+        rank_message = ""
+        if interaction.guild is not None and isinstance(interaction.user, discord.Member):
+            current_rank, _ = await fetch_current_season_rank_for_account(ubisoft_connect_name)
+            data_access_set_ubisoft_username_active(interaction.user.id, ubisoft_connect_name)
+            if await set_member_role_from_current_rank(interaction.guild, interaction.user, current_rank):
+                rank_message = f" and your role was adjusted to `{current_rank}`"
+            else:
+                rank_message = " but I could not update your rank role right now"
+        else:
+            data_access_set_ubisoft_username_active(interaction.user.id, ubisoft_connect_name)
+        await interaction.followup.send(f"You are playing on `{ubisoft_connect_name}`{rank_message}", ephemeral=True)
 
     @app_commands.command(name=COMMAND_LFG)
     async def looking_for_group(self, interaction: discord.Interaction, number_of_users_needed: Optional[int] = None):
@@ -327,8 +346,13 @@ class UserFeatures(commands.Cog):
                             ephemeral=True,
                         )
                     else:
+                        rank_mentions = ""
+                        if interaction.guild is not None:
+                            rank_mentions = get_lfg_rank_role_mentions(interaction.guild, [user])
+                        mention_prefix = f"{rank_mentions} " if rank_mentions else ""
                         await interaction.followup.send(
-                            f"""@here {list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people."""
+                            f"""{mention_prefix}{list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people.""",
+                            allowed_mentions=discord.AllowedMentions(everyone=False, roles=True, users=True),
                         )
                 else:
                     await interaction.followup.send(

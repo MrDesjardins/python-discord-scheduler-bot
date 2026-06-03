@@ -6,7 +6,12 @@ import json
 from datetime import datetime, timezone
 import pytest
 from deps.data_access_data_class import UserInfo
-from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_json_from_full_matches, parse_json_max_rank
+from deps.functions_r6_tracker import (
+    get_user_gaming_session_stats,
+    parse_json_current_season_rank,
+    parse_json_from_full_matches,
+    parse_json_max_rank,
+)
 
 mock_user1 = UserInfo(
     1, "noSleep_rb6", "noSleep_rb6", "noSleep_rb6", "877a703b-0d29-4779-8fbf-ccd165c2b7f6", "UTC", 1200
@@ -1361,3 +1366,69 @@ def test_get_r6tracker_parse_max_rank(test_data):
     rank = parse_json_max_rank(data_8)
     assert rank[0] == "Diamond"
     assert rank[1] == 4343
+
+
+def test_get_r6tracker_parse_current_season_rank_uses_metadata_current_season() -> None:
+    """Current season uses metadata.currentSeason, not the highest stored season segment."""
+    with open("./tests/tests_assets/nosleep_rb6_new_season_profile.json", "r", encoding="utf8") as file:
+        data = json.loads(file.read())
+    assert parse_json_current_season_rank(data) == ("Unranked", 0)
+
+
+def test_get_r6tracker_parse_current_season_rank_uses_rank_points(test_data):
+    """Current rank uses current season rankPoints, not maxRankPoints."""
+    _, _, _, _, _, _, data_8 = test_data
+    rank = parse_json_current_season_rank(data_8)
+    assert rank == ("Emerald", 3839)
+
+
+def test_get_r6tracker_parse_current_season_rank_ignores_non_ranked_first_segment(test_data):
+    """The newest ranked season is selected even when another season type appears first."""
+    _, _, _, _, _, _, data_8 = test_data
+    data = json.loads(json.dumps(data_8))
+    ranked_segment = next(
+        segment
+        for segment in data["data"]["segments"]
+        if segment.get("type") == "season"
+        and segment.get("attributes", {}).get("sessionType") == "ranked"
+        and segment.get("attributes", {}).get("season") == 37
+    )
+    siege_cup_segment = next(
+        segment
+        for segment in data["data"]["segments"]
+        if segment.get("type") == "season" and segment.get("attributes", {}).get("sessionType") == "siege-cup"
+    )
+    data["data"]["segments"] = [siege_cup_segment, ranked_segment]
+    assert parse_json_current_season_rank(data) == ("Emerald", 3839)
+
+
+def test_get_r6tracker_parse_current_season_rank_no_rank_is_unranked(test_data):
+    """No current rank points maps to Unranked."""
+    _, _, _, _, _, _, data_8 = test_data
+    data = json.loads(json.dumps(data_8))
+    for segment in data["data"]["segments"]:
+        if (
+            segment.get("type") == "season"
+            and segment.get("attributes", {}).get("sessionType") == "ranked"
+            and segment.get("attributes", {}).get("season") == 37
+        ):
+            segment["stats"]["rankPoints"]["value"] = 0
+            segment["stats"]["rankPoints"]["metadata"]["name"] = "NO RANK"
+    assert parse_json_current_season_rank(data) == ("Unranked", 0)
+
+
+def test_get_r6tracker_parse_current_season_rank_invalid_shape_raises(test_data):
+    """Malformed rank JSON should fail instead of silently downgrading to Unranked."""
+    _, _, _, _, _, _, data_8 = test_data
+    data = json.loads(json.dumps(data_8))
+    for segment in data["data"]["segments"]:
+        if (
+            segment.get("type") == "season"
+            and segment.get("attributes", {}).get("sessionType") == "ranked"
+            and segment.get("attributes", {}).get("season") == 37
+        ):
+            del segment["stats"]["rankPoints"]
+            break
+
+    with pytest.raises(ValueError):
+        parse_json_current_season_rank(data)

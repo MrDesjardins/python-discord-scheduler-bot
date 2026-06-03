@@ -50,7 +50,9 @@ class BetTournamentSelectorForLeaderboard(View):
                 if tournament is None:
                     msg = "Tournament not found."
                 else:
-                    from deps.bet.bet_leaderboard import generate_msg_bet_leaderboard  # pylint: disable=import-outside-toplevel
+                    from deps.bet.bet_leaderboard import (
+                        generate_msg_bet_leaderboard,
+                    )  # pylint: disable=import-outside-toplevel
 
                     msg = await generate_msg_bet_leaderboard(tournament)
                     if msg == "":

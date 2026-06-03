@@ -8,6 +8,7 @@ from dateutil import parser
 from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats, UserInformation, UserMatchInfoSessionAggregate
 from deps.log import print_error_log
+from deps.siege import NO_RANK_ROLE
 
 TRN_API_KEY = os.getenv("TRN_API_KEY")
 
@@ -155,6 +156,77 @@ def get_user_gaming_session_stats(
     )
 
 
+def _normalize_rank_name(rank_name: Any, default: str = "Copper") -> str:
+    """Normalize R6 Tracker rank labels into Discord role names."""
+    if not isinstance(rank_name, str):
+        return default
+    normalized = rank_name.strip()
+    if normalized == "" or normalized.upper() in ("NO RANK", "UNKNOWN", "UNRANKED"):
+        return NO_RANK_ROLE
+    return normalized.split(" ")[0].lower().capitalize()
+
+
+def _get_current_season_number(data_dict: dict) -> Optional[int]:
+    """Return the live ranked season number from Tracker metadata."""
+    metadata = data_dict.get("data", {}).get("metadata", {})
+    season = metadata.get("currentSeason")
+    if isinstance(season, int):
+        return season
+    return None
+
+
+def _find_ranked_season_segment(segments: list[dict], season_number: int) -> Optional[dict]:
+    """Return the ranked PvP segment for a specific season number."""
+    for segment in segments:
+        attributes = segment.get("attributes", {})
+        if (
+            segment.get("type") == "season"
+            and attributes.get("sessionType") == "ranked"
+            and attributes.get("gamemode") == "pvp_ranked"
+            and attributes.get("season") == season_number
+        ):
+            return segment
+    return None
+
+
+def _rank_tuple_from_rank_points(rank_points: Any) -> tuple[str, int]:
+    """Convert a Tracker rankPoints stat object into (rank_name, points)."""
+    if not isinstance(rank_points, dict):
+        raise ValueError("parse_json_current_season_rank: rankPoints missing from current season data")
+    value = rank_points.get("value", 0) or 0
+    rank_name = rank_points.get("metadata", {}).get("name", "NO RANK")
+    if not isinstance(value, (int, float)) or value <= 0:
+        return (NO_RANK_ROLE, 0)
+    return (_normalize_rank_name(rank_name, NO_RANK_ROLE), int(value))
+
+
+def parse_json_current_season_rank(data_dict: dict) -> tuple[str, int]:
+    """
+    Parse the JSON data to extract the current ranked season rank.
+    Uses metadata.currentSeason instead of the highest stored season segment.
+    Returns a tuple of (rank_name, rank_points).
+    """
+    try:
+        segments = data_dict["data"]["segments"]
+        current_season_number = _get_current_season_number(data_dict)
+        if current_season_number is None:
+            print_error_log("parse_json_current_season_rank: currentSeason missing from metadata")
+            return (NO_RANK_ROLE, 0)
+
+        current_season = _find_ranked_season_segment(segments, current_season_number)
+        if current_season is None:
+            return (NO_RANK_ROLE, 0)
+
+        rank_points = current_season.get("stats", {}).get("rankPoints")
+        return _rank_tuple_from_rank_points(rank_points)
+    except KeyError as e:
+        print_error_log(f"parse_json_current_season_rank: KeyError: {e} not found in the JSON data.")
+        raise ValueError(f"parse_json_current_season_rank: invalid JSON shape: {e}") from e
+    except TypeError as e:
+        print_error_log(f"parse_json_current_season_rank: TypeError: Unexpected data format - {e}")
+        raise ValueError(f"parse_json_current_season_rank: invalid JSON data: {e}") from e
+
+
 def parse_json_max_rank(data_dict: dict) -> tuple[str, int]:
     """
     Parse the JSON data to extract the max rank.
@@ -178,7 +250,7 @@ def parse_json_max_rank(data_dict: dict) -> tuple[str, int]:
         # Find the highest rank
         for value, rank in sorted(match_infos, key=lambda x: x[0], reverse=True):
             if isinstance(rank, str):
-                return (rank.split(" ")[0].lower().capitalize(), value)
+                return (_normalize_rank_name(rank, "Copper"), value)
 
         print_error_log("parse_json_max_rank: Rank not found")
         return ("Copper", 0)
