@@ -428,9 +428,11 @@ async def sync_member_current_rank_role(
     return current_rank, current_rank_points
 
 
-async def fetch_current_season_rank_for_account(ubisoft_active_account: str) -> tuple[str, int]:
+async def fetch_current_season_rank_for_account(
+    ubisoft_active_account: str, force_fetch: bool = True
+) -> tuple[str, int]:
     """Fetch the active account's current season rank without changing Discord roles."""
-    return await data_access_get_r6tracker_current_season_rank(ubisoft_active_account, True)
+    return await data_access_get_r6tracker_current_season_rank(ubisoft_active_account, force_fetch)
 
 
 async def set_member_role_from_current_rank(
@@ -853,7 +855,10 @@ async def refresh_current_rank_roles_cross_guilds(
             summary.skipped_no_account += 1
             continue
         try:
-            current_rank, _ = await fetch_current_season_rank_for_account(user_info.ubisoft_username_active)
+            current_rank, _ = await fetch_current_season_rank_for_account(
+                user_info.ubisoft_username_active,
+                force_fetch=False,
+            )
         except Exception as e:
             print_error_log(
                 f"refresh_current_rank_roles_cross_guilds: Error fetching current rank for {user_info.display_name}: {e}"

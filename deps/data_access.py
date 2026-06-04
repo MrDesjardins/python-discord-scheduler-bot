@@ -39,6 +39,7 @@ KEY_MEMBER = "Member"
 KEY_CHANNEL = "Channel"
 KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
 KEY_R6TRACKER = "R6Tracker"
+KEY_R6TRACKER_CURRENT_SEASON_RANK = "R6TrackerCurrentSeasonRank"
 KEY_GAMING_SESSION_LAST_ACTIVITY = "GamingSessionLastActivity"
 KEY_QUEUE_USER_STATS = "QueueUserStats"
 KEY_GUILD_TOURNAMENT_TEXT_CHANNEL = "GuildAdminConfigTournamentTextChannel"
@@ -243,7 +244,14 @@ async def data_access_get_r6tracker_current_season_rank(
     """
     Get from R6 Tracker website the user's current ranked season rank.
     """
-    return await asyncio.to_thread(_download_current_season_rank_sync, ubisoft_user_name)
+    cache_key = f"{KEY_R6TRACKER_CURRENT_SEASON_RANK}:{ubisoft_user_name.strip().lower()}"
+    if force_fetch:
+        remove_cache(True, cache_key)
+
+    async def fetch() -> tuple[str, int]:
+        return await asyncio.to_thread(_download_current_season_rank_sync, ubisoft_user_name)
+
+    return await get_cache(True, cache_key, fetch, ttl_in_seconds=TWO_HOUR_TTL)
 
 
 async def data_access_get_guild_username_text_channel_id(

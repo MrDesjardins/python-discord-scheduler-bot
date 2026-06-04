@@ -380,7 +380,7 @@ async def test_refresh_current_rank_roles_guild_scope_only_updates_target_guild(
             "deps.bot_common_actions.fetch_current_season_rank_for_account",
             new_callable=AsyncMock,
             return_value=("Gold", 0),
-        ),
+        ) as mock_fetch_rank,
         patch(
             "deps.bot_common_actions.set_member_role_from_current_rank", new_callable=AsyncMock, return_value=True
         ) as mock_set_role,
@@ -398,6 +398,7 @@ async def test_refresh_current_rank_roles_guild_scope_only_updates_target_guild(
     assert summary.updated == 1
     target_guild.get_member.assert_called_once_with(123)
     other_guild.get_member.assert_not_called()
+    mock_fetch_rank.assert_awaited_once_with("ubi", force_fetch=False)
     mock_set_role.assert_awaited_once_with(target_guild, member, "Gold")
     mock_notify.assert_awaited_once_with(bot, summary)
 
@@ -433,7 +434,7 @@ async def test_refresh_current_rank_roles_db_only_excludes_connected_voice_users
             "deps.bot_common_actions.fetch_current_season_rank_for_account",
             new_callable=AsyncMock,
             return_value=("Gold", 0),
-        ),
+        ) as mock_fetch_rank,
         patch(
             "deps.bot_common_actions.set_member_role_from_current_rank", new_callable=AsyncMock, return_value=True
         ) as mock_set_role,
@@ -450,6 +451,7 @@ async def test_refresh_current_rank_roles_db_only_excludes_connected_voice_users
     assert summary.updated == 1
     mock_connected.assert_not_called()
     mock_fetch_user.assert_not_called()
+    mock_fetch_rank.assert_awaited_once_with("ubi", force_fetch=False)
     mock_set_role.assert_awaited_once_with(guild, db_member, "Gold")
     mock_notify.assert_awaited_once_with(bot, summary)
 
