@@ -4,11 +4,12 @@ Basic moderator commands
 
 import asyncio
 import io
+from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
 from cogs.events import MyEventsCog
-from deps.bot_common_actions import send_daily_question_to_a_guild
+from deps.bot_common_actions import refresh_current_rank_roles_cross_guilds, send_daily_question_to_a_guild
 from deps.values import (
     COMMAND_AI_CONTEXT_CLEAR,
     COMMAND_AI_CONTEXT_EDIT,
@@ -18,6 +19,7 @@ from deps.values import (
     COMMAND_GENERATE_AI_SUMMARY,
     COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY,
     COMMAND_MOD_BOT_PERMISSION,
+    COMMAND_REFRESH_ACTIVE_RANKS,
     COMMAND_RESET_RANK,
     COMMAND_TEST_JOIN,
     COMMAND_VERSION,
@@ -254,6 +256,49 @@ class ModBasic(commands.Cog):
         if bots_ignored:
             summary += f" Ignored {bots_ignored} bot(s)."
         await interaction.followup.send(summary, ephemeral=True)
+
+    @app_commands.command(name=COMMAND_REFRESH_ACTIVE_RANKS)
+    @app_commands.describe(hours="How many hours back to look for active players (default 24)")
+    async def refresh_active_rank_roles(
+        self,
+        interaction: discord.Interaction,
+        hours: app_commands.Range[int, 1, 168] = 24,
+    ):
+        """
+        Refresh current-season rank roles for users active in this guild over the selected window.
+        """
+        if interaction.guild is None or not isinstance(interaction.user, discord.Member):
+            print_error_log(
+                f"refresh_active_rank_roles: No guild available for user "
+                f"{interaction.user.display_name}({interaction.user.id})."
+            )
+            await interaction.response.send_message("Cannot perform this operation in this guild.", ephemeral=True)
+            return
+        if not self._is_admin_or_mod(interaction.user):
+            await interaction.response.send_message(
+                "Only administrators or users with the Mod role can refresh active ranks.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        end_time = datetime.now(timezone.utc)
+        begin_time = end_time - timedelta(hours=hours)
+        summary = await refresh_current_rank_roles_cross_guilds(
+            begin_time,
+            end_time,
+            self.bot,
+            guild=interaction.guild,
+            include_connected_voice=False,
+        )
+        await interaction.followup.send(
+            "Rank refresh complete for users active in the last "
+            f"{hours} hour(s). Candidates: {summary.candidates}, updated: {summary.updated}, "
+            f"skipped no linked active account: {summary.skipped_no_account}, "
+            f"skipped not in this guild: {summary.skipped_not_in_guild}, failed: {summary.failed}.",
+            ephemeral=True,
+        )
 
     @app_commands.command(name=COMMAND_GUILD_ENABLE_BOT_VOICE)
     @commands.has_permissions(administrator=True)

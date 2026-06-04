@@ -17,6 +17,7 @@ from deps.functions import (
     most_common,
 )
 from deps.models import TimeLabel
+from deps.data_access_data_class import UserInfo
 import deps.functions
 import deps.bot_common_actions
 from deps.mybot import MyBot
@@ -291,8 +292,9 @@ async def test_set_member_role_from_rank_with_role_to_remove_remove_all_possible
 
     discord.utils.get = Mock(side_effect=mock_discord_get)
     # Act
-    with patch("deps.functions.siege_ranks", ["rank1", "rank2"]), patch(
-        "deps.functions.resolve_rank_role_name", side_effect=lambda rank: rank
+    with (
+        patch("deps.functions.siege_ranks", ["rank1", "rank2"]),
+        patch("deps.functions.resolve_rank_role_name", side_effect=lambda rank: rank),
     ):
         await deps.functions.set_member_role_from_rank(guild, member, "rank2")
         # Assert
@@ -344,3 +346,141 @@ async def test_sync_member_current_rank_role_uses_current_rank():
     assert result == ("Unranked", 0)
     mock_fetch.assert_awaited_once_with("active_ubi", True)
     mock_set_role.assert_awaited_once_with(guild, member, "Unranked")
+
+
+def _user_info(user_id: int, display_name: str, active_account: str | None = "ubi") -> UserInfo:
+    return UserInfo(user_id, display_name, None, active_account, None, "UTC", 0)
+
+
+async def test_refresh_current_rank_roles_guild_scope_only_updates_target_guild():
+    """Guild-scoped rank refresh only changes members in the requested guild."""
+    bot = Mock(spec=MyBot)
+    target_guild = Mock(spec=discord.Guild)
+    target_guild.id = 1
+    target_guild.name = "Target"
+    other_guild = Mock(spec=discord.Guild)
+    other_guild.id = 2
+    other_guild.name = "Other"
+    bot.guilds = [target_guild, other_guild]
+
+    member = Mock(spec=discord.Member)
+    member.id = 123
+    member.display_name = "Player"
+    member.mention = "<@123>"
+    member.roles = []
+    target_guild.get_member.return_value = member
+    other_guild.get_member.return_value = member
+
+    begin_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    end_time = datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+    with (
+        patch("deps.bot_common_actions.get_active_user_info", return_value=[_user_info(123, "Player")]),
+        patch(
+            "deps.bot_common_actions.fetch_current_season_rank_for_account",
+            new_callable=AsyncMock,
+            return_value=("Gold", 0),
+        ),
+        patch(
+            "deps.bot_common_actions.set_member_role_from_current_rank", new_callable=AsyncMock, return_value=True
+        ) as mock_set_role,
+        patch("deps.bot_common_actions.post_rank_change_notifications", new_callable=AsyncMock) as mock_notify,
+    ):
+        summary = await deps.bot_common_actions.refresh_current_rank_roles_cross_guilds(
+            begin_time,
+            end_time,
+            bot,
+            guild=target_guild,
+            include_connected_voice=False,
+        )
+
+    assert summary.candidates == 1
+    assert summary.updated == 1
+    target_guild.get_member.assert_called_once_with(123)
+    other_guild.get_member.assert_not_called()
+    mock_set_role.assert_awaited_once_with(target_guild, member, "Gold")
+    mock_notify.assert_awaited_once_with(bot, summary)
+
+
+async def test_refresh_current_rank_roles_db_only_excludes_connected_voice_users():
+    """include_connected_voice=False does not add users who are only currently in voice."""
+    bot = Mock(spec=MyBot)
+    guild = Mock(spec=discord.Guild)
+    guild.id = 1
+    guild.name = "Guild"
+    bot.guilds = [guild]
+
+    db_member = Mock(spec=discord.Member)
+    db_member.id = 123
+    db_member.display_name = "DbPlayer"
+    db_member.mention = "<@123>"
+    db_member.roles = []
+
+    def get_member(user_id: int):
+        return db_member if user_id == 123 else None
+
+    guild.get_member.side_effect = get_member
+    begin_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    end_time = datetime(2026, 1, 2, tzinfo=timezone.utc)
+
+    with (
+        patch("deps.bot_common_actions.get_active_user_info", return_value=[_user_info(123, "DbPlayer")]),
+        patch(
+            "deps.bot_common_actions.get_currently_connected_user_ids", new_callable=AsyncMock, return_value={123, 456}
+        ) as mock_connected,
+        patch("deps.bot_common_actions.fetch_user_info_by_user_id", new_callable=AsyncMock) as mock_fetch_user,
+        patch(
+            "deps.bot_common_actions.fetch_current_season_rank_for_account",
+            new_callable=AsyncMock,
+            return_value=("Gold", 0),
+        ),
+        patch(
+            "deps.bot_common_actions.set_member_role_from_current_rank", new_callable=AsyncMock, return_value=True
+        ) as mock_set_role,
+        patch("deps.bot_common_actions.post_rank_change_notifications", new_callable=AsyncMock) as mock_notify,
+    ):
+        summary = await deps.bot_common_actions.refresh_current_rank_roles_cross_guilds(
+            begin_time,
+            end_time,
+            bot,
+            include_connected_voice=False,
+        )
+
+    assert summary.candidates == 1
+    assert summary.updated == 1
+    mock_connected.assert_not_called()
+    mock_fetch_user.assert_not_called()
+    mock_set_role.assert_awaited_once_with(guild, db_member, "Gold")
+    mock_notify.assert_awaited_once_with(bot, summary)
+
+
+async def test_post_rank_change_notifications_posts_to_main_siege_channel():
+    """Rank changes are announced in the configured main Siege channel used by automatic LFG."""
+    bot = Mock(spec=MyBot)
+    bot.guild_emoji = {123: {"Silver": "111", "Gold": "222", "Unranked": "333"}}
+    channel = Mock(spec=discord.TextChannel)
+    channel.send = AsyncMock()
+    summary = deps.bot_common_actions.RankRefreshSummary(
+        changes=[
+            deps.bot_common_actions.RankRoleChange(
+                guild_id=123,
+                guild_name="Guild",
+                user_id=456,
+                display_name="Player",
+                member_mention="<@456>",
+                old_rank="Silver",
+                new_rank="Gold",
+            )
+        ]
+    )
+
+    with (
+        patch("deps.bot_common_actions.data_access_get_main_text_channel_id", new_callable=AsyncMock, return_value=789),
+        patch("deps.bot_common_actions.data_access_get_channel", new_callable=AsyncMock, return_value=channel),
+    ):
+        await deps.bot_common_actions.post_rank_change_notifications(bot, summary)
+
+    channel.send.assert_awaited_once()
+    message = channel.send.await_args.args[0]
+    assert "Rank changes from active player refresh" in message
+    assert "<@456>: <:Silver:111> Silver -> <:Gold:222> Gold" in message

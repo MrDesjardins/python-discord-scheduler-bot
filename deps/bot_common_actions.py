@@ -7,6 +7,7 @@ import asyncio
 import io
 import os
 import tempfile
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Mapping, Optional, Union
 from gtts import gTTS  # type: ignore
@@ -81,11 +82,14 @@ from deps.values import (
 from deps.siege import (
     get_aggregation_all_activities,
     get_color_for_rank,
+    get_guild_rank_emoji,
     get_lfg_rank_role_mentions,
     get_list_users_with_rank,
+    get_user_rank_siege,
     get_statscc_activity,
     get_user_rank_emoji,
     parse_statscc_ranked_score_from_activity,
+    resolve_rank_role_name,
 )
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
@@ -101,6 +105,31 @@ from deps.match_start_gif import (
     match_result_live_status_display,
 )
 from ui.schedule_buttons import ScheduleButtons
+
+
+@dataclass
+class RankRoleChange:
+    """A current-season rank role change applied in one guild."""
+
+    guild_id: int
+    guild_name: str
+    user_id: int
+    display_name: str
+    member_mention: str
+    old_rank: str
+    new_rank: str
+
+
+@dataclass
+class RankRefreshSummary:
+    """Counts from refreshing current-season rank roles."""
+
+    candidates: int = 0
+    updated: int = 0
+    skipped_no_account: int = 0
+    skipped_not_in_guild: int = 0
+    failed: int = 0
+    changes: list[RankRoleChange] = field(default_factory=list)
 
 
 async def send_daily_question_to_a_guild(bot: MyBot, guild: discord.Guild):
@@ -805,13 +834,23 @@ async def refresh_current_rank_roles_cross_guilds(
     from_time: datetime,
     to_time: datetime,
     bot: MyBot,
-) -> None:
-    """Refresh current-season rank roles for users who played or are connected to voice."""
-    users = await get_active_user_info_with_connected_voice(from_time, to_time, bot)
+    guild: Optional[discord.Guild] = None,
+    include_connected_voice: bool = True,
+) -> RankRefreshSummary:
+    """Refresh current-season rank roles for users who played, optionally including users in voice."""
+    users = await get_active_user_info_with_connected_voice(
+        from_time,
+        to_time,
+        bot if include_connected_voice else None,
+    )
     print_log(f"refresh_current_rank_roles_cross_guilds: Refreshing rank roles for {len(users)} users")
+
+    summary = RankRefreshSummary(candidates=len(users))
+    guilds_to_refresh = [guild] if guild is not None else bot.guilds
 
     for user_info in users:
         if user_info.ubisoft_username_active is None:
+            summary.skipped_no_account += 1
             continue
         try:
             current_rank, _ = await fetch_current_season_rank_for_account(user_info.ubisoft_username_active)
@@ -819,17 +858,97 @@ async def refresh_current_rank_roles_cross_guilds(
             print_error_log(
                 f"refresh_current_rank_roles_cross_guilds: Error fetching current rank for {user_info.display_name}: {e}"
             )
+            summary.failed += 1
             continue
-        for guild in bot.guilds:
-            member = guild.get_member(user_info.id)
+        found_member = False
+        for target_guild in guilds_to_refresh:
+            member = target_guild.get_member(user_info.id)
             if member is None:
                 continue
+            found_member = True
+            old_rank = get_user_rank_siege(member)
+            new_rank = resolve_rank_role_name(current_rank)
             try:
-                await set_member_role_from_current_rank(guild, member, current_rank)
+                if await set_member_role_from_current_rank(target_guild, member, current_rank):
+                    summary.updated += 1
+                    if old_rank != new_rank:
+                        summary.changes.append(
+                            RankRoleChange(
+                                guild_id=target_guild.id,
+                                guild_name=target_guild.name,
+                                user_id=member.id,
+                                display_name=member.display_name,
+                                member_mention=member.mention,
+                                old_rank=old_rank,
+                                new_rank=new_rank,
+                            )
+                        )
+                else:
+                    summary.failed += 1
             except Exception as e:
                 print_error_log(
-                    f"refresh_current_rank_roles_cross_guilds: Error refreshing {user_info.display_name} in {guild.name}: {e}"
+                    f"refresh_current_rank_roles_cross_guilds: Error refreshing {user_info.display_name} in {target_guild.name}: {e}"
                 )
+                summary.failed += 1
+        if not found_member:
+            summary.skipped_not_in_guild += 1
+    await post_rank_change_notifications(bot, summary)
+    return summary
+
+
+async def post_rank_change_notifications(bot: MyBot, summary: RankRefreshSummary) -> None:
+    """Post rank change announcements to the configured main Siege/LFG channel for each guild."""
+    if len(summary.changes) == 0:
+        return
+
+    changes_by_guild: dict[int, list[RankRoleChange]] = {}
+    guild_names: dict[int, str] = {}
+    for change in summary.changes:
+        changes_by_guild.setdefault(change.guild_id, []).append(change)
+        guild_names[change.guild_id] = change.guild_name
+
+    for guild_id, changes in changes_by_guild.items():
+        channel_id = await data_access_get_main_text_channel_id(guild_id)
+        if channel_id is None:
+            print_warning_log(
+                f"post_rank_change_notifications: Main Siege text channel id not set for guild {guild_names[guild_id]}. Skipping."
+            )
+            continue
+
+        channel = await data_access_get_channel(channel_id)
+        if channel is None:
+            print_warning_log(
+                f"post_rank_change_notifications: Main Siege text channel {channel_id} not found for guild {guild_names[guild_id]}. Skipping."
+            )
+            continue
+
+        guild_emoji = bot.guild_emoji.get(guild_id, {})
+        lines = [
+            f"{change.member_mention}: "
+            f"{get_guild_rank_emoji(guild_emoji, change.old_rank)} {change.old_rank} -> "
+            f"{get_guild_rank_emoji(guild_emoji, change.new_rank)} {change.new_rank}"
+            for change in changes[:20]
+        ]
+        if len(changes) > 20:
+            lines.append(f"...and {len(changes) - 20} more rank change(s).")
+
+        try:
+            await channel.send(
+                "Rank changes from active player refresh:\n" + "\n".join(lines),
+                allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=False),
+            )
+        except Exception as e:
+            print_error_log(
+                f"post_rank_change_notifications: Error sending rank changes for guild {guild_names[guild_id]}: {e}"
+            )
+
+
+async def persist_matches_and_refresh_rank_roles(bot: MyBot, hours: int) -> None:
+    """Persist Siege matches and refresh current-season rank roles for the last N hours."""
+    now_utc = datetime.now(timezone.utc)
+    begin_time = now_utc - timedelta(hours=hours)
+    await persist_siege_matches_cross_guilds(begin_time, now_utc, bot)
+    await refresh_current_rank_roles_cross_guilds(begin_time, now_utc, bot)
 
 
 async def fetch_and_persist_operator_stats(users: List[UserInfo]) -> None:

@@ -152,6 +152,7 @@ COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"  # Acts like a feature flag
 COMMAND_VERSION = "modversion"
 COMMAND_RESET_CACHE = "modresetcache"  # Only owner of the server can execute that one
 COMMAND_RESET_RANK = "modresetrank"
+COMMAND_REFRESH_ACTIVE_RANKS = "modrefreshactiveranks"
 COMMAND_STATS_MATCHES = "modstatsmatches"
 COMMAND_STATS_ACTIVE_USER = "modstatsactiveusers"
 COMMAND_USER_INFORMATION_ACTIVE_USER = "moduserinformationsactiveusers"

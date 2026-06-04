@@ -9,10 +9,9 @@ from deps.ai.ai_bot_functions import send_daily_ai_summary_guild
 from deps.streak_functions import announce_streak_milestones_for_guild
 from deps.bot_common_actions import (
     check_voice_channel,
-    persist_siege_matches_cross_guilds,
+    persist_matches_and_refresh_rank_roles,
     persist_user_full_information_cross_guilds,
     post_queued_user_stats,
-    refresh_current_rank_roles_cross_guilds,
     send_daily_question_to_a_guild,
 )
 from deps.mybot import MyBot
@@ -23,7 +22,6 @@ from deps.functions_stats import send_daily_stats_to_a_guild
 local_tz = pytz.timezone("America/Los_Angeles")
 utc_tz = pytz.timezone("UTC")
 time_send_daily_message = time(hour=7, minute=0, second=0, tzinfo=local_tz)
-time_fetch_matches = time(hour=23, minute=30, second=0, tzinfo=local_tz)
 time_fetch_user_information = time(hour=1, minute=0, second=0, tzinfo=local_tz)
 time_send_daily_stats = time(hour=11, minute=35, second=0, tzinfo=local_tz)
 time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=local_tz)
@@ -83,21 +81,14 @@ class MyTasksCog(commands.Cog):
         for guild in self.bot.guilds:
             await send_daily_question_to_a_guild(self.bot, guild)
 
-    @tasks.loop(time=time_fetch_matches)
+    @tasks.loop(hours=4)
     async def daily_saving_active_user_match_stats_task(self):
         """
-        Find the active users in the last 24 hours and save their stats in the database.
+        Every 4 hours, save matches and refresh rank roles for users active in the last 4 hours.
         Also includes users currently connected to voice channels.
         """
-        print_log(f"Daily fetch stats and save in database, current time {datetime.now()}")
-        now_utc = datetime.now(timezone.utc)
-        # beginning_of_day = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-        # end_of_day = now_utc.replace(hour=23, minute=59, second=59, microsecond=999999)
-        begin_time = now_utc - timedelta(days=1)
-        end_time = now_utc
-        # Pass self.bot to include currently-connected users in the stats collection
-        await persist_siege_matches_cross_guilds(begin_time, end_time, self.bot)
-        await refresh_current_rank_roles_cross_guilds(begin_time, end_time, self.bot)
+        print_log(f"Fetch recent stats and refresh rank roles, current time {datetime.now()}")
+        await persist_matches_and_refresh_rank_roles(self.bot, hours=4)
 
     @tasks.loop(time=time_fetch_user_information)
     async def daily_saving_active_user_information_task(self):

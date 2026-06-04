@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import discord
 
 from cogs.mod_basic import ModBasic
+from deps.bot_common_actions import RankRefreshSummary
 
 
 def _role(name: str, position: int, *, managed: bool = False) -> Mock:
@@ -240,3 +241,63 @@ async def test_reset_rank_roles_does_not_edit_bots() -> None:
     human.remove_roles.assert_awaited_once()
     followup_message = interaction.followup.send.await_args.args[0]
     assert "Ignored 1 bot(s)" in followup_message
+
+
+async def test_refresh_active_rank_roles_defaults_to_24_hours_and_current_guild() -> None:
+    """Active rank refresh uses a 24h DB-only guild-scoped window by default."""
+    bot = Mock()
+    cog = ModBasic(bot)
+    guild = _guild_with_bot()
+    admin = Mock(
+        spec=discord.Member,
+        display_name="Admin",
+        id=1,
+        guild_permissions=SimpleNamespace(administrator=True),
+        roles=[],
+    )
+    interaction = _interaction(guild, admin)
+
+    with patch(
+        "cogs.mod_basic.refresh_current_rank_roles_cross_guilds",
+        new_callable=AsyncMock,
+        return_value=RankRefreshSummary(candidates=2, updated=1, skipped_no_account=1),
+    ) as mock_refresh:
+        await cog.refresh_active_rank_roles.callback(cog, interaction)
+
+    interaction.response.defer.assert_awaited_once_with(ephemeral=True)
+    mock_refresh.assert_awaited_once()
+    args = mock_refresh.await_args.args
+    kwargs = mock_refresh.await_args.kwargs
+    assert args[2] is bot
+    assert kwargs["guild"] is guild
+    assert kwargs["include_connected_voice"] is False
+    assert 23.9 <= (args[1] - args[0]).total_seconds() / 3600 <= 24.1
+    followup_message = interaction.followup.send.await_args.args[0]
+    assert "last 24 hour(s)" in followup_message
+    assert "Candidates: 2" in followup_message
+    assert "updated: 1" in followup_message
+
+
+async def test_refresh_active_rank_roles_rejects_non_mod() -> None:
+    """Active rank refresh uses the same administrator/Mod permission gate as rank reset."""
+    bot = Mock()
+    cog = ModBasic(bot)
+    guild = _guild_with_bot()
+    member = Mock(
+        spec=discord.Member,
+        display_name="Member",
+        id=1,
+        guild_permissions=SimpleNamespace(administrator=False),
+        roles=[],
+    )
+    interaction = _interaction(guild, member)
+
+    with patch("cogs.mod_basic.refresh_current_rank_roles_cross_guilds", new_callable=AsyncMock) as mock_refresh:
+        await cog.refresh_active_rank_roles.callback(cog, interaction, hours=6)
+
+    mock_refresh.assert_not_called()
+    interaction.response.defer.assert_not_called()
+    interaction.response.send_message.assert_awaited_once_with(
+        "Only administrators or users with the Mod role can refresh active ranks.",
+        ephemeral=True,
+    )
