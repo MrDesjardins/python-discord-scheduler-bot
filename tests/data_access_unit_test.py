@@ -1,6 +1,6 @@
 """Unit tests for data access helpers."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 from deps.data_access import data_access_get_r6tracker_current_season_rank
 
@@ -17,12 +17,12 @@ async def test_current_season_rank_uses_persistent_cache() -> None:
     assert result == ("Gold", 3123)
     mock_remove_cache.assert_not_called()
     mock_download.assert_not_called()
-    mock_get_cache.assert_awaited_once()
-    args = mock_get_cache.await_args.args
-    kwargs = mock_get_cache.await_args.kwargs
-    assert args[0] is False
-    assert args[1] == "R6TrackerCurrentSeasonRank:player.name"
-    assert kwargs["ttl_in_seconds"] == 7200
+    mock_get_cache.assert_awaited_once_with(
+        False,
+        "R6TrackerCurrentSeasonRank:player.name",
+        ANY,
+        ttl_in_seconds=7200,
+    )
 
 
 async def test_current_season_rank_force_fetch_clears_persistent_cache() -> None:
@@ -35,5 +35,9 @@ async def test_current_season_rank_force_fetch_clears_persistent_cache() -> None
 
     assert result == ("Emerald", 3839)
     mock_remove_cache.assert_called_once_with(False, "R6TrackerCurrentSeasonRank:player.name")
-    args = mock_get_cache.await_args.args
-    assert args[0] is False
+    mock_get_cache.assert_awaited_once_with(
+        False,
+        "R6TrackerCurrentSeasonRank:player.name",
+        ANY,
+        ttl_in_seconds=7200,
+    )
