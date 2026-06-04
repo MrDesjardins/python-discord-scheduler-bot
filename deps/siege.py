@@ -1,6 +1,5 @@
 """Information about Siege"""
 
-from collections import Counter
 import re
 from dataclasses import dataclass
 from typing import List, Mapping, Optional, Union
@@ -27,6 +26,18 @@ siege_ranks = [
 
 # Competitive tiers used for LFG pings; Unranked is handled separately.
 RANKED_LFG_RANKS = siege_ranks[:-1]
+QUEUE_RANK_ORDER = ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"]
+
+QUEUE_COMPATIBLE_RANKS = {
+    "Copper": ["Copper", "Bronze", "Silver", "Gold"],
+    "Bronze": ["Copper", "Bronze", "Silver", "Gold", "Platinum"],
+    "Silver": ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald"],
+    "Gold": ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond"],
+    "Platinum": ["Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"],
+    "Emerald": ["Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"],
+    "Diamond": ["Gold", "Platinum", "Emerald", "Diamond", "Champion"],
+    "Champion": ["Platinum", "Emerald", "Diamond", "Champion"],
+}
 
 
 def is_no_rank_role(role_name: str) -> bool:
@@ -527,45 +538,27 @@ def get_list_users_with_rank(bot: MyBot, members: List[discord.Member], guild_id
 
 def get_adjacent_rank_names(rank: str) -> list[str]:
     """
-    Return rank role names to ping for LFG.
-    Unranked players only ping Unranked. Ranked players ping adjacent competitive
-    tiers (Champion through Copper) and never include Unranked.
-    Bronze and Copper only ping their tier and the one below (no Silver for Bronze).
+    Return rank role names that can queue with the given rank.
+    Unranked players only ping Unranked.
     """
     rank = resolve_rank_role_name(rank)
     if rank == NO_RANK_ROLE:
         return [NO_RANK_ROLE]
-    if rank not in RANKED_LFG_RANKS:
-        return [NO_RANK_ROLE]
-
-    rank_index = RANKED_LFG_RANKS.index(rank)
-    compatible_ranks = [rank]
-    bronze_index = len(RANKED_LFG_RANKS) - 2
-
-    if rank_index > 0 and rank_index < bronze_index:
-        compatible_ranks.insert(0, RANKED_LFG_RANKS[rank_index - 1])
-    elif rank_index == len(RANKED_LFG_RANKS) - 1:
-        compatible_ranks.insert(0, RANKED_LFG_RANKS[rank_index - 1])
-
-    if rank_index + 1 < len(RANKED_LFG_RANKS):
-        compatible_ranks.append(RANKED_LFG_RANKS[rank_index + 1])
-
-    return compatible_ranks
+    return QUEUE_COMPATIBLE_RANKS.get(rank, [NO_RANK_ROLE])
 
 
 def get_lfg_rank_role_mentions(guild: discord.Guild, members: List[discord.Member]) -> str:
     """
-    Return role mentions for the dominant voice rank plus adjacent ranks.
+    Return role mentions that can queue with every ranked member in the voice channel.
     """
     member_ranks = [get_user_rank_siege(member) for member in members if not member.bot]
     if not member_ranks:
         return ""
 
-    rank_counts = Counter(member_ranks)
-    focus_rank = max(
-        rank_counts.items(),
-        key=lambda item: (item[1], -siege_ranks.index(item[0]) if item[0] in siege_ranks else 0),
-    )[0]
-    ordered_ranks = get_adjacent_rank_names(focus_rank)
+    compatible_rank_sets = [set(get_adjacent_rank_names(rank)) for rank in member_ranks]
+    compatible_ranks = set.intersection(*compatible_rank_sets)
+    ordered_ranks = [rank for rank in QUEUE_RANK_ORDER if rank in compatible_ranks]
+    if NO_RANK_ROLE in compatible_ranks:
+        ordered_ranks.append(NO_RANK_ROLE)
     roles = [next((role for role in guild.roles if role.name == rank_name), None) for rank_name in ordered_ranks]
     return " ".join(role.mention for role in roles if role is not None)

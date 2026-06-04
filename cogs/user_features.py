@@ -348,7 +348,7 @@ class UserFeatures(commands.Cog):
                     else:
                         rank_mentions = ""
                         if interaction.guild is not None:
-                            rank_mentions = get_lfg_rank_role_mentions(interaction.guild, [user])
+                            rank_mentions = get_lfg_rank_role_mentions(interaction.guild, members)
                         mention_prefix = f"{rank_mentions} " if rank_mentions else ""
                         await interaction.followup.send(
                             f"""{mention_prefix}{list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people.""",

@@ -60,37 +60,70 @@ def test_get_lfg_rank_role_mentions_unranked_only() -> None:
     assert get_lfg_rank_role_mentions(guild, [member]) == "<@&Unranked>"
 
 
-def test_get_adjacent_rank_names_diamond() -> None:
-    """Diamond pings Champion, Diamond, and Emerald."""
-    assert get_adjacent_rank_names("Diamond") == ["Champion", "Diamond", "Emerald"]
+def test_get_adjacent_rank_names_uses_ranked_queue_compatibility_table() -> None:
+    """LFG rank mentions follow the ranked queue compatibility table."""
+    assert get_adjacent_rank_names("Copper") == ["Copper", "Bronze", "Silver", "Gold"]
+    assert get_adjacent_rank_names("Bronze") == ["Copper", "Bronze", "Silver", "Gold", "Platinum"]
+    assert get_adjacent_rank_names("Silver") == ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald"]
+    assert get_adjacent_rank_names("Gold") == [
+        "Copper",
+        "Bronze",
+        "Silver",
+        "Gold",
+        "Platinum",
+        "Emerald",
+        "Diamond",
+    ]
+    assert get_adjacent_rank_names("Platinum") == [
+        "Bronze",
+        "Silver",
+        "Gold",
+        "Platinum",
+        "Emerald",
+        "Diamond",
+        "Champion",
+    ]
+    assert get_adjacent_rank_names("Emerald") == ["Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"]
+    assert get_adjacent_rank_names("Diamond") == ["Gold", "Platinum", "Emerald", "Diamond", "Champion"]
+    assert get_adjacent_rank_names("Champion") == ["Platinum", "Emerald", "Diamond", "Champion"]
 
 
 def test_get_adjacent_rank_names_boundaries() -> None:
     """Boundary ranks only include available neighbors."""
-    assert get_adjacent_rank_names("Champion") == ["Champion", "Diamond"]
     assert get_adjacent_rank_names("Unranked") == ["Unranked"]
 
 
-def test_get_adjacent_rank_names_bronze_and_copper() -> None:
-    """Low tiers ping same rank and one below; Unranked is never included."""
-    assert get_adjacent_rank_names("Bronze") == ["Bronze", "Copper"]
-    assert get_adjacent_rank_names("Copper") == ["Bronze", "Copper"]
-
-
-def test_get_lfg_rank_role_mentions_uses_dominant_rank_band() -> None:
-    """Mixed-rank groups ping the dominant rank band instead of every member band."""
-    role_names = ["Champion", "Diamond", "Emerald", "Platinum", "Bronze", "Copper", "Unranked"]
+def test_get_lfg_rank_role_mentions_uses_group_compatibility_intersection() -> None:
+    """Mixed-rank groups ping ranks compatible with every current voice member."""
+    role_names = ["Champion", "Diamond", "Emerald", "Platinum", "Gold", "Silver", "Bronze", "Copper", "Unranked"]
     guild = Mock()
     guild.roles = [SimpleNamespace(name=role_name, mention=f"<@&{role_name}>") for role_name in role_names]
 
     diamond_role = SimpleNamespace(name="Diamond")
-    copper_role = SimpleNamespace(name="Copper")
+    platinum_role = SimpleNamespace(name="Platinum")
     member_1 = Mock(bot=False, roles=[diamond_role])
-    member_2 = Mock(bot=False, roles=[diamond_role])
-    member_3 = Mock(bot=False, roles=[copper_role])
+    member_2 = Mock(bot=False, roles=[platinum_role])
 
-    assert get_lfg_rank_role_mentions(guild, [member_1, member_2]) == ("<@&Champion> <@&Diamond> <@&Emerald>")
-    assert get_lfg_rank_role_mentions(guild, [member_1, member_2, member_3]) == "<@&Champion> <@&Diamond> <@&Emerald>"
+    assert get_lfg_rank_role_mentions(guild, [member_1]) == (
+        "<@&Gold> <@&Platinum> <@&Emerald> <@&Diamond> <@&Champion>"
+    )
+    assert get_lfg_rank_role_mentions(guild, [member_1, member_2]) == (
+        "<@&Gold> <@&Platinum> <@&Emerald> <@&Diamond> <@&Champion>"
+    )
+
+
+def test_get_lfg_rank_role_mentions_returns_empty_when_group_has_no_compatible_rank() -> None:
+    """If current voice members cannot rank-queue together, no rank role should be pinged."""
+    role_names = ["Champion", "Diamond", "Emerald", "Platinum", "Gold", "Silver", "Bronze", "Copper", "Unranked"]
+    guild = Mock()
+    guild.roles = [SimpleNamespace(name=role_name, mention=f"<@&{role_name}>") for role_name in role_names]
+
+    copper_role = SimpleNamespace(name="Copper")
+    champion_role = SimpleNamespace(name="Champion")
+    copper_member = Mock(bot=False, roles=[copper_role])
+    champion_member = Mock(bot=False, roles=[champion_role])
+
+    assert get_lfg_rank_role_mentions(guild, [copper_member, champion_member]) == ""
 
 
 def test_get_aggregation_siege_activity_none_entry() -> None:
