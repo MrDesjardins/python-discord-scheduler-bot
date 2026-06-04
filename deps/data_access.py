@@ -246,12 +246,12 @@ async def data_access_get_r6tracker_current_season_rank(
     """
     cache_key = f"{KEY_R6TRACKER_CURRENT_SEASON_RANK}:{ubisoft_user_name.strip().lower()}"
     if force_fetch:
-        remove_cache(True, cache_key)
+        remove_cache(False, cache_key)
 
     async def fetch() -> tuple[str, int]:
         return await asyncio.to_thread(_download_current_season_rank_sync, ubisoft_user_name)
 
-    return await get_cache(True, cache_key, fetch, ttl_in_seconds=TWO_HOUR_TTL)
+    return await get_cache(False, cache_key, fetch, ttl_in_seconds=TWO_HOUR_TTL)
 
 
 async def data_access_get_guild_username_text_channel_id(
