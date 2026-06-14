@@ -53,7 +53,15 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log, print_warning_log
-from deps.siege import get_color_for_rank, get_lfg_rank_role_mentions, get_list_users_with_rank, get_user_rank_emoji
+from deps.siege import (
+    format_lfg_message,
+    get_color_for_rank,
+    get_lfg_allowed_mentions,
+    get_lfg_compatible_rank_roles,
+    get_lfg_rank_role_mentions,
+    get_lfg_user_mentions,
+    get_user_rank_emoji,
+)
 from deps.functions import (
     get_url_user_profile_main,
     most_common,
@@ -336,8 +344,9 @@ class UserFeatures(commands.Cog):
             # Get everyone in the voice channel
             members = voice_channel.members
             if isinstance(members, list):
-                list_members_in_voice_channel = get_list_users_with_rank(self.bot, members, interaction.guild_id)
-                current_count = len(members)
+                human_members = [member for member in members if not member.bot]
+                list_members_in_voice_channel = get_lfg_user_mentions(self.bot, human_members, interaction.guild_id)
+                current_count = len(human_members)
                 missing_count = 5 - current_count if number_of_users_needed is None else number_of_users_needed
                 if missing_count > 0:
                     if missing_count > 10:
@@ -346,13 +355,16 @@ class UserFeatures(commands.Cog):
                             ephemeral=True,
                         )
                     else:
-                        rank_mentions = ""
-                        if interaction.guild is not None:
-                            rank_mentions = get_lfg_rank_role_mentions(interaction.guild, members)
-                        mention_prefix = f"{rank_mentions} " if rank_mentions else ""
+                        guild = voice_channel.guild
+                        rank_roles = get_lfg_compatible_rank_roles(guild, human_members)
+                        rank_mentions = get_lfg_rank_role_mentions(guild, human_members)
+                        lfg_body = (
+                            f"{'are' if current_count > 1 else 'is'} in the voice channel: "
+                            f"<#{voice_channel.id}> and need {missing_count} more people."
+                        )
                         await interaction.followup.send(
-                            f"""{mention_prefix}{list_members_in_voice_channel} {'are' if current_count > 1 else 'is'} in the voice channel: <#{voice_channel.id}> and need {missing_count} more people.""",
-                            allowed_mentions=discord.AllowedMentions(everyone=False, roles=True, users=True),
+                            format_lfg_message(list_members_in_voice_channel, rank_mentions, lfg_body),
+                            allowed_mentions=get_lfg_allowed_mentions(rank_roles),
                         )
                 else:
                     await interaction.followup.send(

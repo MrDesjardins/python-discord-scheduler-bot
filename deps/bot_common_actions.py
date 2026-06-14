@@ -83,8 +83,11 @@ from deps.siege import (
     get_aggregation_all_activities,
     get_color_for_rank,
     get_guild_rank_emoji,
+    format_lfg_message,
+    get_lfg_allowed_mentions,
+    get_lfg_compatible_rank_roles,
     get_lfg_rank_role_mentions,
-    get_list_users_with_rank,
+    get_lfg_user_mentions,
     get_user_rank_siege,
     get_statscc_activity,
     get_user_rank_emoji,
@@ -713,13 +716,15 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
         ready_to_play = aggregation.done_match_waiting_in_menu + aggregation.done_warming_up_waiting_in_menu
         already_playing = aggregation.playing_rank + aggregation.playing_standard
         if ready_to_play > 0 and ready_to_play > already_playing:
-            list_users = get_list_users_with_rank(bot, vc_channel.members, guild_id)
-            rank_mentions = get_lfg_rank_role_mentions(vc_channel.guild, vc_channel.members)
-            mention_prefix = f"{rank_mentions} " if rank_mentions else ""
-            print_log(f"🎮 {list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>")
+            human_members = [member for member in vc_channel.members if not member.bot]
+            list_users = get_lfg_user_mentions(bot, human_members, guild_id)
+            rank_roles = get_lfg_compatible_rank_roles(vc_channel.guild, human_members)
+            rank_mentions = get_lfg_rank_role_mentions(vc_channel.guild, human_members)
+            lfg_body = f"are looking for {needed_user} teammates to play in <#{voice_channel_id}>"
+            print_log(f"🎮 {list_users} {rank_mentions} {lfg_body}".strip())
             await channel.send(
-                f"🎮 {mention_prefix}{list_users} are looking for {needed_user} teammates to play in <#{voice_channel_id}>",
-                allowed_mentions=discord.AllowedMentions(everyone=False, roles=True, users=True),
+                f"🎮 {format_lfg_message(list_users, rank_mentions, lfg_body)}",
+                allowed_mentions=get_lfg_allowed_mentions(rank_roles),
             )
             data_access_set_last_bot_message_in_main_text_channel(guild_id, voice_channel_id, current_time)
     except Exception as e:

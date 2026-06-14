@@ -536,6 +536,12 @@ def get_list_users_with_rank(bot: MyBot, members: List[discord.Member], guild_id
     return list_users
 
 
+def get_lfg_user_mentions(bot: MyBot, members: List[discord.Member], guild_id: int) -> str:
+    """Return comma-separated mentions with rank emojis for non-bot members in a voice channel."""
+    human_members = [member for member in members if not member.bot]
+    return get_list_users_with_rank(bot, human_members, guild_id)
+
+
 def get_adjacent_rank_names(rank: str) -> list[str]:
     """
     Return rank role names that can queue with the given rank.
@@ -547,13 +553,13 @@ def get_adjacent_rank_names(rank: str) -> list[str]:
     return QUEUE_COMPATIBLE_RANKS.get(rank, [NO_RANK_ROLE])
 
 
-def get_lfg_rank_role_mentions(guild: discord.Guild, members: List[discord.Member]) -> str:
+def get_lfg_compatible_rank_roles(guild: discord.Guild, members: List[discord.Member]) -> List[discord.Role]:
     """
-    Return role mentions that can queue with every ranked member in the voice channel.
+    Return guild rank roles that can queue with every ranked member in the voice channel.
     """
     member_ranks = [get_user_rank_siege(member) for member in members if not member.bot]
     if not member_ranks:
-        return ""
+        return []
 
     compatible_rank_sets = [set(get_adjacent_rank_names(rank)) for rank in member_ranks]
     compatible_ranks = set.intersection(*compatible_rank_sets)
@@ -561,4 +567,27 @@ def get_lfg_rank_role_mentions(guild: discord.Guild, members: List[discord.Membe
     if NO_RANK_ROLE in compatible_ranks:
         ordered_ranks.append(NO_RANK_ROLE)
     roles = [next((role for role in guild.roles if role.name == rank_name), None) for rank_name in ordered_ranks]
-    return " ".join(role.mention for role in roles if role is not None)
+    return [role for role in roles if role is not None]
+
+
+def get_lfg_rank_role_mentions(guild: discord.Guild, members: List[discord.Member]) -> str:
+    """
+    Return role mentions that can queue with every ranked member in the voice channel.
+    """
+    return " ".join(role.mention for role in get_lfg_compatible_rank_roles(guild, members))
+
+
+def format_lfg_message(users_text: str, rank_mentions: str, body: str) -> str:
+    """Build an LFG message with member mentions first, then rank role mentions."""
+    if rank_mentions:
+        return f"{users_text} {rank_mentions} {body}"
+    return f"{users_text} {body}"
+
+
+def get_lfg_allowed_mentions(rank_roles: List[discord.Role]) -> discord.AllowedMentions:
+    """Allowed mentions for LFG messages; explicit role IDs override the bot's roles=False default."""
+    return discord.AllowedMentions(
+        everyone=False,
+        users=True,
+        roles=rank_roles if rank_roles else False,
+    )

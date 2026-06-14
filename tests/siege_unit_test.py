@@ -4,14 +4,16 @@ Siege functions logics
 
 from types import SimpleNamespace
 from typing import Union
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from deps.models import ActivityTransition
 from deps.siege import (
     get_adjacent_rank_names,
     get_aggregation_siege_activity,
+    format_lfg_message,
     get_guild_rank_emoji,
     get_lfg_rank_role_mentions,
+    get_lfg_user_mentions,
     get_user_rank_siege,
 )
 
@@ -124,6 +126,26 @@ def test_get_lfg_rank_role_mentions_returns_empty_when_group_has_no_compatible_r
     champion_member = Mock(bot=False, roles=[champion_role])
 
     assert get_lfg_rank_role_mentions(guild, [copper_member, champion_member]) == ""
+
+
+def test_format_lfg_message_lists_users_before_rank_mentions() -> None:
+    """LFG messages mention players first, then compatible rank roles."""
+    assert (
+        format_lfg_message("@Alice, @Bob", "<@&Gold> <@&Platinum>", "are looking for 2 teammates to play in <#123>")
+        == "@Alice, @Bob <@&Gold> <@&Platinum> are looking for 2 teammates to play in <#123>"
+    )
+    assert format_lfg_message("@Alice", "", "is in the voice channel: <#123> and need 4 more people.") == (
+        "@Alice is in the voice channel: <#123> and need 4 more people."
+    )
+
+
+def test_get_lfg_user_mentions_skips_bots_and_includes_rank_emoji() -> None:
+    """LFG user lists exclude bots and show each member's rank emoji."""
+    human = Mock(bot=False, mention="<@111>", roles=[])
+    bot_member = Mock(bot=True, mention="<@999>", roles=[])
+    bot = Mock(guild_emoji={1: {}})
+    with patch("deps.siege.get_user_rank_emoji", return_value=":Bronze:"):
+        assert get_lfg_user_mentions(bot, [human, bot_member], 1) == ":Bronze: <@111>"
 
 
 def test_get_aggregation_siege_activity_none_entry() -> None:
