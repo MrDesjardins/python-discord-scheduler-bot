@@ -49,7 +49,7 @@ def match_result_final_plain_summary(
     result: StatsCcRankedMatchEndResult, *, spaced_hyphen: bool = True
 ) -> tuple[str, str]:
     """
-    Final outcome text with score: ``Win 4 - 1``, ``Loss 1 - 4``, ``Tie 2 - 2`` (ASCII only).
+    Final outcome text with score: ``Won 4 - 1``, ``Loss 1 - 4``, ``Tie 2 - 2`` (ASCII only).
 
     ``spaced_hyphen`` uses ``' - '`` for PNG/Minecraft font; use ``False`` for compact Discord text.
     """
@@ -58,7 +58,7 @@ def match_result_final_plain_summary(
     if result.is_tie:
         return f"Tie {score_part}", "#FEE75C"
     if result.won:
-        return f"Win {score_part}", "#3BA55D"
+        return f"Won {score_part}", "#3BA55D"
     return f"Loss {score_part}", "#ED4245"
 
 
@@ -178,7 +178,7 @@ async def generate_match_start_gif(
         guild_id: Guild ID for fetching stats
         guild_emoji: Dictionary of guild emojis for rank display
         match_result: When set, append a final frame: LEADING/TRAILING/TIED while in progress,
-        WINNING/LOSING/TIED only when ``result.is_match_complete`` (see ``deps.siege``).
+        Won/Loss/Tie only when ``result.is_match_complete`` (see ``deps.siege``).
 
     Returns:
         GIF bytes, or None if generation fails or no members

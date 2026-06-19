@@ -557,6 +557,12 @@ async def data_access_set_last_match_start_gif_time(guild_id: int, channel_id: i
     set_cache(False, key, time, ONE_HOUR_TTL)
 
 
+def data_access_clear_last_match_start_gif_time(guild_id: int, channel_id: int) -> None:
+    """Clear the match start GIF send reservation for a specific voice channel."""
+    key = f"{KEY_LAST_MATCH_START_GIF}:{guild_id}:{channel_id}"
+    remove_cache(False, key)
+
+
 async def data_access_get_pending_match_start_gif_message(
     guild_id: int,
     voice_channel_id: int,
@@ -572,13 +578,17 @@ def data_access_set_pending_match_start_gif_message(
     text_channel_id: int,
     message_id: int,
     member_ids: list[int],
+    last_result_key: str | None = None,
 ) -> None:
     """Store the text channel/message id and GIF member ids after posting a match-start GIF."""
     key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
+    value: dict[str, Any] = {"text_channel_id": text_channel_id, "message_id": message_id, "member_ids": member_ids}
+    if last_result_key is not None:
+        value["last_result_key"] = last_result_key
     set_cache(
         False,
         key,
-        {"text_channel_id": text_channel_id, "message_id": message_id, "member_ids": member_ids},
+        value,
         TWO_HOUR_TTL,
     )
 

@@ -40,6 +40,7 @@ from deps.data_access import (
     data_access_get_voice_user_list,
     data_access_get_last_match_start_gif_time,
     data_access_set_last_match_start_gif_time,
+    data_access_clear_last_match_start_gif_time,
 )
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.functions_here_hints import content_suggests_ten_man_lfg
@@ -687,10 +688,19 @@ class MyEventsCog(commands.Cog):
                     if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(minutes=15):
                         from deps.bot_common_actions import send_match_start_gif
 
-                        await send_match_start_gif(self.bot, guild_id, channel_id)
-                        await data_access_set_last_match_start_gif_time(
-                            guild_id, channel_id, datetime.now(timezone.utc)
+                        reserved_at = datetime.now(timezone.utc)
+                        await data_access_set_last_match_start_gif_time(guild_id, channel_id, reserved_at)
+                        print_log(
+                            f"Reserved match start GIF send for guild {guild_id}, channel {channel_id} at {reserved_at.isoformat()}."
                         )
+                        sent = await send_match_start_gif(self.bot, guild_id, channel_id)
+                        if sent:
+                            print_log(f"Posted match start GIF for guild {guild_id}, channel {channel_id}.")
+                        else:
+                            data_access_clear_last_match_start_gif_time(guild_id, channel_id)
+                            print_log(
+                                f"Match start GIF send did not post for guild {guild_id}, channel {channel_id}. Reservation cleared."
+                            )
                     else:
                         print_log(
                             f"Match start GIF recently sent for guild {guild_id}, channel {channel_id}. Skipping."

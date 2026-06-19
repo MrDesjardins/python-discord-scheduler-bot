@@ -9,6 +9,7 @@ import os
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from collections import Counter
 from typing import Dict, List, Mapping, Optional, Union
 from gtts import gTTS  # type: ignore
 import discord
@@ -93,6 +94,7 @@ from deps.siege import (
     get_user_rank_emoji,
     parse_statscc_ranked_score_from_activity,
     resolve_rank_role_name,
+    StatsCcRankedMatchEndResult,
 )
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
@@ -1050,7 +1052,47 @@ def _members_in_voice_channel(guild: discord.Guild, voice_channel_id: int) -> li
     return []
 
 
-async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int) -> None:
+def _choose_match_start_gif_result(
+    results: list[StatsCcRankedMatchEndResult],
+) -> Optional[StatsCcRankedMatchEndResult]:
+    """Choose the most common stats.cc result; ties prefer non-win to avoid false positive wins."""
+    if not results:
+        return None
+    counts = Counter(
+        (
+            r.is_match_complete,
+            r.is_tie,
+            r.won,
+            r.our_score,
+            r.their_score,
+            r.map_name or "",
+        )
+        for r in results
+    )
+    best_key, _ = max(
+        counts.items(),
+        key=lambda item: (
+            item[1],
+            item[0][0],
+            not item[0][2],
+            item[0][3] + item[0][4],
+        ),
+    )
+    for result in results:
+        key = (
+            result.is_match_complete,
+            result.is_tie,
+            result.won,
+            result.our_score,
+            result.their_score,
+            result.map_name or "",
+        )
+        if key == best_key:
+            return result
+    return results[0]
+
+
+async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int) -> bool:
     """
     Generate and send match start GIF to main text channel.
 
@@ -1064,17 +1106,17 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
         vc_channel = await data_access_get_channel(voice_channel_id)
         if not vc_channel or not vc_channel.members:
             print_log(f"send_match_start_gif: No voice channel or members found for channel {voice_channel_id}")
-            return
+            return False
 
         # Get text channel
         text_channel_id = await data_access_get_main_text_channel_id(guild_id)
         if text_channel_id is None:
             print_log(f"send_match_start_gif: No main text channel id for guild {guild_id}")
-            return
+            return False
         text_channel = await data_access_get_channel(text_channel_id)
         if not text_channel:
             print_log(f"send_match_start_gif: No main text channel found for guild {guild_id}")
-            return
+            return False
 
         # Generate GIF
         print_log(f"send_match_start_gif: Generating GIF for {len(vc_channel.members)} members in {vc_channel.name}")
@@ -1083,7 +1125,7 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
 
         if not gif_bytes:
             print_log("send_match_start_gif: GIF generation returned no data")
-            return
+            return False
 
         # Send to Discord with automatic deletion
         file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")
@@ -1103,9 +1145,11 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
             f"send_match_start_gif: Successfully sent GIF to {text_channel.name} "
             f"(will auto-delete after {MATCH_START_GIF_DELETE_AFTER_SECONDS // 60} minutes)"
         )
+        return True
 
     except Exception as e:
         print_error_log(f"send_match_start_gif: Error: {e}")
+        return False
 
 
 async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guild, voice_channel_id: int) -> None:
@@ -1124,7 +1168,8 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             return
         member_ids = [int(x) for x in raw_ids]
 
-        parsed_result = None
+        parsed_results: list[StatsCcRankedMatchEndResult] = []
+        seen_member_ids: set[int] = set()
         for uid in member_ids:
             member = guild.get_member(uid)
             if (
@@ -1134,22 +1179,23 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                 or member.voice.channel.id != voice_channel_id
             ):
                 continue
+            seen_member_ids.add(member.id)
             act = get_statscc_activity(member)
-            parsed_result = parse_statscc_ranked_score_from_activity(act)
-            if parsed_result is not None:
-                break
+            member_result = parse_statscc_ranked_score_from_activity(act)
+            if member_result is not None:
+                parsed_results.append(member_result)
 
         # Fallback: anyone in the same VC may still show the final score on stats.cc after the GIF
         # roster drops "Match Ending" / ranked details first (common with debounce + per-user presence).
-        if parsed_result is None:
-            for vm in _members_in_voice_channel(guild, voice_channel_id):
-                if vm.bot:
-                    continue
-                act = get_statscc_activity(vm)
-                parsed_result = parse_statscc_ranked_score_from_activity(act)
-                if parsed_result is not None:
-                    break
+        for vm in _members_in_voice_channel(guild, voice_channel_id):
+            if vm.bot or vm.id in seen_member_ids:
+                continue
+            act = get_statscc_activity(vm)
+            member_result = parse_statscc_ranked_score_from_activity(act)
+            if member_result is not None:
+                parsed_results.append(member_result)
 
+        parsed_result = _choose_match_start_gif_result(parsed_results)
         if parsed_result is None:
             return
 
@@ -1172,6 +1218,14 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             result_log = "static match summary PNG"
         else:
             wl, _ = match_result_live_status_display(parsed_result)
+            score_compact = f"{parsed_result.our_score}-{parsed_result.their_score}"
+            result_key = f"live:{wl}:{score_compact}:{parsed_result.map_name or ''}"
+            if pending.get("last_result_key") == result_key:
+                print_log(
+                    f"try_update_match_start_gif_with_result: skipped duplicate live result {result_key} "
+                    f"for message {pending.get('message_id')} in guild {guild.id}"
+                )
+                return
             media_bytes = await generate_match_start_gif(
                 members_for_gif,
                 guild.id,
@@ -1218,6 +1272,15 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
         )
         if parsed_result.is_match_complete:
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
+        else:
+            data_access_set_pending_match_start_gif_message(
+                guild.id,
+                voice_channel_id,
+                text_channel_id,
+                message_id,
+                member_ids,
+                last_result_key=result_key,
+            )
         print_log(
             f"try_update_match_start_gif_with_result: updated match message {message_id} "
             f"({result_log}) in guild {guild.id}"

@@ -596,6 +596,82 @@ class TestMatchStartGif:
             mock_send_gif.assert_called_with(mock_bot, guild_id, channel_id)
             assert mock_set_last_time.call_count == 1
 
+    async def test_concurrent_slow_match_start_send_reserves_before_posting(self) -> None:
+        """Slow Discord sends should not allow a second queued task to post another GIF."""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+
+        mock_bot = MagicMock()
+        cog = MyEventsCog(mock_bot)
+        guild_id = 111111111
+        channel_id = 333333333
+        user_activities = {
+            1: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            2: ActivityTransition("Looking for RANKED match", "RANKED match"),
+        }
+        last_gif_time = None
+
+        def get_last_time_side_effect(gid, cid):
+            return last_gif_time
+
+        def set_last_time_side_effect(gid, cid, time):
+            nonlocal last_gif_time
+            last_gif_time = time
+
+        async def slow_send(*args):
+            await asyncio.sleep(0.01)
+            return True
+
+        with (
+            patch("cogs.events.asyncio.sleep", wraps=asyncio.sleep),
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch(
+                "cogs.events.data_access_get_last_match_start_gif_time",
+                AsyncMock(side_effect=get_last_time_side_effect),
+            ),
+            patch(
+                "cogs.events.data_access_set_last_match_start_gif_time",
+                AsyncMock(side_effect=set_last_time_side_effect),
+            ),
+            patch("cogs.events.data_access_clear_last_match_start_gif_time") as mock_clear,
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock(side_effect=slow_send)) as mock_send_gif,
+        ):
+            await asyncio.gather(
+                cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id),
+                cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id),
+            )
+
+            mock_send_gif.assert_awaited_once_with(mock_bot, guild_id, channel_id)
+            assert last_gif_time is not None
+            mock_clear.assert_not_called()
+
+    async def test_failed_match_start_send_clears_reservation(self) -> None:
+        """If Discord send exits without posting, the reservation should not block a later retry."""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+
+        mock_bot = MagicMock()
+        cog = MyEventsCog(mock_bot)
+        guild_id = 111111111
+        channel_id = 333333333
+        user_activities = {
+            1: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            2: ActivityTransition("Looking for RANKED match", "RANKED match"),
+        }
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=None)),
+            patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()) as mock_set_last_time,
+            patch("cogs.events.data_access_clear_last_match_start_gif_time") as mock_clear,
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock(return_value=False)) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+            mock_send_gif.assert_awaited_once_with(mock_bot, guild_id, channel_id)
+            mock_set_last_time.assert_awaited_once()
+            mock_clear.assert_called_once_with(guild_id, channel_id)
+
     @pytest.mark.asyncio
     async def test_match_gif_result_debounce_invokes_try_update(self, mock_bot, mock_guild):
         """After debounce sleep, ranked-score update task should call try_update_match_start_gif_with_result."""
@@ -615,7 +691,7 @@ class TestMatchStartGif:
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_edits_message(self, mock_bot, mock_guild):
-        """Match Ending + pending should post static PNG, Win 4-1 line, attachment description, clear pending."""
+        """Match Ending + pending should post static PNG, Won 4-1 line, attachment description, clear pending."""
         from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
@@ -663,9 +739,72 @@ class TestMatchStartGif:
             assert "attachments" in call_kw
             att = call_kw["attachments"][0]
             assert att.filename == "match_result.png"
-            assert "**Win 4-1**" in call_kw["content"]
-            assert att.description == "Win 4-1"
+            assert "**Won 4-1**" in call_kw["content"]
+            assert att.description == "Won 4-1"
             mock_clear.assert_called_once_with(mock_guild.id, voice_id)
+
+    @pytest.mark.asyncio
+    async def test_try_update_match_start_gif_conflicting_final_scores_prefers_loss(self, mock_bot, mock_guild):
+        """If stats.cc members disagree on a final 5-4, avoid a false positive Won label."""
+        from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+        voice_id = 333333333
+        winning_act = discord.Activity(
+            name="stats.cc",
+            details="Match Ending: Ranked on Oregon",
+            state="Winning: 5 - 4",
+            type=discord.ActivityType.playing,
+        )
+        losing_act = discord.Activity(
+            name="stats.cc",
+            details="Match Ending: Ranked on Oregon",
+            state="Losing: 5 - 4",
+            type=discord.ActivityType.playing,
+        )
+        m1 = MagicMock(spec=discord.Member)
+        m1.id = 101
+        m1.display_name = "PlayerOne"
+        m1.voice = MagicMock()
+        m1.voice.channel = MagicMock()
+        m1.voice.channel.id = voice_id
+        m1.activities = [winning_act]
+
+        m2 = MagicMock(spec=discord.Member)
+        m2.id = 202
+        m2.display_name = "PlayerTwo"
+        m2.voice = MagicMock()
+        m2.voice.channel = MagicMock()
+        m2.voice.channel.id = voice_id
+        m2.activities = [losing_act]
+
+        def _get_member(uid: int):
+            if uid == 101:
+                return m1
+            if uid == 202:
+                return m2
+            return None
+
+        mock_guild.get_member = MagicMock(side_effect=_get_member)
+
+        pending = {"text_channel_id": 555, "message_id": 999, "member_ids": [101, 202]}
+        msg = MagicMock()
+        msg.edit = AsyncMock()
+
+        with (
+            patch(
+                "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
+                AsyncMock(return_value=pending),
+            ),
+            patch("deps.bot_common_actions.generate_match_end_static_summary", AsyncMock(return_value=b"PNGBYTES")),
+            patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
+            patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message"),
+        ):
+            await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
+
+            call_kw = msg.edit.await_args.kwargs
+            assert "**Loss 5-4**" in call_kw["content"]
+            assert "Oregon" in call_kw["content"]
+            assert call_kw["attachments"][0].description == "Loss 5-4"
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_match_ending_low_score_stays_animated(self, mock_bot, mock_guild):
@@ -702,6 +841,7 @@ class TestMatchStartGif:
             patch("deps.bot_common_actions.generate_match_start_gif", mock_gif),
             patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
             patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+            patch("deps.bot_common_actions.data_access_set_pending_match_start_gif_message") as mock_set_pending,
         ):
             await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
             mock_gif.assert_awaited_once()
@@ -712,6 +852,58 @@ class TestMatchStartGif:
             assert msg.edit.await_args.kwargs["attachments"][0].filename == "match_start.gif"
             assert msg.edit.await_args.kwargs["attachments"][0].description == "LEADING 1-0"
             mock_clear.assert_not_called()
+            mock_set_pending.assert_called_once_with(
+                mock_guild.id,
+                voice_id,
+                555,
+                999,
+                [101],
+                last_result_key="live:LEADING:1-0:Oregon",
+            )
+
+    @pytest.mark.asyncio
+    async def test_try_update_match_start_gif_skips_duplicate_live_score(self, mock_bot, mock_guild):
+        """A repeated live stats.cc score should not regenerate and re-edit the animated GIF."""
+        from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+        voice_id = 333333333
+        act = discord.Activity(
+            name="stats.cc",
+            details="Match Ending: Ranked on Oregon",
+            state="Winning: 1 - 0",
+            type=discord.ActivityType.playing,
+        )
+        m1 = MagicMock(spec=discord.Member)
+        m1.id = 101
+        m1.display_name = "PlayerOne"
+        m1.voice = MagicMock()
+        m1.voice.channel = MagicMock()
+        m1.voice.channel.id = voice_id
+        m1.activities = [act]
+        mock_guild.get_member = MagicMock(return_value=m1)
+        pending = {
+            "text_channel_id": 555,
+            "message_id": 999,
+            "member_ids": [101],
+            "last_result_key": "live:LEADING:1-0:Oregon",
+        }
+        msg = MagicMock()
+        msg.edit = AsyncMock()
+        mock_gif = AsyncMock(return_value=b"GIF")
+
+        with (
+            patch(
+                "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
+                AsyncMock(return_value=pending),
+            ),
+            patch("deps.bot_common_actions.generate_match_start_gif", mock_gif),
+            patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
+            patch("deps.bot_common_actions.data_access_set_pending_match_start_gif_message") as mock_set_pending,
+        ):
+            await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
+            mock_gif.assert_not_awaited()
+            msg.edit.assert_not_awaited()
+            mock_set_pending.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_score_from_other_vc_member(self, mock_bot, mock_guild):
@@ -769,6 +961,7 @@ class TestMatchStartGif:
             patch("deps.bot_common_actions.generate_match_start_gif", AsyncMock(return_value=b"GIFBYTES")),
             patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
             patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+            patch("deps.bot_common_actions.data_access_set_pending_match_start_gif_message") as mock_set_pending,
         ):
             await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
             call_kw = msg.edit.await_args.kwargs
@@ -777,3 +970,11 @@ class TestMatchStartGif:
             assert call_kw["attachments"][0].filename == "match_start.gif"
             assert call_kw["attachments"][0].description == "LEADING 7-5"
             mock_clear.assert_not_called()
+            mock_set_pending.assert_called_once_with(
+                mock_guild.id,
+                voice_id,
+                555,
+                999,
+                [101],
+                last_result_key="live:LEADING:7-5:Oregon",
+            )
