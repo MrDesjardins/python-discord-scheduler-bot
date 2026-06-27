@@ -64,6 +64,10 @@ load_dotenv()
 
 ENV = os.getenv("ENV")
 
+AUTOBAN_USER_IDS: set[int] = {
+    1177820750636400711,
+}
+
 
 def _is_loggable_voice_channel(channel: discord.abc.GuildChannel | None) -> bool:
     """Voice surfaces we record in user_activity and run follow notifications for."""
@@ -96,6 +100,27 @@ class MyEventsCog(commands.Cog):
 
     def _clear_private_channel_delete_failure(self, guild_id: int, channel_id: int) -> None:
         self.private_channel_delete_failures.pop((guild_id, channel_id), None)
+
+    @staticmethod
+    async def _ban_autoban_user(
+        guild: discord.Guild,
+        user: discord.abc.Snowflake,
+        user_label: str,
+        context: str,
+    ) -> bool:
+        try:
+            await guild.ban(user, reason="User is on the bot autoban list.")
+            print_log(f"{context}: Autobanned user {user_label} in guild {guild.name}({guild.id}).")
+            return True
+        except discord.Forbidden as e:
+            print_warning_log(
+                f"{context}: Missing permission to autoban user {user_label} in guild {guild.name}({guild.id}): {e}"
+            )
+        except discord.HTTPException as e:
+            print_error_log(
+                f"{context}: Discord API error autobanning user {user_label} in guild {guild.name}({guild.id}): {e}"
+            )
+        return False
 
     @staticmethod
     def _log_channel_move_sync(
@@ -233,6 +258,16 @@ class MyEventsCog(commands.Cog):
                     print_log(f"\t✅ /{command}")
             else:
                 print_log(f"\tCommands already synced for guild {guild.name}. Skipping.")
+
+            for user_id in AUTOBAN_USER_IDS:
+                member = guild.get_member(user_id)
+                if member is not None:
+                    user: discord.abc.Snowflake = member
+                    user_label = f"{member.display_name}({member.id})"
+                else:
+                    user = discord.Object(id=user_id)
+                    user_label = str(user_id)
+                await self._ban_autoban_user(guild, user, user_label, "on_ready")
 
             bot.guild_emoji[guild.id] = {}
             for emoji in guild.emojis:
@@ -510,6 +545,14 @@ class MyEventsCog(commands.Cog):
         print_log("on_member_join called")
         if member.bot:
             return  # Ignore bot
+        if member.id in AUTOBAN_USER_IDS:
+            await self._ban_autoban_user(
+                member.guild,
+                member,
+                f"{member.display_name}({member.id})",
+                "on_member_join",
+            )
+            return
         guild_id = member.guild.id
         if guild_id is None:
             print_warning_log("on_member_join: Guild ID not found. Skipping.")

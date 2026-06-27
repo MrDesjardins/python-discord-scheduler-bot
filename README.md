@@ -440,6 +440,10 @@ Under "Bot Permissions", select the necessary permissions:
 1. View Audit Log
 1. Manage Roles
 1. Manage Channels
+1. Kick Members
+1. Ban Members
+1. Change Nickname
+1. Manage Nickname
 1. View Channels
 1. Send Messages
 1. Manage Messages
@@ -454,10 +458,10 @@ Copy the generated URL and open it in your browser to invite the bot to your des
 
 ```sh
 # Production Bot
-https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=281475263179984&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1279592054996996219&permissions=281475464506582&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 
 # Dev Bot
-https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=281475263179984&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
+https://discord.com/oauth2/authorize?client_id=1282412272458924103&permissions=281475464506582&redirect_uri=https%3A%2F%2Fdiscord.com%2Foauth2%2Fauthorize&integration_type=0&scope=bot+applications.commands
 ```
 
 You also need the `Presence Intent` to be checked (located above the bot permission, same page). This will allows the bot to see who is playing the game and what is the status of the user (menu, playing, etc).
