@@ -938,6 +938,7 @@ async def test_placing_bet_on_game_user2(
 @patch.object(bet_functions, bet_functions.print_error_log.__name__)
 @patch.object(bet_functions, bet_functions.dynamically_adjust_bet_game_odd.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_wallet_if_sufficient_balance.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -949,6 +950,7 @@ async def test_placing_bet_on_game_user_with_dynamic_adjust_bet_failing(
     mock_fetch_bet_games,
     mock_create_bet_user_game,
     mock_update_user_wallet_for_tournament,
+    mock_update_wallet_if_sufficient_balance,
     mock_probability_update,
     mock_dynamically_adjust_bet_game_odd,
     mock_print_error_log,
@@ -979,6 +981,7 @@ async def test_placing_bet_on_game_user_with_dynamic_adjust_bet_failing(
         mock_fetch_bet_games.return_value = list_existing_bet_games
         mock_create_bet_user_game.return_value = None
         mock_update_user_wallet_for_tournament.return_value = None
+        mock_update_wallet_if_sufficient_balance.return_value = 1
         mock_dynamically_adjust_bet_game_odd.side_effect = Exception("Error")
         mock_fetch_tournament_by_id.return_value = tournament
         # Act
@@ -991,6 +994,7 @@ async def test_placing_bet_on_game_user_with_dynamic_adjust_bet_failing(
 @patch.object(bet_functions, bet_functions.print_error_log.__name__)
 @patch.object(bet_functions, bet_functions.dynamically_adjust_bet_game_odd.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_wallet_if_sufficient_balance.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -1002,6 +1006,7 @@ async def test_placing_bet_on_game_user_with_update_bet_probability_failing(
     mock_fetch_bet_games,
     mock_create_bet_user_game,
     mock_update_user_wallet_for_tournament,
+    mock_update_wallet_if_sufficient_balance,
     mock_probability_update,
     mock_dynamically_adjust_bet_game_odd,
     mock_print_error_log,
@@ -1032,6 +1037,7 @@ async def test_placing_bet_on_game_user_with_update_bet_probability_failing(
         mock_fetch_bet_games.return_value = list_existing_bet_games
         mock_create_bet_user_game.return_value = None
         mock_update_user_wallet_for_tournament.return_value = None
+        mock_update_wallet_if_sufficient_balance.return_value = 1
         mock_probability_update.side_effect = Exception("Error")
         mock_fetch_tournament_by_id.return_value = tournament
         # Act
@@ -1043,6 +1049,7 @@ async def test_placing_bet_on_game_user_with_update_bet_probability_failing(
 @patch.object(bet_functions, bet_functions.fetch_tournament_by_id.__name__)
 @patch.object(bet_functions, bet_functions.dynamically_adjust_bet_game_odd.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_wallet_if_sufficient_balance.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -1054,6 +1061,7 @@ async def test_placing_bet_on_game_too_small_amount(
     mock_fetch_bet_games,
     mock_create_bet_user_game,
     mock_update_user_wallet_for_tournament,
+    mock_update_wallet_if_sufficient_balance,
     mock_probability_update,
     mock_dynamically_adjust_bet_game_odd,
     mock_fetch_tournament_by_id,
@@ -1081,6 +1089,7 @@ async def test_placing_bet_on_game_too_small_amount(
     mock_fetch_bet_games.return_value = list_existing_bet_games
     mock_create_bet_user_game.return_value = None
     mock_update_user_wallet_for_tournament.return_value = None
+    mock_update_wallet_if_sufficient_balance.return_value = 1
     mock_fetch_tournament_by_id.return_value = tournament
     # Act
     with pytest.raises(ValueError, match=rf"The minimum amount to bet is \${MIN_BET_AMOUNT}"):
@@ -1093,6 +1102,7 @@ async def test_placing_bet_on_game_too_small_amount(
 @patch.object(bet_functions, bet_functions.fetch_tournament_by_id.__name__)
 @patch.object(bet_functions, bet_functions.dynamically_adjust_bet_game_odd.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_game_probability.__name__)
+@patch.object(bet_functions, bet_functions.data_access_update_wallet_if_sufficient_balance.__name__)
 @patch.object(bet_functions, bet_functions.data_access_update_bet_user_tournament.__name__)
 @patch.object(bet_functions, bet_functions.data_access_create_bet_user_game.__name__)
 @patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
@@ -1104,6 +1114,7 @@ async def test_placing_bet_on_game_dynamically_change_bet_and_update(
     mock_fetch_bet_games,
     mock_create_bet_user_game,
     mock_update_user_wallet_for_tournament,
+    mock_update_wallet_if_sufficient_balance,
     mock_probability_update,
     mock_dynamically_adjust_bet_game_odd,
     mock_fetch_tournament_by_id,
@@ -1131,6 +1142,7 @@ async def test_placing_bet_on_game_dynamically_change_bet_and_update(
     mock_fetch_bet_games.return_value = list_existing_bet_games
     mock_create_bet_user_game.return_value = None
     mock_update_user_wallet_for_tournament.return_value = None
+    mock_update_wallet_if_sufficient_balance.return_value = 1
     mock_fetch_tournament_by_id.return_value = tournament
     # Act
     place_bet_for_game(1, 2, 1, 99.99, 1)

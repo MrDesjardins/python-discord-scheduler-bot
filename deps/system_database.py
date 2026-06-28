@@ -90,6 +90,9 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_ledger_entry")
         self.get_cursor().execute("DROP TABLE IF EXISTS custom_game_user_subscription")
         self.get_cursor().execute("DROP TABLE IF EXISTS operator_stats")
+        self.get_cursor().execute("DROP TABLE IF EXISTS archived_message_job_spool")
+        self.get_cursor().execute("DROP TABLE IF EXISTS archived_message_event")
+        self.get_cursor().execute("DROP TABLE IF EXISTS archived_message")
         self.get_conn().commit()
         self._run_reset_hooks()
 
@@ -497,6 +500,109 @@ class DatabaseManager:
         # Add operator stats table
         self._migrate_add_operator_stats_table()
 
+        # Add moderation message archive tables
+        self._migrate_add_message_archive_tables()
+
+    def _migrate_add_message_archive_tables(self):
+        """Create message archive tables for moderation investigations."""
+        print_log("Running migration: Create message archive tables")
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS archived_message (
+                message_id INTEGER PRIMARY KEY,
+                guild_id INTEGER NULL,
+                channel_id INTEGER NOT NULL,
+                channel_name TEXT NULL,
+                channel_type TEXT NULL,
+                author_id INTEGER NOT NULL,
+                author_name TEXT NOT NULL,
+                author_display_name TEXT NULL,
+                author_is_bot BOOLEAN NOT NULL DEFAULT 0,
+                content TEXT NOT NULL DEFAULT '',
+                clean_content TEXT NOT NULL DEFAULT '',
+                created_at DATETIME NOT NULL,
+                edited_at DATETIME NULL,
+                deleted_at DATETIME NULL,
+                is_deleted BOOLEAN NOT NULL DEFAULT 0,
+                message_type TEXT NULL,
+                jump_url TEXT NULL,
+                reference_message_id INTEGER NULL,
+                attachments_json TEXT NOT NULL DEFAULT '[]',
+                embeds_json TEXT NOT NULL DEFAULT '[]',
+                mentions_json TEXT NOT NULL DEFAULT '[]',
+                role_mentions_json TEXT NOT NULL DEFAULT '[]',
+                reactions_json TEXT NOT NULL DEFAULT '[]',
+                pinned BOOLEAN NOT NULL DEFAULT 0,
+                source TEXT NOT NULL DEFAULT 'gateway',
+                persisted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS archived_message_event (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id INTEGER NOT NULL,
+                guild_id INTEGER NULL,
+                channel_id INTEGER NOT NULL,
+                event_type TEXT NOT NULL CHECK(event_type IN ('create', 'edit', 'delete', 'backfill')),
+                event_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                content_before TEXT NULL,
+                content_after TEXT NULL,
+                source TEXT NOT NULL DEFAULT 'gateway',
+                FOREIGN KEY(message_id) REFERENCES archived_message(message_id)
+            );
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_archived_message_author
+            ON archived_message(guild_id, author_id, created_at DESC);
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_archived_message_channel_time
+            ON archived_message(guild_id, channel_id, created_at DESC);
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_archived_message_deleted_partial
+            ON archived_message(guild_id, deleted_at DESC)
+            WHERE is_deleted = 1;
+            """
+        )
+        self.cursor.execute("DROP INDEX IF EXISTS idx_archived_message_deleted;")
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_archived_message_event_message
+            ON archived_message_event(message_id, event_at DESC);
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS archived_message_job_spool (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_kind TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_error TEXT NULL
+            );
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_archived_message_job_spool_attempts
+            ON archived_message_job_spool(attempts, created_at);
+            """
+        )
+        self.conn.commit()
+        print_log("Migration complete: message archive tables created")
+
     def _migrate_add_operator_stats_table(self):
         """Create operator_stats table for storing per-operator statistics."""
         print_log("Running migration: Create operator_stats table")
@@ -602,7 +708,7 @@ class DatabaseManager:
             else:
                 self.db_manager.conn.rollback()  # Rollback if an exception occurred
                 print_error_log(f"system_database:TransactionContext:__exit__: {exc_val}")
-            return True  # Avoid the exception to bubble up
+            return False
 
     def close(self):
         """Close the database connection and cursor."""

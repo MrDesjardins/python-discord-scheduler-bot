@@ -9,6 +9,7 @@ Events are actions that the bot listens and reacts to
 
 import os
 import asyncio
+from contextlib import suppress
 from typing import Any, cast
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
@@ -43,6 +44,18 @@ from deps.data_access import (
     data_access_clear_last_match_start_gif_time,
 )
 from deps.log import print_log, print_warning_log, print_error_log
+from deps.message_archive_data_access import (
+    archive_deleted_message_payload,
+    archive_message_edit,
+    archive_message_payloads,
+    delete_spooled_message_archive_jobs,
+    fetch_spooled_message_archive_jobs,
+    mark_message_deleted,
+    mark_spooled_message_archive_jobs_failed,
+    open_archive_connection,
+    serialize_discord_message,
+    spool_message_archive_jobs,
+)
 from deps.functions_here_hints import content_suggests_ten_man_lfg
 from deps.mybot import MyBot
 from deps.values import (
@@ -67,6 +80,13 @@ ENV = os.getenv("ENV")
 AUTOBAN_USER_IDS: set[int] = {
     1177820750636400711,
 }
+MESSAGE_ARCHIVE_BATCH_SIZE = 100
+MESSAGE_ARCHIVE_QUEUE_MAX_SIZE = 1000
+MESSAGE_ARCHIVE_QUEUE_WARNING_SIZE = 800
+MESSAGE_ARCHIVE_DRAIN_TIMEOUT_SECONDS = 10
+MESSAGE_ARCHIVE_STOP_TIMEOUT_SECONDS = 5
+MESSAGE_ARCHIVE_SPOOL_POLL_SECONDS = 1
+MESSAGE_ARCHIVE_SPOOL_BATCH_SIZE = 100
 
 
 def _is_loggable_voice_channel(channel: discord.abc.GuildChannel | None) -> bool:
@@ -91,6 +111,14 @@ class MyEventsCog(commands.Cog):
         self.synced_guild_ids: set[int] = set()
         # Track repeated private-channel deletion access failures to prune stale entries.
         self.private_channel_delete_failures: dict[tuple[int, int], int] = {}
+        self.message_archive_queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue(
+            maxsize=MESSAGE_ARCHIVE_QUEUE_MAX_SIZE
+        )
+        self.message_archive_worker_task: asyncio.Task | None = None
+        self.message_archive_queue_warning_logged = False
+        # Start True so the worker drains any spool left by a previous run; the worker clears it
+        # once a spool poll comes back empty, avoiding a per-second database hit while idle.
+        self.message_archive_has_spooled_jobs = True
 
     def _record_private_channel_delete_failure(self, guild_id: int, channel_id: int) -> int:
         key = (guild_id, channel_id)
@@ -100,6 +128,181 @@ class MyEventsCog(commands.Cog):
 
     def _clear_private_channel_delete_failure(self, guild_id: int, channel_id: int) -> None:
         self.private_channel_delete_failures.pop((guild_id, channel_id), None)
+
+    def _start_message_archive_worker(self) -> None:
+        if self.message_archive_worker_task is None or self.message_archive_worker_task.done():
+            self.message_archive_worker_task = asyncio.create_task(self._message_archive_worker())
+
+    async def _stop_message_archive_worker(self) -> None:
+        if self.message_archive_worker_task is None:
+            return
+        try:
+            await asyncio.wait_for(
+                self.message_archive_queue.join(),
+                timeout=MESSAGE_ARCHIVE_DRAIN_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            pending_jobs = self.message_archive_queue.qsize()
+            print_error_log(
+                "Message archive worker did not drain before shutdown timeout; "
+                f"cancelling with {pending_jobs} queued jobs remaining."
+            )
+            self.message_archive_worker_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self.message_archive_worker_task
+            self.message_archive_worker_task = None
+            return
+
+        await self.message_archive_queue.put(("stop", None))
+        try:
+            await asyncio.wait_for(
+                self.message_archive_worker_task,
+                timeout=MESSAGE_ARCHIVE_STOP_TIMEOUT_SECONDS,
+            )
+        except TimeoutError:
+            print_error_log("Message archive worker did not stop cleanly; cancelling worker task.")
+            self.message_archive_worker_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self.message_archive_worker_task
+        self.message_archive_worker_task = None
+
+    async def _enqueue_message_archive_job(self, job: tuple[str, Any]) -> None:
+        self._start_message_archive_worker()
+        if (
+            self.message_archive_queue.qsize() >= MESSAGE_ARCHIVE_QUEUE_WARNING_SIZE
+            and not self.message_archive_queue_warning_logged
+        ):
+            self.message_archive_queue_warning_logged = True
+            print_warning_log(
+                "Message archive queue is near capacity; gateway handlers will apply backpressure until writes catch up."
+            )
+        try:
+            self.message_archive_queue.put_nowait(job)
+        except asyncio.QueueFull:
+            print_warning_log("Message archive queue is full; spooling archive job for durable retry.")
+            try:
+                await asyncio.to_thread(spool_message_archive_jobs, [job], "queue_full")
+                self.message_archive_has_spooled_jobs = True
+            except Exception as e:
+                print_error_log(f"Failed to spool archive job from full queue: {e}")
+
+    async def _message_archive_worker(self) -> None:
+        while True:
+            try:
+                job = await asyncio.wait_for(
+                    self.message_archive_queue.get(),
+                    timeout=MESSAGE_ARCHIVE_SPOOL_POLL_SECONDS,
+                )
+            except TimeoutError:
+                await self._drain_spooled_message_archive_jobs()
+                continue
+
+            if job[0] == "stop":
+                self.message_archive_queue.task_done()
+                return
+
+            jobs = [job]
+            while len(jobs) < MESSAGE_ARCHIVE_BATCH_SIZE:
+                try:
+                    next_job = self.message_archive_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                if next_job[0] == "stop":
+                    self.message_archive_queue.task_done()
+                    await self.message_archive_queue.put(next_job)
+                    break
+                jobs.append(next_job)
+
+            try:
+                await asyncio.to_thread(self._process_message_archive_jobs_sync, jobs)
+                if self.message_archive_queue.qsize() < MESSAGE_ARCHIVE_QUEUE_WARNING_SIZE:
+                    self.message_archive_queue_warning_logged = False
+            except Exception as e:
+                print_error_log(f"Message archive worker failed to persist batch of {len(jobs)} jobs: {e}")
+                try:
+                    await asyncio.to_thread(spool_message_archive_jobs, jobs, f"worker_failed: {e}")
+                    self.message_archive_has_spooled_jobs = True
+                except Exception as spool_error:
+                    print_error_log(f"Message archive worker failed to spool failed batch: {spool_error}")
+            finally:
+                for _ in jobs:
+                    self.message_archive_queue.task_done()
+
+            if self.message_archive_queue.empty():
+                await self._drain_spooled_message_archive_jobs()
+
+    async def _drain_spooled_message_archive_jobs(self) -> None:
+        """Retry durable spool jobs, skipping the database hit when none are known to be pending."""
+        if not self.message_archive_has_spooled_jobs:
+            return
+        try:
+            fetched = await asyncio.to_thread(self._process_spooled_message_archive_jobs_sync)
+        except Exception as e:
+            print_error_log(f"Message archive worker failed while processing spooled jobs: {e}")
+            return
+        # Only stop polling once the spool is genuinely empty. A non-empty read may include jobs
+        # that failed and remain queued for retry, so we must keep draining until nothing is left.
+        if fetched == 0:
+            self.message_archive_has_spooled_jobs = False
+
+    @staticmethod
+    def _process_message_archive_jobs_with_conn(jobs: list[tuple[str, Any]], archive_conn) -> None:
+        pending_create_payloads: list[dict[str, Any]] = []
+
+        def flush_create_payloads() -> None:
+            if pending_create_payloads:
+                archive_message_payloads(pending_create_payloads, event_type="create", conn=archive_conn)
+                pending_create_payloads.clear()
+
+        for kind, payload in jobs:
+            if kind == "create":
+                pending_create_payloads.append(payload)
+                continue
+
+            flush_create_payloads()
+            if kind == "edit":
+                before_payload, after_payload = payload
+                archive_message_edit(before_payload, after_payload, conn=archive_conn)
+            elif kind == "delete_payload":
+                archive_deleted_message_payload(payload, conn=archive_conn)
+            elif kind == "delete_marker":
+                message_id, channel_id, guild_id = payload
+                mark_message_deleted(message_id, channel_id, guild_id, conn=archive_conn)
+            else:
+                print_warning_log(f"Unknown message archive job kind: {kind}")
+
+        if pending_create_payloads:
+            flush_create_payloads()
+
+    @staticmethod
+    def _process_message_archive_jobs_sync(jobs: list[tuple[str, Any]]) -> None:
+        with open_archive_connection() as archive_conn:
+            MyEventsCog._process_message_archive_jobs_with_conn(jobs, archive_conn)
+
+    @staticmethod
+    def _process_spooled_message_archive_jobs_sync() -> int:
+        """Retry durable spool jobs on a single shared connection. Returns the number fetched."""
+        with open_archive_connection() as archive_conn:
+            spooled_jobs = fetch_spooled_message_archive_jobs(
+                limit=MESSAGE_ARCHIVE_SPOOL_BATCH_SIZE,
+                conn=archive_conn,
+            )
+
+            for spool_id, job in spooled_jobs:
+                try:
+                    MyEventsCog._process_message_archive_jobs_with_conn([job], archive_conn)
+                except Exception as e:
+                    print_error_log(f"Message archive spool retry failed for job {spool_id}: {e}")
+                    try:
+                        mark_spooled_message_archive_jobs_failed([spool_id], str(e), conn=archive_conn)
+                    except Exception as mark_error:
+                        print_error_log(
+                            f"Message archive spool failed to record retry failure for job {spool_id}: {mark_error}"
+                        )
+                else:
+                    delete_spooled_message_archive_jobs([spool_id], conn=archive_conn)
+
+        return len(spooled_jobs)
 
     @staticmethod
     async def _ban_autoban_user(
@@ -229,6 +432,7 @@ class MyEventsCog(commands.Cog):
     async def on_ready(self):
         """Main function to run when the bot is ready"""
         bot = self.bot
+        self._start_message_archive_worker()
         print_log(f"{bot.user} has connected to Discord!")
         print_log(f"Bot latency: {bot.latency} seconds")
         tasks = []
@@ -532,6 +736,7 @@ class MyEventsCog(commands.Cog):
                     print_error_log(f"on_close: Error processing channel {channel.id} in guild {guild_id}: {e}")
 
         print_log("Shutdown cleanup completed")
+        await self._stop_message_archive_worker()
 
     async def on_close(self) -> None:
         """Backward-compatible shutdown entrypoint used by tests and manual callers."""
@@ -849,9 +1054,11 @@ class MyEventsCog(commands.Cog):
         """
         Make the bot aware if someone mentions it in a message
         """
-        # Ignore messages from the bot itself
+        # Ignore messages from the bot itself (do not archive the bot's own output)
         if message.author == self.bot.user:
             return
+
+        await self._enqueue_message_archive_job(("create", serialize_discord_message(message, "gateway")))
 
         # @here education: mention_everyone is set for both @here and @everyone; only nudge on literal @here
         if (
@@ -946,6 +1153,50 @@ class MyEventsCog(commands.Cog):
                     )
         # Make sure other commands still work
         await self.bot.process_commands(message)
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
+        """Archive edited message content for moderation investigations."""
+        if after.author == self.bot.user:
+            return
+        await self._enqueue_message_archive_job(
+            (
+                "edit",
+                (
+                    serialize_discord_message(before, "gateway"),
+                    serialize_discord_message(after, "gateway"),
+                ),
+            )
+        )
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message) -> None:
+        """Retain cached message content and mark it deleted."""
+        if message.author == self.bot.user:
+            return
+        await self._enqueue_message_archive_job(("delete_payload", serialize_discord_message(message, "gateway")))
+
+    @commands.Cog.listener()
+    async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent) -> None:
+        """Mark deleted messages even when the full message was not cached."""
+        cached_message = getattr(payload, "cached_message", None)
+        if cached_message is not None:
+            if cached_message.author == self.bot.user:
+                return
+            await self._enqueue_message_archive_job(
+                ("delete_payload", serialize_discord_message(cached_message, "gateway"))
+            )
+        else:
+            await self._enqueue_message_archive_job(
+                (
+                    "delete_marker",
+                    (
+                        payload.message_id,
+                        payload.channel_id,
+                        payload.guild_id,
+                    ),
+                )
+            )
 
 
 async def setup(bot):

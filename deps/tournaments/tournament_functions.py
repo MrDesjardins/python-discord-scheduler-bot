@@ -24,6 +24,7 @@ from deps.tournaments.tournament_data_access import (
 )
 from deps.models import Reason
 from deps.tournaments.tournament_mapper import map_tournament_node_to_tournament_game
+from deps.log import print_error_log
 
 
 def can_register_to_tournament(tournament_id: int, user_id: int) -> Reason:
@@ -486,8 +487,14 @@ async def report_lost_tournament(tournament_id: int, user_id: int, score: str) -
         node_to_save2: List[TournamentGame] = auto_assign_winner(refetch_tournament_games)
         save_tournament_games(node_to_save2)
 
-        # Close bets of the games (mostly the one reported)
-        distribute_gain_on_recent_ended_game(tournament_id)
+        # Close bets of the games (mostly the one reported). A bet-distribution database failure
+        # must not abort the already-saved match report; log it for retry and keep going.
+        try:
+            distribute_gain_on_recent_ended_game(tournament_id)
+        except Exception as e:
+            print_error_log(
+                f"report_lost_tournament: failed to distribute bet gains for tournament {tournament_id}: {e}"
+            )
 
         # Generate bet_game
         await system_generate_game_odd(tournament_id)

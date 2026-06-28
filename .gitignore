@@ -174,3 +174,5 @@ welcome.mp3
 r6tracker_data*.json
 tests/generated_contents/*.png
 gemini_context.txt
+exports/
+message_archive_failed_jobs.jsonl
