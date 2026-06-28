@@ -379,12 +379,52 @@ def test_parse_statscc_match_ending_tied_1_1_not_complete() -> None:
     assert r.is_match_complete is False
 
 
-def test_parse_statscc_ranked_score_tied_match_ending_high_complete() -> None:
+def test_parse_statscc_ranked_score_tied_match_ending_high_not_complete() -> None:
+    """A 4-4 tie is overtime, not a final result (ranked never ends tied); it must stay live."""
     act = _make_activity("stats.cc", "Match Ending: Ranked on Border", state="Tied: 4 - 4")
     r = parse_statscc_ranked_score_from_activity(act)
     assert r is not None
     assert r.is_tie is True
+    assert r.is_match_complete is False
+
+
+def test_parse_statscc_ranked_overtime_one_round_lead_not_complete() -> None:
+    """Winning 4-3 is mid-overtime (not first-to-4), so it must not be reported as a final win."""
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Coastline", state="Winning: 4 - 3")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.won is True
+    assert r.our_score == 4
+    assert r.their_score == 3
+    assert r.is_match_complete is False
+
+
+def test_parse_statscc_ranked_overtime_win_at_five_complete() -> None:
+    """Reaching 5 rounds in overtime (5-4) decides the match."""
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Coastline", state="Winning: 5 - 4")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.won is True
+    assert r.our_score == 5
+    assert r.their_score == 4
     assert r.is_match_complete is True
+
+
+def test_parse_statscc_ranked_regulation_win_two_round_lead_complete() -> None:
+    """A regulation 4-2 win (2-round lead) is decided."""
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Kafe", state="Winning: 4 - 2")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.is_match_complete is True
+
+
+def test_parse_statscc_ranked_overtime_tie_at_five_not_complete() -> None:
+    """A 5-5 overtime tie is still live and must not be treated as final."""
+    act = _make_activity("stats.cc", "Match Ending: Ranked on Kafe", state="Tied: 5 - 5")
+    r = parse_statscc_ranked_score_from_activity(act)
+    assert r is not None
+    assert r.is_tie is True
+    assert r.is_match_complete is False
 
 
 def test_parse_statscc_ranked_score_tied_ranked_on_details_only() -> None:

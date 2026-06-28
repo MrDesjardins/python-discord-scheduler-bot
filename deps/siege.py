@@ -281,8 +281,11 @@ class StatsCcRankedMatchEndResult:
     their_score: int
     map_name: Optional[str] = None
     is_tie: bool = False
-    #: True when stats.cc shows ``Match Ending:`` and max(round score) >= 4 (Siege first-to-4).
-    #: Ties use the same rule: ``Tied: 1-1`` with Match Ending is often between rounds, not match over.
+    #: True only when stats.cc shows ``Match Ending:`` AND the score is actually decided. Siege ranked
+    #: is NOT first-to-4: a 3-3 tie goes to overtime that can run 4-3, 4-4, 5-4. A match is decided by a
+    #: regulation win (>=4 rounds with a 2+ round lead, e.g. 4-0/4-1/4-2) or an overtime win (>=5 rounds
+    #: and not tied, e.g. 5-4/6-5). Non-decided scores (4-3, 4-4, 5-5) stay live because ``Match Ending:``
+    #: also appears between rounds.
     is_match_complete: bool = False
 
 
@@ -313,12 +316,18 @@ def parse_statscc_ranked_score_from_activity(
     if marker in details:
         tail = details.split(marker, 1)[1].strip()
         map_name = tail or None
-    # "Match Ending:" appears between rounds too (logs: 1-1 tied then Picking Operators). Require max >= 4
-    # for first-to-4 ranked so low ties (1-1, 2-2) stay animated until a plausible match end.
+    # "Match Ending:" appears between rounds too (logs: 1-1 tied then Picking Operators), so the score
+    # must show a decided match before we treat it as final. Siege ranked is NOT first-to-4: a 3-3 tie
+    # goes to overtime that can run 4-3, 4-4, 5-4. A match is only decided by a regulation win (>=4
+    # rounds with a 2+ round lead) or an overtime win (>=5 rounds and not tied). Anything else (4-3,
+    # 4-4, 5-5) is still live and must keep animating instead of prematurely showing a Won/Loss result.
     details_l = details.casefold()
     has_match_ending = details_l.startswith("match ending:")
     high = max(our_score, their_score)
-    is_match_complete = bool(has_match_ending and high >= 4)
+    lead = abs(our_score - their_score)
+    decided_in_regulation = high >= 4 and lead >= 2
+    decided_in_overtime = high >= 5 and our_score != their_score
+    is_match_complete = bool(has_match_ending and (decided_in_regulation or decided_in_overtime))
     return StatsCcRankedMatchEndResult(
         won=won,
         our_score=our_score,
