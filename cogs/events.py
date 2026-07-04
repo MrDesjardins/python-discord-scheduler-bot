@@ -141,7 +141,7 @@ class MyEventsCog(commands.Cog):
                 self.message_archive_queue.join(),
                 timeout=MESSAGE_ARCHIVE_DRAIN_TIMEOUT_SECONDS,
             )
-        except TimeoutError:
+        except asyncio.TimeoutError:
             pending_jobs = self.message_archive_queue.qsize()
             print_error_log(
                 "Message archive worker did not drain before shutdown timeout; "
@@ -159,7 +159,7 @@ class MyEventsCog(commands.Cog):
                 self.message_archive_worker_task,
                 timeout=MESSAGE_ARCHIVE_STOP_TIMEOUT_SECONDS,
             )
-        except TimeoutError:
+        except asyncio.TimeoutError:
             print_error_log("Message archive worker did not stop cleanly; cancelling worker task.")
             self.message_archive_worker_task.cancel()
             with suppress(asyncio.CancelledError):
@@ -193,7 +193,7 @@ class MyEventsCog(commands.Cog):
                     self.message_archive_queue.get(),
                     timeout=MESSAGE_ARCHIVE_SPOOL_POLL_SECONDS,
                 )
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 await self._drain_spooled_message_archive_jobs()
                 continue
 
