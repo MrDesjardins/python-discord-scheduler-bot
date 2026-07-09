@@ -7,6 +7,7 @@ from typing import Any, List, Union
 from deps.browser_context_manager import BrowserContextManager
 from deps.browser_exceptions import (
     BrowserException,
+    BrowserLockContentionException,
     BrowserStartupException,
     BrowserTimeoutException,
     CircuitBreakerOpenException,
@@ -19,7 +20,7 @@ from deps.models import (
     UserWithUserInformation,
     UserWithUserMatchInfo,
 )
-from deps.log import print_error_log, print_log
+from deps.log import print_error_log, print_log, print_warning_log
 
 
 def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
@@ -51,6 +52,9 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
                         f"download_full_matches: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
+    except BrowserLockContentionException as e:
+        # Browser busy with another task - users stay queued and retry next cycle
+        print_warning_log(f"download_full_matches: Browser lock busy, will retry next cycle: {e}")
     except CircuitBreakerOpenException as e:
         # Circuit breaker open - abort all remaining users
         print_error_log(f"download_full_matches: Circuit breaker open, aborting: {e}")
@@ -109,6 +113,9 @@ def download_full_user_information(users_queued: List[UserQueueForStats]) -> Lis
                         f"download_full_user_information: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
+    except BrowserLockContentionException as e:
+        # Browser busy with another task - callers can retry on their next cycle
+        print_warning_log(f"download_full_user_information: Browser lock busy, will retry next cycle: {e}")
     except CircuitBreakerOpenException as e:
         # Circuit breaker open - abort all remaining users
         print_error_log(f"download_full_user_information: Circuit breaker open, aborting: {e}")
@@ -183,6 +190,9 @@ def download_operator_stats_for_users(
                     )
                     continue
 
+    except BrowserLockContentionException as e:
+        # Browser busy with another task - callers can retry on their next cycle
+        print_warning_log(f"download_operator_stats_for_users: Browser lock busy, will retry next cycle: {e}")
     except CircuitBreakerOpenException as e:
         # Circuit breaker open - abort all remaining users
         print_error_log(f"download_operator_stats_for_users: Circuit breaker open, aborting: {e}")

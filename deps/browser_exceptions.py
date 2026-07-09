@@ -21,6 +21,15 @@ class BrowserResourceException(BrowserException):
     """Raised when browser hits resource limits (e.g., file descriptors)"""
 
 
+class BrowserLockContentionException(BrowserException):
+    """
+    Raised when the global browser file lock could not be acquired because another
+    task is using the browser. This is contention, not a browser failure: it must
+    not be recorded as a circuit breaker failure and the caller should simply
+    retry on its next cycle.
+    """
+
+
 class BrowserVersionMismatchException(BrowserStartupException):
     """Raised when Chrome and chromedriver versions don't match"""
 

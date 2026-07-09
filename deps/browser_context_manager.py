@@ -12,7 +12,7 @@ import time
 from typing import Any, List, Optional, Union
 
 import psutil
-from filelock import FileLock
+from filelock import FileLock, Timeout as FileLockTimeout
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -36,6 +36,7 @@ from deps.siege import siege_ranks
 from deps.browser_config import BrowserConfig
 from deps.browser_exceptions import (
     BrowserException,
+    BrowserLockContentionException,
     BrowserStartupException,
     BrowserTimeoutException,
     BrowserVersionMismatchException,
@@ -217,6 +218,12 @@ class BrowserContextManager:
 
                 return self
 
+            except FileLockTimeout as e:
+                # Another task is holding the browser lock (e.g., a bulk stats download).
+                # This is contention, not a browser health problem: do not record a
+                # circuit breaker failure and do not retry here since the holder can
+                # keep the lock for minutes. The caller retries on its next cycle.
+                raise BrowserLockContentionException(f"Browser lock is held by another task (waited 120s): {e}") from e
             except OSError as e:
                 last_exception = e
                 is_fd_exhaustion = e.errno == 24  # EMFILE - Too many open files

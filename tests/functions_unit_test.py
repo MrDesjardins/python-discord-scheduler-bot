@@ -377,6 +377,10 @@ async def test_refresh_current_rank_roles_guild_scope_only_updates_target_guild(
     with (
         patch("deps.bot_common_actions.get_active_user_info", return_value=[_user_info(123, "Player")]),
         patch(
+            "deps.bot_common_actions.data_access_prefetch_r6tracker_current_season_ranks",
+            new_callable=AsyncMock,
+        ) as mock_prefetch,
+        patch(
             "deps.bot_common_actions.fetch_current_season_rank_for_account",
             new_callable=AsyncMock,
             return_value=("Gold", 0),
@@ -393,6 +397,8 @@ async def test_refresh_current_rank_roles_guild_scope_only_updates_target_guild(
             guild=target_guild,
             include_connected_voice=False,
         )
+
+    mock_prefetch.assert_awaited_once_with(["ubi"])
 
     assert summary.candidates == 1
     assert summary.updated == 1
@@ -426,6 +432,10 @@ async def test_refresh_current_rank_roles_db_only_excludes_connected_voice_users
 
     with (
         patch("deps.bot_common_actions.get_active_user_info", return_value=[_user_info(123, "DbPlayer")]),
+        patch(
+            "deps.bot_common_actions.data_access_prefetch_r6tracker_current_season_ranks",
+            new_callable=AsyncMock,
+        ),
         patch(
             "deps.bot_common_actions.get_currently_connected_user_ids", new_callable=AsyncMock, return_value={123, 456}
         ) as mock_connected,

@@ -5,6 +5,10 @@ DATE_FORMAT = "%A, %B %d, %Y"
 """ Stats from how long in the past """
 STATS_HOURS_WINDOW_IN_PAST = 12
 
+# Maximum processing cycles a user can fail (fetch or post) before being dropped
+# from the gaming session stats queue
+MAX_STATS_QUEUE_ATTEMPTS = 5
+
 """ Timezone options for the bot. """
 valid_time_zone_options = [
     "US/Pacific",

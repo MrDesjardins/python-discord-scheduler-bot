@@ -12,6 +12,7 @@ from deps.data_access import (
     data_access_add_list_member_stats,
     data_access_get_list_member_stats,
     data_access_get_r6tracker_max_rank,
+    data_access_increment_member_stats_attempts,
     data_acess_remove_list_member_stats,
 )
 from deps.browser_exceptions import BrowserStartupException, CircuitBreakerOpenException
@@ -116,6 +117,83 @@ async def test_remove_expired_user(mock_datetime):
 
         list_users = await data_access_get_list_member_stats()
         assert len(list_users) == 1
+
+
+@pytest.mark.no_parallel
+@pytest.mark.asyncio
+@patch("deps.data_access.print_warning_log")
+@patch("deps.data_access.datetime")
+async def test_adding_member_stat_logs_warning_for_evicted_stale_entry(mock_datetime, mock_warning):
+    """A stale entry (>1 hour) evicted on add is logged loudly since its stats were never posted"""
+    async with lock:
+        remove_cache(False, KEY_QUEUE_USER_STATS)
+        time1 = datetime(2024, 11, 25, 10, 0, 0, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = time1
+        user1 = UserQueueForStats(mock_user1, "Diamond", time1)
+        await data_access_add_list_member_stats(user1)
+
+        time2 = datetime(2024, 11, 25, 11, 31, 0, tzinfo=timezone.utc)
+        mock_datetime.now.return_value = time2
+        user2 = UserQueueForStats(mock_user2, "Diamond", time2)
+        await data_access_add_list_member_stats(user2)
+
+        list_users = await data_access_get_list_member_stats()
+        assert len(list_users) == 1
+        mock_warning.assert_called_once()
+        assert mock_user1.display_name in mock_warning.call_args[0][0]
+
+
+@pytest.mark.no_parallel
+@pytest.mark.asyncio
+async def test_increment_attempts_only_touches_attempted_users():
+    """Only the users that were attempted this cycle get their failure counter incremented"""
+    async with lock:
+        remove_cache(False, KEY_QUEUE_USER_STATS)
+        time1 = datetime.now(timezone.utc)
+        user1 = UserQueueForStats(mock_user1, 100, time1)
+        user2 = UserQueueForStats(mock_user2, 100, time1)
+        set_cache(True, KEY_QUEUE_USER_STATS, [user1, user2])
+
+        await data_access_increment_member_stats_attempts([user1], 5)
+
+        list_users = await data_access_get_list_member_stats()
+        assert len(list_users) == 2
+        attempts_by_id = {user.user_info.id: user.attempts for user in list_users}
+        assert attempts_by_id[mock_user1.id] == 1
+        assert attempts_by_id[mock_user2.id] == 0
+
+
+@pytest.mark.no_parallel
+@pytest.mark.asyncio
+async def test_increment_attempts_drops_user_after_max_attempts():
+    """A user failing max_attempts cycles is removed from the queue"""
+    async with lock:
+        remove_cache(False, KEY_QUEUE_USER_STATS)
+        time1 = datetime.now(timezone.utc)
+        user1 = UserQueueForStats(mock_user1, 100, time1)
+        user2 = UserQueueForStats(mock_user2, 100, time1)
+        set_cache(True, KEY_QUEUE_USER_STATS, [user1, user2])
+
+        await data_access_increment_member_stats_attempts([user1], 2)
+        list_users = await data_access_get_list_member_stats()
+        assert len(list_users) == 2  # First failure: still queued
+
+        await data_access_increment_member_stats_attempts([user1], 2)
+        list_users = await data_access_get_list_member_stats()
+        assert len(list_users) == 1  # Second failure: dropped
+        assert list_users[0].user_info.id == mock_user2.id
+
+
+@pytest.mark.no_parallel
+@pytest.mark.asyncio
+async def test_increment_attempts_with_empty_queue_does_nothing():
+    """Incrementing attempts on an empty queue is a no-op"""
+    async with lock:
+        remove_cache(True, KEY_QUEUE_USER_STATS)
+        user1 = UserQueueForStats(mock_user1, 100, datetime.now(timezone.utc))
+        await data_access_increment_member_stats_attempts([user1], 5)
+        list_users = await data_access_get_list_member_stats()
+        assert list_users is None or len(list_users) == 0
 
 
 async def test_data_access_get_r6tracker_max_rank_test_diamond() -> None:

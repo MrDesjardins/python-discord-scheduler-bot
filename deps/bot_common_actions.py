@@ -47,9 +47,11 @@ from deps.data_access import (
     data_access_set_pending_match_start_gif_message,
     data_access_clear_pending_match_start_gif_message,
     data_access_get_r6tracker_current_season_rank,
+    data_access_prefetch_r6tracker_current_season_ranks,
     data_access_get_r6tracker_max_rank,
     data_access_get_reaction_message,
     data_access_get_voice_user_list,
+    data_access_increment_member_stats_attempts,
     data_access_set_daily_message_id,
     data_access_set_gaming_session_last_activity,
     data_access_set_last_bot_message_in_main_text_channel,
@@ -77,6 +79,7 @@ from deps.functions import (
 from deps.values import (
     DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS,
     MATCH_START_GIF_DELETE_AFTER_SECONDS,
+    MAX_STATS_QUEUE_ATTEMPTS,
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
 )
@@ -534,17 +537,21 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
     all_users_matches = await download_full_matches_async(users)
 
     # Post to the channel the stats for the users who disconnected
-    try:
+    for user_stats in all_users_matches:
         # Persist the data into the database
-        for user_stats in all_users_matches:
+        try:
             insert_if_nonexistant_full_match_info(user_stats.user_request_stats.user_info, user_stats.match_stats)
-    except Exception as e:
-        print_error_log(f"post_post_queued_user_stats: Error persisting the data: {e}")
+        except Exception as e:
+            print_error_log(f"post_queued_user_stats: Error persisting the data: {e}")
     try:
         # Send the stats to the channel
         await send_channel_list_stats(all_users_matches)
     except Exception as e:
-        print_error_log(f"post_post_queued_user_stats: Error sending the stats: {e}")
+        print_error_log(f"post_queued_user_stats: Error sending the stats: {e}")
+
+    # Anyone from this batch still in the queue failed (download or send): count the
+    # attempt and drop users that keep failing so they cannot clog the queue forever
+    await data_access_increment_member_stats_attempts(users, MAX_STATS_QUEUE_ATTEMPTS)
 
 
 async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> None:
@@ -558,9 +565,9 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
         guild_id = user_stats.user_request_stats.guild_id
         if user_info.ubisoft_username_active is None:
             print_log(f"send_channel_list_stats: User {user_info.display_name} has no active Ubisoft account set")
+            await data_acess_remove_list_member_stats(user_stats.user_request_stats)
             continue
         try:
-            await data_acess_remove_list_member_stats(user_stats.user_request_stats)
             aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
                 user_info.ubisoft_username_active, time_past, user_stats.match_stats
             )
@@ -568,27 +575,36 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
                 print_log(
                     f"""send_channel_list_stats: User {user_info.display_name} has no stats to show in the last {last_hour} hours. Overall stats found {len(users_stats)}"""
                 )
+                await data_acess_remove_list_member_stats(user_stats.user_request_stats)
                 continue  # Skip to the next user
 
             channel_id = await data_access_get_gaming_session_text_channel_id(guild_id)
             if channel_id is None:
                 print_warning_log(f"send_channel_list_stats: Text channel not set for guild {guild_id}. Skipping.")
+                await data_acess_remove_list_member_stats(user_stats.user_request_stats)
                 continue
             channel = await data_access_get_channel(channel_id)
             if channel is None:
                 print_warning_log(f"send_channel_list_stats: Text channel not found for guild {guild_id}. Skipping.")
+                await data_acess_remove_list_member_stats(user_stats.user_request_stats)
                 continue
             member = await data_access_get_member(guild_id, member_id)
             if member is None:
                 print_error_log(f"send_channel_list_stats: Member {member_id} not found in guild {guild_id}")
+                await data_acess_remove_list_member_stats(user_stats.user_request_stats)
                 continue  # Skip to the next user
             # We never sent the message, so we send it, add the reactions and save it in the cache
             embed_msg = get_gaming_session_user_embed_message(member, user_info, aggregation, last_hour)
         except Exception as e:
-            print_error_log(f"send_channel_list_stats: Error removing and computing user stats: {e}")
+            # Keep the user in the queue: the next cycle retries and the attempt counter
+            # bounds how many times a failing user is retried
+            print_error_log(f"send_channel_list_stats: Error computing user stats: {e}")
             continue
         try:
             await channel.send(content="", embed=embed_msg)
+            # Remove from the queue only after the message is delivered so a failed
+            # send stays queued and is retried on the next cycle
+            await data_acess_remove_list_member_stats(user_stats.user_request_stats)
             await data_access_set_gaming_session_last_activity(member_id, guild_id, current_time)
         except Exception as e:
             print_error_log(f"send_channel_list_stats: Error sending the user stats: {e}")
@@ -856,6 +872,12 @@ async def refresh_current_rank_roles_cross_guilds(
 
     summary = RankRefreshSummary(candidates=len(users))
     guilds_to_refresh = [guild] if guild is not None else bot.guilds
+
+    # Warm the rank cache with one browser session for everyone instead of one
+    # browser per user, which starves the stats queue of the shared browser lock
+    await data_access_prefetch_r6tracker_current_season_ranks(
+        [user.ubisoft_username_active for user in users if user.ubisoft_username_active is not None]
+    )
 
     for user_info in users:
         if user_info.ubisoft_username_active is None:

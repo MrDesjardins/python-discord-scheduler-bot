@@ -3,8 +3,11 @@
 from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
+import random
+from time import sleep
 import discord
 from deps.browser_context_manager import BrowserContextManager
+from deps.browser_exceptions import BrowserException
 from deps.bot_singleton import BotSingleton
 from deps.cache import (
     ALWAYS_TTL,
@@ -20,7 +23,7 @@ from deps.cache import (
 )
 from deps.cache_data_access import get_value_with_presence
 from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueueForStats
-from deps.log import print_error_log, print_log
+from deps.log import print_error_log, print_log, print_warning_log
 from deps.functions_date import get_now_eastern
 from deps.system_database import database_manager
 
@@ -238,13 +241,17 @@ async def data_access_get_r6tracker_max_rank(ubisoft_user_name: str, force_fetch
     # return await get_cache(True, f"{KEY_R6TRACKER}:{ubisoft_user_name}", fetch, ttl_in_seconds=ONE_HOUR_TTL)
 
 
+def _current_season_rank_cache_key(ubisoft_user_name: str) -> str:
+    return f"{KEY_R6TRACKER_CURRENT_SEASON_RANK}:{ubisoft_user_name.strip().lower()}"
+
+
 async def data_access_get_r6tracker_current_season_rank(
     ubisoft_user_name: str, force_fetch: bool = False
 ) -> tuple[str, int]:
     """
     Get from R6 Tracker website the user's current ranked season rank.
     """
-    cache_key = f"{KEY_R6TRACKER_CURRENT_SEASON_RANK}:{ubisoft_user_name.strip().lower()}"
+    cache_key = _current_season_rank_cache_key(ubisoft_user_name)
     if force_fetch:
         remove_cache(False, cache_key)
 
@@ -252,6 +259,51 @@ async def data_access_get_r6tracker_current_season_rank(
         return await asyncio.to_thread(_download_current_season_rank_sync, ubisoft_user_name)
 
     return await get_cache(False, cache_key, fetch, ttl_in_seconds=TWO_HOUR_TTL)
+
+
+def _download_current_season_ranks_sync(ubisoft_user_names: List[str]) -> dict[str, tuple[str, int]]:
+    """Download the current season rank for many users while opening a single browser session."""
+    ranks: dict[str, tuple[str, int]] = {}
+    with BrowserContextManager(ubisoft_user_names[0]) as context:
+        for i, ubisoft_user_name in enumerate(ubisoft_user_names):
+            try:
+                ranks[ubisoft_user_name] = context.download_current_season_rank(ubisoft_user_name)
+            except BrowserException as e:
+                print_warning_log(
+                    f"_download_current_season_ranks_sync: Could not fetch rank for {ubisoft_user_name}: {e}"
+                )
+            if i < len(ubisoft_user_names) - 1:
+                sleep(random.uniform(3, 12))  # Sleep few seconds between each request
+    return ranks
+
+
+async def data_access_prefetch_r6tracker_current_season_ranks(ubisoft_user_names: List[str]) -> None:
+    """
+    Warm the current season rank cache for many users using a single browser session
+    instead of opening one browser per user. Users already cached are skipped; users
+    whose fetch fails are left uncached so the per-user fallback can retry them.
+    """
+    names_to_fetch: List[str] = []
+    seen: set[str] = set()
+    for ubisoft_user_name in ubisoft_user_names:
+        normalized = ubisoft_user_name.strip().lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if await get_cache(False, _current_season_rank_cache_key(ubisoft_user_name)) is None:
+            names_to_fetch.append(ubisoft_user_name)
+
+    if len(names_to_fetch) == 0:
+        return
+
+    try:
+        ranks = await asyncio.to_thread(_download_current_season_ranks_sync, names_to_fetch)
+    except Exception as e:
+        print_warning_log(f"data_access_prefetch_r6tracker_current_season_ranks: Unable to prefetch ranks in bulk: {e}")
+        return
+
+    for ubisoft_user_name, rank in ranks.items():
+        set_cache(False, _current_season_rank_cache_key(ubisoft_user_name), rank, TWO_HOUR_TTL)
 
 
 async def data_access_get_guild_username_text_channel_id(
@@ -309,6 +361,28 @@ async def data_access_get_list_member_stats() -> Optional[List[UserQueueForStats
     return await get_cache(True, f"{KEY_QUEUE_USER_STATS}")
 
 
+def _evict_stale_member_stats(list_users: List[UserQueueForStats]) -> List[UserQueueForStats]:
+    """
+    Remove all the user where the time_queue is over 1 hour.
+    Evicted users never got their stats posted, so log them loudly instead of dropping silently.
+    """
+    current_time = datetime.now(timezone.utc)
+    delta = current_time - timedelta(hours=1)
+    fresh_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue > delta]
+    evicted_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue <= delta]
+    if len(evicted_users) > 0:
+        names = ", ".join(
+            f"{user_in_list.user_info.display_name} (queued at {user_in_list.time_queue.isoformat()}, "
+            f"{user_in_list.attempts} failed attempts)"
+            for user_in_list in evicted_users
+        )
+        print_warning_log(
+            f"_evict_stale_member_stats: Dropping {len(evicted_users)} stats queue entry(ies) older than "
+            f"1 hour without posting their stats: {names}"
+        )
+    return fresh_users
+
+
 async def data_access_add_list_member_stats(user: UserQueueForStats) -> None:
     """Add a user to the list of all the members that are in the queue to get their stats"""
     async with lock_member_stats:
@@ -316,10 +390,7 @@ async def data_access_add_list_member_stats(user: UserQueueForStats) -> None:
         if list_users is None:
             list_users = []
 
-        # Remove all the user where the time_queue is over 1 hour
-        current_time = datetime.now(timezone.utc)
-        delta = current_time - timedelta(hours=1)
-        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue > delta]
+        list_users = _evict_stale_member_stats(list_users)
 
         # Search to see if the user id is already in the list (maybe few minutes ago it was added to the list)
         for user_in_list in list_users:
@@ -339,10 +410,7 @@ async def data_acess_remove_list_member_stats(user_queued_for_stats: UserQueueFo
         if list_users is None:
             return
 
-        # Remove all the user where the time_queue is over 1 hour
-        current_time = datetime.now(timezone.utc)
-        delta = current_time - timedelta(hours=1)
-        list_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue > delta]
+        list_users = _evict_stale_member_stats(list_users)
 
         # Search to see if the user id is already in the list (maybe few minutes ago it was added to the list)
         for user_in_list in list_users:
@@ -353,6 +421,35 @@ async def data_acess_remove_list_member_stats(user_queued_for_stats: UserQueueFo
                 list_users.remove(user_in_list)
                 break  # Break because we know maximum one entry per user
         set_cache(True, f"{KEY_QUEUE_USER_STATS}", list_users, ONE_DAY_TTL)
+    # Lock is released here
+
+
+async def data_access_increment_member_stats_attempts(
+    attempted_users: List[UserQueueForStats], max_attempts: int
+) -> None:
+    """
+    Increment the failed-attempt counter for the attempted users that are still in the
+    queue (meaning their stats were not posted this cycle). Entries reaching max_attempts
+    are removed so a user whose fetch always fails cannot clog the queue forever.
+    """
+    async with lock_member_stats:
+        list_users = await data_access_get_list_member_stats()
+        if list_users is None or len(list_users) == 0:
+            return
+
+        attempted_keys = {(user.user_info.id, user.guild_id) for user in attempted_users}
+        remaining_users: List[UserQueueForStats] = []
+        for user_in_list in list_users:
+            if (user_in_list.user_info.id, user_in_list.guild_id) in attempted_keys:
+                user_in_list.attempts += 1
+                if user_in_list.attempts >= max_attempts:
+                    print_error_log(
+                        f"data_access_increment_member_stats_attempts: Giving up on stats for "
+                        f"{user_in_list.user_info.display_name} after {user_in_list.attempts} failed attempts"
+                    )
+                    continue
+            remaining_users.append(user_in_list)
+        set_cache(True, f"{KEY_QUEUE_USER_STATS}", remaining_users, ONE_DAY_TTL)
     # Lock is released here
 
 

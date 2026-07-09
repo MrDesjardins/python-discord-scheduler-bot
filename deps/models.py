@@ -311,6 +311,7 @@ class UserQueueForStats:
     user_info: UserInfo
     guild_id: int
     time_queue: datetime
+    attempts: int = 0  # Number of processing cycles that failed to post the stats
 
 
 @dataclasses.dataclass
