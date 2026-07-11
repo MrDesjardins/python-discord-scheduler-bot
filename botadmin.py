@@ -18,9 +18,11 @@ from deps.analytic_visualizer import (
     display_time_voice_channel,
     display_inactive_user,
     display_unique_user_per_day,
+    display_user_outside_ranked_match_partners,
     display_user_day_week,
     display_user_line_graph_time,
     display_user_rank_match_played_server,
+    display_user_rank_match_server_split_by_week,
     display_user_rank_match_win_rate_played_server,
     display_user_timeline_voice_by_months,
     display_user_timeline_voice_time_by_week,
@@ -169,6 +171,8 @@ def show_visualization_menu(time_choice: Optional[int] = None):
         "[b] Rate Playing Match in Server",
         "[c] Win Rate Playing in Server vs Not Server",
         "[d] User Unique per Day time graph",
+        "[e] Rank Matches In Server vs Outside by User",
+        "[f] Outside Server Partners by User",
         "[q] Back",
     ]
     if time_choice is None:
@@ -228,6 +232,10 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     elif menu_entry_index == 12:
         display_unique_user_per_day(from_date)
     elif menu_entry_index == 13:
+        display_user_rank_match_server_split_by_week_ask_user(from_date, to_date, time_choice)
+    elif menu_entry_index == 14:
+        display_user_outside_ranked_match_partners_ask_user(from_date, to_date, time_choice)
+    elif menu_entry_index == 15:
         local_menu()
         return
 
@@ -254,6 +262,67 @@ def display_user_line_graph_time_ask_user(from_day: int, to_day: int, time_choic
         return
     display_user_line_graph_time(user_info_list[user_choice].id, True, from_day, to_day)
     display_user_line_graph_time_ask_user(from_day, to_day, time_choice)
+
+
+def ask_visualization_user(title: str, time_choice: int) -> Optional[int]:
+    """Ask the user for a user id using the existing botadmin user picker style."""
+    user_info_dict = fetch_user_info()
+    user_info_list = list(user_info_dict.values())
+    user_info_list.sort(key=lambda x: x.display_name.lower())
+    terminal_menu = TerminalMenu(
+        [f"{user.display_name} - {user.id}" for user in user_info_list] + ["[q] Back"],
+        title=title,
+        show_shortcut_hints=False,
+    )
+    user_choice = terminal_menu.show()
+    if user_choice is None:
+        return None
+    if user_choice == len(user_info_list):
+        show_visualization_menu(time_choice)
+        return None
+    return user_info_list[user_choice].id
+
+
+def ask_top_x(time_choice: int) -> Optional[int]:
+    """Ask the user for the outside-partner Top X limit."""
+    top_options = [10, 20, 50, 100]
+    terminal_menu = TerminalMenu(
+        [f"Top {top}" for top in top_options] + ["[q] Back"],
+        title="Top X",
+        show_shortcut_hints=False,
+    )
+    top_choice = terminal_menu.show()
+    if top_choice is None:
+        return None
+    if top_choice == len(top_options):
+        show_visualization_menu(time_choice)
+        return None
+    return top_options[top_choice]
+
+
+def display_user_rank_match_server_split_by_week_ask_user(
+    from_date: datetime, to_date: datetime, time_choice: int
+) -> None:
+    """Ask for a user and display ranked matches split by in-server vs outside-server voice."""
+    user_id = ask_visualization_user("User", time_choice)
+    if user_id is None:
+        return
+    display_user_rank_match_server_split_by_week(user_id, from_date, to_date)
+    display_user_rank_match_server_split_by_week_ask_user(from_date, to_date, time_choice)
+
+
+def display_user_outside_ranked_match_partners_ask_user(
+    from_date: datetime, to_date: datetime, time_choice: int
+) -> None:
+    """Ask for a user and Top X, then display outside-server ranked partners."""
+    user_id = ask_visualization_user("User", time_choice)
+    if user_id is None:
+        return
+    top = ask_top_x(time_choice)
+    if top is None:
+        return
+    display_user_outside_ranked_match_partners(user_id, from_date, to_date, top)
+    display_user_outside_ranked_match_partners_ask_user(from_date, to_date, time_choice)
 
 
 def print_service_status(service_name: str) -> None:

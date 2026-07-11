@@ -29,6 +29,8 @@ from deps.analytic_functions import (
 from deps.analytic_data_access import (
     data_access_fetch_unique_user_per_day,
     data_access_fetch_users_operators,
+    data_access_fetch_user_outside_ranked_match_partners,
+    data_access_fetch_user_ranked_match_server_split_by_week,
     data_access_fetch_win_rate_server,
     fetch_all_user_activities,
     fetch_user_activities,
@@ -1097,6 +1099,100 @@ def display_user_rank_match_win_rate_played_server(
     # Add legend
     ax.legend()
 
+    return _plot_return(plt, show)
+
+
+def display_user_rank_match_server_split_by_week(
+    user_id: int,
+    from_date: datetime,
+    to_date: datetime,
+    show: bool = True,
+) -> Union[bytes, None]:
+    """
+    Show weekly ranked matches for one user, split by in-server voice vs outside server voice.
+    """
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
+    user_name = data_user_id_name[user_id].display_name if user_id in data_user_id_name else str(user_id)
+    data = data_access_fetch_user_ranked_match_server_split_by_week(user_id, from_date, to_date)
+
+    fig, ax = plt.subplots(figsize=(14, 8))
+    if not data:
+        ax.text(0.5, 0.5, "No ranked matches found for this user and date range.", ha="center", va="center")
+        ax.axis("off")
+        fig.suptitle(f"Ranked Matches In Server vs Outside for {user_name}", fontsize=16)
+        ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+        return _plot_return(plt, show)
+
+    week_labels = [row[0] for row in data]
+    in_server_counts = [int(row[1] or 0) for row in data]
+    outside_counts = [int(row[2] or 0) for row in data]
+    x_pos = np.arange(len(week_labels))
+
+    ax.bar(x_pos, in_server_counts, label="In Server Voice", color="#2ca02c")
+    ax.bar(x_pos, outside_counts, bottom=in_server_counts, label="Outside Server Voice", color="#d62728")
+
+    for index, total in enumerate([in_server_counts[i] + outside_counts[i] for i in range(len(week_labels))]):
+        if total > 0:
+            ax.text(index, total, str(total), ha="center", va="bottom", fontsize=9)
+
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(week_labels, rotation=45, ha="right")
+    ax.set_xlabel("Week Starting")
+    ax.set_ylabel("Ranked Matches")
+    fig.suptitle(f"Ranked Matches In Server vs Outside for {user_name}", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+    ax.legend()
+    ax.grid(axis="y", linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    return _plot_return(plt, show)
+
+
+def display_user_outside_ranked_match_partners(
+    user_id: int,
+    from_date: datetime,
+    to_date: datetime,
+    top: int,
+    show: bool = True,
+) -> Union[bytes, None]:
+    """
+    Show tracked same-team partners while the selected user was outside server voice.
+    """
+    data_user_id_name: Dict[int, UserInfo] = fetch_user_info()
+    user_name = data_user_id_name[user_id].display_name if user_id in data_user_id_name else str(user_id)
+    data = data_access_fetch_user_outside_ranked_match_partners(user_id, from_date, to_date, top)
+
+    fig, ax = plt.subplots(figsize=(14, 8))
+    if not data:
+        ax.text(
+            0.5,
+            0.5,
+            "No tracked same-team outside-server ranked partners found for this user and date range.",
+            ha="center",
+            va="center",
+        )
+        ax.axis("off")
+        fig.suptitle(f"Top Outside-Server Ranked Partners for {user_name}", fontsize=16)
+        ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+        return _plot_return(plt, show)
+
+    partner_names = [row[0] for row in data]
+    shared_counts = [int(row[1] or 0) for row in data]
+    win_rates = [float(row[3] or 0) for row in data]
+    y_pos = np.arange(len(partner_names))
+
+    ax.barh(y_pos, shared_counts, color="#4c78a8")
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(partner_names, fontsize=9)
+    ax.set_xlabel("Same-Team Ranked Matches While Selected User Was Outside Server Voice")
+    fig.suptitle(f"Top {top} Same-Team Outside-Server Ranked Partners for {user_name}", fontsize=16)
+    ax.set_title(f"From {from_date.strftime('%Y-%m-%d')} to {to_date.strftime('%Y-%m-%d')}", fontsize=14)
+
+    for index, count in enumerate(shared_counts):
+        ax.text(count, index, f" {count} ({win_rates[index]:.0f}% win)", va="center", fontsize=9)
+
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
     return _plot_return(plt, show)
 
 

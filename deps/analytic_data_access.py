@@ -90,6 +90,8 @@ from deps.analytic_leaderboard_data_access import (
     data_access_fetch_ace_4k_3k,
     data_access_fetch_clutch_round_rate,
     data_access_fetch_win_rate_server,
+    data_access_fetch_user_ranked_match_server_split_by_week,
+    data_access_fetch_user_outside_ranked_match_partners,
     data_access_fetch_best_worse_map,
     data_access_fetch_unique_user_per_day,
 )
@@ -177,6 +179,8 @@ __all__ = [
     "data_access_fetch_ace_4k_3k",
     "data_access_fetch_clutch_round_rate",
     "data_access_fetch_win_rate_server",
+    "data_access_fetch_user_ranked_match_server_split_by_week",
+    "data_access_fetch_user_outside_ranked_match_partners",
     "data_access_fetch_best_worse_map",
     "data_access_fetch_unique_user_per_day",
     # Ranking functions

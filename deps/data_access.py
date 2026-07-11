@@ -48,6 +48,8 @@ KEY_QUEUE_USER_STATS = "QueueUserStats"
 KEY_GUILD_TOURNAMENT_TEXT_CHANNEL = "GuildAdminConfigTournamentTextChannel"
 KEY_GUILD_MAIN_TEXT_CHANNEL = "GuildMainSiegeTextChannel"
 KEY_GUILD_AI_TEXT_CHANNEL = "GuildAITextChannel"
+KEY_GUILD_ANALYTICS_REPORT_TEXT_CHANNEL = "GuildAnalyticsReportTextChannel"
+KEY_GUILD_ANALYTICS_REPORT_SENT = "GuildAnalyticsReportSent"
 KEY_GUILD_VOICE_CHANNEL_LIST_USER = "GuildVoiceChannelListUser"
 KEY_GUILD_LAST_BOT_MESSAGE_MAIN_TEXT_CHANNEL = "GuildLastBotMessageMainTextChannel"
 KEY_AI_COUNT = "AI_daily_Count"
@@ -199,6 +201,8 @@ def data_access_reset_guild_cache(guild_id: int) -> None:
         f"{KEY_GUILD_NEW_USER_TEXT_CHANNEL}:{guild_id}",
         f"{KEY_GUILD_BOT_VOICE_FIRST_USER}:{guild_id}",
         f"{KEY_GUILD_TOURNAMENT_TEXT_CHANNEL}:{guild_id}",
+        f"{KEY_GUILD_ANALYTICS_REPORT_TEXT_CHANNEL}:{guild_id}",
+        f"{KEY_GUILD_ANALYTICS_REPORT_SENT}:{guild_id}",
         f"{KEY_MESSAGE}:{guild_id}",
         f"{KEY_USER}:{guild_id}",
         f"{KEY_GUILD}:{guild_id}",
@@ -463,6 +467,29 @@ async def data_access_get_guild_tournament_text_channel_id(
 def data_access_set_guild_tournament_text_channel_id(guild_id: int, channel_id: int) -> None:
     """Set the channel that the bot will send text"""
     set_cache(False, f"{KEY_GUILD_TOURNAMENT_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
+
+async def data_access_get_analytics_report_text_channel_id(
+    guild_id: int,
+) -> Union[int, None]:
+    """Get the configured monthly analytics report channel."""
+    return await get_cache(False, f"{KEY_GUILD_ANALYTICS_REPORT_TEXT_CHANNEL}:{guild_id}")
+
+
+def data_access_set_analytics_report_text_channel_id(guild_id: int, channel_id: int) -> None:
+    """Set the channel that receives monthly analytics PDF reports."""
+    set_cache(False, f"{KEY_GUILD_ANALYTICS_REPORT_TEXT_CHANNEL}:{guild_id}", channel_id, ALWAYS_TTL)
+
+
+async def data_access_get_monthly_analytics_report_sent(guild_id: int, report_month: str) -> bool:
+    """Return whether the monthly analytics report was already sent for a guild/month."""
+    value = await get_cache(False, f"{KEY_GUILD_ANALYTICS_REPORT_SENT}:{guild_id}:{report_month}")
+    return bool(value)
+
+
+def data_access_set_monthly_analytics_report_sent(guild_id: int, report_month: str) -> None:
+    """Mark the monthly analytics report as sent for a guild/month."""
+    set_cache(False, f"{KEY_GUILD_ANALYTICS_REPORT_SENT}:{guild_id}:{report_month}", True, ALWAYS_TTL)
 
 
 async def data_access_get_main_text_channel_id(

@@ -143,6 +143,8 @@ COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS = "modvoicecustomgamechannels"
 COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS = "modseesvoicecustomgamechannels"
 COMMAND_CHANNEL_SET_AI_CHANNEL = "modtextaichannel"
 COMMAND_CHANNEL_GET_AI_CHANNEL = "modseeaichannel"
+COMMAND_CHANNEL_SET_ANALYTICS_REPORT_CHANNEL = "modtextanalyticsreportchannel"
+COMMAND_CHANNEL_GET_ANALYTICS_REPORT_CHANNEL = "modseeanalyticsreportchannel"
 COMMAND_SET_PRIVATE_CHANNEL_CATEGORY = "modsetprivatechannelcategory"
 COMMAND_SEE_PRIVATE_CHANNEL_CATEGORY = "modseeprivatechannelcategory"
 

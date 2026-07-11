@@ -6,6 +6,7 @@ from datetime import datetime, time, timedelta, timezone
 from discord.ext import commands, tasks
 import pytz
 from deps.ai.ai_bot_functions import send_daily_ai_summary_guild
+from deps.monthly_report import send_monthly_analytics_report_guild
 from deps.streak_functions import announce_streak_milestones_for_guild
 from deps.bot_common_actions import (
     check_voice_channel,
@@ -27,6 +28,7 @@ time_send_daily_stats = time(hour=11, minute=35, second=0, tzinfo=local_tz)
 time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=local_tz)
 time_generate_ai_summary = time(hour=8, minute=45, second=0, tzinfo=local_tz)
 time_check_streaks = time(hour=23, minute=50, second=0, tzinfo=local_tz)
+time_monthly_analytics_report = time(hour=9, minute=30, second=0, tzinfo=local_tz)
 
 
 class MyTasksCog(commands.Cog):
@@ -50,6 +52,7 @@ class MyTasksCog(commands.Cog):
         self.run_db_checkpoint_task.start()  # Start the task when the cog is loaded
         self.send_daily_ai_summary.start()  # Start the task when the cog is loaded
         self.check_daily_streaks_task.start()  # Start the task when the cog is loaded
+        self.send_monthly_analytics_report.start()  # Start the task when the cog is loaded
         print_log("MyTasksCog>start_task: Bot is ready, all tasks started")
 
     @tasks.loop(minutes=16)
@@ -146,6 +149,18 @@ class MyTasksCog(commands.Cog):
             except Exception as e:
                 print_error_log(f"check_daily_streaks_task: Error for guild {guild.name}: {e}")
 
+    @tasks.loop(time=time_monthly_analytics_report)
+    async def send_monthly_analytics_report(self):
+        """
+        On the first day of each month, generate and send the previous month's analytics PDF report.
+        """
+        print_log(f"send_monthly_analytics_report, current time {datetime.now()}")
+        for guild in self.bot.guilds:
+            try:
+                await send_monthly_analytics_report_guild(guild)
+            except Exception as e:
+                print_error_log(f"send_monthly_analytics_report: Error for guild {guild.name}: {e}")
+
     ### ============================ BEFORE LOOP ============================ ###
 
     @check_voice_channel_task.before_loop
@@ -202,6 +217,12 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>check_daily_streaks_task: Waiting for bot to be ready...")
         await self.bot.wait_until_ready()
 
+    @send_monthly_analytics_report.before_loop
+    async def before_send_monthly_analytics_report(self):
+        """Wait for the monthly analytics report task for the bot ready"""
+        print_log("MyTasksCog>send_monthly_analytics_report: Waiting for bot to be ready...")
+        await self.bot.wait_until_ready()
+
     ### ============================ UNLOAD COG ============================ ###
     async def cog_unload(self):
         self.check_voice_channel_task.cancel()
@@ -213,6 +234,7 @@ class MyTasksCog(commands.Cog):
         self.run_db_checkpoint_task.cancel()
         self.send_daily_ai_summary.cancel()
         self.check_daily_streaks_task.cancel()
+        self.send_monthly_analytics_report.cancel()
 
 
 async def setup(bot):

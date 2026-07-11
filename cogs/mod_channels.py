@@ -7,6 +7,7 @@ from discord.ext import commands
 from discord import app_commands
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.data_access import (
+    data_access_get_analytics_report_text_channel_id,
     data_access_get_ai_text_channel_id,
     data_access_get_gaming_session_text_channel_id,
     data_access_get_guild_private_channel_category_id,
@@ -16,6 +17,7 @@ from deps.data_access import (
     data_access_get_main_text_channel_id,
     data_access_get_new_user_text_channel_id,
     data_access_set_ai_text_channel_id,
+    data_access_set_analytics_report_text_channel_id,
     data_access_set_custom_game_voice_channels,
     data_access_set_gaming_session_text_channel_id,
     data_access_set_guild_private_channel_category_id,
@@ -43,7 +45,9 @@ from deps.values import (
     COMMAND_SET_NEW_USER_CHANNEL,
     COMMAND_CHANNEL_SET_AI_CHANNEL,
     COMMAND_CHANNEL_GET_AI_CHANNEL,
+    COMMAND_CHANNEL_GET_ANALYTICS_REPORT_CHANNEL,
     COMMAND_SET_PRIVATE_CHANNEL_CATEGORY,
+    COMMAND_CHANNEL_SET_ANALYTICS_REPORT_CHANNEL,
     COMMAND_SEE_PRIVATE_CHANNEL_CATEGORY,
 )
 from deps.mybot import MyBot
@@ -351,6 +355,45 @@ class ModChannels(commands.Cog):
             return
 
         await interaction.followup.send(f"The AI text channel is <#{channel_id}>", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_CHANNEL_SET_ANALYTICS_REPORT_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def set_analytics_report_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        """
+        An administrator can set the channel where monthly analytics PDF reports will be sent.
+        """
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("set_analytics_report_text_channel: Guild is None.")
+            return
+        guild_id = guild.id
+        data_access_set_analytics_report_text_channel_id(guild_id, channel.id)
+
+        await interaction.followup.send(
+            f"Confirmed to send monthly analytics reports into #{channel.name}.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(name=COMMAND_CHANNEL_GET_ANALYTICS_REPORT_CHANNEL)
+    @commands.has_permissions(administrator=True)
+    async def see_analytics_report_text_channel(self, interaction: discord.Interaction):
+        """
+        Display the configured monthly analytics report channel.
+        """
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if guild is None:
+            print_error_log("see_analytics_report_text_channel: Guild is None.")
+            return
+        guild_id = guild.id
+        channel_id = await data_access_get_analytics_report_text_channel_id(guild_id)
+        if channel_id is None:
+            print_warning_log(f"No analytics report text channel in guild {guild.name}. Skipping.")
+            await interaction.followup.send("Analytics report text channel not set.", ephemeral=True)
+            return
+
+        await interaction.followup.send(f"The analytics report text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS)
     @commands.has_permissions(administrator=True)

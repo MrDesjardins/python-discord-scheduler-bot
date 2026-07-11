@@ -9,12 +9,15 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from deps.analytic_match_data_access import data_access_fetch_user_matches_in_time_range
 from deps.analytic_data_access import (
+    data_access_fetch_user_outside_ranked_match_partners,
+    data_access_fetch_user_ranked_match_server_split_by_week,
     insert_if_nonexistant_full_match_info,
+    insert_user_activity,
     upsert_user_info,
 )
 from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats
-from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
+from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
 
 
 @pytest.fixture(autouse=True)
@@ -95,6 +98,29 @@ def create_test_match(
         assists_per_round=0.33,
         has_win=True,
     )
+
+
+def create_test_user(user_id: int, display_name: str) -> UserInfo:
+    """Helper function to create and persist a test user."""
+    user_info = UserInfo(
+        id=user_id,
+        display_name=display_name,
+        ubisoft_username_max=f"{display_name}_max",
+        ubisoft_username_active=f"{display_name}_active",
+        r6_tracker_active_id=f"tracker-{user_id}",
+        time_zone="US/Eastern",
+        max_mmr=3500,
+    )
+    upsert_user_info(
+        user_id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        user_info.r6_tracker_active_id,
+        user_info.time_zone,
+        user_info.max_mmr,
+    )
+    return user_info
 
 
 @pytest.mark.no_parallel
@@ -292,3 +318,78 @@ def test_fetch_matches_unbounded_to():
     )
 
     assert len(result[user_id]) == 2  # Both matches after from_timestamp
+
+
+@pytest.mark.no_parallel
+def test_ranked_match_server_split_by_week_classifies_inside_outside_and_excludes_rollback():
+    """Test selected-user ranked matches are split by server voice state at match start."""
+    user = create_test_user(1, "Alice")
+    partner = create_test_user(2, "Bob")
+    from_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    to_date = datetime(2026, 1, 31, tzinfo=timezone.utc)
+
+    insert_user_activity(1, "Alice", 100, 1000, EVENT_CONNECT, datetime(2026, 1, 8, 10, 0, tzinfo=timezone.utc))
+    insert_user_activity(1, "Alice", 100, 1000, EVENT_DISCONNECT, datetime(2026, 1, 8, 12, 0, tzinfo=timezone.utc))
+
+    inside_match = create_test_match("inside", 1, datetime(2026, 1, 8, 11, 0, tzinfo=timezone.utc))
+    outside_match = create_test_match("outside", 1, datetime(2026, 1, 15, 11, 0, tzinfo=timezone.utc))
+    rollback_match = create_test_match("rollback", 1, datetime(2026, 1, 16, 11, 0, tzinfo=timezone.utc))
+    rollback_match.is_rollback = True
+    partner_inside_match = create_test_match("inside", 2, datetime(2026, 1, 8, 11, 0, tzinfo=timezone.utc))
+    partner_outside_match = create_test_match("outside", 2, datetime(2026, 1, 15, 11, 0, tzinfo=timezone.utc))
+    partner_rollback_match = create_test_match("rollback", 2, datetime(2026, 1, 16, 11, 0, tzinfo=timezone.utc))
+    partner_rollback_match.is_rollback = True
+
+    insert_if_nonexistant_full_match_info(user, [inside_match, outside_match, rollback_match])
+    insert_if_nonexistant_full_match_info(
+        partner, [partner_inside_match, partner_outside_match, partner_rollback_match]
+    )
+
+    rows = data_access_fetch_user_ranked_match_server_split_by_week(1, from_date, to_date)
+
+    assert rows == [("2026-01-05", 1, 0), ("2026-01-12", 0, 1)]
+
+
+@pytest.mark.no_parallel
+def test_outside_ranked_match_partners_counts_shared_matches_for_selected_user_outside():
+    """Test outside-server partners are ranked by same-team shared match IDs while selected user is outside."""
+    user = create_test_user(1, "Alice")
+    bob = create_test_user(2, "Bob")
+    charlie = create_test_user(3, "Charlie")
+    opponent = create_test_user(4, "Opponent")
+    from_date = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    to_date = datetime(2026, 1, 31, tzinfo=timezone.utc)
+
+    insert_user_activity(1, "Alice", 100, 1000, EVENT_CONNECT, datetime(2026, 1, 8, 10, 0, tzinfo=timezone.utc))
+    insert_user_activity(1, "Alice", 100, 1000, EVENT_DISCONNECT, datetime(2026, 1, 8, 12, 0, tzinfo=timezone.utc))
+
+    alice_matches = [
+        create_test_match("inside", 1, datetime(2026, 1, 8, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-bob-1", 1, datetime(2026, 1, 15, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-bob-2", 1, datetime(2026, 1, 16, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-charlie", 1, datetime(2026, 1, 17, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-rollback", 1, datetime(2026, 1, 18, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-opponent", 1, datetime(2026, 1, 19, 11, 0, tzinfo=timezone.utc)),
+    ]
+    alice_matches[-1].is_rollback = True
+    bob_matches = [
+        create_test_match("inside", 2, datetime(2026, 1, 8, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-bob-1", 2, datetime(2026, 1, 15, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-bob-2", 2, datetime(2026, 1, 16, 11, 0, tzinfo=timezone.utc)),
+        create_test_match("outside-rollback", 2, datetime(2026, 1, 18, 11, 0, tzinfo=timezone.utc)),
+    ]
+    bob_matches[-1].is_rollback = True
+    charlie_matches = [
+        create_test_match("outside-charlie", 3, datetime(2026, 1, 17, 11, 0, tzinfo=timezone.utc)),
+    ]
+    opponent_match = create_test_match("outside-opponent", 4, datetime(2026, 1, 19, 11, 0, tzinfo=timezone.utc))
+    opponent_match.has_win = False
+
+    insert_if_nonexistant_full_match_info(user, alice_matches)
+    insert_if_nonexistant_full_match_info(bob, bob_matches)
+    insert_if_nonexistant_full_match_info(charlie, charlie_matches)
+    insert_if_nonexistant_full_match_info(opponent, [opponent_match])
+
+    rows = data_access_fetch_user_outside_ranked_match_partners(1, from_date, to_date, 1)
+
+    assert rows == [("Bob", 2, 2, 100.0)]

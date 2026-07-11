@@ -1016,6 +1016,151 @@ def data_access_fetch_win_rate_server(
     return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in result]
 
 
+def data_access_fetch_user_ranked_match_server_split_by_week(
+    user_id: int, from_data: datetime, to_data: datetime
+) -> list[tuple[str, int, int]]:
+    """
+    Fetch selected-user ranked match counts by week, split by whether the user was in server voice.
+    """
+    query = """
+        WITH
+        user_sessions AS (
+            SELECT
+                ua1.user_id,
+                ua1.timestamp AS session_start,
+                MIN(ua2.timestamp) AS session_end
+            FROM user_activity ua1
+            LEFT JOIN user_activity ua2
+                ON ua1.user_id = ua2.user_id
+                AND ua1.timestamp < ua2.timestamp
+                AND ua2.event = 'disconnect'
+            WHERE
+                ua1.event = 'connect'
+                AND ua1.user_id = :user_id
+                AND ua1.timestamp <= :to_data
+                AND ua2.timestamp >= :from_data
+            GROUP BY ua1.id
+        ),
+        selected_matches AS (
+            SELECT
+                ufm.id,
+                date(
+                    ufm.match_timestamp,
+                    printf('-%d days', (CAST(strftime('%w', ufm.match_timestamp) AS INTEGER) + 6) % 7)
+                ) AS week_start,
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM user_sessions us
+                        WHERE us.user_id = ufm.user_id
+                        AND ufm.match_timestamp BETWEEN us.session_start AND us.session_end
+                    ) THEN 1
+                    ELSE 0
+                END AS is_in_server
+            FROM user_full_match_info ufm
+            WHERE
+                ufm.user_id = :user_id
+                AND ufm.match_timestamp >= :from_data
+                AND ufm.match_timestamp <= :to_data
+                AND LOWER(ufm.session_type) = 'ranked'
+                AND ufm.is_rollback = 0
+        )
+        SELECT
+            week_start,
+            SUM(CASE WHEN is_in_server = 1 THEN 1 ELSE 0 END) AS in_server_count,
+            SUM(CASE WHEN is_in_server = 0 THEN 1 ELSE 0 END) AS outside_server_count
+        FROM selected_matches
+        GROUP BY week_start
+        ORDER BY week_start ASC;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "user_id": user_id,
+                "from_data": from_data.isoformat(),
+                "to_data": to_data.isoformat(),
+            },
+        )
+    ).fetchall()
+    return [(row[0], row[1], row[2]) for row in result]
+
+
+def data_access_fetch_user_outside_ranked_match_partners(
+    user_id: int, from_data: datetime, to_data: datetime, top: int
+) -> list[tuple[str, int, int, float]]:
+    """
+    Fetch tracked users who shared ranked matches on the selected user's team while outside server voice.
+    """
+    query = """
+        WITH
+        user_sessions AS (
+            SELECT
+                ua1.user_id,
+                ua1.timestamp AS session_start,
+                MIN(ua2.timestamp) AS session_end
+            FROM user_activity ua1
+            LEFT JOIN user_activity ua2
+                ON ua1.user_id = ua2.user_id
+                AND ua1.timestamp < ua2.timestamp
+                AND ua2.event = 'disconnect'
+            WHERE
+                ua1.event = 'connect'
+                AND ua1.user_id = :user_id
+                AND ua1.timestamp <= :to_data
+                AND ua2.timestamp >= :from_data
+            GROUP BY ua1.id
+        ),
+        selected_outside_matches AS (
+            SELECT
+                ufm.match_uuid,
+                ufm.has_win
+            FROM user_full_match_info ufm
+            WHERE
+                ufm.user_id = :user_id
+                AND ufm.match_timestamp >= :from_data
+                AND ufm.match_timestamp <= :to_data
+                AND LOWER(ufm.session_type) = 'ranked'
+                AND ufm.is_rollback = 0
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM user_sessions us
+                    WHERE us.user_id = ufm.user_id
+                    AND ufm.match_timestamp BETWEEN us.session_start AND us.session_end
+                )
+        )
+        SELECT
+            COALESCE(ui.display_name, CAST(partner.user_id AS TEXT)) AS partner_name,
+            COUNT(*) AS shared_outside_matches,
+            SUM(CASE WHEN som.has_win = 1 THEN 1 ELSE 0 END) AS selected_user_wins,
+            ROUND(SUM(CASE WHEN som.has_win = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS selected_user_win_rate
+        FROM selected_outside_matches som
+        JOIN user_full_match_info partner
+            ON partner.match_uuid = som.match_uuid
+            AND partner.user_id != :user_id
+            AND partner.has_win = som.has_win
+            AND LOWER(partner.session_type) = 'ranked'
+            AND partner.is_rollback = 0
+        LEFT JOIN user_info ui
+            ON ui.id = partner.user_id
+        GROUP BY partner.user_id
+        ORDER BY shared_outside_matches DESC, partner_name ASC
+        LIMIT :top_result;
+    """
+    result = (
+        database_manager.get_cursor().execute(
+            query,
+            {
+                "user_id": user_id,
+                "from_data": from_data.isoformat(),
+                "to_data": to_data.isoformat(),
+                "top_result": top,
+            },
+        )
+    ).fetchall()
+    return [(row[0], row[1], row[2], row[3]) for row in result]
+
+
 def data_access_fetch_best_worse_map(from_data: date) -> list[tuple[str, str, int, str, int]]:
     """
     Get the best and worse map for each user
