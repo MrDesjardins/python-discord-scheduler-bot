@@ -22,7 +22,8 @@ from deps.log import print_error_log, print_log
 from deps.models import UserFullMatchStats
 
 WEEKLY_VALUE_ACTIVE_DAYS = 30
-WEEKLY_VALUE_TOP_COUNT = 30
+WEEKLY_VALUE_TOP_COUNT = 60
+WEEKLY_VALUE_ROWS_PER_COLUMN = 30
 WEEKLY_VALUE_DELTA_DAYS = 7
 
 font_path = os.path.abspath("./fonts/Minecraft.ttf")
@@ -33,6 +34,7 @@ COLOR_BACKGROUND = (24, 26, 33)
 COLOR_TITLE = (240, 240, 240)
 COLOR_ROW = (220, 220, 220)
 COLOR_ROW_ALTERNATE_BG = (33, 36, 45)
+COLOR_DIVIDER = (62, 67, 80)
 COLOR_GAIN = (80, 200, 120)
 COLOR_LOSS = (230, 90, 90)
 COLOR_NEUTRAL = (150, 150, 150)
@@ -91,16 +93,22 @@ def build_weekly_value_rows(
 
 
 def generate_weekly_value_image(rows: List[WeeklyValueRow], now: datetime) -> bytes:
-    """Render the leaderboard rows into a PNG image"""
-    width = 640
+    """
+    Render the leaderboard rows into a PNG image. Rows flow into columns of 30
+    separated by a vertical line: entries 1-30 on the left, 31-60 on the right,
+    so 60 entries double the width while keeping the same height.
+    """
+    column_width = 640
     header_height = 70
     row_height = 30
     margin = 16
-    height = header_height + row_height * len(rows) + margin
+    column_count = max(1, -(-len(rows) // WEEKLY_VALUE_ROWS_PER_COLUMN))  # Ceiling division
+    width = column_width * column_count
+    height = header_height + row_height * min(len(rows), WEEKLY_VALUE_ROWS_PER_COLUMN) + margin
 
     image = Image.new("RGB", (width, height), COLOR_BACKGROUND)
     draw = ImageDraw.Draw(image)
-    draw.text((margin, 14), "Player Value - Top 30", font=font_title, fill=COLOR_TITLE)
+    draw.text((margin, 14), f"Player Value - Top {WEEKLY_VALUE_TOP_COUNT}", font=font_title, fill=COLOR_TITLE)
     draw.text(
         (margin, 44),
         f"Active last {WEEKLY_VALUE_ACTIVE_DAYS} days - {now.strftime('%Y-%m-%d')}",
@@ -109,22 +117,29 @@ def generate_weekly_value_image(rows: List[WeeklyValueRow], now: datetime) -> by
     )
 
     for index, row in enumerate(rows):
-        top = header_height + index * row_height
-        if index % 2 == 1:
-            draw.rectangle([(0, top), (width, top + row_height)], fill=COLOR_ROW_ALTERNATE_BG)
-        draw.text((margin, top + 6), f"#{row.rank}", font=font_row, fill=COLOR_NEUTRAL)
-        draw.text((margin + 60, top + 6), row.display_name[:24], font=font_row, fill=COLOR_ROW)
-        draw.text((430, top + 6), f"{row.value:.1f}", font=font_row, fill=COLOR_ROW)
+        column = index // WEEKLY_VALUE_ROWS_PER_COLUMN
+        position_in_column = index % WEEKLY_VALUE_ROWS_PER_COLUMN
+        left = column * column_width
+        top = header_height + position_in_column * row_height
+        if position_in_column % 2 == 1:
+            draw.rectangle([(left, top), (left + column_width, top + row_height)], fill=COLOR_ROW_ALTERNATE_BG)
+        draw.text((left + margin, top + 6), f"#{row.rank}", font=font_row, fill=COLOR_NEUTRAL)
+        draw.text((left + margin + 60, top + 6), row.display_name[:24], font=font_row, fill=COLOR_ROW)
+        draw.text((left + 430, top + 6), f"{row.value:.1f}", font=font_row, fill=COLOR_ROW)
         if row.previous_value is None:
-            draw.text((520, top + 6), "new", font=font_row, fill=COLOR_NEW)
+            draw.text((left + 520, top + 6), "new", font=font_row, fill=COLOR_NEW)
         else:
             delta = row.value - row.previous_value
             if delta >= 0.05:
-                draw.text((520, top + 6), f"+{delta:.1f}", font=font_row, fill=COLOR_GAIN)
+                draw.text((left + 520, top + 6), f"+{delta:.1f}", font=font_row, fill=COLOR_GAIN)
             elif delta <= -0.05:
-                draw.text((520, top + 6), f"{delta:.1f}", font=font_row, fill=COLOR_LOSS)
+                draw.text((left + 520, top + 6), f"{delta:.1f}", font=font_row, fill=COLOR_LOSS)
             else:
-                draw.text((520, top + 6), "=", font=font_row, fill=COLOR_NEUTRAL)
+                draw.text((left + 520, top + 6), "=", font=font_row, fill=COLOR_NEUTRAL)
+
+    for column in range(1, column_count):
+        divider_x = column * column_width
+        draw.line([(divider_x, header_height - 6), (divider_x, height - margin)], fill=COLOR_DIVIDER, width=2)
 
     with io.BytesIO() as buffer:
         image.save(buffer, format="PNG")
@@ -158,7 +173,7 @@ async def send_weekly_player_value_to_a_guild(guild: discord.Guild, now: datetim
     image_bytes = generate_weekly_value_image(rows, now)
     file = discord.File(fp=io.BytesIO(image_bytes), filename="player_values.png")
     await channel.send(
-        content="📊 **Weekly Player Value** — top 30 players active in the last 30 days, "
+        content=f"📊 **Weekly Player Value** — top {WEEKLY_VALUE_TOP_COUNT} players active in the last 30 days, "
         "with the change since last week. Values update every night based on your ranked matches.",
         file=file,
     )

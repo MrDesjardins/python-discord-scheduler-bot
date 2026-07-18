@@ -1,6 +1,9 @@
 """Unit tests for the weekly player value leaderboard"""
 
+import io
 from datetime import datetime, timedelta, timezone
+
+from PIL import Image as PILImage
 
 from deps.analytic_player_value_weekly import (
     WEEKLY_VALUE_TOP_COUNT,
@@ -67,8 +70,8 @@ def test_new_player_has_no_previous_value():
 
 
 def test_top_count_limit():
-    matches_by_user = {uid: matches_for(uid, 12, days_ago_last=2) for uid in range(1, 41)}
-    names = {uid: f"user{uid}" for uid in range(1, 41)}
+    matches_by_user = {uid: matches_for(uid, 12, days_ago_last=2) for uid in range(1, 81)}
+    names = {uid: f"user{uid}" for uid in range(1, 81)}
     rows = build_weekly_value_rows(matches_by_user, names, NOW)
     assert len(rows) == WEEKLY_VALUE_TOP_COUNT
 
@@ -77,3 +80,13 @@ def test_generate_weekly_value_image_returns_png_bytes():
     rows = build_weekly_value_rows({1: matches_for(1, 12, days_ago_last=2)}, {1: "one"}, NOW)
     image_bytes = generate_weekly_value_image(rows, NOW)
     assert image_bytes.startswith(b"\x89PNG")
+
+
+def test_image_over_30_rows_doubles_width_keeps_height():
+    matches_by_user = {uid: matches_for(uid, 12, days_ago_last=2) for uid in range(1, 81)}
+    names = {uid: f"user{uid}" for uid in range(1, 81)}
+    rows = build_weekly_value_rows(matches_by_user, names, NOW)
+    single_column = PILImage.open(io.BytesIO(generate_weekly_value_image(rows[:30], NOW)))
+    two_columns = PILImage.open(io.BytesIO(generate_weekly_value_image(rows, NOW)))
+    assert two_columns.width == 2 * single_column.width
+    assert two_columns.height == single_column.height
