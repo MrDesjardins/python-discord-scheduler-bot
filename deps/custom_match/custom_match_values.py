@@ -10,6 +10,7 @@ class TeamAlgo(Enum):
     K_D_RATIO = "k_d_ratio"
     CURRENT_MMR = "current_mmr"
     MAX_MMR = "max_mmr"
+    PLAYER_VALUE = "player_value"
 
 
 class MapAlgo(Enum):

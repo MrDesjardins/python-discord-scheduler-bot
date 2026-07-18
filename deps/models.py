@@ -620,3 +620,22 @@ class UserWithUserInformation:
 
     user_request_stats: UserQueueForStats
     full_stats: UserInformation
+
+
+class PlayerValueAlgorithm(Enum):
+    """The available algorithms to compute a player's team-balancing value."""
+
+    CURRENT_FORM = "current_form"
+    PERFORMANCE = "performance"
+    PERFORMANCE_ELO = "performance_elo"
+    TIME_DECAYED = "time_decayed"
+
+
+@dataclasses.dataclass
+class PlayerValueResult:
+    """Computed team-balancing value for one user with the internal rating that produced it."""
+
+    value: float  # On the community rank-dollar scale
+    rating: float  # Internal rating (effective RP, composite z-score, or Elo)
+    match_count: int  # Matches the computation used
+    last_match_timestamp: Optional[datetime]

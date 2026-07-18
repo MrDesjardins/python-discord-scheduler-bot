@@ -17,6 +17,8 @@ from deps.analytic_data_access import (
     data_access_fetch_user_max_current_mmr,
     data_access_fetch_user_max_mmr,
 )
+from deps.analytic_player_value_data_access import data_access_fetch_player_value
+from deps.analytic_player_value_functions import PLAYER_VALUE_OFFICIAL_ALGORITHM, VALUE_MIN
 from deps.custom_match.custom_match_models import TeamSuggestion
 from deps.models import UserInformation
 
@@ -35,6 +37,9 @@ async def _create_team_by_metric(
         if metric_attr == "mmr":
             raw_mmr = data_access_fetch_user_max_current_mmr(discord_member.id)
             metric_value = float(raw_mmr) if raw_mmr is not None else 1.0
+        elif metric_attr == "player_value":
+            raw_value = data_access_fetch_player_value(discord_member.id, PLAYER_VALUE_OFFICIAL_ALGORITHM)
+            metric_value = float(raw_value) if raw_value is not None else VALUE_MIN
         elif metric_attr == "max_mmr":
             raw_max = data_access_fetch_user_max_mmr(discord_member.id)
             metric_value = float(raw_max) if raw_max is not None else 1.0
@@ -96,6 +101,12 @@ async def create_team_by_max_mmr(user_ids: List[discord.Member]) -> TeamSuggesti
     )
 
 
+async def create_team_by_player_value(user_ids: List[discord.Member]) -> TeamSuggestion:
+    return await _create_team_by_metric(
+        user_ids, metric_attr="player_value", logic="Balanced by Player Value", label="Value", fmt=".1f"
+    )
+
+
 async def select_team_by_algorithm(team_algo: TeamAlgo, user_ids: List[discord.Member]) -> TeamSuggestion:
     if team_algo == TeamAlgo.WIN_RATIO:
         return await create_team_by_win_percentage(user_ids)
@@ -105,6 +116,8 @@ async def select_team_by_algorithm(team_algo: TeamAlgo, user_ids: List[discord.M
         return await create_team_by_current_mmr(user_ids)
     elif team_algo == TeamAlgo.MAX_MMR:
         return await create_team_by_max_mmr(user_ids)
+    elif team_algo == TeamAlgo.PLAYER_VALUE:
+        return await create_team_by_player_value(user_ids)
 
 
 async def select_map_based_on_algorithm(map_algo: MapAlgo, user_ids: List[int]) -> List[MapSuggestion]:

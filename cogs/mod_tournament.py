@@ -27,7 +27,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
-from deps.tournaments.tournament_models import BestOf, TournamentSize
+from deps.tournaments.tournament_models import BestOf, TournamentSize, TournamentTeamGeneration
 from deps.tournaments.tournament_values import TOURNAMENT_MAPS
 from deps.tournaments.tournament_data_class import Tournament
 from deps.tournaments.tournament_functions import (
@@ -137,7 +137,12 @@ class ModTournament(commands.Cog):
 
     @app_commands.command(name=COMMAND_TOURNAMENT_START_TOURNAMENT)
     @commands.has_permissions(administrator=True)
-    async def start_tournament_by_id(self, interaction: discord.Interaction, tournament_id: int):
+    async def start_tournament_by_id(
+        self,
+        interaction: discord.Interaction,
+        tournament_id: int,
+        team_generation: TournamentTeamGeneration = TournamentTeamGeneration.RANDOM,
+    ):
         """Start tournament"""
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
@@ -153,7 +158,7 @@ class ModTournament(commands.Cog):
                     ephemeral=True,
                 )
                 return
-            await start_tournament(tournament)
+            await start_tournament(tournament, team_generation)
             await interaction.followup.send(f"Tournament '{tournament.name}' Started", ephemeral=True)
         else:
             await interaction.followup.send(

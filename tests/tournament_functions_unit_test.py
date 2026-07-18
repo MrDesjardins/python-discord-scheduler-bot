@@ -24,10 +24,12 @@ from deps.tournaments.tournament_functions import (
     report_lost_tournament,
     resize_tournament,
     return_leader,
+    select_teams_by_player_value,
     start_tournament,
 )
 from deps.tournaments import tournament_functions
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.data_access_data_class import UserInfo
 from deps.models import Reason
 from deps.tournaments import tournament_data_access
 from tests.mock_model import (
@@ -1124,3 +1126,37 @@ def test_return_leader_user_teammate() -> None:
     assert return_leader(leaders, 12) == 1
     assert return_leader(leaders, 20) == 2
     assert return_leader(leaders, 21) == 2
+
+
+def _user(user_id: int) -> UserInfo:
+    return UserInfo(user_id, f"user{user_id}", None, None, None, "US/Eastern", 0)
+
+
+def test_select_teams_by_player_value_balances_totals() -> None:
+    """
+    The two strongest players lead separate teams and each next player joins
+    the team with the lowest total value
+    """
+    people = [_user(1), _user(2), _user(3), _user(4)]
+    values = {1: 100.0, 2: 80.0, 3: 60.0, 4: 40.0}
+    leaders, teammates_by_leader = select_teams_by_player_value(people, 2, 2, values)
+    assert [leader.id for leader in leaders] == [1, 2]
+    # Strongest leader (1) gets the weakest teammate (4), totals 140 vs 140
+    assert teammates_by_leader == {1: [4], 2: [3]}
+
+
+def test_select_teams_by_player_value_missing_value_defaults_low() -> None:
+    """A player without a computed value is treated as the lowest value"""
+    people = [_user(1), _user(2), _user(3), _user(4)]
+    values = {1: 100.0, 2: 80.0, 3: 60.0}
+    leaders, teammates_by_leader = select_teams_by_player_value(people, 2, 2, values)
+    assert [leader.id for leader in leaders] == [1, 2]
+    assert teammates_by_leader == {1: [4], 2: [3]}
+
+
+def test_select_teams_by_player_value_respects_team_size() -> None:
+    """No team receives more teammates than the team size allows"""
+    people = [_user(i) for i in range(1, 7)]
+    values = {i: float(100 - i * 10) for i in range(1, 7)}
+    _leaders, teammates_by_leader = select_teams_by_player_value(people, 3, 2, values)
+    assert all(len(teammates) == 1 for teammates in teammates_by_leader.values())

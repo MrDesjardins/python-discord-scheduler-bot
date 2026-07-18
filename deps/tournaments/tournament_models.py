@@ -25,6 +25,13 @@ class TournamentSize(Enum):
     THIRTY_TWO = 32
 
 
+class TournamentTeamGeneration(Enum):
+    """How teams are formed when a team tournament (2+ players per team) starts"""
+
+    RANDOM = "random"
+    PLAYER_VALUE = "player_value"
+
+
 class TournamentNode:
     """
     A node in the bracket tree

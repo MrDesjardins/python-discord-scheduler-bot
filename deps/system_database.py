@@ -90,6 +90,7 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_ledger_entry")
         self.get_cursor().execute("DROP TABLE IF EXISTS custom_game_user_subscription")
         self.get_cursor().execute("DROP TABLE IF EXISTS operator_stats")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_player_value")
         self.get_cursor().execute("DROP TABLE IF EXISTS archived_message_job_spool")
         self.get_cursor().execute("DROP TABLE IF EXISTS archived_message_event")
         self.get_cursor().execute("DROP TABLE IF EXISTS archived_message")
@@ -502,6 +503,30 @@ class DatabaseManager:
 
         # Add moderation message archive tables
         self._migrate_add_message_archive_tables()
+
+        # Add player value table for team balancing
+        self._migrate_add_user_player_value_table()
+
+    def _migrate_add_user_player_value_table(self):
+        """Create user_player_value table storing the nightly computed team-balancing value."""
+        print_log("Running migration: Create user_player_value table")
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_player_value (
+                user_id INTEGER NOT NULL,
+                algorithm TEXT NOT NULL,
+                value REAL NOT NULL,
+                rating REAL NOT NULL,
+                match_count INTEGER NOT NULL DEFAULT 0,
+                last_match_timestamp DATETIME NULL,
+                computed_at DATETIME NOT NULL,
+                PRIMARY KEY (user_id, algorithm),
+                FOREIGN KEY (user_id) REFERENCES user_info(id)
+            )
+            """
+        )
+        self.conn.commit()
+        print_log("Migration complete: user_player_value table created")
 
     def _migrate_add_message_archive_tables(self):
         """Create message archive tables for moderation investigations."""

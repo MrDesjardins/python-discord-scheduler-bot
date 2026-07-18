@@ -9,9 +9,11 @@ from deps.bet.bet_functions import (
     distribute_gain_on_recent_ended_game,
     system_generate_game_odd,
 )
+from deps.analytic_player_value_data_access import data_access_fetch_player_values_by_algorithm
+from deps.analytic_player_value_functions import PLAYER_VALUE_OFFICIAL_ALGORITHM, VALUE_MIN
 from deps.data_access_data_class import UserInfo
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
-from deps.tournaments.tournament_models import TournamentNode, TournamentResult
+from deps.tournaments.tournament_models import TournamentNode, TournamentResult, TournamentTeamGeneration
 from deps.tournaments.tournament_data_access import (
     data_access_create_bracket,
     fetch_tournament_by_id,
@@ -77,7 +79,36 @@ def register_for_tournament(tournament_id: int, user_id: int) -> Reason:
         return reason
 
 
-async def start_tournament(tournament: Tournament) -> tuple[List[UserInfo], List[UserInfo]]:
+def select_teams_by_player_value(
+    people_in: List[UserInfo], team_count: int, team_size: int, values_by_user_id: Dict[int, float]
+) -> tuple[List[UserInfo], Dict[int, List[int]]]:
+    """
+    Form balanced teams from the players' computed values: the strongest players
+    lead one team each, then every remaining player joins the team with the
+    lowest total value (strongest available player first).
+
+    Returns the leaders and the teammate user ids per leader id.
+    """
+    ranked = sorted(people_in, key=lambda person: values_by_user_id.get(person.id, VALUE_MIN), reverse=True)
+    leaders = ranked[:team_count]
+    remaining = ranked[team_count:]
+
+    team_totals = {leader.id: values_by_user_id.get(leader.id, VALUE_MIN) for leader in leaders}
+    teammates_by_leader: Dict[int, List[int]] = {leader.id: [] for leader in leaders}
+    for person in remaining:
+        open_teams = [lid for lid in team_totals if len(teammates_by_leader[lid]) < team_size - 1]
+        if not open_teams:
+            break
+        weakest_team = min(open_teams, key=lambda lid: team_totals[lid])
+        teammates_by_leader[weakest_team].append(person.id)
+        team_totals[weakest_team] += values_by_user_id.get(person.id, VALUE_MIN)
+    return leaders, teammates_by_leader
+
+
+async def start_tournament(
+    tournament: Tournament,
+    team_generation: TournamentTeamGeneration = TournamentTeamGeneration.RANDOM,
+) -> tuple[List[UserInfo], List[UserInfo]]:
     """
     Start a specific tournament
     Create the bracket
@@ -107,14 +138,26 @@ async def start_tournament(tournament: Tournament) -> tuple[List[UserInfo], List
     tournament_games: List[TournamentGame] = fetch_tournament_games_by_tournament_id(tournament.id)
 
     # Assign people to tournament games
+    teammates_by_leader: Dict[int, List[int]] = {}
     if tournament.team_size == 1:
         leaders = people_in
-        teammates = []
+    elif team_generation == TournamentTeamGeneration.PLAYER_VALUE:
+        # Balance the teams with the nightly computed player values
+        values_by_user_id = data_access_fetch_player_values_by_algorithm(PLAYER_VALUE_OFFICIAL_ALGORITHM)
+        leaders, teammates_by_leader = select_teams_by_player_value(
+            people_in, team_count, tournament.team_size, values_by_user_id
+        )
     else:
         # Randomly select team_count people to lead the team
         leaders = random.sample(people_in, team_count)
-        # Others are teammates that will be assigned later
+        # Others are teammates assigned randomly to a leader
         teammates = [p for p in people_in if p not in leaders]
+        teammates_by_leader = {leader.id: [] for leader in leaders}
+        for leader in leaders:
+            for _teammate_i in range(0, tournament.team_size - 1):  # -1 because of the leader
+                teammate = random.choice(teammates)
+                teammates.remove(teammate)
+                teammates_by_leader[leader.id].append(teammate.id)
 
     node_to_save: List[TournamentGame] = assign_people_to_games(tournament, tournament_games, leaders)
 
@@ -125,13 +168,9 @@ async def start_tournament(tournament: Tournament) -> tuple[List[UserInfo], List
     save_tournament_games(node_to_save + node_to_save2)
 
     # Save teammates to the first game of the tournament
-    if len(teammates) > 0:
-        for leader in leaders:
-            for _teammate_i in range(0, tournament.team_size - 1):  # -1 because of the leader
-                # Select a random teammate in the teammates list and remove it from the list
-                teammate = random.choice(teammates)
-                teammates.remove(teammate)
-                register_user_teammate_to_leader(tournament.id, leader.id, teammate.id)
+    for leader_id, teammate_ids in teammates_by_leader.items():
+        for teammate_id in teammate_ids:
+            register_user_teammate_to_leader(tournament.id, leader_id, teammate_id)
 
     # Tournament status
     tournament.has_started = True

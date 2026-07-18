@@ -19,6 +19,9 @@ from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
 from deps.system_database import run_wal_checkpoint
 from deps.functions_stats import send_daily_stats_to_a_guild
+from deps.analytic_player_value_data_access import data_access_fetch_users_with_matches_since
+from deps.analytic_player_value_functions import compute_and_store_player_values
+from deps.analytic_player_value_weekly import send_weekly_player_value_to_a_guild
 
 local_tz = pytz.timezone("America/Los_Angeles")
 utc_tz = pytz.timezone("UTC")
@@ -29,6 +32,9 @@ time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=local_tz)
 time_generate_ai_summary = time(hour=8, minute=45, second=0, tzinfo=local_tz)
 time_check_streaks = time(hour=23, minute=50, second=0, tzinfo=local_tz)
 time_monthly_analytics_report = time(hour=9, minute=30, second=0, tzinfo=local_tz)
+time_compute_player_values = time(hour=2, minute=30, second=0, tzinfo=local_tz)
+time_weekly_player_value = time(hour=10, minute=0, second=0, tzinfo=local_tz)
+SATURDAY_WEEKDAY = 5
 
 
 class MyTasksCog(commands.Cog):
@@ -53,6 +59,8 @@ class MyTasksCog(commands.Cog):
         self.send_daily_ai_summary.start()  # Start the task when the cog is loaded
         self.check_daily_streaks_task.start()  # Start the task when the cog is loaded
         self.send_monthly_analytics_report.start()  # Start the task when the cog is loaded
+        self.daily_compute_player_values_task.start()  # Start the task when the cog is loaded
+        self.send_weekly_player_value_task.start()  # Start the task when the cog is loaded
         print_log("MyTasksCog>start_task: Bot is ready, all tasks started")
 
     @tasks.loop(minutes=16)
@@ -161,6 +169,38 @@ class MyTasksCog(commands.Cog):
             except Exception as e:
                 print_error_log(f"send_monthly_analytics_report: Error for guild {guild.name}: {e}")
 
+    @tasks.loop(time=time_compute_player_values)
+    async def daily_compute_player_values_task(self):
+        """
+        Every night, recompute the team-balancing player values but only for users
+        who played at least one ranked match in the last 24 hours.
+        """
+        print_log(f"daily_compute_player_values_task, current time {datetime.now()}")
+        try:
+            active_user_ids = data_access_fetch_users_with_matches_since(datetime.now(timezone.utc) - timedelta(days=1))
+            if not active_user_ids:
+                print_log("daily_compute_player_values_task: No user played in the last 24 hours, skipping")
+                return
+            compute_and_store_player_values(active_user_ids)
+        except Exception as e:
+            print_error_log(f"daily_compute_player_values_task task: {e}")
+
+    @tasks.loop(time=time_weekly_player_value)
+    async def send_weekly_player_value_task(self):
+        """
+        Every Saturday at 10am Pacific, post the player value leaderboard image
+        (top 30 users active in the last 30 days) in the AI channel.
+        """
+        now = datetime.now(local_tz)
+        if now.weekday() != SATURDAY_WEEKDAY:
+            return
+        print_log(f"send_weekly_player_value_task, current time {now}")
+        for guild in self.bot.guilds:
+            try:
+                await send_weekly_player_value_to_a_guild(guild, datetime.now(timezone.utc))
+            except Exception as e:
+                print_error_log(f"send_weekly_player_value_task: Error for guild {guild.name}: {e}")
+
     ### ============================ BEFORE LOOP ============================ ###
 
     @check_voice_channel_task.before_loop
@@ -223,6 +263,18 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>send_monthly_analytics_report: Waiting for bot to be ready...")
         await self.bot.wait_until_ready()
 
+    @daily_compute_player_values_task.before_loop
+    async def before_daily_compute_player_values_task(self):
+        """Wait for the player value computation task for the bot ready"""
+        print_log("MyTasksCog>daily_compute_player_values_task: Waiting for bot to be ready...")
+        await self.bot.wait_until_ready()
+
+    @send_weekly_player_value_task.before_loop
+    async def before_send_weekly_player_value_task(self):
+        """Wait for the weekly player value task for the bot ready"""
+        print_log("MyTasksCog>send_weekly_player_value_task: Waiting for bot to be ready...")
+        await self.bot.wait_until_ready()
+
     ### ============================ UNLOAD COG ============================ ###
     async def cog_unload(self):
         self.check_voice_channel_task.cancel()
@@ -235,6 +287,8 @@ class MyTasksCog(commands.Cog):
         self.send_daily_ai_summary.cancel()
         self.check_daily_streaks_task.cancel()
         self.send_monthly_analytics_report.cancel()
+        self.daily_compute_player_values_task.cancel()
+        self.send_weekly_player_value_task.cancel()
 
 
 async def setup(bot):
