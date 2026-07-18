@@ -3,8 +3,8 @@ Tasks are scheduled code that runs at a specific time or interval. This file foc
 """
 
 from datetime import datetime, time
+from zoneinfo import ZoneInfo
 from discord.ext import commands, tasks
-import pytz
 from deps.mybot import MyBot
 from deps.log import print_log
 from deps.tournaments.tournament_discord_actions import (
@@ -13,7 +13,9 @@ from deps.tournaments.tournament_discord_actions import (
     send_tournament_starting_to_a_guild,
 )
 
-local_tz = pytz.timezone("America/Los_Angeles")
+# ZoneInfo and not pytz: a pytz timezone attached directly to time() uses the
+# zone's LMT offset (-7:53 for Los Angeles), firing every task 53 minutes late.
+local_tz = ZoneInfo("America/Los_Angeles")
 time_send_daily_registration_tournament = time(hour=9, minute=0, second=0, tzinfo=local_tz)
 time_send_daily_starting_tournament = time(hour=9, minute=10, second=0, tzinfo=local_tz)
 time_send_daily_reminder_tournament = time(hour=11, minute=30, second=0, tzinfo=local_tz)

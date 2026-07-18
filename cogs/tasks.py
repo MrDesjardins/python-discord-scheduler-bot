@@ -5,7 +5,6 @@ Tasks are running code that is scheduled to run at a specific time or interval.
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from discord.ext import commands, tasks
-import pytz
 from deps.ai.ai_bot_functions import send_daily_ai_summary_guild
 from deps.monthly_report import send_monthly_analytics_report_guild
 from deps.streak_functions import announce_streak_milestones_for_guild
@@ -24,19 +23,16 @@ from deps.analytic_player_value_data_access import data_access_fetch_users_with_
 from deps.analytic_player_value_functions import compute_and_store_player_values
 from deps.analytic_player_value_weekly import send_weekly_player_value_to_a_guild
 
-local_tz = pytz.timezone("America/Los_Angeles")
-utc_tz = pytz.timezone("UTC")
-time_send_daily_message = time(hour=7, minute=0, second=0, tzinfo=local_tz)
-time_fetch_user_information = time(hour=1, minute=0, second=0, tzinfo=local_tz)
-time_send_daily_stats = time(hour=11, minute=35, second=0, tzinfo=local_tz)
-time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=local_tz)
-time_generate_ai_summary = time(hour=8, minute=45, second=0, tzinfo=local_tz)
-time_check_streaks = time(hour=23, minute=50, second=0, tzinfo=local_tz)
-time_monthly_analytics_report = time(hour=9, minute=30, second=0, tzinfo=local_tz)
-# Note: attaching a pytz timezone directly to time() uses the zone's LMT offset
-# (-7:53 for Los Angeles) so the pytz-based times above fire 53 minutes late.
-# ZoneInfo gives the real Pacific offset.
+# ZoneInfo and not pytz: a pytz timezone attached directly to time() uses the
+# zone's LMT offset (-7:53 for Los Angeles), firing every task 53 minutes late.
 pacific_tz = ZoneInfo("America/Los_Angeles")
+time_send_daily_message = time(hour=7, minute=0, second=0, tzinfo=pacific_tz)
+time_fetch_user_information = time(hour=1, minute=0, second=0, tzinfo=pacific_tz)
+time_send_daily_stats = time(hour=11, minute=35, second=0, tzinfo=pacific_tz)
+time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=pacific_tz)
+time_generate_ai_summary = time(hour=8, minute=45, second=0, tzinfo=pacific_tz)
+time_check_streaks = time(hour=23, minute=50, second=0, tzinfo=pacific_tz)
+time_monthly_analytics_report = time(hour=9, minute=30, second=0, tzinfo=pacific_tz)
 time_compute_player_values = time(hour=2, minute=30, second=0, tzinfo=pacific_tz)
 time_weekly_player_value = time(hour=10, minute=0, second=0, tzinfo=pacific_tz)
 SATURDAY_WEEKDAY = 5
