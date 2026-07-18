@@ -3,6 +3,7 @@ Tasks are running code that is scheduled to run at a specific time or interval.
 """
 
 from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from discord.ext import commands, tasks
 import pytz
 from deps.ai.ai_bot_functions import send_daily_ai_summary_guild
@@ -32,8 +33,12 @@ time_run_db_checkpoint = time(hour=3, minute=9, second=0, tzinfo=local_tz)
 time_generate_ai_summary = time(hour=8, minute=45, second=0, tzinfo=local_tz)
 time_check_streaks = time(hour=23, minute=50, second=0, tzinfo=local_tz)
 time_monthly_analytics_report = time(hour=9, minute=30, second=0, tzinfo=local_tz)
-time_compute_player_values = time(hour=2, minute=30, second=0, tzinfo=local_tz)
-time_weekly_player_value = time(hour=10, minute=0, second=0, tzinfo=local_tz)
+# Note: attaching a pytz timezone directly to time() uses the zone's LMT offset
+# (-7:53 for Los Angeles) so the pytz-based times above fire 53 minutes late.
+# ZoneInfo gives the real Pacific offset.
+pacific_tz = ZoneInfo("America/Los_Angeles")
+time_compute_player_values = time(hour=2, minute=30, second=0, tzinfo=pacific_tz)
+time_weekly_player_value = time(hour=10, minute=0, second=0, tzinfo=pacific_tz)
 SATURDAY_WEEKDAY = 5
 
 
@@ -191,7 +196,7 @@ class MyTasksCog(commands.Cog):
         Every Saturday at 10am Pacific, post the player value leaderboard image
         (top 30 users active in the last 30 days) in the AI channel.
         """
-        now = datetime.now(local_tz)
+        now = datetime.now(pacific_tz)
         if now.weekday() != SATURDAY_WEEKDAY:
             return
         print_log(f"send_weekly_player_value_task, current time {now}")
