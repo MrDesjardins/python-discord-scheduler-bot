@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 from datetime import datetime
 from deps.functions_date import convert_to_datetime
+from deps.tournaments.tournament_models import BetOddsGeneration
 
 
 @dataclass
@@ -23,6 +24,7 @@ class Tournament:
     has_finished: bool
     registered_user_count: int = 0  # Default value
     team_size: int = 1
+    bet_odds_generation: BetOddsGeneration = BetOddsGeneration.KILL_COUNT
 
     @staticmethod
     def from_db_row(row):
@@ -40,7 +42,8 @@ class Tournament:
             has_started=bool(row[9]),  # Convert integer to boolean
             has_finished=bool(row[10]),  # Convert integer to boolean
             team_size=row[11],
-            registered_user_count=row[12],  # Always last
+            bet_odds_generation=BetOddsGeneration(row[12]),
+            registered_user_count=row[13],  # Always last
         )
 
 

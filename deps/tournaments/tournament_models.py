@@ -32,6 +32,13 @@ class TournamentTeamGeneration(Enum):
     PLAYER_VALUE = "player_value"
 
 
+class BetOddsGeneration(Enum):
+    """How the initial betting odds of a tournament game are computed"""
+
+    KILL_COUNT = "kill_count"
+    PLAYER_VALUE = "player_value"
+
+
 class TournamentNode:
     """
     A node in the bracket tree

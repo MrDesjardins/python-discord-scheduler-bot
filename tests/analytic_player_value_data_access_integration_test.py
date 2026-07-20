@@ -9,7 +9,6 @@ from deps.analytic_player_value_data_access import (
     data_access_fetch_all_user_ids_with_matches,
     data_access_fetch_player_value,
     data_access_fetch_player_values_by_algorithm,
-    data_access_fetch_users_with_matches_since,
     data_access_upsert_player_value,
 )
 from deps.data_access_data_class import UserInfo
@@ -79,10 +78,8 @@ def test_fetch_player_values_by_algorithm():
     assert values == {1: 95.5, 2: 55.0}
 
 
-def test_fetch_users_with_matches_since():
+def test_fetch_all_user_ids_with_matches():
     insert_user_with_match(1, NOW - timedelta(hours=3))
     insert_user_with_match(2, NOW - timedelta(days=5))
 
-    recent_users = data_access_fetch_users_with_matches_since(NOW - timedelta(days=1))
-    assert recent_users == [1]
     assert sorted(data_access_fetch_all_user_ids_with_matches()) == [1, 2]

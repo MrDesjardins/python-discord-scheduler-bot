@@ -172,7 +172,8 @@ class DatabaseManager:
             maps TEXT NOT NULL,
             has_started INTEGER DEFAULT 0,
             has_finished INTEGER DEFAULT 0,
-            team_size INTEGER NOT NULL DEFAULT 1
+            team_size INTEGER NOT NULL DEFAULT 1,
+            bet_odds_generation TEXT NOT NULL DEFAULT 'kill_count'
         );
         """
         )
@@ -506,6 +507,19 @@ class DatabaseManager:
 
         # Add player value table for team balancing
         self._migrate_add_user_player_value_table()
+
+        # Add bet odds generation option on tournament
+        self._migrate_add_tournament_bet_odds_generation_column()
+
+    def _migrate_add_tournament_bet_odds_generation_column(self):
+        """Add the bet_odds_generation column storing how the betting odds are computed."""
+        columns = [row[1] for row in self.cursor.execute("PRAGMA table_info(tournament)").fetchall()]
+        if "bet_odds_generation" in columns:
+            return
+        print_log("Running migration: Add bet_odds_generation column on tournament")
+        self.cursor.execute("ALTER TABLE tournament ADD COLUMN bet_odds_generation TEXT NOT NULL DEFAULT 'kill_count'")
+        self.conn.commit()
+        print_log("Migration complete: bet_odds_generation column added")
 
     def _migrate_add_user_player_value_table(self):
         """Create user_player_value table storing the nightly computed team-balancing value."""

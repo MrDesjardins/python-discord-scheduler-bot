@@ -2,6 +2,7 @@
 Tasks are running code that is scheduled to run at a specific time or interval.
 """
 
+import asyncio
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 from discord.ext import commands, tasks
@@ -19,7 +20,6 @@ from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
 from deps.system_database import run_wal_checkpoint
 from deps.functions_stats import send_daily_stats_to_a_guild
-from deps.analytic_player_value_data_access import data_access_fetch_users_with_matches_since
 from deps.analytic_player_value_functions import compute_and_store_player_values
 from deps.analytic_player_value_weekly import send_weekly_player_value_to_a_guild
 
@@ -173,16 +173,13 @@ class MyTasksCog(commands.Cog):
     @tasks.loop(time=time_compute_player_values)
     async def daily_compute_player_values_task(self):
         """
-        Every night, recompute the team-balancing player values but only for users
-        who played at least one ranked match in the last 24 hours.
+        Every night, recompute the team-balancing player values for every user.
+        All users and not only the recently active ones: the values decay with
+        calendar time, so idle players must keep dropping until they play again.
         """
         print_log(f"daily_compute_player_values_task, current time {datetime.now()}")
         try:
-            active_user_ids = data_access_fetch_users_with_matches_since(datetime.now(timezone.utc) - timedelta(days=1))
-            if not active_user_ids:
-                print_log("daily_compute_player_values_task: No user played in the last 24 hours, skipping")
-                return
-            compute_and_store_player_values(active_user_ids)
+            await asyncio.to_thread(compute_and_store_player_values)
         except Exception as e:
             print_error_log(f"daily_compute_player_values_task task: {e}")
 
@@ -190,7 +187,7 @@ class MyTasksCog(commands.Cog):
     async def send_weekly_player_value_task(self):
         """
         Every Saturday at 10am Pacific, post the player value leaderboard image
-        (top 30 users active in the last 30 days) in the AI channel.
+        (top 60 users active in the last 30 days) in the AI channel.
         """
         now = datetime.now(pacific_tz)
         if now.weekday() != SATURDAY_WEEKDAY:

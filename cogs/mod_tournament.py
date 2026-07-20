@@ -27,7 +27,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
-from deps.tournaments.tournament_models import BestOf, TournamentSize, TournamentTeamGeneration
+from deps.tournaments.tournament_models import BestOf, BetOddsGeneration, TournamentSize, TournamentTeamGeneration
 from deps.tournaments.tournament_values import TOURNAMENT_MAPS
 from deps.tournaments.tournament_data_class import Tournament
 from deps.tournaments.tournament_functions import (
@@ -94,6 +94,7 @@ class ModTournament(commands.Cog):
         max_users: TournamentSize = TournamentSize.SIXTEEN,
         maps: str = TOURNAMENT_MAPS,
         team_size: int = 1,
+        bet_odds_generation: BetOddsGeneration = BetOddsGeneration.KILL_COUNT,
     ):
         """Create a tournament"""
         await interaction.response.defer(ephemeral=True)
@@ -132,6 +133,7 @@ class ModTournament(commands.Cog):
             max_users_number,
             clean_maps,
             team_size,
+            bet_odds_generation,
         )
         await interaction.followup.send(f"Created tournament {name}", ephemeral=True)
 

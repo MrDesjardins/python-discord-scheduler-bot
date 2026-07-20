@@ -16,19 +16,6 @@ def data_access_fetch_all_user_ids_with_matches() -> List[int]:
     return [row[0] for row in result]
 
 
-def data_access_fetch_users_with_matches_since(since: datetime) -> List[int]:
-    """Users that played at least one ranked match since the given time."""
-    result = (
-        database_manager.get_cursor()
-        .execute(
-            "SELECT DISTINCT user_id FROM user_full_match_info WHERE match_timestamp >= :since",
-            {"since": since.isoformat()},
-        )
-        .fetchall()
-    )
-    return [row[0] for row in result]
-
-
 def data_access_upsert_player_value(
     user_id: int,
     algorithm: PlayerValueAlgorithm,

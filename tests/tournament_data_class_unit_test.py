@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_models import BetOddsGeneration
 from deps.functions_date import convert_to_datetime
 
 
@@ -21,6 +22,7 @@ def test_tournament_from_db_row_all_fields() -> None:
             1,
             0,
             1,
+            "player_value",
             8,
         )
     )
@@ -37,6 +39,7 @@ def test_tournament_from_db_row_all_fields() -> None:
     assert tournament.has_finished is False
     assert tournament.registered_user_count == 8  # Always last
     assert tournament.team_size == 1
+    assert tournament.bet_odds_generation == BetOddsGeneration.PLAYER_VALUE
 
 
 def test_tournament_game_from_db_row_all_fields() -> None:

@@ -416,9 +416,9 @@ def compute_all_player_values(
     only_user_ids: Optional[List[int]] = None,
 ) -> Dict[int, Dict[PlayerValueAlgorithm, PlayerValueResult]]:
     """
-    Compute the three values for the requested users. The PERFORMANCE community
-    baseline always uses every user in matches_by_user, so pass the full community
-    even when recomputing a subset (only_user_ids).
+    Compute every algorithm's value for the requested users. The PERFORMANCE
+    community baseline always uses every user in matches_by_user, so pass the full
+    community even when recomputing a subset (only_user_ids).
     """
     now = now or datetime.now(timezone.utc)
     target_ids = set(only_user_ids) if only_user_ids is not None else set(matches_by_user.keys())
@@ -455,9 +455,9 @@ def compute_and_store_player_values(
     now: Optional[datetime] = None,
 ) -> Dict[int, Dict[PlayerValueAlgorithm, PlayerValueResult]]:
     """
-    Compute and persist the three values for the given users (all users with
-    matches when None). The whole community's matches are always loaded because
-    the PERFORMANCE algorithm normalizes against everyone.
+    Compute and persist every algorithm's value for the given users (all users
+    with matches when None). The whole community's matches are always loaded
+    because the PERFORMANCE algorithm normalizes against everyone.
     """
     now = now or datetime.now(timezone.utc)
     all_user_ids = data_access_fetch_all_user_ids_with_matches()

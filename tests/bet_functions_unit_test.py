@@ -14,6 +14,7 @@ from deps.bet.bet_functions import (
     calculate_gain_lost_for_open_bet_game,
     define_odds_between_two_users,
     define_odds_between_two_teams,
+    define_odds_by_player_value,
     distribute_gain_on_recent_ended_game,
     dynamically_adjust_bet_game_odd,
     generate_msg_bet_game,
@@ -27,7 +28,7 @@ from deps.bet.bet_functions import (
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
 from deps.bet import bet_functions
 from deps.models import UserFullMatchStats
-from deps.tournaments.tournament_models import TournamentNode
+from deps.tournaments.tournament_models import BetOddsGeneration, TournamentNode
 
 now_date = datetime(2024, 11, 25, 11, 30, 0, tzinfo=timezone.utc)
 later_date = datetime(2025, 7, 3, 17, 36, 0, tzinfo=timezone.utc)
@@ -2435,3 +2436,93 @@ async def test_get_bet_user_amount_active_bet_many_ets(
     result = get_bet_user_amount_active_bet(1, user_id)
     # Assert
     assert result == 250
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_player_values_by_algorithm.__name__)
+def test_define_odds_by_player_value_no_value(mock_fetch_player_values) -> None:
+    """Nobody has a computed value: even odds"""
+    mock_fetch_player_values.return_value = {}
+    result = define_odds_by_player_value([1], [2])
+    assert result == (0.5, 0.5)
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_player_values_by_algorithm.__name__)
+def test_define_odds_by_player_value_two_users(mock_fetch_player_values) -> None:
+    """The odds are proportional to the two player values"""
+    mock_fetch_player_values.return_value = {1: 300.0, 2: 100.0}
+    result = define_odds_by_player_value([1], [2])
+    assert result == (0.75, 0.25)
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_player_values_by_algorithm.__name__)
+def test_define_odds_by_player_value_one_side_unknown(mock_fetch_player_values) -> None:
+    """A side without any computed value gives even odds, like the kill count mechanism"""
+    mock_fetch_player_values.return_value = {1: 100.0}
+    result = define_odds_by_player_value([1], [2])
+    assert result == (0.5, 0.5)
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_player_values_by_algorithm.__name__)
+def test_define_odds_by_player_value_partially_known_team(mock_fetch_player_values) -> None:
+    """A user without a computed value in a partially known team counts for the minimum value"""
+    mock_fetch_player_values.return_value = {1: 50.0, 3: 70.0}
+    result = define_odds_by_player_value([1, 2], [3, 4])  # Users 2 and 4 default to VALUE_MIN (10)
+    assert result == (pytest.approx(60 / 140), pytest.approx(80 / 140))
+
+
+@patch.object(bet_functions, bet_functions.data_access_fetch_player_values_by_algorithm.__name__)
+def test_define_odds_by_player_value_teams(mock_fetch_player_values) -> None:
+    """The odds are proportional to the sum of the team values"""
+    mock_fetch_player_values.return_value = {1: 100.0, 2: 200.0, 3: 50.0, 4: 50.0}
+    result = define_odds_by_player_value([1, 2], [3, 4])
+    assert result == (0.75, 0.25)
+
+
+@patch.object(bet_functions, bet_functions.fetch_tournament_by_id.__name__)
+@patch.object(bet_functions, bet_functions.define_odds_by_player_value.__name__)
+@patch.object(bet_functions, bet_functions.define_odds_between_two_users.__name__)
+@patch.object(bet_functions, bet_functions.fetch_user_info_by_user_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_fetch_bet_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.fetch_tournament_games_by_tournament_id.__name__)
+@patch.object(bet_functions, bet_functions.data_access_create_bet_game.__name__)
+async def test_generating_odd_uses_player_value_when_tournament_configured(
+    mock_create_bet_game,
+    mock_fetch_tournament_game,
+    mock_fetch_bet_games,
+    mock_fetch_user,
+    mock_define_odds_kill_count,
+    mock_define_odds_player_value,
+    mock_fetch_tournament,
+) -> None:
+    """A tournament configured with the player value option uses it instead of the kill count"""
+    # Arrange
+    tournament_player_value = Tournament(
+        1,
+        2,
+        "Tournament 1",
+        fake_date,
+        fake_date,
+        fake_date,
+        5,
+        16,
+        "villa",
+        False,
+        False,
+        0,
+        1,
+        BetOddsGeneration.PLAYER_VALUE,
+    )
+    mock_fetch_tournament.return_value = tournament_player_value
+    mock_fetch_tournament_game.return_value = [
+        TournamentGame(1, 1, 1, 2, None, None, None, now_date, None, None),
+    ]
+    mock_fetch_bet_games.return_value = []
+    mock_fetch_user.side_effect = lambda user_id: UserInfo(user_id, f"User {user_id}", None, None, None, "pst", 0)
+    mock_define_odds_player_value.return_value = (0.7, 0.3)
+    mock_create_bet_game.return_value = None
+    # Act
+    await system_generate_game_odd(1)
+    # Assert
+    mock_define_odds_player_value.assert_called_once_with([1], [2])
+    mock_define_odds_kill_count.assert_not_called()
+    mock_create_bet_game.assert_called_once_with(1, 1, 0.7, 0.3)

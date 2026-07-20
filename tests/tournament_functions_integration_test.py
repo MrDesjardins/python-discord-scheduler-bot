@@ -26,6 +26,7 @@ from deps.tournaments.tournament_functions import (
     start_tournament,
 )
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_models import BetOddsGeneration
 from deps.tournaments.tournament_visualizer import plot_tournament_bracket
 from tests.mock_model import (
     mock_user1,
@@ -1026,3 +1027,45 @@ async def test_full_tournament_many_winning_bet_and_one_lost() -> None:
     assert tournament_tree.user_winner_id == u3
     bet_games_to_assert = data_access_fetch_bet_games_by_tournament_id(tournament_id)
     assert len([b for b in bet_games_to_assert if not b.bet_distributed]) == 0
+
+
+async def test_tournament_bet_odds_generation_persisted() -> None:
+    """
+    The bet odds generation option chosen at creation is persisted and read back
+    so the odds are computed with the same mechanism during the whole tournament.
+    """
+    tournament_id = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament",
+        register_date_start,
+        date_start,
+        date_end,
+        5,
+        4,
+        "villa",
+        1,
+        BetOddsGeneration.PLAYER_VALUE,
+    )
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
+    assert tournament.bet_odds_generation == BetOddsGeneration.PLAYER_VALUE
+
+
+async def test_tournament_bet_odds_generation_default_kill_count() -> None:
+    """A tournament created without the option keeps the historical kill count mechanism"""
+    tournament_id = data_access_insert_tournament(
+        GUILD_ID,
+        "My Tournament",
+        register_date_start,
+        date_start,
+        date_end,
+        5,
+        4,
+        "villa",
+        1,
+    )
+    tournament: Union[Tournament, None] = fetch_tournament_by_id(tournament_id)
+    if tournament is None:
+        assert False, "Tournament is None"
+    assert tournament.bet_odds_generation == BetOddsGeneration.KILL_COUNT

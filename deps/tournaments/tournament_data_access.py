@@ -11,6 +11,7 @@ from deps.analytic_data_access import USER_INFO_SELECT_FIELD, fetch_user_info
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.tournaments.tournament_data_class import Tournament, TournamentGame
+from deps.tournaments.tournament_models import BetOddsGeneration
 from deps.functions import get_name
 
 KEY_TOURNAMENT = "tournament"
@@ -45,7 +46,8 @@ SELECT_TOURNAMENT = """
     tournament.maps,
     tournament.has_started,
     tournament.has_finished,
-    tournament.team_size
+    tournament.team_size,
+    tournament.bet_odds_generation
     """
 SELECT_TOURNAMENT_GAME = """
     tournament_game.id,
@@ -84,6 +86,7 @@ def data_access_insert_tournament(  # pylint: disable=too-many-arguments
     max_users: int,
     maps: str,
     team_size: int = 1,
+    bet_odds_generation: BetOddsGeneration = BetOddsGeneration.KILL_COUNT,
 ) -> int:
     """
     Insert a tournament and its associated games in a binary bracket system.
@@ -104,10 +107,22 @@ def data_access_insert_tournament(  # pylint: disable=too-many-arguments
     cursor.execute(
         """
         INSERT INTO tournament (
-            guild_id, name, registration_date, start_date, end_date, best_of, max_players, maps, team_size
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            guild_id, name, registration_date, start_date, end_date, best_of, max_players, maps, team_size,
+            bet_odds_generation
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
         """,
-        (guild_id, name, registration_date_start, start_date, end_date, best_of, max_users, maps, team_size),
+        (
+            guild_id,
+            name,
+            registration_date_start,
+            start_date,
+            end_date,
+            best_of,
+            max_users,
+            maps,
+            team_size,
+            bet_odds_generation.value,
+        ),
     )
     tournament_id = cursor.lastrowid
 

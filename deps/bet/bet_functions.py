@@ -1,6 +1,7 @@
 """
 Function to calculate the gain and lost of bets
 """
+
 # pylint: disable=line-too-long,too-many-locals,too-many-branches,too-many-statements
 # pylint: disable=broad-exception-caught,consider-using-generator
 
@@ -12,6 +13,8 @@ from deps.analytic_data_access import (
     fetch_user_info_by_user_id,
     data_access_fetch_users_full_match_info,
 )
+from deps.analytic_player_value_data_access import data_access_fetch_player_values_by_algorithm
+from deps.analytic_player_value_functions import PLAYER_VALUE_OFFICIAL_ALGORITHM, VALUE_MIN
 from deps.bet.bet_data_access import (
     data_access_create_bet_game,
     data_access_create_bet_user_game,
@@ -41,7 +44,7 @@ from deps.tournaments.tournament_data_access import (
 from deps.data_access_data_class import UserInfo
 from deps.system_database import database_manager
 from deps.log import print_error_log, print_log
-from deps.tournaments.tournament_models import TournamentNode
+from deps.tournaments.tournament_models import BetOddsGeneration, TournamentNode
 
 DEFAULT_MONEY = 1000
 MIN_BET_AMOUNT = 10
@@ -288,18 +291,24 @@ async def system_generate_game_odd(tournament_id: int) -> None:
             odd_user1 = 0.5
             odd_user2 = 0.5
         else:
-            # Here find a way like getting the user MMR
+            use_player_value = tournament.bet_odds_generation == BetOddsGeneration.PLAYER_VALUE
             if tournament.team_size > 1:
                 # If the tournament is a team tournament, we need to get the team members
                 team_members = fetch_tournament_team_members_by_leader(tournament_id)
                 team1_members: List[int] = team_members.get(game.user1_id, []) if game.user1_id is not None else []
                 team2_members: List[int] = team_members.get(game.user2_id, []) if game.user2_id is not None else []
-                odd_user1, odd_user2 = define_odds_between_two_teams(
-                    [user_info1.id] + team1_members, [user_info2.id] + team2_members
-                )
+                team1_ids = [user_info1.id] + team1_members
+                team2_ids = [user_info2.id] + team2_members
+                if use_player_value:
+                    odd_user1, odd_user2 = define_odds_by_player_value(team1_ids, team2_ids)
+                else:
+                    odd_user1, odd_user2 = define_odds_between_two_teams(team1_ids, team2_ids)
             else:
                 # If the tournament is a single player tournament, we can use the user id directly
-                odd_user1, odd_user2 = define_odds_between_two_users(user_info1.id, user_info2.id)
+                if use_player_value:
+                    odd_user1, odd_user2 = define_odds_by_player_value([user_info1.id], [user_info2.id])
+                else:
+                    odd_user1, odd_user2 = define_odds_between_two_users(user_info1.id, user_info2.id)
         # 4.3 Insert the generated odd into the database
         data_access_create_bet_game(tournament_id, game.id, odd_user1, odd_user2)
 
@@ -439,9 +448,7 @@ async def generate_msg_bet_leaderboard(tournament: Tournament) -> str:
         return ""
 
     wallets: List[BetUserTournament] = data_access_get_all_wallet_for_tournament(tournament_id=tournament.id)
-    open_bets_not_distributed: List[BetUserGame] = data_access_get_bet_user_game_waiting_match_complete(
-        tournament.id
-    )
+    open_bets_not_distributed: List[BetUserGame] = data_access_get_bet_user_game_waiting_match_complete(tournament.id)
 
     for bet in open_bets_not_distributed:
         wallet = next((w for w in wallets if w.user_id == bet.user_id), None)
@@ -520,6 +527,37 @@ def define_odds_between_two_teams(team_1_user_ids: list[int], team_2_user_ids: l
     odd_team1 = (
         avg_kill_count_1 / (avg_kill_count_1 + avg_kill_count_2) if avg_kill_count_1 + avg_kill_count_2 > 0 else 0.5
     )
+    odd_team2 = 1 - odd_team1
+
+    return odd_team1, odd_team2
+
+
+def define_odds_by_player_value(team_1_user_ids: list[int], team_2_user_ids: list[int]) -> tuple[float, float]:
+    """
+    Calculate the odds between two teams (or two solo players when each list has one id)
+    using the nightly computed player value instead of the raw kill count.
+
+    Logic:
+    1) Get the stored player value for every user
+    2) A side without any stored value gives even odds (same as the kill count
+       mechanism): an unknown player is unknown, not the weakest possible
+    3) Sum the values per team, users never computed count for VALUE_MIN
+    4) The odd of a team is its total value divided by the combined total
+    """
+    values_by_user_id = data_access_fetch_player_values_by_algorithm(PLAYER_VALUE_OFFICIAL_ALGORITHM)
+
+    if not any(user_id in values_by_user_id for user_id in team_1_user_ids) or not any(
+        user_id in values_by_user_id for user_id in team_2_user_ids
+    ):
+        return 0.5, 0.5
+
+    total_value_1 = sum(values_by_user_id.get(user_id, VALUE_MIN) for user_id in team_1_user_ids)
+    total_value_2 = sum(values_by_user_id.get(user_id, VALUE_MIN) for user_id in team_2_user_ids)
+
+    if total_value_1 + total_value_2 <= 0:
+        return 0.5, 0.5
+
+    odd_team1 = total_value_1 / (total_value_1 + total_value_2)
     odd_team2 = 1 - odd_team1
 
     return odd_team1, odd_team2
