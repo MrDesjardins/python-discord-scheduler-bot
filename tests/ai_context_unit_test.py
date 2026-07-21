@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deps.ai.ai_functions import DAILY_SUMMARY_MAX_CONTEXT_CHARS, BotAI
+from deps.ai.ai_functions import DAILY_SUMMARY_MAX_CONTEXT_CHARS, OPENAI_FALLBACK_MODELS, BotAI
 from deps.data_access import (
     data_access_clear_guild_ai_context,
     data_access_get_guild_ai_context,
@@ -291,6 +291,26 @@ async def test_ask_ai_sql_for_stats_includes_resolved_mentions():
     assert "display_name = fridge" in prompt
     assert "display_name = Deus" in prompt
     assert "restrict to these user ids: 10,11" in prompt
+
+
+def test_build_ai_reply_contents_splits_over_discord_limit():
+    """AI mention replies should split into an edit payload and follow-up payloads."""
+    from cogs.events import MyEventsCog
+
+    contents = MyEventsCog._build_ai_reply_contents("✅", "<@123>", "x" * 3000)
+
+    assert len(contents) == 2
+    assert all(len(content) <= 2000 for content in contents)
+    assert contents[0].startswith("✅ <@123> ")
+    assert contents[1].startswith("Follow-up from the first part of the edited message:\n")
+    assert sum(content.count("x") for content in contents) == 3000
+
+
+def test_openai_fallback_models_use_current_production_models():
+    """OpenAI fallback should use current production API models, not deprecated legacy models."""
+    assert OPENAI_FALLBACK_MODELS == ["gpt-5.6-terra", "gpt-5.6-luna"]
+    assert "gpt-4o" not in OPENAI_FALLBACK_MODELS
+    assert "gpt-3.5-turbo" not in OPENAI_FALLBACK_MODELS
 
 
 @pytest.mark.asyncio

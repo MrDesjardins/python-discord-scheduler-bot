@@ -62,6 +62,7 @@ load_dotenv()
 
 THRESHOLD_GEMINI = 500
 THRESHOLD_RETRY_AI = 5
+OPENAI_FALLBACK_MODELS = ["gpt-5.6-terra", "gpt-5.6-luna"]
 # Gemini SDK HTTP timeout in milliseconds (large prompts; avoids stuck sockets indefinitely)
 GEMINI_HTTP_TIMEOUT_MS = 4 * 60 * 1000
 DAILY_SUMMARY_MAX_CONTEXT_CHARS = 90_000
@@ -225,9 +226,8 @@ class BotAI:
 
         try:
             client_open_ai = OpenAI()
-            models_to_try = ["gpt-4o", "gpt-3.5-turbo"]
 
-            for model in models_to_try:
+            for model in OPENAI_FALLBACK_MODELS:
                 try:
                     print_log(f"ask_ai: Trying OpenAI model: {model}")
                     response_open_ai = client_open_ai.chat.completions.create(

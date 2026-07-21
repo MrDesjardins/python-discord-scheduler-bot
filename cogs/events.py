@@ -15,6 +15,7 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from discord.ext import commands
 import discord
+from deps.ai.ai_bot_functions import split_message_at_paragraphs
 from deps.ai.ai_functions import BotAISingleton
 from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
@@ -389,6 +390,28 @@ class MyEventsCog(commands.Cog):
             content = content.replace(f"<@!{mentioned_user.id}>", replacement)
             content = content.replace(mentioned_user.mention, replacement)
         return content
+
+    @staticmethod
+    def _build_ai_reply_contents(status_prefix: str, mention: str, response: str, max_length: int = 2000) -> list[str]:
+        """
+        Build Discord-safe payloads for the edited placeholder and any follow-up messages.
+        """
+        prefix = f"{status_prefix} {mention} "
+        followup_prefix = "Follow-up from the first part of the edited message:\n"
+        if len(prefix) >= max_length:
+            return [prefix[:max_length]]
+
+        body_max_length = min(max_length - len(prefix), max_length - len(followup_prefix))
+        if body_max_length <= 0:
+            return [prefix[:max_length]]
+
+        response_chunks = split_message_at_paragraphs(response, max_length=body_max_length)
+        if not response_chunks:
+            response_chunks = [""]
+
+        contents = [prefix + response_chunks[0]]
+        contents.extend(followup_prefix + chunk for chunk in response_chunks[1:])
+        return contents
 
     @staticmethod
     async def _resolve_user_mentions(message: discord.Message, bot_user_id: int) -> list[UserInfo]:
@@ -1135,22 +1158,57 @@ class MyEventsCog(commands.Cog):
                         )
                     )
                     if response is not None:
+                        contents = self._build_ai_reply_contents("✅", message.author.mention, response)
+                        edit_content = contents[0]
+                        followup_contents = contents[1:]
+                        print_log(
+                            "on_message: Editing AI placeholder with successful response "
+                            f"(message_id={message_ref.id}, response_len={len(response)}, "
+                            f"content_len={len(edit_content)}, followup_count={len(followup_contents)})."
+                        )
                         await message_ref.edit(
-                            content="✅ " + message.author.mention + " " + response,
+                            content=edit_content,
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
+                        print_log(f"on_message: Successfully edited AI response message {message_ref.id}.")
+                        for index, followup_content in enumerate(followup_contents, start=1):
+                            await message.channel.send(
+                                content=followup_content,
+                                allowed_mentions=discord.AllowedMentions.none(),
+                            )
+                            print_log(
+                                "on_message: Successfully sent AI follow-up message "
+                                f"{index}/{len(followup_contents)} for placeholder {message_ref.id}."
+                            )
                     else:
+                        content = self._build_ai_reply_contents(
+                            "⛔",
+                            message.author.mention,
+                            "I am sorry, I could not process your request.",
+                        )[0]
+                        print_log(
+                            f"on_message: Editing AI placeholder with failure response (message_id={message_ref.id})."
+                        )
                         await message_ref.edit(
-                            content="⛔ " + message.author.mention + " I am sorry, I could not process your request.",
+                            content=content,
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
+                        print_log(f"on_message: Successfully edited AI failure message {message_ref.id}.")
                 except Exception as e:
                     print_error_log(f"on_message: Error processing message: {e}")
-                    await message_ref.edit(
-                        content=message.author.mention
-                        + " I am sorry, I encountered an error while processing your request.",
-                        allowed_mentions=discord.AllowedMentions.none(),
-                    )
+                    content = self._build_ai_reply_contents(
+                        "⛔",
+                        message.author.mention,
+                        "I am sorry, I encountered an error while processing your request.",
+                    )[0]
+                    try:
+                        await message_ref.edit(
+                            content=content,
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
+                        print_log(f"on_message: Successfully edited AI error message {message_ref.id}.")
+                    except Exception as edit_error:
+                        print_error_log(f"on_message: Failed to edit AI error message {message_ref.id}: {edit_error}")
         # Make sure other commands still work
         await self.bot.process_commands(message)
 
