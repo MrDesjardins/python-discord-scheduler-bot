@@ -558,6 +558,57 @@ sudo apt update
 sudo apt install -y google-chrome-stable xvfb
 ```
 
+## TribeMarkets match voting integration
+
+The ranked-match start flow can optionally create a binary prediction market in
+the `Circus Maximus` Tribe. The bot posts the TribeMarkets voting link directly
+under the existing **Match Starting** GIF. The market description includes the
+Discord display names, match date, map (when stats.cc has reported it), and the
+Yes/No win prediction.
+
+Configure the integration with environment variables (keep the API key secret):
+
+```sh
+TRIBEMARKETS_API_URL=https://tribemarkets.com/v1
+TRIBEMARKETS_API_KEY=your-tribe-bound-api-key
+TRIBEMARKETS_TRIBE_SLUG=circus-maximus
+# Optional: use the UUID to avoid resolving the slug on every match.
+# TRIBEMARKETS_TRIBE_ID=your-circus-maximus-tribe-id
+TRIBEMARKETS_CLOSE_SCORE=2
+TRIBEMARKETS_SHARE_LINK_HOURS=168
+TRIBEMARKETS_VALIDATION_MODE=manual
+```
+
+The API key must be bound to the Circus Maximus Tribe and have permission to
+create/close markets and submit resolutions. With `manual` validation, the bot
+submits the authoritative stats.cc win/loss result to TribeMarkets after the
+match; the platform's normal challenge window then finalizes settlement. The
+bot closes voting as soon as either score reaches 2 (for example, 2-0 or 1-2),
+but it does not resolve from that score alone because Rainbow Six can expose
+intermediate round scores. The existing final stats.cc win/loss signal remains
+the resolution cue.
+
+Once the result is settled, the bot reads TribeMarkets' result summary and
+edits the voting message with the winning prediction, pool total, correct and
+incorrect prediction counts, highest earner, biggest loss, and a compact
+per-prediction breakdown for small matches. The message always keeps a direct
+link to the specific market. If signed validation is enabled and the challenge
+window is still open, the message remains in a pending state until a later
+result-summary read can confirm settlement.
+
+For stronger provider authentication, configure a Tribe-bound key with
+validation submission permission and use:
+
+```sh
+TRIBEMARKETS_VALIDATION_MODE=signed_bot_with_challenge
+TRIBEMARKETS_VALIDATION_PROVIDER_ID=discord-scheduler-bot
+TRIBEMARKETS_VALIDATION_CHALLENGE_MINUTES=15
+```
+
+If `TRIBEMARKETS_API_KEY` is not configured, the bot keeps its existing GIF-only
+behavior. A failure to create or update a market does not prevent the match GIF
+from being posted.
+
 ## Python Environment and Dependencies
 
 Here are few commands to set up the environment and dependencies.

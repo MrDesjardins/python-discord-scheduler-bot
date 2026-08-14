@@ -703,12 +703,15 @@ def data_access_set_pending_match_start_gif_message(
     message_id: int,
     member_ids: list[int],
     last_result_key: str | None = None,
+    market: dict[str, Any] | None = None,
 ) -> None:
-    """Store the text channel/message id and GIF member ids after posting a match-start GIF."""
+    """Store match-start GIF metadata and optional TribeMarkets state."""
     key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
     value: dict[str, Any] = {"text_channel_id": text_channel_id, "message_id": message_id, "member_ids": member_ids}
     if last_result_key is not None:
         value["last_result_key"] = last_result_key
+    if market is not None:
+        value["market"] = market
     set_cache(
         False,
         key,

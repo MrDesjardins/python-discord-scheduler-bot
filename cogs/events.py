@@ -964,7 +964,7 @@ class MyEventsCog(commands.Cog):
                         print_log(
                             f"Reserved match start GIF send for guild {guild_id}, channel {channel_id} at {reserved_at.isoformat()}."
                         )
-                        sent = await send_match_start_gif(self.bot, guild_id, channel_id)
+                        sent = await send_match_start_gif(self.bot, guild_id, channel_id, started_at=reserved_at)
                         if sent:
                             print_log(f"Posted match start GIF for guild {guild_id}, channel {channel_id}.")
                         else:

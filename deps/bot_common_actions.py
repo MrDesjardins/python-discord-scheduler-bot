@@ -99,6 +99,13 @@ from deps.siege import (
     resolve_rank_role_name,
     StatsCcRankedMatchEndResult,
 )
+from deps.tribemarkets import (
+    MatchMarket,
+    TribeMarketsClient,
+    format_result_summary,
+    infer_map_name,
+    score_reached_close_threshold,
+)
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
     adjust_reaction,
@@ -1114,7 +1121,12 @@ def _choose_match_start_gif_result(
     return results[0]
 
 
-async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int) -> bool:
+async def send_match_start_gif(
+    bot: MyBot,
+    guild_id: int,
+    voice_channel_id: int,
+    started_at: datetime | None = None,
+) -> bool:
     """
     Generate and send match start GIF to main text channel.
 
@@ -1124,6 +1136,7 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
         voice_channel_id: Voice channel ID where the match is starting
     """
     try:
+        started_at = started_at or datetime.now(timezone.utc)
         # Get voice channel and members
         vc_channel = await data_access_get_channel(voice_channel_id)
         if not vc_channel or not vc_channel.members:
@@ -1156,12 +1169,44 @@ async def send_match_start_gif(bot: MyBot, guild_id: int, voice_channel_id: int)
             file=file,
             delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
         )
+        market: MatchMarket | None = None
+        try:
+            map_name = next(
+                (
+                    inferred_map
+                    for member in members_for_gif
+                    if (inferred_map := infer_map_name(getattr(get_statscc_activity(member), "details", None)))
+                ),
+                None,
+            )
+            market = await TribeMarketsClient().create_match_market(
+                guild_id=guild_id,
+                voice_channel_id=voice_channel_id,
+                member_names=[member.display_name for member in members_for_gif if not member.bot],
+                started_at=started_at,
+                map_name=map_name,
+            )
+        except Exception as exc:
+            print_warning_log(f"send_match_start_gif: TribeMarkets market unavailable: {exc}")
+
+        if market is not None:
+            try:
+                vote_message = await text_channel.send(
+                    "🗳️ Vote for the squad: "
+                    f"{market.share_url}\n"
+                    "Voting closes when one side reaches 2. Your prediction is recorded on TribeMarkets.",
+                    delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                )
+                market.vote_message_id = vote_message.id
+            except discord.HTTPException as exc:
+                print_warning_log(f"send_match_start_gif: Could not post TribeMarkets vote link: {exc}")
         data_access_set_pending_match_start_gif_message(
             guild_id,
             voice_channel_id,
             text_channel.id,
             sent_message.id,
             [m.id for m in members_for_gif],
+            market=market.as_dict() if market is not None else None,
         )
         print_log(
             f"send_match_start_gif: Successfully sent GIF to {text_channel.name} "
@@ -1179,7 +1224,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
     If a pending match-start GIF exists and stats.cc reports a ranked score, replace the message attachment.
 
     In-round updates keep pending metadata so later score ticks can edit the same message (animated GIF).
-    When stats.cc details are ``Match Ending:`` (``is_match_complete``), posts a static PNG (``Win 4-1`` / ``Loss 1-4`` / ``Tie 2-2`` style) and clears pending. In-progress lines keep ``LEADING`` / ``TRAILING`` plus `` `score` `` in the message and attachment description.
+    When stats.cc details are ``Match Ending:`` (``is_match_complete``), posts a static PNG (``Win 4-1`` / ``Loss 1-4`` / ``Tie 2-2`` style). Pending market metadata remains until the result has been submitted successfully. In-progress lines keep ``LEADING`` / ``TRAILING`` plus `` `score` `` in the message and attachment description.
     """
     try:
         pending = await data_access_get_pending_match_start_gif_message(guild.id, voice_channel_id)
@@ -1233,6 +1278,96 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
             return
 
+        market: MatchMarket | None = None
+        raw_market = pending.get("market")
+        if isinstance(raw_market, dict):
+            try:
+                market = MatchMarket.from_dict(raw_market)
+            except (KeyError, TypeError, ValueError) as exc:
+                print_warning_log(f"try_update_match_start_gif_with_result: invalid market metadata: {exc}")
+
+        market_client: TribeMarketsClient | None = None
+        if market is not None:
+            try:
+                market_client = TribeMarketsClient()
+            except ValueError as exc:
+                print_warning_log(f"try_update_match_start_gif_with_result: invalid TribeMarkets settings: {exc}")
+
+        score_compact = f"{parsed_result.our_score}-{parsed_result.their_score}"
+        if market is not None and market_client is not None and not market.vote_closed:
+            should_close = score_reached_close_threshold(
+                parsed_result.our_score,
+                parsed_result.their_score,
+                threshold=market_client.settings.close_score,
+            )
+            if should_close and await market_client.close_market(market):
+                market.vote_closed = True
+                if market.vote_message_id is not None:
+                    vote_message = await data_access_get_message(
+                        guild.id,
+                        int(pending["text_channel_id"]),
+                        market.vote_message_id,
+                    )
+                    if vote_message is not None:
+                        try:
+                            await vote_message.edit(
+                                content=(
+                                    f"🔒 Voting closed at {score_compact}. The final result is being confirmed.\n"
+                                    f"{market.share_url}"
+                                )
+                            )
+                        except discord.HTTPException as exc:
+                            print_warning_log(f"Could not update closed TribeMarkets vote message: {exc}")
+
+        if (
+            market is not None
+            and market_client is not None
+            and parsed_result.is_match_complete
+            and not market.result_submitted
+        ):
+            if not market.vote_closed:
+                market.vote_closed = await market_client.close_market(market)
+            if market.vote_closed:
+                market.result_submitted = await market_client.submit_result(
+                    market,
+                    won=parsed_result.won,
+                    score=score_compact,
+                    map_name=parsed_result.map_name,
+                    member_names=[member.display_name for member in members_for_gif if not member.bot],
+                    occurred_at=datetime.now(timezone.utc),
+                )
+        if (
+            market is not None
+            and market_client is not None
+            and parsed_result.is_match_complete
+            and market.result_submitted
+            and not market.settlement_complete
+        ):
+            summary = await market_client.get_result_summary(market)
+            if summary is not None:
+                market.settlement_complete = True
+
+            if market.vote_message_id is not None:
+                vote_message = await data_access_get_message(
+                    guild.id,
+                    int(pending["text_channel_id"]),
+                    market.vote_message_id,
+                )
+                if vote_message is not None:
+                    try:
+                        content = (
+                            format_result_summary(summary, market.share_url)
+                            if summary is not None
+                            else (
+                                f"✅ Result recorded: the squad {'won' if parsed_result.won else 'lost'} "
+                                f"({score_compact}). Settlement is still being confirmed.\n"
+                                f"{market.share_url}"
+                            )
+                        )
+                        await vote_message.edit(content=content)
+                    except discord.HTTPException as exc:
+                        print_warning_log(f"Could not update resolved TribeMarkets vote message: {exc}")
+
         if parsed_result.is_match_complete:
             wl, _ = match_result_final_plain_summary(parsed_result, spaced_hyphen=False)
             media_bytes = await generate_match_end_static_summary(members_for_gif, parsed_result)
@@ -1240,7 +1375,6 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             result_log = "static match summary PNG"
         else:
             wl, _ = match_result_live_status_display(parsed_result)
-            score_compact = f"{parsed_result.our_score}-{parsed_result.their_score}"
             result_key = f"live:{wl}:{score_compact}:{parsed_result.map_name or ''}"
             if pending.get("last_result_key") == result_key:
                 print_log(
@@ -1292,7 +1426,14 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             content=new_content,
             attachments=[attachment],
         )
-        if parsed_result.is_match_complete:
+        result_key = (
+            f"final:{wl}:{score_compact}:{parsed_result.map_name or ''}"
+            if parsed_result.is_match_complete
+            else result_key
+        )
+        if parsed_result.is_match_complete and (
+            market is None or (market.result_submitted and market.settlement_complete)
+        ):
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
         else:
             data_access_set_pending_match_start_gif_message(
@@ -1302,6 +1443,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                 message_id,
                 member_ids,
                 last_result_key=result_key,
+                market=market.as_dict() if market is not None else None,
             )
         print_log(
             f"try_update_match_start_gif_with_result: updated match message {message_id} "
