@@ -7,13 +7,15 @@ from enum import Enum
 from typing import Optional
 
 
-class BestOf(Enum):
-    """Represents the days of the week"""
+class FirstTo(Enum):
+    """Represents the number of rounds a player must win to win a game."""
 
     THREE = 3
     FIVE = 5
     SEVEN = 7
     NINE = 9
+    TWELVE = 12
+    SIXTEEN = 16
 
 
 class TournamentSize(Enum):

@@ -95,7 +95,7 @@ def data_access_insert_tournament(  # pylint: disable=too-many-arguments
     :param registration_date_start: Registration start date.
     :param start_date: Tournament start date.
     :param end_date: Tournament end date.
-    :param best_of: Best-of value for games.
+    :param best_of: Number of rounds a player must win to win a game.
     :param max_users: Maximum number of players (must be a power of 2).
     :param database_manager: A database manager object for handling connections and queries.
     """

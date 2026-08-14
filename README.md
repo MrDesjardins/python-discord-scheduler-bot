@@ -316,7 +316,7 @@ Display the category currently configured for private voice channels.
 
 #### modcreatetournament
 
-The moderator can create many tournaments. The tournament is a single elimination tournament. The tournament is created with a name and the number of players. The tournament is created with the current date and time.
+The moderator can create many tournaments. The tournament is a single elimination tournament. The tournament is created with a name, the number of players, and a `first_to` value indicating how many rounds a player must win to win each game. The tournament is created with the current date and time.
 
 ![Tournament](readme_assets/Tournament_Creation.png)
 

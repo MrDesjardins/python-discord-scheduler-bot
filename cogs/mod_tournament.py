@@ -27,7 +27,7 @@ from deps.values import (
 )
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_warning_log
-from deps.tournaments.tournament_models import BestOf, BetOddsGeneration, TournamentSize, TournamentTeamGeneration
+from deps.tournaments.tournament_models import BetOddsGeneration, FirstTo, TournamentSize, TournamentTeamGeneration
 from deps.tournaments.tournament_values import TOURNAMENT_MAPS
 from deps.tournaments.tournament_data_class import Tournament
 from deps.tournaments.tournament_functions import (
@@ -82,6 +82,7 @@ class ModTournament(commands.Cog):
         await interaction.followup.send(f"The tournament text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_TOURNAMENT_CREATE_TOURNAMENT)
+    @app_commands.describe(first_to="Number of rounds a player must win to win the game")
     @commands.has_permissions(administrator=True)
     async def create_tournament(
         self,
@@ -90,7 +91,7 @@ class ModTournament(commands.Cog):
         registration_date_start: str = date.today().strftime("%Y-%m-%d"),
         start_date: str = date.today().strftime("%Y-%m-%d"),
         end_date: str = date.today().strftime("%Y-%m-%d"),
-        best_of: BestOf = BestOf.THREE,
+        first_to: FirstTo = FirstTo.THREE,
         max_users: TournamentSize = TournamentSize.SIXTEEN,
         maps: str = TOURNAMENT_MAPS,
         team_size: int = 1,
@@ -114,7 +115,7 @@ class ModTournament(commands.Cog):
         )
         start_date_date = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         end_date_date = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-        best_of_number = best_of.value
+        first_to_number = first_to.value
         max_users_number = max_users.value
         clean_maps = clean_maps_input(maps)
         if team_size < 1 or team_size > 2:
@@ -129,7 +130,7 @@ class ModTournament(commands.Cog):
             registration_date_start_date,
             start_date_date,
             end_date_date,
-            best_of_number,
+            first_to_number,
             max_users_number,
             clean_maps,
             team_size,
