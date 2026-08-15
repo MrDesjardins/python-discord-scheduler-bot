@@ -114,6 +114,9 @@ from deps.functions_schedule import (
     auto_assign_user_to_daily_question,
     update_vote_message,
 )
+
+
+TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS = 35
 from deps.match_start_gif import (
     generate_match_end_static_summary,
     generate_match_start_gif,
@@ -1180,12 +1183,20 @@ async def send_match_start_gif(
                 ),
                 None,
             )
-            market = await TribeMarketsClient().create_match_market(
-                guild_id=guild_id,
-                voice_channel_id=voice_channel_id,
-                member_names=[member.display_name for member in members_for_gif if not member.bot],
-                started_at=started_at,
-                map_name=map_name,
+            market = await asyncio.wait_for(
+                TribeMarketsClient().create_match_market(
+                    guild_id=guild_id,
+                    voice_channel_id=voice_channel_id,
+                    member_names=[member.display_name for member in members_for_gif if not member.bot],
+                    started_at=started_at,
+                    map_name=map_name,
+                ),
+                timeout=TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            print_warning_log(
+                "send_match_start_gif: TribeMarkets market creation timed out after "
+                f"{TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS} seconds"
             )
         except Exception as exc:
             print_warning_log(f"send_match_start_gif: TribeMarkets market unavailable: {exc}")
