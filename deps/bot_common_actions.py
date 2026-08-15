@@ -102,6 +102,7 @@ from deps.siege import (
 from deps.tribemarkets import (
     MatchMarket,
     TribeMarketsClient,
+    format_vote_closed_message,
     format_result_summary,
     infer_map_name,
     score_reached_close_threshold,
@@ -1302,6 +1303,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             )
             if should_close and await market_client.close_market(market):
                 market.vote_closed = True
+                vote_summary = await market_client.get_result_summary(market)
                 if market.vote_message_id is not None:
                     vote_message = await data_access_get_message(
                         guild.id,
@@ -1311,10 +1313,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                     if vote_message is not None:
                         try:
                             await vote_message.edit(
-                                content=(
-                                    f"🔒 Voting closed at {score_compact}. The final result is being confirmed.\n"
-                                    f"{market.share_url}"
-                                )
+                                content=format_vote_closed_message(vote_summary, score_compact, market.share_url)
                             )
                         except discord.HTTPException as exc:
                             print_warning_log(f"Could not update closed TribeMarkets vote message: {exc}")

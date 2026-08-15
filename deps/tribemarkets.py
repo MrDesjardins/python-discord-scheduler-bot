@@ -274,6 +274,70 @@ def format_result_summary(summary: dict[str, Any], market_url: str) -> str:
     return f"{body}\n{link_line}"
 
 
+def _vote_count_from_value(value: Any) -> int | None:
+    """Convert a result-summary vote count value to an integer when possible."""
+    if isinstance(value, bool):
+        return None
+    try:
+        count = int(value)
+    except (TypeError, ValueError):
+        return None
+    return count if count >= 0 else None
+
+
+def _find_vote_count(summary: dict[str, Any], code: str) -> int | None:
+    """Read a YES/NO count from the supported result-summary shapes."""
+    normalized_code = code.upper()
+    containers: list[dict[str, Any]] = [summary]
+    market = summary.get("market")
+    if isinstance(market, dict):
+        containers.append(market)
+
+    for container in containers:
+        for counts_key in ("vote_counts", "outcome_counts", "votes"):
+            counts = container.get(counts_key)
+            if isinstance(counts, dict):
+                for key, value in counts.items():
+                    if str(key).upper() == normalized_code:
+                        if isinstance(value, dict):
+                            for count_key in ("vote_count", "participant_count", "count", "votes"):
+                                count = _vote_count_from_value(value.get(count_key))
+                                if count is not None:
+                                    return count
+                        count = _vote_count_from_value(value)
+                        if count is not None:
+                            return count
+
+        outcomes = container.get("outcomes")
+        if isinstance(outcomes, list):
+            for outcome in outcomes:
+                if not isinstance(outcome, dict):
+                    continue
+                outcome_code = str(outcome.get("code") or outcome.get("label") or "").upper()
+                if outcome_code != normalized_code:
+                    continue
+                for count_key in ("vote_count", "participant_count", "count", "votes"):
+                    count = _vote_count_from_value(outcome.get(count_key))
+                    if count is not None:
+                        return count
+    return None
+
+
+def format_vote_closed_message(
+    summary: dict[str, Any] | None,
+    score: str,
+    market_url: str,
+) -> str:
+    """Build the Discord message shown immediately after voting closes."""
+    yes_count = _find_vote_count(summary, "YES") if summary is not None else None
+    no_count = _find_vote_count(summary, "NO") if summary is not None else None
+    if yes_count is not None and no_count is not None:
+        vote_line = f"Votes: **{yes_count} Yes** · **{no_count} No**"
+    else:
+        vote_line = "Vote counts are still being updated by TribeMarkets."
+    return f"🔒 Voting closed at {score}. {vote_line}\n{market_url}"
+
+
 class TribeMarketsClient:
     """Small async client using a Tribe-bound TribeMarkets API key."""
 

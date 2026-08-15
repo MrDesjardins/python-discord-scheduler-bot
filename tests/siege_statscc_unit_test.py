@@ -250,6 +250,15 @@ def test_statscc_aggregation_new_round_from_generic_ranked_state() -> None:
     assert result.playing_rank == 1
 
 
+def test_statscc_aggregation_new_round_from_bare_ranked_state() -> None:
+    """Bare Ranked is an in-match state, not evidence of a new match."""
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("Ranked", "Picking Operators: Ranked on Nighthaven Labs"),
+    }
+    result = get_aggregation_statscc_activity(dict_users_activities)
+    assert result.looking_ranked_match == 0
+
+
 def test_statscc_aggregation_actual_new_match_from_queue() -> None:
     """Test that transitioning from In Queue to Picking Operators IS a new match"""
     dict_users_activities: dict[int, ActivityTransition] = {

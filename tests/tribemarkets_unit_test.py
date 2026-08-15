@@ -9,6 +9,7 @@ from deps.tribemarkets import (
     TribeMarketsSettings,
     build_market_description,
     build_market_title,
+    format_vote_closed_message,
     format_result_summary,
     infer_map_name,
     score_reached_close_threshold,
@@ -135,3 +136,15 @@ def test_result_summary_marks_void_market_as_refunded():
     assert "Market **winning outcome had no stakes**" in content
     assert "all stakes were refunded" in content
     assert content.endswith("🔗 View market: https://tribemarkets.com/market/voided")
+
+
+def test_vote_closed_message_includes_yes_and_no_counts():
+    content = format_vote_closed_message(
+        {"vote_counts": {"YES": 10, "NO": 2}},
+        "2-1",
+        "https://tribemarkets.com/market/abc",
+    )
+
+    assert "Voting closed at 2-1" in content
+    assert "10 Yes" in content
+    assert "2 No" in content

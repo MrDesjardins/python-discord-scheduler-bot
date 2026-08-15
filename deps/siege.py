@@ -476,6 +476,7 @@ def get_aggregation_statscc_activity(
                 or bef.startswith("In Round: Ranked")
                 or bef.startswith("Match Ending: Ranked")
                 or bef.startswith("Ranked on")  # Generic ranked state between rounds
+                or bef == "Ranked"  # stats.cc's generic in-match state between rounds
                 or bef.startswith("Banning Operators: Ranked")
                 or bef.startswith("Prep Phase: Ranked")
             ):

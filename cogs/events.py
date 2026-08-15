@@ -40,6 +40,7 @@ from deps.data_access import (
     data_access_remove_voice_user_list,
     data_access_update_voice_user_list,
     data_access_get_voice_user_list,
+    data_access_get_pending_match_start_gif_message,
     data_access_get_last_match_start_gif_time,
     data_access_set_last_match_start_gif_time,
     data_access_clear_last_match_start_gif_time,
@@ -954,6 +955,14 @@ class MyEventsCog(commands.Cog):
                 number_users = len(user_activities)
                 if aggregation.looking_ranked_match >= 1 and number_users >= 1:
                     print_log(f"Detected ranked match start in guild {guild_id}, channel {channel_id}. Sending GIF.")
+                    pending = await data_access_get_pending_match_start_gif_message(guild_id, channel_id)
+                    pending_result_key = str(pending.get("last_result_key", "")) if pending else ""
+                    if pending is not None and not pending_result_key.startswith("final:"):
+                        print_log(
+                            f"Ranked match start already has an active pending message in guild {guild_id}, "
+                            f"channel {channel_id}. Skipping duplicate GIF."
+                        )
+                        return
                     # Rate limit: once per hour per channel
                     last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
                     if last_time is None or (datetime.now(timezone.utc) - last_time) > timedelta(minutes=15):
