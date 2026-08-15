@@ -21,7 +21,7 @@ from urllib.parse import quote
 
 import httpx
 
-from deps.log import print_error_log, print_warning_log
+from deps.log import print_error_log, print_log, print_warning_log
 
 
 DEFAULT_API_URL = "https://tribemarkets.com/v1"
@@ -279,6 +279,32 @@ class TribeMarketsClient:
 
     def __init__(self, settings: TribeMarketsSettings | None = None) -> None:
         self.settings = settings or TribeMarketsSettings.from_environment()
+
+    async def check_access(self) -> bool:
+        """Check authenticated read access to the configured Tribe without creating a market."""
+        if not self.settings.enabled:
+            print_log("TribeMarkets: integration disabled (API key or Tribe ID/slug is not configured).")
+            return False
+
+        community_id = self.settings.tribe_id
+        try:
+            if community_id is None:
+                community = await self._request(
+                    "GET", f"/communities/by-slug/{quote(self.settings.tribe_slug, safe='')}"
+                )
+                community_id = str(community["id"])
+            await self._request("GET", f"/communities/{community_id}/markets?limit=1")
+        except (KeyError, TribeMarketsIntegrationError, TypeError, ValueError) as exc:
+            status = (
+                f" (HTTP {exc.status_code})"
+                if isinstance(exc, TribeMarketsIntegrationError) and exc.status_code
+                else ""
+            )
+            print_warning_log(f"TribeMarkets: access check failed{status}: {exc}")
+            return False
+
+        print_log(f"TribeMarkets: authenticated access confirmed for Tribe {community_id}.")
+        return True
 
     async def _request(
         self,

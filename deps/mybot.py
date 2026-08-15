@@ -5,6 +5,7 @@ import logging
 import discord
 from discord.ext import commands
 from deps.log import print_log, print_error_log
+from deps.tribemarkets import TribeMarketsClient
 
 
 class MyBot(commands.Bot):
@@ -26,6 +27,10 @@ class MyBot(commands.Bot):
     async def setup_hook(self) -> None:
         """Load bot extensions during discord.py startup."""
         await self.load_cogs()
+        try:
+            await TribeMarketsClient().check_access()
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            print_error_log(f"TribeMarkets: startup access check failed unexpectedly: {exc}")
 
     async def load_cogs(self) -> None:
         """Load every cog module from the local `cogs/` package."""
