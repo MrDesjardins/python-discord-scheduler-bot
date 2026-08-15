@@ -209,11 +209,11 @@ def get_aggregation_siege_activity(
             playing_rank += 1
         if aft is not None and aft.startswith("STANDARD match"):
             playing_standard += 1
-        # Detect ranked match START: transition from "Looking for RANKED match" to "RANKED match"
-        # This indicates the queue popped and the match actually started
+        # Detect ranked match START. Native Siege can skip the "Looking for" state
+        # and transition directly from the main menu when Discord misses an update.
         if (
             bef is not None
-            and bef.startswith("Looking for RANKED match")
+            and (bef.startswith("Looking for RANKED match") or bef == "in MENU")
             and aft is not None
             and aft.startswith("RANKED match")
         ):

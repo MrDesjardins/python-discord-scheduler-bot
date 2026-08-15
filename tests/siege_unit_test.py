@@ -439,6 +439,16 @@ def test_get_aggregation_siege_activity_looking_for_ranked_match() -> None:
     assert result.looking_ranked_match == 1  # Match just started
 
 
+def test_get_aggregation_siege_activity_menu_to_ranked_match() -> None:
+    """A native Siege presence update may skip the queueing state."""
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("in MENU", "RANKED match - Round 1 / 6"),
+    }
+    result = get_aggregation_siege_activity(dict_users_activities)
+    assert result.playing_rank == 1
+    assert result.looking_ranked_match == 1
+
+
 def test_get_aggregation_siege_activity_looking_for_ranked_match_multiple_users() -> None:
     """
     Test the case where multiple users just started a ranked match
