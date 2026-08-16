@@ -1176,6 +1176,15 @@ async def send_match_start_gif(
             done, _ = await asyncio.wait({send_task}, timeout=15)
             if not done:
                 send_task.cancel()
+
+                def consume_late_result(task: asyncio.Task[Any]) -> None:
+                    if not task.cancelled():
+                        try:
+                            task.exception()
+                        except asyncio.CancelledError:
+                            pass
+
+                send_task.add_done_callback(consume_late_result)
                 raise asyncio.TimeoutError("Discord message send exceeded 15 seconds")
             return send_task.result()
 
@@ -1278,15 +1287,20 @@ async def send_match_start_gif(
                         f"send_match_start_gif: Fallback market link also failed for market "
                         f"{market.market_id}: {fallback_exc}"
                     )
-        if sent_message is not None:
-            data_access_set_pending_match_start_gif_message(
-                guild_id,
-                voice_channel_id,
-                text_channel.id,
-                sent_message.id,
-                [m.id for m in members_for_gif],
-                market=market.as_dict() if market is not None else None,
+        message_id = sent_message.id if sent_message is not None else 0
+        if sent_message is None:
+            print_warning_log(
+                "send_match_start_gif: Preserving market metadata without a GIF message ID; "
+                "result settlement will continue without GIF updates"
             )
+        data_access_set_pending_match_start_gif_message(
+            guild_id,
+            voice_channel_id,
+            text_channel.id,
+            message_id,
+            [m.id for m in members_for_gif],
+            market=market.as_dict() if market is not None else None,
+        )
         print_log(
             f"send_match_start_gif: Successfully sent GIF to {text_channel.name} "
             f"(will auto-delete after {MATCH_START_GIF_DELETE_AFTER_SECONDS // 60} minutes)"
