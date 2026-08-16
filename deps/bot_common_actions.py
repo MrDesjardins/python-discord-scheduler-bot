@@ -1169,15 +1169,22 @@ async def send_match_start_gif(
 
         # Send to Discord with automatic deletion
         file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")
+
+        async def send_discord_message(*args: Any, **kwargs: Any) -> Any:
+            """Bound a Discord send without waiting for a cancellation-resistant request."""
+            send_task = asyncio.create_task(text_channel.send(*args, **kwargs))
+            done, _ = await asyncio.wait({send_task}, timeout=15)
+            if not done:
+                send_task.cancel()
+                raise asyncio.TimeoutError("Discord message send exceeded 15 seconds")
+            return send_task.result()
+
         sent_message: discord.Message | None = None
         try:
-            sent_message = await asyncio.wait_for(
-                text_channel.send(
-                    f"🎮 Match starting in <#{voice_channel_id}>! Good luck!",
-                    file=file,
-                    delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
-                ),
-                timeout=15,
+            sent_message = await send_discord_message(
+                f"🎮 Match starting in <#{voice_channel_id}>! Good luck!",
+                file=file,
+                delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
             )
             print_log(
                 f"send_match_start_gif: Posted GIF message {sent_message.id} in channel {text_channel.id}; "
@@ -1231,19 +1238,17 @@ async def send_match_start_gif(
                 vote_message = None
                 for attempt in range(1, 3):
                     try:
-                        vote_message = await asyncio.wait_for(
-                            text_channel.send(
-                                vote_content,
-                                view=TribeMarketsVoteView(market),
-                                delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
-                            ),
-                            timeout=15,
+                        vote_message = await send_discord_message(
+                            vote_content,
+                            view=TribeMarketsVoteView(market),
+                            delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
                         )
                         break
-                    except discord.HTTPException as exc:
+                    except (discord.HTTPException, asyncio.TimeoutError) as exc:
+                        status = getattr(exc, "status", "timeout")
                         print_warning_log(
                             f"send_match_start_gif: Vote message attempt {attempt}/2 failed for market "
-                            f"{market.market_id} (HTTP {exc.status}): {exc}"
+                            f"{market.market_id} ({status}): {exc}"
                         )
                         if attempt == 1:
                             await asyncio.sleep(1)
@@ -1260,12 +1265,9 @@ async def send_match_start_gif(
                     f"{market.market_id}: {exc}"
                 )
                 try:
-                    fallback_message = await asyncio.wait_for(
-                        text_channel.send(
-                            f"🗳️ TribeMarkets market ready: {market.share_url}",
-                            delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
-                        ),
-                        timeout=15,
+                    fallback_message = await send_discord_message(
+                        f"🗳️ TribeMarkets market ready: {market.share_url}",
+                        delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
                     )
                     print_warning_log(
                         f"send_match_start_gif: Posted fallback market link message {fallback_message.id} "
