@@ -55,6 +55,7 @@ class TribeMarketsSettings:
     share_link_hours: int
     close_score: int
     challenge_minutes: int
+    default_stake: str
 
     @classmethod
     def from_environment(cls) -> "TribeMarketsSettings":
@@ -87,6 +88,7 @@ class TribeMarketsSettings:
             challenge_minutes=positive_int(
                 "TRIBEMARKETS_VALIDATION_CHALLENGE_MINUTES", DEFAULT_CHALLENGE_MINUTES, 7 * 24 * 60
             ),
+            default_stake=os.getenv("TRIBEMARKETS_DEFAULT_STAKE", "10").strip() or "10",
         )
 
     @property
@@ -501,6 +503,34 @@ class TribeMarketsClient:
             no_outcome_id=str(no["id"]),
             share_url=share_url,
             external_event_id=external_event_id,
+        )
+
+    async def create_vote_intent(
+        self,
+        market: MatchMarket,
+        *,
+        guild_id: int,
+        channel_id: int,
+        message_id: int,
+        interaction_id: int,
+        discord_user_id: int,
+        outcome_id: str,
+    ) -> dict[str, Any]:
+        """Create the private web confirmation handoff for a Discord button click."""
+        return await self._request(
+            "POST",
+            f"/communities/{market.community_id}/discord/vote-intents",
+            json_body={
+                "guild_id": str(guild_id),
+                "channel_id": str(channel_id),
+                "message_id": str(message_id),
+                "interaction_id": str(interaction_id),
+                "discord_user_id": str(discord_user_id),
+                "market_id": market.market_id,
+                "outcome_id": outcome_id,
+                "nonce": secrets.token_urlsafe(18),
+                "stake_hint": self.settings.default_stake,
+            },
         )
 
     async def close_market(self, market: MatchMarket) -> bool:

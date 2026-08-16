@@ -561,10 +561,13 @@ sudo apt install -y google-chrome-stable xvfb
 ## TribeMarkets match voting integration
 
 The ranked-match start flow can optionally create a binary prediction market in
-the `Circus Maximus` Tribe. The bot posts the TribeMarkets voting link directly
-under the existing **Match Starting** GIF. The market description includes the
-Discord display names, match date, map (when stats.cc has reported it), and the
-Yes/No win prediction.
+the `Circus Maximus` Tribe. The bot posts interactive **Predict Yes** and
+**Predict No** buttons directly under the existing **Match Starting** GIF. A
+button click creates a private, short-lived TribeMarkets confirmation link;
+the user reviews the outcome and default stake before confirming. The button
+itself never spends credits. The market description includes the Discord
+display names, match date, map (when stats.cc has reported it), and the Yes/No
+win prediction.
 
 Configure the integration with environment variables (keep the API key secret):
 
@@ -576,6 +579,7 @@ TRIBEMARKETS_TRIBE_SLUG=circus-maximus
 # TRIBEMARKETS_TRIBE_ID=your-circus-maximus-tribe-id
 TRIBEMARKETS_CLOSE_SCORE=2
 TRIBEMARKETS_SHARE_LINK_HOURS=168
+TRIBEMARKETS_DEFAULT_STAKE=10
 TRIBEMARKETS_VALIDATION_MODE=manual
 ```
 

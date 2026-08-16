@@ -124,6 +124,7 @@ from deps.match_start_gif import (
     match_result_live_status_display,
 )
 from ui.schedule_buttons import ScheduleButtons
+from ui.tribemarkets_vote import TribeMarketsVoteView
 
 
 @dataclass
@@ -1204,9 +1205,11 @@ async def send_match_start_gif(
         if market is not None:
             try:
                 vote_message = await text_channel.send(
-                    "🗳️ Vote for the squad: "
-                    f"{market.share_url}\n"
-                    "Voting closes when one side reaches 2. Your prediction is recorded on TribeMarkets.",
+                    "🗳️ **Predict the squad's match result**\n"
+                    "Choose Yes or No below, then privately review and confirm your prediction. "
+                    f"[Open the market]({market.share_url})\n"
+                    "Voting closes when one side reaches 2.",
+                    view=TribeMarketsVoteView(market),
                     delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
                 )
                 market.vote_message_id = vote_message.id
@@ -1324,7 +1327,8 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                     if vote_message is not None:
                         try:
                             await vote_message.edit(
-                                content=format_vote_closed_message(vote_summary, score_compact, market.share_url)
+                                content=format_vote_closed_message(vote_summary, score_compact, market.share_url),
+                                view=TribeMarketsVoteView(market, disabled=True),
                             )
                         except discord.HTTPException as exc:
                             print_warning_log(f"Could not update closed TribeMarkets vote message: {exc}")
@@ -1374,7 +1378,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                                 f"{market.share_url}"
                             )
                         )
-                        await vote_message.edit(content=content)
+                        await vote_message.edit(content=content, view=TribeMarketsVoteView(market, disabled=True))
                     except discord.HTTPException as exc:
                         print_warning_log(f"Could not update resolved TribeMarkets vote message: {exc}")
 

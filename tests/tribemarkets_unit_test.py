@@ -74,6 +74,7 @@ def test_settings_default_to_disabled_without_an_api_key(monkeypatch):
 
     assert settings.tribe_slug == "circus-maximus"
     assert settings.close_score == 2
+    assert settings.default_stake == "10"
     assert not settings.enabled
 
 
