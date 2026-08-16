@@ -1174,6 +1174,10 @@ async def send_match_start_gif(
             file=file,
             delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
         )
+        print_log(
+            f"send_match_start_gif: Posted GIF message {sent_message.id} in channel {text_channel.id}; "
+            "starting TribeMarkets handoff"
+        )
         market: MatchMarket | None = None
         try:
             map_name = next(
@@ -1194,6 +1198,11 @@ async def send_match_start_gif(
                 ),
                 timeout=TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS,
             )
+            if market is not None:
+                print_log(
+                    f"send_match_start_gif: Created TribeMarkets market {market.market_id}; "
+                    f"share URL {market.share_url}"
+                )
         except asyncio.TimeoutError:
             print_warning_log(
                 "send_match_start_gif: TribeMarkets market creation timed out after "
@@ -1203,18 +1212,55 @@ async def send_match_start_gif(
             print_warning_log(f"send_match_start_gif: TribeMarkets market unavailable: {exc}")
 
         if market is not None:
+            vote_content = (
+                "🗳️ **Predict the squad's match result**\n"
+                "Choose Yes or No below, then privately review and confirm your prediction. "
+                f"[Open the market]({market.share_url})\n"
+                "Voting closes when one side reaches 2."
+            )
             try:
-                vote_message = await text_channel.send(
-                    "🗳️ **Predict the squad's match result**\n"
-                    "Choose Yes or No below, then privately review and confirm your prediction. "
-                    f"[Open the market]({market.share_url})\n"
-                    "Voting closes when one side reaches 2.",
-                    view=TribeMarketsVoteView(market),
-                    delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
-                )
+                vote_message = None
+                for attempt in range(1, 3):
+                    try:
+                        vote_message = await text_channel.send(
+                            vote_content,
+                            view=TribeMarketsVoteView(market),
+                            delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                        )
+                        break
+                    except discord.HTTPException as exc:
+                        print_warning_log(
+                            f"send_match_start_gif: Vote message attempt {attempt}/2 failed for market "
+                            f"{market.market_id} (HTTP {exc.status}): {exc}"
+                        )
+                        if attempt == 1:
+                            await asyncio.sleep(1)
+                if vote_message is None:
+                    raise RuntimeError("Discord returned no vote message")
                 market.vote_message_id = vote_message.id
-            except discord.HTTPException as exc:
-                print_warning_log(f"send_match_start_gif: Could not post TribeMarkets vote link: {exc}")
+                print_log(
+                    f"send_match_start_gif: Posted TribeMarkets vote message {vote_message.id} "
+                    f"for market {market.market_id} with Yes/No buttons"
+                )
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                print_error_log(
+                    f"send_match_start_gif: Could not post TribeMarkets vote message for market "
+                    f"{market.market_id}: {exc}"
+                )
+                try:
+                    fallback_message = await text_channel.send(
+                        f"🗳️ TribeMarkets market ready: {market.share_url}",
+                        delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                    )
+                    print_warning_log(
+                        f"send_match_start_gif: Posted fallback market link message {fallback_message.id} "
+                        f"for market {market.market_id}; interactive buttons were unavailable"
+                    )
+                except Exception as fallback_exc:  # pylint: disable=broad-exception-caught
+                    print_error_log(
+                        f"send_match_start_gif: Fallback market link also failed for market "
+                        f"{market.market_id}: {fallback_exc}"
+                    )
         data_access_set_pending_match_start_gif_message(
             guild_id,
             voice_channel_id,
