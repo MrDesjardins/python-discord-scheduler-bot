@@ -31,6 +31,7 @@ DEFAULT_CLOSE_SCORE = 2
 # Keep the client default aligned with TribeMarkets' minimum signed-validation
 # challenge window so an omitted environment variable cannot reject creation.
 DEFAULT_CHALLENGE_MINUTES = 120
+DEFAULT_SPONSOR_LIQUIDITY = "100"
 RESULT_RECAP_MAX_PARTICIPANTS = 8
 MATCH_MARKET_CATEGORY = "Siege"
 MATCH_MARKET_TAGS = ("Match", "Ranked")
@@ -58,6 +59,8 @@ class TribeMarketsSettings:
     close_score: int
     challenge_minutes: int
     default_stake: str
+    settlement_rule: str
+    sponsor_liquidity: str
 
     @classmethod
     def from_environment(cls) -> "TribeMarketsSettings":
@@ -78,6 +81,9 @@ class TribeMarketsSettings:
         provider_id = os.getenv("TRIBEMARKETS_VALIDATION_PROVIDER_ID", "").strip() or None
         if validation_mode == "signed_bot_with_challenge" and not provider_id:
             raise ValueError("TRIBEMARKETS_VALIDATION_PROVIDER_ID is required for signed bot validation")
+        settlement_rule = os.getenv("TRIBEMARKETS_SETTLEMENT_RULE", "sponsored_parimutuel").strip().lower()
+        if settlement_rule not in {"parimutuel", "sponsored_parimutuel"}:
+            raise ValueError("TRIBEMARKETS_SETTLEMENT_RULE must be parimutuel or sponsored_parimutuel")
         return cls(
             api_url=os.getenv("TRIBEMARKETS_API_URL", DEFAULT_API_URL).strip().rstrip("/"),
             api_key=os.getenv("TRIBEMARKETS_API_KEY", "").strip(),
@@ -91,6 +97,9 @@ class TribeMarketsSettings:
                 "TRIBEMARKETS_VALIDATION_CHALLENGE_MINUTES", DEFAULT_CHALLENGE_MINUTES, 7 * 24 * 60
             ),
             default_stake=os.getenv("TRIBEMARKETS_DEFAULT_STAKE", "10").strip() or "10",
+            settlement_rule=settlement_rule,
+            sponsor_liquidity=os.getenv("TRIBEMARKETS_SPONSOR_LIQUIDITY", DEFAULT_SPONSOR_LIQUIDITY).strip()
+            or DEFAULT_SPONSOR_LIQUIDITY,
         )
 
     @property
@@ -470,6 +479,7 @@ class TribeMarketsClient:
             "external_market_type": "rainbow-six-ranked-match",
             "category": MATCH_MARKET_CATEGORY,
             "tags": list(MATCH_MARKET_TAGS),
+            "settlement_rule": self.settings.settlement_rule,
             "validation_policy": policy,
             "metadata": {
                 "discord_guild_id": str(guild_id),
@@ -478,6 +488,8 @@ class TribeMarketsClient:
                 "map_name": map_name,
             },
         }
+        if self.settings.settlement_rule == "sponsored_parimutuel":
+            payload["sponsor_liquidity"] = self.settings.sponsor_liquidity
         market = await self._request(
             "POST",
             f"/communities/{community_id}/markets",
