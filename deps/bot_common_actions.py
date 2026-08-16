@@ -1169,15 +1169,24 @@ async def send_match_start_gif(
 
         # Send to Discord with automatic deletion
         file = discord.File(fp=io.BytesIO(gif_bytes), filename="match_start.gif")
-        sent_message = await text_channel.send(
-            f"🎮 Match starting in <#{voice_channel_id}>! Good luck!",
-            file=file,
-            delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
-        )
-        print_log(
-            f"send_match_start_gif: Posted GIF message {sent_message.id} in channel {text_channel.id}; "
-            "starting TribeMarkets handoff"
-        )
+        sent_message: discord.Message | None = None
+        try:
+            sent_message = await asyncio.wait_for(
+                text_channel.send(
+                    f"🎮 Match starting in <#{voice_channel_id}>! Good luck!",
+                    file=file,
+                    delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                ),
+                timeout=15,
+            )
+            print_log(
+                f"send_match_start_gif: Posted GIF message {sent_message.id} in channel {text_channel.id}; "
+                "starting TribeMarkets handoff"
+            )
+        except asyncio.TimeoutError:
+            print_error_log(
+                "send_match_start_gif: GIF send timed out after 15 seconds; " "continuing with TribeMarkets handoff"
+            )
         market: MatchMarket | None = None
         try:
             map_name = next(
@@ -1222,10 +1231,13 @@ async def send_match_start_gif(
                 vote_message = None
                 for attempt in range(1, 3):
                     try:
-                        vote_message = await text_channel.send(
-                            vote_content,
-                            view=TribeMarketsVoteView(market),
-                            delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                        vote_message = await asyncio.wait_for(
+                            text_channel.send(
+                                vote_content,
+                                view=TribeMarketsVoteView(market),
+                                delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                            ),
+                            timeout=15,
                         )
                         break
                     except discord.HTTPException as exc:
@@ -1248,9 +1260,12 @@ async def send_match_start_gif(
                     f"{market.market_id}: {exc}"
                 )
                 try:
-                    fallback_message = await text_channel.send(
-                        f"🗳️ TribeMarkets market ready: {market.share_url}",
-                        delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                    fallback_message = await asyncio.wait_for(
+                        text_channel.send(
+                            f"🗳️ TribeMarkets market ready: {market.share_url}",
+                            delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
+                        ),
+                        timeout=15,
                     )
                     print_warning_log(
                         f"send_match_start_gif: Posted fallback market link message {fallback_message.id} "
@@ -1261,14 +1276,15 @@ async def send_match_start_gif(
                         f"send_match_start_gif: Fallback market link also failed for market "
                         f"{market.market_id}: {fallback_exc}"
                     )
-        data_access_set_pending_match_start_gif_message(
-            guild_id,
-            voice_channel_id,
-            text_channel.id,
-            sent_message.id,
-            [m.id for m in members_for_gif],
-            market=market.as_dict() if market is not None else None,
-        )
+        if sent_message is not None:
+            data_access_set_pending_match_start_gif_message(
+                guild_id,
+                voice_channel_id,
+                text_channel.id,
+                sent_message.id,
+                [m.id for m in members_for_gif],
+                market=market.as_dict() if market is not None else None,
+            )
         print_log(
             f"send_match_start_gif: Successfully sent GIF to {text_channel.name} "
             f"(will auto-delete after {MATCH_START_GIF_DELETE_AFTER_SECONDS // 60} minutes)"
