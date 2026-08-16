@@ -588,9 +588,9 @@ def get_lfg_rank_role_mentions(guild: discord.Guild, members: List[discord.Membe
 
 
 def format_lfg_message(users_text: str, rank_mentions: str, body: str) -> str:
-    """Build an LFG message with member mentions first, then rank role mentions."""
+    """Build an LFG message with players and the voice channel on the primary line."""
     if rank_mentions:
-        return f"{users_text} {rank_mentions} {body}"
+        return f"{users_text} {body}\nRanks: {rank_mentions}"
     return f"{users_text} {body}"
 
 

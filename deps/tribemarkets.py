@@ -28,7 +28,9 @@ DEFAULT_API_URL = "https://tribemarkets.com/v1"
 DEFAULT_TRIBE_SLUG = "circus-maximus"
 DEFAULT_SHARE_LINK_HOURS = 168
 DEFAULT_CLOSE_SCORE = 2
-DEFAULT_CHALLENGE_MINUTES = 15
+# Keep the client default aligned with TribeMarkets' minimum signed-validation
+# challenge window so an omitted environment variable cannot reject creation.
+DEFAULT_CHALLENGE_MINUTES = 120
 RESULT_RECAP_MAX_PARTICIPANTS = 8
 MATCH_MARKET_CATEGORY = "Siege"
 MATCH_MARKET_TAGS = ("Match", "Ranked")
@@ -395,8 +397,20 @@ class TribeMarketsClient:
         except httpx.HTTPError as exc:
             raise TribeMarketsIntegrationError(f"TribeMarkets request failed: {exc}") from exc
         if response.status_code >= 400:
+            detail = ""
+            try:
+                error_payload = response.json()
+                if isinstance(error_payload, dict):
+                    error = error_payload.get("error")
+                    if isinstance(error, dict):
+                        detail = str(error.get("message") or "")
+                    elif error:
+                        detail = str(error)
+            except ValueError:
+                detail = response.text[:300].strip()
+            suffix = f": {detail}" if detail else ""
             raise TribeMarketsIntegrationError(
-                f"TribeMarkets request returned HTTP {response.status_code}",
+                f"TribeMarkets request returned HTTP {response.status_code}{suffix}",
                 status_code=response.status_code,
             )
         try:

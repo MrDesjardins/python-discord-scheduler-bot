@@ -78,6 +78,17 @@ def test_settings_default_to_disabled_without_an_api_key(monkeypatch):
     assert not settings.enabled
 
 
+def test_signed_validation_default_challenge_window_matches_api_requirement(monkeypatch):
+    """An omitted challenge setting must remain valid for the API."""
+    monkeypatch.setenv("TRIBEMARKETS_API_KEY", "test-key")
+    monkeypatch.setenv("TRIBEMARKETS_TRIBE_ID", "tribe-id")
+    monkeypatch.setenv("TRIBEMARKETS_VALIDATION_MODE", "signed_bot_with_challenge")
+    monkeypatch.setenv("TRIBEMARKETS_VALIDATION_PROVIDER_ID", "provider")
+    monkeypatch.delenv("TRIBEMARKETS_VALIDATION_CHALLENGE_MINUTES", raising=False)
+
+    assert TribeMarketsSettings.from_environment().challenge_minutes == 120
+
+
 def test_match_markets_use_siege_category_and_ranked_match_tags():
     assert MATCH_MARKET_CATEGORY == "Siege"
     assert MATCH_MARKET_TAGS == ("Match", "Ranked")

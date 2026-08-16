@@ -128,11 +128,11 @@ def test_get_lfg_rank_role_mentions_returns_empty_when_group_has_no_compatible_r
     assert get_lfg_rank_role_mentions(guild, [copper_member, champion_member]) == ""
 
 
-def test_format_lfg_message_lists_users_before_rank_mentions() -> None:
-    """LFG messages mention players first, then compatible rank roles."""
+def test_format_lfg_message_puts_rank_mentions_on_a_secondary_line() -> None:
+    """LFG messages prioritize players and the voice channel over rank role pings."""
     assert (
         format_lfg_message("@Alice, @Bob", "<@&Gold> <@&Platinum>", "are looking for 2 teammates to play in <#123>")
-        == "@Alice, @Bob <@&Gold> <@&Platinum> are looking for 2 teammates to play in <#123>"
+        == "@Alice, @Bob are looking for 2 teammates to play in <#123>\nRanks: <@&Gold> <@&Platinum>"
     )
     assert format_lfg_message("@Alice", "", "is in the voice channel: <#123> and need 4 more people.") == (
         "@Alice is in the voice channel: <#123> and need 4 more people."
