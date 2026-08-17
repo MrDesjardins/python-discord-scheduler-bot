@@ -25,6 +25,7 @@ from deps.log import print_error_log, print_log, print_warning_log
 
 
 DEFAULT_API_URL = "https://tribemarkets.com/v1"
+DEFAULT_WEB_URL = "https://tribemarkets.com"
 DEFAULT_TRIBE_SLUG = "circus-maximus"
 DEFAULT_SHARE_LINK_HOURS = 168
 DEFAULT_CLOSE_SCORE = 2
@@ -50,6 +51,7 @@ class TribeMarketsSettings:
     """Environment-backed settings for the optional integration."""
 
     api_url: str
+    web_url: str
     api_key: str
     tribe_slug: str
     tribe_id: str | None
@@ -91,6 +93,7 @@ class TribeMarketsSettings:
             raise ValueError("TRIBEMARKETS_SETTLEMENT_RULE must be parimutuel or sponsored_parimutuel")
         return cls(
             api_url=os.getenv("TRIBEMARKETS_API_URL", DEFAULT_API_URL).strip().rstrip("/"),
+            web_url=os.getenv("TRIBEMARKETS_WEB_URL", DEFAULT_WEB_URL).strip().rstrip("/"),
             api_key=os.getenv("TRIBEMARKETS_API_KEY", "").strip(),
             tribe_slug=os.getenv("TRIBEMARKETS_TRIBE_SLUG", DEFAULT_TRIBE_SLUG).strip(),
             tribe_id=os.getenv("TRIBEMARKETS_TRIBE_ID", "").strip() or None,
@@ -425,6 +428,7 @@ class TribeMarketsClient:
             return None
         recap_settings = TribeMarketsSettings(
             api_url=settings.api_url,
+            web_url=settings.web_url,
             api_key=settings.recap_api_key,
             tribe_slug=settings.recap_tribe_slug,
             tribe_id=settings.recap_tribe_id,

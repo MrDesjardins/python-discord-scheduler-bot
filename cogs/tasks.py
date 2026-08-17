@@ -217,9 +217,7 @@ class MyTasksCog(commands.Cog):
         recap = await TribeMarketsClient(settings).get_automation_recap()
         if recap is None:
             return
-        tribe_url = f"{settings.api_url}/communities/{settings.recap_tribe_id}" if settings.recap_tribe_id else (
-            f"{settings.api_url}/communities/by-slug/{settings.recap_tribe_slug}"
-        )
+        tribe_url = f"{settings.web_url}/app/tribes/{settings.recap_tribe_id or settings.recap_tribe_slug}"
         body = format_automation_recap(recap, tribe_url)
         for guild in guilds:
             try:
