@@ -16,12 +16,14 @@ from deps.bot_common_actions import (
     post_queued_user_stats,
     send_daily_question_to_a_guild,
 )
+from deps.data_access import data_access_get_ai_text_channel_id, data_access_get_channel
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
 from deps.system_database import run_wal_checkpoint
 from deps.functions_stats import send_daily_stats_to_a_guild
 from deps.analytic_player_value_functions import compute_and_store_player_values
 from deps.analytic_player_value_weekly import send_weekly_player_value_to_a_guild
+from deps.tribemarkets import TribeMarketsClient, format_automation_recap
 
 # ZoneInfo and not pytz: a pytz timezone attached directly to time() uses the
 # zone's LMT offset (-7:53 for Los Angeles), firing every task 53 minutes late.
@@ -35,6 +37,7 @@ time_check_streaks = time(hour=23, minute=50, second=0, tzinfo=pacific_tz)
 time_monthly_analytics_report = time(hour=9, minute=30, second=0, tzinfo=pacific_tz)
 time_compute_player_values = time(hour=2, minute=30, second=0, tzinfo=pacific_tz)
 time_weekly_player_value = time(hour=10, minute=0, second=0, tzinfo=pacific_tz)
+time_weekly_tribemarkets_recap = time(hour=18, minute=0, second=0, tzinfo=pacific_tz)
 SATURDAY_WEEKDAY = 5
 
 
@@ -62,6 +65,7 @@ class MyTasksCog(commands.Cog):
         self.send_monthly_analytics_report.start()  # Start the task when the cog is loaded
         self.daily_compute_player_values_task.start()  # Start the task when the cog is loaded
         self.send_weekly_player_value_task.start()  # Start the task when the cog is loaded
+        self.send_weekly_tribemarkets_recap_task.start()  # Start the task when the cog is loaded
         print_log("MyTasksCog>start_task: Bot is ready, all tasks started")
 
     @tasks.loop(minutes=16)
@@ -199,6 +203,38 @@ class MyTasksCog(commands.Cog):
             except Exception as e:
                 print_error_log(f"send_weekly_player_value_task: Error for guild {guild.name}: {e}")
 
+    @tasks.loop(time=time_weekly_tribemarkets_recap)
+    async def send_weekly_tribemarkets_recap_task(self):
+        """Post the manager-generated Stock Market recap on Sunday evening."""
+        now = datetime.now(pacific_tz)
+        if now.weekday() != 6:
+            return
+        settings = TribeMarketsClient().settings
+        if settings.recap_guild_id is not None:
+            guilds = [guild for guild in self.bot.guilds if guild.id == settings.recap_guild_id]
+        else:
+            guilds = list(self.bot.guilds)
+        recap = await TribeMarketsClient(settings).get_automation_recap()
+        if recap is None:
+            return
+        tribe_url = f"{settings.api_url}/communities/{settings.recap_tribe_id}" if settings.recap_tribe_id else (
+            f"{settings.api_url}/communities/by-slug/{settings.recap_tribe_slug}"
+        )
+        body = format_automation_recap(recap, tribe_url)
+        for guild in guilds:
+            try:
+                channel_id = await data_access_get_ai_text_channel_id(guild.id)
+                if channel_id is None:
+                    print_log(f"weekly TribeMarkets recap: no AI channel for {guild.name}; skipping")
+                    continue
+                channel = await data_access_get_channel(channel_id)
+                if channel is None:
+                    print_log(f"weekly TribeMarkets recap: channel {channel_id} not found; skipping")
+                    continue
+                await channel.send(body)
+            except Exception as exc:
+                print_error_log(f"weekly TribeMarkets recap: failed for {guild.name}: {exc}")
+
     ### ============================ BEFORE LOOP ============================ ###
 
     @check_voice_channel_task.before_loop
@@ -273,6 +309,12 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>send_weekly_player_value_task: Waiting for bot to be ready...")
         await self.bot.wait_until_ready()
 
+    @send_weekly_tribemarkets_recap_task.before_loop
+    async def before_send_weekly_tribemarkets_recap_task(self):
+        """Wait for the bot to be ready before the weekly recap task."""
+        print_log("MyTasksCog>send_weekly_tribemarkets_recap_task: Waiting for bot to be ready...")
+        await self.bot.wait_until_ready()
+
     ### ============================ UNLOAD COG ============================ ###
     async def cog_unload(self):
         self.check_voice_channel_task.cancel()
@@ -287,6 +329,7 @@ class MyTasksCog(commands.Cog):
         self.send_monthly_analytics_report.cancel()
         self.daily_compute_player_values_task.cancel()
         self.send_weekly_player_value_task.cancel()
+        self.send_weekly_tribemarkets_recap_task.cancel()
 
 
 async def setup(bot):

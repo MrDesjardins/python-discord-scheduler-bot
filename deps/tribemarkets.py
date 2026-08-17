@@ -61,6 +61,11 @@ class TribeMarketsSettings:
     default_stake: str
     settlement_rule: str
     sponsor_liquidity: str
+    recap_api_key: str
+    recap_tribe_slug: str
+    recap_tribe_id: str | None
+    recap_days: int
+    recap_guild_id: int | None
 
     @classmethod
     def from_environment(cls) -> "TribeMarketsSettings":
@@ -100,6 +105,15 @@ class TribeMarketsSettings:
             settlement_rule=settlement_rule,
             sponsor_liquidity=os.getenv("TRIBEMARKETS_SPONSOR_LIQUIDITY", DEFAULT_SPONSOR_LIQUIDITY).strip()
             or DEFAULT_SPONSOR_LIQUIDITY,
+            recap_api_key=os.getenv("TRIBEMARKETS_RECAP_API_KEY", "").strip(),
+            recap_tribe_slug=os.getenv("TRIBEMARKETS_RECAP_TRIBE_SLUG", "stock-market").strip(),
+            recap_tribe_id=os.getenv("TRIBEMARKETS_RECAP_TRIBE_ID", "").strip() or None,
+            recap_days=positive_int("TRIBEMARKETS_RECAP_DAYS", 7, 31),
+            recap_guild_id=(
+                int(os.getenv("TRIBEMARKETS_RECAP_GUILD_ID", "0"))
+                if os.getenv("TRIBEMARKETS_RECAP_GUILD_ID", "").strip()
+                else None
+            ),
         )
 
     @property
@@ -351,6 +365,26 @@ def format_vote_closed_message(
     return f"🔒 Voting closed at {score}. {vote_line}\n{market_url}"
 
 
+def format_automation_recap(recap: dict[str, Any], tribe_url: str) -> str:
+    """Format the aggregate weekly recap without exposing private activity."""
+    created = int(recap.get("markets_created", 0))
+    settled = int(recap.get("markets_settled", 0))
+    waiting = int(recap.get("waiting_for_source", 0))
+    failures = int(recap.get("source_failures", 0))
+    titles = recap.get("market_titles")
+    title_list = titles if isinstance(titles, list) else []
+    lines = [
+        "📈 **Stock Market weekly recap**",
+        f"Markets created: **{created}** · Settled: **{settled}**",
+        f"Source waiting: **{waiting}** · Source failures: **{failures}**",
+    ]
+    if title_list:
+        lines.append("\n**This week's markets**")
+        lines.extend(f"• {str(title)}" for title in title_list[:10])
+    lines.append(f"\n🔗 Explore Stock Market: {tribe_url}")
+    return "\n".join(lines)[:2000]
+
+
 class TribeMarketsClient:
     """Small async client using a Tribe-bound TribeMarkets API key."""
 
@@ -382,6 +416,47 @@ class TribeMarketsClient:
 
         print_log(f"TribeMarkets: authenticated access confirmed for Tribe {community_id}.")
         return True
+
+    async def get_automation_recap(self) -> dict[str, Any] | None:
+        """Read the manager-only Stock Market recap when explicitly configured."""
+        settings = self.settings
+        if not settings.recap_api_key:
+            print_log("TribeMarkets: weekly recap disabled (TRIBEMARKETS_RECAP_API_KEY is not configured).")
+            return None
+        recap_settings = TribeMarketsSettings(
+            api_url=settings.api_url,
+            api_key=settings.recap_api_key,
+            tribe_slug=settings.recap_tribe_slug,
+            tribe_id=settings.recap_tribe_id,
+            validation_provider_id=settings.validation_provider_id,
+            validation_mode=settings.validation_mode,
+            share_link_hours=settings.share_link_hours,
+            close_score=settings.close_score,
+            challenge_minutes=settings.challenge_minutes,
+            default_stake=settings.default_stake,
+            settlement_rule=settings.settlement_rule,
+            sponsor_liquidity=settings.sponsor_liquidity,
+            recap_api_key=settings.recap_api_key,
+            recap_tribe_slug=settings.recap_tribe_slug,
+            recap_tribe_id=settings.recap_tribe_id,
+            recap_days=settings.recap_days,
+            recap_guild_id=settings.recap_guild_id,
+        )
+        client = TribeMarketsClient(recap_settings)
+        community_id = recap_settings.tribe_id
+        try:
+            if community_id is None:
+                community = await client._request(
+                    "GET", f"/communities/by-slug/{quote(recap_settings.tribe_slug, safe='')}"
+                )
+                community_id = str(community["id"])
+            return await client._request(
+                "GET",
+                f"/communities/{community_id}/automations/recap?days={recap_settings.recap_days}",
+            )
+        except (KeyError, TribeMarketsIntegrationError, TypeError, ValueError) as exc:
+            print_warning_log(f"TribeMarkets: weekly recap failed: {exc}")
+            return None
 
     async def _request(
         self,
