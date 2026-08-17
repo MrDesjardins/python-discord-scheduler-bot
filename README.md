@@ -616,28 +616,6 @@ If `TRIBEMARKETS_API_KEY` is not configured, the bot keeps its existing GIF-only
 behavior. A failure to create or update a market does not prevent the match GIF
 from being posted.
 
-### Stock Market weekly recap
-
-The bot can also post a compact Stock Market recap every Sunday at 6:00 PM
-Pacific in the configured AI text channel. This uses a separate manager API key
-because the existing match-market key is bound to Circus Maximus:
-
-```sh
-TRIBEMARKETS_RECAP_API_KEY=your-stock-market-manager-api-key
-TRIBEMARKETS_RECAP_TRIBE_SLUG=stock-market
-# Optional: avoid resolving the slug on every Sunday.
-# TRIBEMARKETS_RECAP_TRIBE_ID=your-stock-market-tribe-id
-TRIBEMARKETS_RECAP_DAYS=7
-# Optional: post only in one Discord guild.
-# TRIBEMARKETS_RECAP_GUILD_ID=your-discord-guild-id
-```
-
-The recap reports automated markets created, settled, source-waiting runs,
-source failures, and market titles. It deliberately excludes balances and
-does not present simulation accounts as real participation. If
-`TRIBEMARKETS_RECAP_API_KEY` is absent, the task safely skips and the rest of
-the bot continues normally.
-
 ## Python Environment and Dependencies
 
 Here are few commands to set up the environment and dependencies.
