@@ -1530,14 +1530,11 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
         ):
             data_access_clear_pending_match_start_gif_message(guild.id, voice_channel_id)
         else:
+            pending_kwargs: dict[str, Any] = {"last_result_key": result_key}
+            if market is not None:
+                pending_kwargs["market"] = market.as_dict()
             data_access_set_pending_match_start_gif_message(
-                guild.id,
-                voice_channel_id,
-                text_channel_id,
-                message_id,
-                member_ids,
-                last_result_key=result_key,
-                market=market.as_dict() if market is not None else None,
+                guild.id, voice_channel_id, text_channel_id, message_id, member_ids, **pending_kwargs
             )
         print_log(
             f"try_update_match_start_gif_with_result: updated match message {message_id} "

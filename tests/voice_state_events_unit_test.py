@@ -511,6 +511,38 @@ class TestMatchStartGif:
             mock_set_last_time.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_stale_pending_match_does_not_suppress_new_match(self, mock_bot, mock_guild):
+        """A missed final-result update must not block the next match indefinitely."""
+        from cogs.events import MyEventsCog
+        from deps.models import ActivityTransition
+        from datetime import timedelta
+
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+        user_activities = {
+            111: ActivityTransition("At the Main Menu", "Picking Operators: Ranked on Bank"),
+            222: ActivityTransition("At the Main Menu", "Picking Operators: Ranked on Bank"),
+        }
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=20)
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch("cogs.events.data_access_get_pending_match_start_gif_message", AsyncMock(return_value={
+                "message_id": 999,
+                "last_result_key": "live:LEADING:3-2:Bank",
+            })),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=old_time)),
+            patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()),
+            patch("cogs.events.data_access_clear_pending_match_start_gif_message") as mock_clear_pending,
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock(return_value=True)) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+        mock_clear_pending.assert_called_once_with(guild_id, channel_id)
+        mock_send_gif.assert_awaited_once_with(mock_bot, guild_id, channel_id)
+
+    @pytest.mark.asyncio
     async def test_multiple_users_looking_for_ranked(self, mock_bot, mock_guild):
         """Verify GIF is sent when multiple users are looking for ranked"""
         from cogs.events import MyEventsCog
