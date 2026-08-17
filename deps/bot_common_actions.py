@@ -10,7 +10,7 @@ import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from collections import Counter
-from typing import Dict, List, Mapping, Optional, Union
+from typing import Any, Dict, List, Mapping, Optional, Union
 from gtts import gTTS  # type: ignore
 import discord
 from deps.browser import (
@@ -1195,6 +1195,8 @@ async def send_match_start_gif(
                 file=file,
                 delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
             )
+            if sent_message is None:
+                raise RuntimeError("Discord returned no GIF message")
             print_log(
                 f"send_match_start_gif: Posted GIF message {sent_message.id} in channel {text_channel.id}; "
                 "starting TribeMarkets handoff"
