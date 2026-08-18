@@ -10,6 +10,7 @@ from deps.tribemarkets import (
     build_market_description,
     build_market_title,
     format_vote_closed_message,
+    format_vote_open_message,
     format_result_summary,
     infer_map_name,
     score_reached_close_threshold,
@@ -56,6 +57,9 @@ def test_match_market_round_trips_cache_state():
         no_outcome_id="no-id",
         share_url="https://tribemarkets.com/app/tribes/circus-maximus/markets/market-id",
         external_event_id="discord-ranked:1:2:3",
+        title="Will the squad win?",
+        opens_at="2026-08-13T20:30:00+00:00",
+        closes_at="2026-08-14T00:30:00+00:00",
         vote_closed=True,
         result_submitted=True,
         settlement_complete=True,
@@ -63,6 +67,25 @@ def test_match_market_round_trips_cache_state():
     )
 
     assert MatchMarket.from_dict(market.as_dict()) == market
+
+
+def test_format_vote_open_message_shows_context_above_buttons():
+    market = MatchMarket(
+        community_id="tribe-id",
+        market_id="market-id",
+        yes_outcome_id="yes-id",
+        no_outcome_id="no-id",
+        share_url="https://example.com/market-id",
+        external_event_id="discord-ranked:1:2:3",
+        title="Will the squad win?",
+        closes_at="2026-08-14T00:30:00+00:00",
+    )
+
+    assert format_vote_open_message(market) == (
+        "🗳️ **Will the squad win?**\n"
+        "🟢 **Market open** · closes <t:1786667400:R>\n"
+        "Vote **Yes** if the squad wins; vote **No** if it loses."
+    )
 
 
 def test_settings_default_to_disabled_without_an_api_key(monkeypatch):

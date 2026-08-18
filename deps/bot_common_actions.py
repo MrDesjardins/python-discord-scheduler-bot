@@ -103,6 +103,7 @@ from deps.tribemarkets import (
     MatchMarket,
     TribeMarketsClient,
     format_vote_closed_message,
+    format_vote_open_message,
     format_result_summary,
     infer_map_name,
     score_reached_close_threshold,
@@ -1239,11 +1240,7 @@ async def send_match_start_gif(
             print_warning_log(f"send_match_start_gif: TribeMarkets market unavailable: {exc}")
 
         if market is not None:
-            vote_content = (
-                "🗳️ **Predict the squad's match result**\n"
-                "Choose Yes or No below, then privately review and confirm your prediction. "
-                "Voting closes when one side reaches 2."
-            )
+            vote_content = format_vote_open_message(market)
             vote_embed = discord.Embed(
                 title="TribeMarkets market",
                 description=f"[Open the market]({market.share_url})",

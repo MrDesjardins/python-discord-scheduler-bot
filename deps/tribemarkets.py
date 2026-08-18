@@ -160,6 +160,9 @@ class MatchMarket:
     no_outcome_id: str
     share_url: str
     external_event_id: str
+    title: str | None = None
+    opens_at: str | None = None
+    closes_at: str | None = None
     vote_closed: bool = False
     result_submitted: bool = False
     vote_message_id: int | None = None
@@ -173,6 +176,9 @@ class MatchMarket:
             "no_outcome_id": self.no_outcome_id,
             "share_url": self.share_url,
             "external_event_id": self.external_event_id,
+            "title": self.title,
+            "opens_at": self.opens_at,
+            "closes_at": self.closes_at,
             "vote_closed": self.vote_closed,
             "result_submitted": self.result_submitted,
             "settlement_complete": self.settlement_complete,
@@ -188,6 +194,9 @@ class MatchMarket:
             no_outcome_id=str(value["no_outcome_id"]),
             share_url=str(value["share_url"]),
             external_event_id=str(value["external_event_id"]),
+            title=str(value["title"]) if value.get("title") is not None else None,
+            opens_at=str(value["opens_at"]) if value.get("opens_at") is not None else None,
+            closes_at=str(value["closes_at"]) if value.get("closes_at") is not None else None,
             vote_closed=bool(value.get("vote_closed", False)),
             result_submitted=bool(value.get("result_submitted", False)),
             settlement_complete=bool(value.get("settlement_complete", False)),
@@ -349,6 +358,19 @@ def format_vote_closed_message(
     else:
         vote_line = "Vote counts are still being updated by TribeMarkets."
     return f"🔒 Voting closed at {score}. {vote_line}\n{market_url}"
+
+
+def format_vote_open_message(market: MatchMarket) -> str:
+    """Build the compact context shown above the open market buttons."""
+    title = market.title or "TribeMarkets prediction"
+    close_line = "🟢 **Market open**"
+    if market.closes_at:
+        try:
+            close_timestamp = int(datetime.fromisoformat(market.closes_at.replace("Z", "+00:00")).timestamp())
+            close_line += f" · closes <t:{close_timestamp}:R>"
+        except ValueError:
+            pass
+    return f"🗳️ **{title}**\n{close_line}\nVote **Yes** if the squad wins; vote **No** if it loses."
 
 
 class TribeMarketsClient:
@@ -529,6 +551,9 @@ class TribeMarketsClient:
             no_outcome_id=str(no["id"]),
             share_url=share_url,
             external_event_id=external_event_id,
+            title=str(market.get("title")) if market.get("title") is not None else None,
+            opens_at=str(market.get("opens_at")) if market.get("opens_at") is not None else None,
+            closes_at=str(market.get("closes_at")) if market.get("closes_at") is not None else None,
         )
 
     async def create_vote_intent(
