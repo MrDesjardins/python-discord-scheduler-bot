@@ -960,9 +960,9 @@ class MyEventsCog(commands.Cog):
                     pending_result_key = str(pending.get("last_result_key", "")) if pending else ""
                     # Rate limit: once per hour per channel
                     last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
-                    rate_limited = last_time is not None and (
-                        datetime.now(timezone.utc) - last_time
-                    ) <= timedelta(minutes=15)
+                    rate_limited = last_time is not None and (datetime.now(timezone.utc) - last_time) <= timedelta(
+                        minutes=15
+                    )
                     if pending is not None and not pending_result_key.startswith("final:") and rate_limited:
                         print_log(
                             f"Ranked match start already has an active pending message in guild {guild_id}, "

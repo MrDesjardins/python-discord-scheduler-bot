@@ -1,6 +1,7 @@
 """Unit tests for the player value (team balancing) algorithms"""
 
 from datetime import datetime, timedelta, timezone
+from typing import Any, cast
 
 import pytest
 
@@ -77,7 +78,7 @@ def make_match(**overrides) -> UserFullMatchStats:
         "has_win": True,
     }
     values.update(overrides)
-    return UserFullMatchStats(**values)
+    return UserFullMatchStats(**cast(Any, values))
 
 
 class TestRankPointsToDollar:

@@ -71,6 +71,12 @@ async def test_message_archive_worker_spools_failed_batches(monkeypatch) -> None
     monkeypatch.setattr(MyEventsCog, "_process_spooled_message_archive_jobs_sync", staticmethod(lambda: 0))
     monkeypatch.setattr(events, "spool_message_archive_jobs", fake_spool)
 
+    async def run_in_event_loop(function, *args):
+        """Keep this worker test deterministic; thread offloading is tested elsewhere."""
+        return function(*args)
+
+    monkeypatch.setattr(events.asyncio, "to_thread", run_in_event_loop)
+
     task = asyncio.create_task(cog._message_archive_worker())
     await asyncio.wait_for(cog.message_archive_queue.join(), timeout=1)
     task.cancel()

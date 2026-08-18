@@ -111,6 +111,8 @@ def create_test_user(user_id: int, display_name: str) -> UserInfo:
         time_zone="US/Eastern",
         max_mmr=3500,
     )
+    assert user_info.ubisoft_username_max is not None
+    assert user_info.ubisoft_username_active is not None
     upsert_user_info(
         user_id,
         user_info.display_name,

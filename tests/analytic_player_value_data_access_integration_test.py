@@ -36,6 +36,8 @@ def setup_and_teardown():
 def insert_user_with_match(user_id: int, match_timestamp: datetime) -> None:
     """Insert a user and one ranked match at the given time"""
     user_info = UserInfo(user_id, f"user{user_id}", f"ubi{user_id}", f"ubi{user_id}", f"uuid{user_id}", "US/Eastern", 0)
+    assert user_info.ubisoft_username_max is not None
+    assert user_info.ubisoft_username_active is not None
     upsert_user_info(
         user_id,
         user_info.display_name,
