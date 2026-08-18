@@ -49,7 +49,11 @@ class TribeMarketsVoteButton(discord.ui.Button[discord.ui.View]):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         except TribeMarketsIntegrationError as exc:
-            print_warning_log(f"TribeMarkets vote intent unavailable: {exc}")
+            print_warning_log(
+                "TribeMarkets vote intent unavailable: "
+                f"guild={interaction.guild.id} community={self.market.community_id} "
+                f"status={exc.status_code or 'unknown'} error={exc}"
+            )
             detail = str(exc).strip() or "The TribeMarkets API did not provide an error message."
             # Keep the API's status and sanitized error envelope visible to the
             # member. A generic "market may be closed" message hid actionable
