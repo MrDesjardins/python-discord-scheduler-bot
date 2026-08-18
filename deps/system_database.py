@@ -90,6 +90,7 @@ class DatabaseManager:
         self.get_cursor().execute("DROP TABLE IF EXISTS bet_ledger_entry")
         self.get_cursor().execute("DROP TABLE IF EXISTS custom_game_user_subscription")
         self.get_cursor().execute("DROP TABLE IF EXISTS operator_stats")
+        self.get_cursor().execute("DROP TABLE IF EXISTS tribemarkets_pending_match")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_player_value")
         self.get_cursor().execute("DROP TABLE IF EXISTS archived_message_job_spool")
         self.get_cursor().execute("DROP TABLE IF EXISTS archived_message_event")
@@ -673,6 +674,40 @@ class DatabaseManager:
                 UNIQUE(user_id, operator_name, session_type, gamemode)
             )
         """
+        )
+
+        # TribeMarkets markets outlive the Discord presence event that creates
+        # them.  Keep their reconciliation state in SQLite instead of only in
+        # the two-hour cache used by the GIF lifecycle.  This table is also
+        # what lets startup recovery and the daily fetch retry after a restart.
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tribemarkets_pending_match (
+                market_id TEXT PRIMARY KEY,
+                guild_id INTEGER NOT NULL,
+                voice_channel_id INTEGER NOT NULL,
+                text_channel_id INTEGER NOT NULL,
+                vote_message_id INTEGER,
+                member_ids_json TEXT NOT NULL,
+                member_names_json TEXT NOT NULL,
+                market_json TEXT NOT NULL,
+                started_at DATETIME NOT NULL,
+                match_uuid TEXT,
+                map_name TEXT,
+                resolution_source TEXT,
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_attempt_at DATETIME,
+                resolved_at DATETIME,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_tribemarkets_pending_status
+            ON tribemarkets_pending_match(status, started_at)
+            """
         )
         self.cursor.execute(
             """

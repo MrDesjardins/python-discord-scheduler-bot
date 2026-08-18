@@ -595,6 +595,27 @@ class TribeMarketsClient:
             print_error_log(f"TribeMarkets could not close market {market.market_id}: {exc}")
             return False
 
+    async def update_market_title(self, market: MatchMarket, *, title: str) -> bool:
+        """Update delayed match context once R6 Tracker identifies the map.
+
+        TribeMarkets intentionally keeps the market question immutable for
+        ordinary users, but the scoped integration key may update the title as
+        part of the bot's external match enrichment flow.
+        """
+        try:
+            await self._request(
+                "PATCH",
+                f"/communities/{market.community_id}/markets/{market.market_id}",
+                json_body={"title": title},
+            )
+            market.title = title
+            return True
+        except TribeMarketsIntegrationError as exc:
+            # A title update must never prevent result settlement.  The caller
+            # logs the warning and continues with the stored market state.
+            print_warning_log(f"TribeMarkets could not update market title {market.market_id}: {exc}")
+            return False
+
     async def get_result_summary(self, market: MatchMarket) -> dict[str, Any] | None:
         """Read the settled recap used to update the Discord voting message.
 
@@ -622,16 +643,20 @@ class TribeMarketsClient:
         map_name: str | None,
         member_names: list[str],
         occurred_at: datetime,
+        resolution_source: str = "stats.cc",
+        match_uuid: str | None = None,
     ) -> bool:
         """Resolve directly or submit a signed result, depending on configuration."""
         outcome_id = market.yes_outcome_id if won else market.no_outcome_id
         evidence = {
-            "source": "stats.cc",
+            "source": resolution_source,
             "final_score": score,
             "map_name": map_name,
             "member_names": member_names,
             "external_event_id": market.external_event_id,
         }
+        if match_uuid is not None:
+            evidence["match_uuid"] = match_uuid
         if self.settings.validation_mode == "signed_bot_with_challenge":
             provider_id = self.settings.validation_provider_id
             if provider_id is None:
@@ -685,7 +710,7 @@ class TribeMarketsClient:
                 f"/communities/{market.community_id}/markets/{market.market_id}/resolve",
                 json_body={
                     "winning_outcome_id": outcome_id,
-                    "resolution_source": "stats.cc",
+                    "resolution_source": resolution_source,
                     "evidence": evidence,
                 },
             )

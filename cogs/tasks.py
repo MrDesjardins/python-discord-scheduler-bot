@@ -14,6 +14,7 @@ from deps.bot_common_actions import (
     persist_matches_and_refresh_rank_roles,
     persist_user_full_information_cross_guilds,
     post_queued_user_stats,
+    reconcile_pending_tribemarkets,
     send_daily_question_to_a_guild,
 )
 from deps.mybot import MyBot
@@ -52,6 +53,7 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>start_task: Bot is ready, starting tasks...")
         self.check_voice_channel_task.start()  # Start the task when the cog is loaded
         self.send_queue_user_stats.start()  # Start the task when the cog is loaded
+        self.reconcile_tribemarkets_task.start()  # Recover delayed markets after restart and during the day
         self.send_daily_question_to_all_guild_task.start()  # Start the task when the cog is loaded
         self.daily_saving_active_user_match_stats_task.start()  # Start the task when the cog is loaded
         self.daily_saving_active_user_information_task.start()  # Start the task when the cog is loaded
@@ -83,6 +85,14 @@ class MyTasksCog(commands.Cog):
             await post_queued_user_stats()
         except Exception as e:
             print_error_log(f"send_queue_user_stats task: {e}")
+
+    @tasks.loop(minutes=30)
+    async def reconcile_tribemarkets_task(self):
+        """Retry markets whose match result was not available from Stats.cc."""
+        try:
+            await reconcile_pending_tribemarkets()
+        except Exception as e:
+            print_error_log(f"reconcile_tribemarkets_task task: {e}")
 
     @tasks.loop(time=time_send_daily_message)
     async def send_daily_question_to_all_guild_task(self):

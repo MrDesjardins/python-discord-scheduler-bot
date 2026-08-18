@@ -62,6 +62,7 @@ from deps.mybot import MyBot
 from deps.models import (
     ActivityTransition,
     SimpleUser,
+    UserFullMatchStats,
     UserMatchInfoSessionAggregate,
     UserQueueForStats,
     UserWithUserInformation,
@@ -102,11 +103,20 @@ from deps.siege import (
 from deps.tribemarkets import (
     MatchMarket,
     TribeMarketsClient,
+    build_market_title,
     format_vote_closed_message,
     format_vote_open_message,
     format_result_summary,
     infer_map_name,
     score_reached_close_threshold,
+)
+from deps.tribemarkets_reconciliation import save_pending_market
+from deps.tribemarkets_reconciliation import (
+    list_pending_markets,
+    mark_attempted_market,
+    mark_market_resolved,
+    mark_reconciled_market,
+    reconcile_match,
 )
 from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
 from deps.functions_schedule import (
@@ -479,6 +489,131 @@ async def send_session_stats_directly(member: discord.Member, guild_id: int) -> 
     await post_queued_user_stats(False)
 
 
+async def reconcile_pending_tribemarkets(
+    fetched_users: list[UserWithUserMatchInfo] | None = None,
+) -> None:
+    """Resolve markets whose Stats.cc final event was never observed.
+
+    ``fetched_users`` is the result of the normal delayed session fetch, so the
+    common leave-voice path does not open a second browser session.  Scheduled
+    recovery calls this function without that argument; it fetches only the
+    accounts belonging to still-pending markets.  R6 Tracker scraping is
+    already isolated in ``download_full_matches_async`` (``asyncio.to_thread``)
+    and must never run directly on the Discord event loop.
+    """
+    pending_markets = list_pending_markets()
+    if not pending_markets:
+        return
+
+    matches_by_member: dict[int, list[UserFullMatchStats]] = {}
+    if fetched_users:
+        for user_matches in fetched_users:
+            user_id = user_matches.user_request_stats.user_info.id
+            matches_by_member.setdefault(user_id, []).extend(user_matches.match_stats)
+
+    missing_ids = {
+        member_id
+        for pending in pending_markets
+        for member_id in pending.member_ids
+        if member_id not in matches_by_member
+    }
+    if missing_ids:
+        fetch_queue: list[UserQueueForStats] = []
+        for member_id in missing_ids:
+            user_info = await fetch_user_info_by_user_id(member_id)
+            if user_info is not None and user_info.ubisoft_username_active is not None:
+                fetch_queue.append(UserQueueForStats(user_info, 0, datetime.now(timezone.utc)))
+        if fetch_queue:
+            fetched = await download_full_matches_async(fetch_queue)
+            for user_matches in fetched:
+                user_id = user_matches.user_request_stats.user_info.id
+                matches_by_member.setdefault(user_id, []).extend(user_matches.match_stats)
+
+    client = TribeMarketsClient()
+    for pending in pending_markets:
+        try:
+            # Stats.cc may have submitted a signed result while TribeMarkets'
+            # challenge window is still open.  Poll that market directly; do
+            # not replace authoritative Stats.cc evidence with the fallback.
+            if pending.resolution_source == "stats.cc" and pending.market.get("result_submitted"):
+                market = MatchMarket.from_dict(pending.market)
+                if await client.get_result_summary(market) is not None:
+                    mark_market_resolved(pending.market_id)
+                else:
+                    mark_attempted_market(pending.market_id)
+                continue
+            result = reconcile_match(
+                started_at=pending.started_at,
+                member_ids=pending.member_ids,
+                matches_by_member=matches_by_member,
+            )
+            if result is None:
+                mark_attempted_market(pending.market_id)
+                continue
+
+            market = MatchMarket.from_dict(pending.market)
+            enriched_title = build_market_title(pending.started_at, result.map_name)
+            await client.update_market_title(market, title=enriched_title)
+            market.title = enriched_title
+            market.vote_closed = await client.close_market(market)
+            if not market.vote_closed:
+                mark_attempted_market(pending.market_id)
+                continue
+
+            market.result_submitted = await client.submit_result(
+                market,
+                won=result.won,
+                score=result.score or "unknown",
+                map_name=result.map_name,
+                member_names=list(pending.member_names),
+                occurred_at=result.started_at,
+                resolution_source="r6_tracker",
+                match_uuid=result.match_uuid,
+            )
+            if not market.result_submitted:
+                mark_reconciled_market(
+                    pending.market_id,
+                    match_uuid=result.match_uuid,
+                    map_name=result.map_name,
+                    resolution_source="r6_tracker",
+                    status="matched",
+                    market=market.as_dict(),
+                )
+                continue
+
+            summary = await client.get_result_summary(market)
+            market.settlement_complete = summary is not None
+            if pending.vote_message_id is not None:
+                message = await data_access_get_message(
+                    pending.guild_id,
+                    pending.text_channel_id,
+                    pending.vote_message_id,
+                )
+                if message is not None:
+                    content = (
+                        format_result_summary(summary, market.share_url)
+                        if summary is not None
+                        else (
+                            f"✅ Result recorded later from R6 Tracker: the squad "
+                            f"{'won' if result.won else 'lost'} ({result.map_name}). Settlement is still being confirmed.\n"
+                            f"{market.share_url}"
+                        )
+                    )
+                    await message.edit(content=content, view=TribeMarketsVoteView(market, disabled=True))
+            mark_reconciled_market(
+                pending.market_id,
+                match_uuid=result.match_uuid,
+                map_name=result.map_name,
+                resolution_source="r6_tracker",
+                status="matched",
+                market=market.as_dict(),
+            )
+            mark_market_resolved(pending.market_id)
+        except Exception as exc:  # one market must not block the others
+            mark_attempted_market(pending.market_id)
+            print_warning_log(f"reconcile_pending_tribemarkets: failed market {pending.market_id}: {exc}")
+
+
 async def send_session_stats_to_queue(member: discord.Member, guild_id: int) -> None:
     """
     Get the statistic of a user and add the request into a queue
@@ -556,6 +691,12 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
             insert_if_nonexistant_full_match_info(user_stats.user_request_stats.user_info, user_stats.match_stats)
         except Exception as e:
             print_error_log(f"post_queued_user_stats: Error persisting the data: {e}")
+    try:
+        # Reuse the just-fetched match history for delayed market resolution.
+        # This keeps the normal leave-voice path to one R6 Tracker fetch.
+        await reconcile_pending_tribemarkets(all_users_matches)
+    except Exception as e:
+        print_error_log(f"post_queued_user_stats: Error reconciling TribeMarkets: {e}")
     try:
         # Send the stats to the channel
         await send_channel_list_stats(all_users_matches)
@@ -1308,7 +1449,25 @@ async def send_match_start_gif(
             message_id,
             [m.id for m in members_for_gif],
             market=market.as_dict() if market is not None else None,
+            started_at=started_at,
         )
+        if market is not None:
+            # The cache entry drives the short-lived GIF edits.  The durable
+            # record drives delayed R6 Tracker reconciliation after users leave
+            # voice, after restart, or during the daily fetch.
+            try:
+                save_pending_market(
+                    market=market.as_dict(),
+                    guild_id=guild_id,
+                    voice_channel_id=voice_channel_id,
+                    text_channel_id=text_channel.id,
+                    vote_message_id=market.vote_message_id,
+                    member_ids=[member.id for member in members_for_gif],
+                    member_names=[member.display_name for member in members_for_gif if not member.bot],
+                    started_at=started_at,
+                )
+            except Exception as exc:  # cache fallback still preserves the live GIF flow
+                print_error_log(f"send_match_start_gif: Could not persist TribeMarkets reconciliation state: {exc}")
         print_log(
             f"send_match_start_gif: Successfully sent GIF to {text_channel.name} "
             f"(will auto-delete after {MATCH_START_GIF_DELETE_AFTER_SECONDS // 60} minutes)"
@@ -1395,6 +1554,22 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                 print_warning_log(f"try_update_match_start_gif_with_result: invalid TribeMarkets settings: {exc}")
 
         score_compact = f"{parsed_result.our_score}-{parsed_result.their_score}"
+        if (
+            market is not None
+            and market_client is not None
+            and parsed_result.map_name
+            and (market.title is None or "Map pending" in market.title)
+        ):
+            enriched_title = build_market_title(
+                (
+                    datetime.fromisoformat(pending["started_at"])
+                    if pending.get("started_at")
+                    else datetime.now(timezone.utc)
+                ),
+                parsed_result.map_name,
+            )
+            if await market_client.update_market_title(market, title=enriched_title):
+                market.title = enriched_title
         if market is not None and market_client is not None and not market.vote_closed:
             should_close = score_reached_close_threshold(
                 parsed_result.our_score,
@@ -1436,6 +1611,15 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                     member_names=[member.display_name for member in members_for_gif if not member.bot],
                     occurred_at=datetime.now(timezone.utc),
                 )
+                if market.result_submitted:
+                    mark_reconciled_market(
+                        market.market_id,
+                        match_uuid=None,
+                        map_name=parsed_result.map_name or "Unknown",
+                        resolution_source="stats.cc",
+                        status="matched",
+                        market=market.as_dict(),
+                    )
         if (
             market is not None
             and market_client is not None
@@ -1446,6 +1630,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             summary = await market_client.get_result_summary(market)
             if summary is not None:
                 market.settlement_complete = True
+                mark_market_resolved(market.market_id)
 
             if market.vote_message_id is not None:
                 vote_message = await data_access_get_message(

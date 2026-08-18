@@ -587,13 +587,20 @@ TRIBEMARKETS_VALIDATION_MODE=manual
 ```
 
 The API key must be bound to the Circus Maximus Tribe and have permission to
-create/close markets and submit resolutions. With `manual` validation, the bot
-submits the authoritative stats.cc win/loss result to TribeMarkets after the
-match; the platform's normal challenge window then finalizes settlement. The
-bot closes voting as soon as either score reaches 2 (for example, 2-0 or 1-2),
-but it does not resolve from that score alone because Rainbow Six can expose
-intermediate round scores. The existing final stats.cc win/loss signal remains
-the resolution cue.
+create/close/edit markets and submit resolutions. With `manual` validation, the
+bot submits the authoritative stats.cc win/loss result to TribeMarkets after
+the match; the platform's normal challenge window then finalizes settlement.
+The bot closes voting as soon as either score reaches 2 (for example, 2-0 or
+1-2), but it does not resolve from that score alone because Rainbow Six can
+expose intermediate round scores.
+
+Stats.cc is preferred, but it is not required. If no squad member publishes
+stats.cc telemetry, the market remains explicitly pending and the bot later
+matches the squad's delayed R6 Tracker histories by ranked match UUID and start
+time. It then updates the market title with the map and resolves using
+`resolution_source: r6_tracker`. Pending markets are stored in the bot's local
+SQLite database and retried after users leave voice, every 30 minutes, and at
+startup, so a Discord presence gap or bot restart does not lose the market.
 
 Once the result is settled, the bot reads TribeMarkets' result summary and
 edits the voting message with the winning prediction, pool total, correct and

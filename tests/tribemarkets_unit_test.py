@@ -2,6 +2,8 @@
 
 from datetime import datetime, timezone
 
+import pytest
+
 from deps.tribemarkets import (
     MATCH_MARKET_CATEGORY,
     MATCH_MARKET_TAGS,
@@ -14,6 +16,7 @@ from deps.tribemarkets import (
     format_result_summary,
     infer_map_name,
     score_reached_close_threshold,
+    TribeMarketsClient,
 )
 
 
@@ -185,3 +188,99 @@ def test_vote_closed_message_includes_yes_and_no_counts():
     assert "Voting closed at 2-1" in content
     assert "10 Yes" in content
     assert "2 No" in content
+
+
+@pytest.mark.asyncio
+async def test_update_market_title_uses_patch_and_updates_local_state(monkeypatch):
+    market = MatchMarket(
+        community_id="tribe-id",
+        market_id="market-id",
+        yes_outcome_id="yes-id",
+        no_outcome_id="no-id",
+        share_url="https://example.com/market-id",
+        external_event_id="discord-ranked:1:2:3",
+        title="Map pending",
+    )
+    client = TribeMarketsClient(
+        TribeMarketsSettings(
+            api_url="https://example.com/v1",
+            api_key="key",
+            tribe_slug="circus-maximus",
+            tribe_id="tribe-id",
+            validation_provider_id=None,
+            validation_mode="manual",
+            share_link_hours=168,
+            close_score=2,
+            challenge_minutes=120,
+            default_stake="10",
+            settlement_rule="sponsored_parimutuel",
+            sponsor_liquidity="100",
+        )
+    )
+    calls = []
+
+    async def fake_request(method, path, *, json_body=None, headers=None):
+        calls.append((method, path, json_body))
+        return {}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    assert await client.update_market_title(market, title="2026-08-18 03:03 UTC · Villa — Will the squad win?")
+    assert calls == [
+        (
+            "PATCH",
+            "/communities/tribe-id/markets/market-id",
+            {"title": "2026-08-18 03:03 UTC · Villa — Will the squad win?"},
+        )
+    ]
+    assert market.title == "2026-08-18 03:03 UTC · Villa — Will the squad win?"
+
+
+@pytest.mark.asyncio
+async def test_submit_result_can_use_r6_tracker_evidence(monkeypatch):
+    market = MatchMarket(
+        community_id="tribe-id",
+        market_id="market-id",
+        yes_outcome_id="yes-id",
+        no_outcome_id="no-id",
+        share_url="https://example.com/market-id",
+        external_event_id="discord-ranked:1:2:3",
+    )
+    client = TribeMarketsClient(
+        TribeMarketsSettings(
+            api_url="https://example.com/v1",
+            api_key="key",
+            tribe_slug="circus-maximus",
+            tribe_id="tribe-id",
+            validation_provider_id=None,
+            validation_mode="manual",
+            share_link_hours=168,
+            close_score=2,
+            challenge_minutes=120,
+            default_stake="10",
+            settlement_rule="sponsored_parimutuel",
+            sponsor_liquidity="100",
+        )
+    )
+    captured = {}
+
+    async def fake_request(method, path, *, json_body=None, headers=None):
+        captured.update(method=method, path=path, json_body=json_body)
+        return {}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    assert await client.submit_result(
+        market,
+        won=False,
+        score="2-4",
+        map_name="Villa",
+        member_names=["Alice"],
+        occurred_at=datetime(2026, 8, 18, 3, 10, tzinfo=timezone.utc),
+        resolution_source="r6_tracker",
+        match_uuid="match-uuid",
+    )
+    assert captured["path"] == "/communities/tribe-id/markets/market-id/resolve"
+    assert captured["json_body"]["resolution_source"] == "r6_tracker"
+    assert captured["json_body"]["evidence"]["match_uuid"] == "match-uuid"
+    assert captured["json_body"]["evidence"]["source"] == "r6_tracker"
