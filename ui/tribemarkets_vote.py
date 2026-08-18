@@ -50,8 +50,12 @@ class TribeMarketsVoteButton(discord.ui.Button[discord.ui.View]):
             )
         except TribeMarketsIntegrationError as exc:
             print_warning_log(f"TribeMarkets vote intent unavailable: {exc}")
+            detail = str(exc).strip() or "The TribeMarkets API did not provide an error message."
+            # Keep the API's status and sanitized error envelope visible to the
+            # member. A generic "market may be closed" message hid actionable
+            # integration problems such as a missing guild binding.
             await interaction.followup.send(
-                "I could not create the private confirmation link. The market may be closed; please try again shortly.",
+                f"I could not create the private confirmation link. {detail[:1500]}",
                 ephemeral=True,
             )
         except Exception as exc:  # pylint: disable=broad-exception-caught
