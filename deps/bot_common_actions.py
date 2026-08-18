@@ -1242,15 +1242,24 @@ async def send_match_start_gif(
             vote_content = (
                 "🗳️ **Predict the squad's match result**\n"
                 "Choose Yes or No below, then privately review and confirm your prediction. "
-                f"[Open the market]({market.share_url})\n"
                 "Voting closes when one side reaches 2."
             )
+            vote_embed = discord.Embed(
+                title="TribeMarkets market",
+                description=f"[Open the market]({market.share_url})",
+                url=market.share_url,
+                color=discord.Color.blurple(),
+            )
+            # Use a thumbnail so Discord does not render the full-size social
+            # preview image from the market page.
+            vote_embed.set_thumbnail(url="https://tribemarkets.com/tribemarkets-logo.png")
             try:
                 vote_message = None
                 for attempt in range(1, 3):
                     try:
                         vote_message = await send_discord_message(
                             vote_content,
+                            embed=vote_embed,
                             view=TribeMarketsVoteView(market),
                             delete_after=MATCH_START_GIF_DELETE_AFTER_SECONDS,
                         )
