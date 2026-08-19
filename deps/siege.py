@@ -466,9 +466,13 @@ def get_aggregation_statscc_activity(
         # Currently in a standard match
         if _is_statscc_standard_detail(aft):
             playing_standard += 1
-        # Detect ranked match START: transition TO "Picking Operators: Ranked on..."
-        # Only count as NEW match if coming from non-match states (queue, menu)
-        # NOT from match states (Match Ending, In Round, etc.) which indicate new round
+        # Detect ranked match START: transition TO "Picking Operators: Ranked on...".
+        # A bare "Ranked" is the generic stats.cc state between matches as well as
+        # during some match handoffs.  Treating it as an in-match state caused the
+        # real-world Ranked -> Picking transition to be missed, which suppressed
+        # both the GIF and the TribeMarkets handoff.  Keep the map-bearing states
+        # excluded because those reliably represent a new round in the same match;
+        # the caller's short rate limit also protects against duplicate sends.
         if aft is not None and aft.startswith("Picking Operators: Ranked"):
             # Check if user was NOT already in a ranked match (new round vs new match)
             if bef is None or not (
@@ -476,7 +480,6 @@ def get_aggregation_statscc_activity(
                 or bef.startswith("In Round: Ranked")
                 or bef.startswith("Match Ending: Ranked")
                 or bef.startswith("Ranked on")  # Generic ranked state between rounds
-                or bef == "Ranked"  # stats.cc's generic in-match state between rounds
                 or bef.startswith("Banning Operators: Ranked")
                 or bef.startswith("Prep Phase: Ranked")
             ):
