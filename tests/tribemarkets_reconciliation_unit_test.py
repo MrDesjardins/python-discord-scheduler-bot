@@ -155,7 +155,7 @@ async def test_async_reconciliation_resolves_from_fetched_history(monkeypatch):
         "no_outcome_id": "no",
         "share_url": "https://example.test/market-async",
         "external_event_id": "discord-ranked:1:2:3",
-        "title": "2026-08-18 03:03 UTC · Map pending — Will the squad win?",
+        "title": "2026-08-18 03:03 UTC · Alice",
         "vote_message_id": 40,
     }
     pending = SimpleNamespace(
@@ -206,7 +206,7 @@ async def test_async_reconciliation_resolves_from_fetched_history(monkeypatch):
     await bot_common_actions.reconcile_pending_tribemarkets(fetched_users=[fetched])
 
     assert calls == [
-        "title:2026-08-18 03:03 UTC · Oregon — Will the squad win?",
+        "title:2026-08-18 03:03 UTC · Oregon - Alice",
         "close",
         "resolve:r6_tracker:match-async",
         "summary",

@@ -125,10 +125,16 @@ def infer_map_name(details: str | None) -> str | None:
     return map_name or None
 
 
-def build_market_title(started_at: datetime, map_name: str | None) -> str:
+def build_market_title(
+    started_at: datetime,
+    map_name: str | None,
+    member_names: Iterable[str] = (),
+) -> str:
     """Build a concise, date-bearing title for the Discord match market."""
     timestamp = started_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    return f"{timestamp} · {map_name or 'Map pending'} — Will the squad win?"
+    names = ", ".join(name.strip() for name in member_names if name.strip()) or "Unknown squad"
+    context = f"{map_name.strip()} - {names}" if map_name and map_name.strip() else names
+    return f"{timestamp} · {context}"
 
 
 def build_market_description(
@@ -481,7 +487,7 @@ class TribeMarketsClient:
                 "require_final_attestation": True,
             }
         payload: dict[str, Any] = {
-            "title": build_market_title(started_at, map_name),
+            "title": build_market_title(started_at, map_name, member_names),
             "description": build_market_description(
                 member_names=member_names,
                 started_at=started_at,

@@ -552,7 +552,7 @@ async def reconcile_pending_tribemarkets(
                 continue
 
             market = MatchMarket.from_dict(pending.market)
-            enriched_title = build_market_title(pending.started_at, result.map_name)
+            enriched_title = build_market_title(pending.started_at, result.map_name, pending.member_names)
             await client.update_market_title(market, title=enriched_title)
             market.title = enriched_title
             market.vote_closed = await client.close_market(market)
@@ -1558,7 +1558,12 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             market is not None
             and market_client is not None
             and parsed_result.map_name
-            and (market.title is None or "Map pending" in market.title)
+            and (
+                market.title is None
+                or "Map pending" in market.title
+                or "Will the squad win?" in market.title
+                or parsed_result.map_name not in market.title
+            )
         ):
             enriched_title = build_market_title(
                 (
@@ -1567,6 +1572,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                     else datetime.now(timezone.utc)
                 ),
                 parsed_result.map_name,
+                [member.display_name for member in members_for_gif if not member.bot],
             )
             if await market_client.update_market_title(market, title=enriched_title):
                 market.title = enriched_title

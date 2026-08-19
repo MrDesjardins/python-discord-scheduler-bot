@@ -38,14 +38,17 @@ def test_infer_map_name_from_stats_cc_details():
 def test_market_copy_contains_match_context_and_binary_instruction():
     started_at = datetime(2026, 8, 13, 20, 30, tzinfo=timezone.utc)
 
-    title = build_market_title(started_at, "Villa")
+    title = build_market_title(started_at, "Villa", ["Alice", "Bob"])
     description = build_market_description(
         member_names=["Alice", "Bob"],
         started_at=started_at,
         map_name="Villa",
     )
 
-    assert title == "2026-08-13 20:30 UTC · Villa — Will the squad win?"
+    assert title == "2026-08-13 20:30 UTC · Villa - Alice, Bob"
+    assert build_market_title(started_at, None, ["Alice", "Bob"]) == (
+        "2026-08-13 20:30 UTC · Alice, Bob"
+    )
     assert "Squad: Alice, Bob" in description
     assert "Map: Villa" in description
     assert "Vote Yes" in description
@@ -225,15 +228,15 @@ async def test_update_market_title_uses_patch_and_updates_local_state(monkeypatc
 
     monkeypatch.setattr(client, "_request", fake_request)
 
-    assert await client.update_market_title(market, title="2026-08-18 03:03 UTC · Villa — Will the squad win?")
+    assert await client.update_market_title(market, title="2026-08-18 03:03 UTC · Villa - Alice")
     assert calls == [
         (
             "PATCH",
             "/communities/tribe-id/markets/market-id",
-            {"title": "2026-08-18 03:03 UTC · Villa — Will the squad win?"},
+            {"title": "2026-08-18 03:03 UTC · Villa - Alice"},
         )
     ]
-    assert market.title == "2026-08-18 03:03 UTC · Villa — Will the squad win?"
+    assert market.title == "2026-08-18 03:03 UTC · Villa - Alice"
 
 
 @pytest.mark.asyncio
