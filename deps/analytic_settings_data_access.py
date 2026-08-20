@@ -142,12 +142,14 @@ def upsert_user_info(
     database_manager.get_conn().commit()
 
 
-def get_active_user_info(from_time: datetime, to_time: datetime) -> list[UserInfo]:
+def get_active_user_info(
+    from_time: datetime, to_time: datetime, guild_id: int | None = None
+) -> list[UserInfo]:
     """
     Get the list of UserInfo of active user
     """
     # Get the list of user who were active
-    user_ids = fetch_user_infos_with_activity(from_time, to_time)
+    user_ids = fetch_user_infos_with_activity(from_time, to_time, guild_id=guild_id)
 
     # Get the user info to get the ubisoft name
     user_infos = fetch_user_info_by_user_id_list(user_ids)

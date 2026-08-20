@@ -234,7 +234,9 @@ def fetch_all_user_activities2(from_date: date) -> list[tuple[str, str, int]]:
     return [(row[0], row[1], row[2]) for row in result]
 
 
-def fetch_all_user_activities(from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:
+def fetch_all_user_activities(
+    from_day: int = 3600, to_day: int = 0, guild_id: int | None = None
+) -> list[UserActivity]:
     """
     Fetch all connect and disconnect events from the user_activity table
     """
@@ -246,38 +248,45 @@ def fetch_all_user_activities(from_day: int = 3600, to_day: int = 0) -> list[Use
         SELECT {USER_ACTIVITY_SELECT_FIELD}
         FROM user_activity
         WHERE timestamp >= :from_date AND timestamp <= :to_date
-        ORDER BY timestamp ASC
         """
-    database_manager.get_cursor().execute(
-        query,
-        {
-            "from_date": from_date.isoformat(),
-            "to_date": to_date.isoformat(),
-        },
-    )
+    params: dict[str, str | int] = {
+        "from_date": from_date.isoformat(),
+        "to_date": to_date.isoformat(),
+    }
+    if guild_id is not None:
+        query += " AND guild_id = :guild_id"
+        params["guild_id"] = guild_id
+    query += " ORDER BY timestamp ASC"
+    database_manager.get_cursor().execute(query, params)
     # Convert the result to a list of UserActivity objects
     return [UserActivity(*row) for row in database_manager.get_cursor().fetchall()]
 
 
-def fetch_user_activities(user_id: int, from_day: int = 3600, to_day: int = 0) -> list[UserActivity]:
+def fetch_user_activities(
+    user_id: int, from_day: int = 3600, to_day: int = 0, guild_id: int | None = None
+) -> list[UserActivity]:
     """
     Fetch all connect and disconnect events from the user_activity table for a specific user
     """
-    database_manager.get_cursor().execute(
-        f"""
+    query = f"""
         SELECT {USER_ACTIVITY_SELECT_FIELD}
         FROM user_activity
         WHERE timestamp >= datetime('now', ? ) AND timestamp <= datetime('now', ?)
         AND user_id = ?
-        ORDER BY timestamp ASC
-        """,
-        (f"-{from_day} days", f"-{to_day} days", user_id),
-    )
+        """
+    params: list[str | int] = [f"-{from_day} days", f"-{to_day} days", user_id]
+    if guild_id is not None:
+        query += " AND guild_id = ?"
+        params.append(guild_id)
+    query += " ORDER BY timestamp ASC"
+    database_manager.get_cursor().execute(query, params)
     # Convert the result to a list of UserActivity objects
     return [UserActivity(*row) for row in database_manager.get_cursor().fetchall()]
 
 
-def fetch_user_infos_with_activity(from_utc: datetime, to_utc: datetime) -> list[int]:
+def fetch_user_infos_with_activity(
+    from_utc: datetime, to_utc: datetime, guild_id: int | None = None
+) -> list[int]:
     """
     Fetch user ids that had at least one activity between the two timestamps
     """
@@ -285,16 +294,18 @@ def fetch_user_infos_with_activity(from_utc: datetime, to_utc: datetime) -> list
     from_utc = ensure_utc(from_utc)
     to_utc = ensure_utc(to_utc)
 
-    database_manager.get_cursor().execute(
-        f"""
+    query = """
         SELECT user_id
         FROM user_activity
         WHERE timestamp >= ?
         AND timestamp <= ?
-        GROUP BY user_id
-        """,
-        (from_utc.isoformat(), to_utc.isoformat()),
-    )
+    """
+    params: list[str | int] = [from_utc.isoformat(), to_utc.isoformat()]
+    if guild_id is not None:
+        query += " AND guild_id = ?"
+        params.append(guild_id)
+    query += " GROUP BY user_id"
+    database_manager.get_cursor().execute(query, params)
     return [row[0] for row in database_manager.get_cursor().fetchall()]
 
 

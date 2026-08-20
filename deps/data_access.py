@@ -4,6 +4,7 @@ from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
 import random
+import re
 from time import sleep
 import discord
 from deps.browser_context_manager import BrowserContextManager
@@ -629,8 +630,15 @@ def data_access_set_daily_message_id(guild_id: int, message_id: int) -> None:
 
 def data_access_execute_sql_query_from_llm(sql_query: str) -> str:
     """
-    Execute a SQL query from LLM
+    Execute a read-only SQL query from the LLM.
     """
+    normalized = sql_query.strip().lower()
+    if not (normalized.startswith("select") or normalized.startswith("with")):
+        raise ValueError("Only SELECT or WITH queries are allowed")
+    if normalized.startswith("with") and re.search(r"\b(insert|update|delete|replace)\b", normalized):
+        raise ValueError("WITH queries may only contain a final SELECT")
+    if ";" in sql_query.rstrip(";"):
+        raise ValueError("Multiple SQL statements are not allowed")
     database_manager.get_cursor().execute(sql_query)
     result = database_manager.get_cursor().fetchall()
     # Convert to string the whole result

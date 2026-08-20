@@ -99,6 +99,135 @@ def create_mock_match(user_id: int, match_uuid: str) -> UserFullMatchStats:
     )
 
 
+def test_normalize_user_names_uses_canonical_ubisoft_name():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+
+    result = bot_ai.normalize_user_names_in_response("Fridge had a strong game.", [user])
+
+    assert result == "ubi_1 had a strong game."
+
+
+def test_validate_generated_sql_rejects_display_name_identity_filter():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+
+    with pytest.raises(ValueError, match="Discord display name"):
+        bot_ai.validate_generated_sql(
+            "SELECT * FROM user_full_match_info WHERE ubisoft_username = 'Fridge'",
+            [user],
+        )
+
+
+def test_validate_generated_sql_accepts_resolved_user_id():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+
+    result = bot_ai.validate_generated_sql(
+        "SELECT * FROM user_full_match_info WHERE user_id = 1",
+        [user],
+    )
+
+    assert result.startswith("SELECT")
+
+
+def test_validate_generated_sql_rejects_artificial_kd_leaderboard():
+    bot_ai = BotAI()
+
+    with pytest.raises(ValueError, match="canonical names|artificial"):
+        bot_ai.validate_generated_sql(
+            "SELECT ufmi.ubisoft_username, 999999999 AS kd_ratio "
+            "FROM user_full_match_info AS ufmi GROUP BY ufmi.user_id LIMIT 10",
+            [],
+            require_canonical_identity=True,
+            require_kd_semantics=True,
+        )
+
+
+def test_validate_generated_sql_rejects_discord_names_for_partner_results():
+    bot_ai = BotAI()
+
+    with pytest.raises(ValueError, match="canonical|display_name"):
+        bot_ai.validate_generated_sql(
+            "SELECT ui.display_name, COUNT(*) FROM user_full_match_info ufmi "
+            "JOIN user_info ui ON ui.id = ufmi.user_id GROUP BY ui.display_name",
+            [],
+            require_canonical_identity=True,
+        )
+
+
+def test_query_plan_parser_accepts_json_with_provider_fence():
+    bot_ai = BotAI()
+
+    plan = bot_ai.parse_query_plan(
+        '```json\n{"needs_sql": true, "domain": "matches", "user_ids": [1]}\n```'
+    )
+
+    assert plan == {"needs_sql": True, "domain": "matches", "user_ids": [1]}
+
+
+def test_query_plan_validation_requires_explicitly_resolved_users():
+    bot_ai = BotAI()
+    user = create_mock_user(7, "Fridge")
+
+    with pytest.raises(ValueError, match="omitted"):
+        bot_ai.validate_query_plan(
+            {"needs_sql": True, "domain": "matches", "user_ids": []}, 99, [user]
+        )
+
+
+def test_query_plan_does_not_limit_global_leaderboard_to_requester():
+    bot_ai = BotAI()
+
+    plan = bot_ai.validate_query_plan(
+        {"needs_sql": True, "domain": "matches", "user_ids": [], "limit": 10}, 99, []
+    )
+
+    assert plan["user_ids"] == []
+
+
+def test_explicit_discord_mention_remains_authoritative_identity():
+    bot_ai = BotAI()
+    mentioned_user = create_mock_user(55, "t1deus")
+
+    with patch("deps.ai.ai_functions.fetch_user_info", return_value={}):
+        resolved = bot_ai.resolve_users_in_text("compare @t1deus statistics", [mentioned_user])
+
+    assert [user.id for user in resolved] == [55]
+
+
+@pytest.mark.asyncio
+async def test_stats_question_can_skip_sql_when_plan_says_not_needed():
+    bot_ai = BotAI()
+    with patch.object(
+        bot_ai,
+        "ask_ai",
+        return_value='{"needs_sql": false, "domain": "general", "user_ids": []}',
+    ) as ask_ai:
+        result = await bot_ai.ask_ai_sql_for_stats(1, "what does K/D mean?", 99, [])
+
+    assert result == ""
+    assert ask_ai.call_count == 1
+    assert "Classify the user's request" in ask_ai.call_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_sql_generation_repairs_after_validation_feedback():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+    responses = [
+        '{"needs_sql": true, "domain": "matches", "user_ids": [1], "metrics": ["wins"]}',
+        "SELECT * FROM user_full_match_info WHERE ubisoft_username = 'Fridge'",
+        "SELECT * FROM user_full_match_info WHERE user_id = 1",
+    ]
+    with patch.object(bot_ai, "ask_ai", side_effect=responses) as ask_ai:
+        result = await bot_ai.ask_ai_sql_for_stats(1, "show Fridge match wins", 99, [user])
+
+    assert result == "SELECT * FROM user_full_match_info WHERE user_id = 1"
+    assert ask_ai.call_count == 3
+    assert "Discord display name" in ask_ai.call_args_list[2].args[0]
+
+
 @pytest.mark.asyncio
 async def test_guild_ai_context_data_access_round_trip():
     """Guild AI context should persist through the cache-backed store."""
@@ -228,6 +357,21 @@ async def test_generate_answer_when_mentioning_bot_includes_guild_ai_context():
     assert "The server owner prefers concise answers." in prompt
     assert "User question:@bot who is online?" in prompt
     assert response == "Reply text"
+
+
+@pytest.mark.asyncio
+async def test_graph_response_clears_running_state_before_returning():
+    from deps.ai.graph_functions import GraphResponse
+
+    bot_ai = BotAI()
+    graph_response = GraphResponse("Graph", b"png")
+    with patch.object(bot_ai, "generate_graph_response", AsyncMock(return_value=graph_response)):
+        response = await bot_ai.generate_answer_when_mentioning_bot(
+            1, "", "generate a graph of my time", [], "Player", 42, "Gold"
+        )
+
+    assert response is graph_response
+    assert bot_ai.is_running() is False
 
 
 @pytest.mark.asyncio

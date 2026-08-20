@@ -9,6 +9,7 @@ Events are actions that the bot listens and reacts to
 
 import os
 import asyncio
+import io
 from contextlib import suppress
 from typing import Any, cast
 from datetime import datetime, timezone, timedelta
@@ -17,6 +18,7 @@ from discord.ext import commands
 import discord
 from deps.ai.ai_bot_functions import split_message_at_paragraphs
 from deps.ai.ai_functions import BotAISingleton
+from deps.ai.graph_functions import GraphResponse
 from deps.cache import start_periodic_cache_cleanup
 from deps.analytic_data_access import insert_user_activity
 from deps.analytic_data_access import fetch_user_info_by_user_id
@@ -1180,12 +1182,13 @@ class MyEventsCog(commands.Cog):
                         )
                     )
                     if response is not None:
-                        contents = self._build_ai_reply_contents("✅", message.author.mention, response)
+                        response_text = response.text if isinstance(response, GraphResponse) else response
+                        contents = self._build_ai_reply_contents("✅", message.author.mention, response_text)
                         edit_content = contents[0]
                         followup_contents = contents[1:]
                         print_log(
                             "on_message: Editing AI placeholder with successful response "
-                            f"(message_id={message_ref.id}, response_len={len(response)}, "
+                            f"(message_id={message_ref.id}, response_len={len(response_text)}, "
                             f"content_len={len(edit_content)}, followup_count={len(followup_contents)})."
                         )
                         await message_ref.edit(
@@ -1193,6 +1196,14 @@ class MyEventsCog(commands.Cog):
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
                         print_log(f"on_message: Successfully edited AI response message {message_ref.id}.")
+                        if isinstance(response, GraphResponse):
+                            await message.channel.send(
+                                content="Graph attached.",
+                                file=discord.File(
+                                    fp=io.BytesIO(response.image_bytes), filename=response.filename
+                                ),
+                                allowed_mentions=discord.AllowedMentions.none(),
+                            )
                         for index, followup_content in enumerate(followup_contents, start=1):
                             await message.channel.send(
                                 content=followup_content,
