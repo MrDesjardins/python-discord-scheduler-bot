@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from deps.tribemarkets_reconciliation import reconcile_match
+from deps.tribemarkets_reconciliation import match_uuid_already_assigned, reconcile_match
 import deps.tribemarkets_reconciliation as reconciliation
 from deps.system_database import DatabaseManager
 from deps.models import UserQueueForStats, UserWithUserMatchInfo
@@ -24,6 +24,8 @@ def match(*, user_id: int, uuid: str, offset_minutes: int = 2, won: bool = True,
         map_name=map_name,
         round_won_count=4,
         round_lost_count=2,
+        round_played_count=6,
+        match_duration_ms=600000,
     )
 
 
@@ -71,6 +73,45 @@ def test_reconcile_rejects_non_ranked_or_far_matches():
         )
         is None
     )
+
+
+def test_reconcile_defers_a_market_that_is_too_new():
+    result = reconcile_match(
+        started_at=START,
+        member_ids=[1, 2],
+        matches_by_member={
+            1: [match(user_id=1, uuid="new")],
+            2: [match(user_id=2, uuid="new")],
+        },
+        now=START + timedelta(minutes=2),
+    )
+
+    assert result is None
+
+
+def test_reconcile_rejects_future_tracker_records():
+    result = reconcile_match(
+        started_at=START,
+        member_ids=[1, 2],
+        matches_by_member={
+            1: [match(user_id=1, uuid="future", offset_minutes=30)],
+            2: [match(user_id=2, uuid="future", offset_minutes=30)],
+        },
+        now=START + timedelta(minutes=20),
+    )
+
+    assert result is None
+
+
+def test_reconcile_delays_single_participant_fallback():
+    result = reconcile_match(
+        started_at=START,
+        member_ids=[1, 2],
+        matches_by_member={1: [match(user_id=1, uuid="one")], 2: []},
+        now=START + timedelta(minutes=30),
+    )
+
+    assert result is None
 
 
 def test_reconcile_rejects_conflicting_results_for_same_uuid():
@@ -123,6 +164,8 @@ def test_pending_market_persistence_survives_round_trip(tmp_path, monkeypatch):
         resolution_source="r6_tracker",
         status="matched",
     )
+    assert match_uuid_already_assigned("match-1", exclude_market_id="market-2") is True
+    assert match_uuid_already_assigned("match-1", exclude_market_id="market-1") is False
     reconciliation.mark_market_resolved("market-1")
     assert reconciliation.list_pending_markets(now=START + timedelta(hours=1)) == []
 

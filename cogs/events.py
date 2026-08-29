@@ -10,6 +10,7 @@ Events are actions that the bot listens and reacts to
 import os
 import asyncio
 import io
+import hashlib
 from contextlib import suppress
 from typing import Any, cast
 from datetime import datetime, timezone, timedelta
@@ -92,6 +93,51 @@ MESSAGE_ARCHIVE_DRAIN_TIMEOUT_SECONDS = 10
 MESSAGE_ARCHIVE_STOP_TIMEOUT_SECONDS = 5
 MESSAGE_ARCHIVE_SPOOL_POLL_SECONDS = 1
 MESSAGE_ARCHIVE_SPOOL_BATCH_SIZE = 100
+MATCH_START_GIF_DEDUPLICATION_MINUTES = 20
+# A ranked Siege match cannot realistically last longer than this.  Past it, a
+# re-detection with the same roster is a brand new match, not the live one, and
+# must get its own GIF and its own TribeMarkets market.
+MATCH_START_LIVE_MATCH_MAX_MINUTES = 50
+
+
+def _is_ranked_match_activity(detail: str | None) -> bool:
+    """Return whether an activity detail represents an active ranked match."""
+    if not detail:
+        return False
+    return (
+        detail.startswith(
+            (
+                "RANKED match",
+                "Picking Operators: Ranked",
+                "In Round: Ranked",
+                "Match Ending: Ranked",
+                "Ranked on",
+                "Banning Operators: Ranked",
+                "Prep Phase: Ranked",
+            )
+        )
+        or detail == "Ranked"
+    )
+
+
+def _ranked_match_participant_ids(user_activities: dict[int, Any]) -> set[int]:
+    """Select players in the ranked match, excluding voice-channel spectators."""
+    return {
+        int(member_id)
+        for member_id, transition in user_activities.items()
+        if transition is not None
+        and (
+            _is_ranked_match_activity(getattr(transition, "before", None))
+            or _is_ranked_match_activity(getattr(transition, "after", None))
+        )
+    }
+
+
+def _match_start_fingerprint(guild_id: int, channel_id: int, member_ids: Any) -> str:
+    """Build a stable identity for one ranked session in a voice channel."""
+    participants = ",".join(str(member_id) for member_id in sorted(int(uid) for uid in member_ids))
+    payload = f"{guild_id}:{channel_id}:{participants}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def _is_loggable_voice_channel(channel: discord.abc.GuildChannel | None) -> bool:
@@ -958,18 +1004,44 @@ class MyEventsCog(commands.Cog):
                 number_users = len(user_activities)
                 if aggregation.looking_ranked_match >= 1 and number_users >= 1:
                     print_log(f"Detected ranked match start in guild {guild_id}, channel {channel_id}. Sending GIF.")
+                    participant_ids = _ranked_match_participant_ids(user_activities)
+                    match_fingerprint = _match_start_fingerprint(guild_id, channel_id, participant_ids)
                     pending = await data_access_get_pending_match_start_gif_message(guild_id, channel_id)
                     pending_result_key = str(pending.get("last_result_key", "")) if pending else ""
-                    # Rate limit: once per hour per channel
+                    pending_fingerprint = str(pending.get("match_fingerprint", "")) if pending else ""
+                    pending_participant_ids = {
+                        int(member_id) for member_id in (pending.get("match_participant_ids", []) if pending else [])
+                    }
                     last_time = await data_access_get_last_match_start_gif_time(guild_id, channel_id)
                     rate_limited = last_time is not None and (datetime.now(timezone.utc) - last_time) <= timedelta(
-                        minutes=15
+                        minutes=MATCH_START_GIF_DEDUPLICATION_MINUTES
                     )
-                    if pending is not None and not pending_result_key.startswith("final:") and rate_limited:
+                    pending_started_at: datetime | None = None
+                    if pending is not None and pending.get("started_at"):
+                        with suppress(ValueError, TypeError):
+                            pending_started_at = datetime.fromisoformat(str(pending["started_at"]))
+                    pending_match_could_be_live = pending_started_at is not None and (
+                        datetime.now(timezone.utc) - pending_started_at
+                    ) <= timedelta(minutes=MATCH_START_LIVE_MATCH_MAX_MINUTES)
+                    # Only suppress when the pending match could still be the one being
+                    # played AND we positively identified the same players.  An older
+                    # pending record, or an unknown roster, means this is a new match
+                    # and must get its own GIF and its own TribeMarkets market.
+                    same_active_match = (
+                        pending is not None
+                        and pending_match_could_be_live
+                        and not pending_result_key.startswith("final:")
+                        and participant_ids
+                        and pending_participant_ids
+                        and (
+                            pending_fingerprint == match_fingerprint
+                            or participant_ids.issubset(pending_participant_ids)
+                        )
+                    )
+                    if same_active_match:
                         print_log(
-                            f"Ranked match start already has an active pending message in guild {guild_id}, "
-                            f"channel {channel_id}; reservation is recent ({last_time.isoformat() if last_time else 'unknown'}). "
-                            "Skipping duplicate GIF."
+                            f"Ranked match start already belongs to active match {match_fingerprint[:12]} in guild "
+                            f"{guild_id}, channel {channel_id}; skipping duplicate GIF and market."
                         )
                         return
                     if pending is not None and not pending_result_key.startswith("final:") and not rate_limited:
@@ -988,7 +1060,14 @@ class MyEventsCog(commands.Cog):
                         print_log(
                             f"Reserved match start GIF send for guild {guild_id}, channel {channel_id} at {reserved_at.isoformat()}."
                         )
-                        sent = await send_match_start_gif(self.bot, guild_id, channel_id)
+                        sent = await send_match_start_gif(
+                            self.bot,
+                            guild_id,
+                            channel_id,
+                            started_at=reserved_at,
+                            match_fingerprint=match_fingerprint,
+                            match_participant_ids=sorted(participant_ids),
+                        )
                         if sent:
                             print_log(f"Posted match start GIF for guild {guild_id}, channel {channel_id}.")
                         else:
@@ -1199,9 +1278,7 @@ class MyEventsCog(commands.Cog):
                         if isinstance(response, GraphResponse):
                             await message.channel.send(
                                 content="Graph attached.",
-                                file=discord.File(
-                                    fp=io.BytesIO(response.image_bytes), filename=response.filename
-                                ),
+                                file=discord.File(fp=io.BytesIO(response.image_bytes), filename=response.filename),
                                 allowed_mentions=discord.AllowedMentions.none(),
                             )
                         for index, followup_content in enumerate(followup_contents, start=1):

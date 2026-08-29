@@ -713,6 +713,8 @@ def data_access_set_pending_match_start_gif_message(
     last_result_key: str | None = None,
     market: dict[str, Any] | None = None,
     started_at: datetime | None = None,
+    match_fingerprint: str | None = None,
+    match_participant_ids: list[int] | None = None,
 ) -> None:
     """Store match-start GIF metadata and optional TribeMarkets state."""
     key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
@@ -723,6 +725,10 @@ def data_access_set_pending_match_start_gif_message(
         value["market"] = market
     if started_at is not None:
         value["started_at"] = started_at.astimezone(timezone.utc).isoformat()
+    if match_fingerprint is not None:
+        value["match_fingerprint"] = match_fingerprint
+    if match_participant_ids is not None:
+        value["match_participant_ids"] = match_participant_ids
     set_cache(
         False,
         key,

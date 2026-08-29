@@ -16,11 +16,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Mapping
 
 from deps.models import UserFullMatchStats
+from deps.log import print_log
 from deps.system_database import database_manager
 
 
 RECONCILIATION_WINDOW = timedelta(hours=6)
 RECONCILIATION_RETENTION = timedelta(days=2)
+MINIMUM_MARKET_AGE = timedelta(minutes=10)
+SINGLE_PARTICIPANT_MINIMUM_AGE = timedelta(minutes=60)
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,7 @@ class ReconciledMatch:
     started_at: datetime
     participant_count: int
     score: str | None
+    confidence: str
 
 
 @dataclass(frozen=True)
@@ -64,6 +68,7 @@ def reconcile_match(
     started_at: datetime,
     member_ids: Iterable[int],
     matches_by_member: Mapping[int, Iterable[UserFullMatchStats]],
+    now: datetime | None = None,
 ) -> ReconciledMatch | None:
     """Find the best shared ranked match without relying on Stats.cc.
 
@@ -76,6 +81,14 @@ def reconcile_match(
     expected_ids = {int(member_id) for member_id in member_ids}
     candidates: dict[str, list[UserFullMatchStats]] = defaultdict(list)
     start = _utc(started_at)
+    current_time = _utc(now or datetime.now(timezone.utc))
+    market_age = current_time - start
+    if market_age < MINIMUM_MARKET_AGE:
+        print_log(
+            f"TribeMarkets reconciliation deferred: market is only {market_age.total_seconds():.0f}s old; "
+            f"minimum age is {MINIMUM_MARKET_AGE.total_seconds():.0f}s."
+        )
+        return None
     for member_id in expected_ids:
         for match in matches_by_member.get(member_id, ()):
             match_uuid = str(getattr(match, "match_uuid", "")).strip()
@@ -85,6 +98,17 @@ def reconcile_match(
                 continue
             match_time = _utc(match_time)
             if match_time < start - timedelta(minutes=10) or match_time > start + RECONCILIATION_WINDOW:
+                continue
+            if match_time > current_time:
+                continue
+            duration_ms = int(getattr(match, "match_duration_ms", 0) or 0)
+            rounds_played = int(getattr(match, "round_played_count", 0) or 0)
+            rounds_played = max(
+                rounds_played,
+                int(getattr(match, "round_won_count", 0) or 0)
+                + int(getattr(match, "round_lost_count", 0) or 0),
+            )
+            if duration_ms <= 0 and rounds_played <= 0:
                 continue
             candidates[match_uuid].append(match)
 
@@ -97,7 +121,10 @@ def reconcile_match(
         if len(results) != 1:
             continue
         nearest = min(abs((_utc(record.match_timestamp) - start).total_seconds()) for record in by_member.values())
-        ranked.append((len(by_member), nearest, match_uuid, list(by_member.values())))
+        participant_count = len(by_member)
+        if participant_count < 2 and market_age < SINGLE_PARTICIPANT_MINIMUM_AGE:
+            continue
+        ranked.append((participant_count, nearest, match_uuid, list(by_member.values())))
     if not ranked:
         return None
 
@@ -115,7 +142,26 @@ def reconcile_match(
         started_at=_utc(representative.match_timestamp),
         participant_count=participant_count,
         score=score,
+        confidence="high" if participant_count >= 2 else "medium",
     )
+
+
+def match_uuid_already_assigned(match_uuid: str, *, exclude_market_id: str) -> bool:
+    """Prevent one R6 Tracker match from resolving multiple TribeMarkets markets."""
+    row = (
+        database_manager.get_cursor()
+        .execute(
+            """
+            SELECT 1
+            FROM tribemarkets_pending_match
+            WHERE match_uuid = ? AND market_id != ?
+            LIMIT 1
+            """,
+            (match_uuid, exclude_market_id),
+        )
+        .fetchone()
+    )
+    return row is not None
 
 
 def save_pending_market(

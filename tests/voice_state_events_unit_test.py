@@ -372,7 +372,9 @@ class TestMatchStartGif:
             await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
 
             # Verify: GIF was sent
-            mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
+            mock_send_gif.assert_called_once()
+            assert mock_send_gif.call_args.args[:3] == (mock_bot, guild_id, channel_id)
+            assert mock_send_gif.call_args.kwargs["match_fingerprint"]
             mock_set_last_time.assert_called_once()
 
     @pytest.mark.asyncio
@@ -490,8 +492,8 @@ class TestMatchStartGif:
             333: ActivityTransition("in MENU", "Playing Map Training"),
         }
 
-        # Mock: GIF was sent 20 minutes ago (outside 15-minute window)
-        old_time = datetime.now(timezone.utc) - timedelta(minutes=20)
+        # Mock: GIF was sent 21 minutes ago (outside the 20-minute fallback window)
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=21)
 
         with (
             patch("cogs.events.data_access_get_voice_user_list") as mock_get_users,
@@ -507,7 +509,9 @@ class TestMatchStartGif:
             await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
 
             # Verify: GIF was sent (rate limit expired)
-            mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
+            mock_send_gif.assert_called_once()
+            assert mock_send_gif.call_args.args[:3] == (mock_bot, guild_id, channel_id)
+            assert mock_send_gif.call_args.kwargs["match_fingerprint"]
             mock_set_last_time.assert_called_once()
 
     @pytest.mark.asyncio
@@ -528,10 +532,15 @@ class TestMatchStartGif:
 
         with (
             patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
-            patch("cogs.events.data_access_get_pending_match_start_gif_message", AsyncMock(return_value={
-                "message_id": 999,
-                "last_result_key": "live:LEADING:3-2:Bank",
-            })),
+            patch(
+                "cogs.events.data_access_get_pending_match_start_gif_message",
+                AsyncMock(
+                    return_value={
+                        "message_id": 999,
+                        "last_result_key": "live:LEADING:3-2:Bank",
+                    }
+                ),
+            ),
             patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=old_time)),
             patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()),
             patch("cogs.events.data_access_clear_pending_match_start_gif_message") as mock_clear_pending,
@@ -540,7 +549,126 @@ class TestMatchStartGif:
             await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
 
         mock_clear_pending.assert_called_once_with(guild_id, channel_id)
-        mock_send_gif.assert_awaited_once_with(mock_bot, guild_id, channel_id)
+        mock_send_gif.assert_awaited_once()
+        assert mock_send_gif.await_args.args[:3] == (mock_bot, guild_id, channel_id)
+        assert mock_send_gif.await_args.kwargs["match_fingerprint"]
+
+    @pytest.mark.asyncio
+    async def test_same_match_fingerprint_suppresses_overtime_duplicate(self, mock_bot, mock_guild):
+        """An overtime match must reuse its existing GIF/market after the 20-minute fallback."""
+        from cogs.events import MyEventsCog, _match_start_fingerprint
+        from deps.models import ActivityTransition
+        from datetime import timedelta
+
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+        user_activities = {
+            111: ActivityTransition("Ranked on Bank", "Picking Operators: Ranked on Bank"),
+            222: ActivityTransition("Ranked on Bank", "Picking Operators: Ranked on Bank"),
+        }
+        fingerprint = _match_start_fingerprint(guild_id, channel_id, user_activities.keys())
+        old_time = datetime.now(timezone.utc) - timedelta(minutes=25)
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch(
+                "cogs.events.data_access_get_pending_match_start_gif_message",
+                AsyncMock(
+                    return_value={
+                        "message_id": 999,
+                        "last_result_key": "live:LEADING:3-2:Bank",
+                        "match_fingerprint": fingerprint,
+                        "match_participant_ids": [111, 222],
+                        "started_at": old_time.isoformat(),
+                    }
+                ),
+            ),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=old_time)),
+            patch("cogs.events.data_access_clear_pending_match_start_gif_message") as mock_clear_pending,
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock()) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+        mock_clear_pending.assert_not_called()
+        mock_send_gif.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_new_match_after_stale_pending_sends_gif_and_market(self, mock_bot, mock_guild):
+        """A new match with the same squad must not be suppressed by a long-finished prior match."""
+        from cogs.events import MyEventsCog, _match_start_fingerprint
+        from deps.models import ActivityTransition
+        from datetime import timedelta
+
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+        user_activities = {
+            111: ActivityTransition("At the Main Menu", "Picking Operators: Ranked on Bank"),
+            222: ActivityTransition("At the Main Menu", "Picking Operators: Ranked on Bank"),
+        }
+        fingerprint = _match_start_fingerprint(guild_id, channel_id, user_activities.keys())
+        stale_time = datetime.now(timezone.utc) - timedelta(minutes=90)
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch(
+                "cogs.events.data_access_get_pending_match_start_gif_message",
+                AsyncMock(
+                    return_value={
+                        "message_id": 999,
+                        "last_result_key": "live:LEADING:3-2:Bank",
+                        "match_fingerprint": fingerprint,
+                        "match_participant_ids": [111, 222],
+                        "started_at": stale_time.isoformat(),
+                    }
+                ),
+            ),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=None)),
+            patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()),
+            patch("cogs.events.data_access_clear_pending_match_start_gif_message"),
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock(return_value=True)) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+        mock_send_gif.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_voice_channel_spectator_does_not_change_match_identity(self, mock_bot, mock_guild):
+        """People joining to watch must not create another GIF or TribeMarkets market."""
+        from cogs.events import MyEventsCog, _match_start_fingerprint
+        from deps.models import ActivityTransition
+
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+        user_activities = {
+            111: ActivityTransition("At the Main Menu", "Picking Operators: Ranked on Bank"),
+            222: ActivityTransition("In Round: Ranked on Bank", "Picking Operators: Ranked on Bank"),
+            999: ActivityTransition(None, "Watching the match"),
+        }
+        fingerprint = _match_start_fingerprint(guild_id, channel_id, [111, 222])
+
+        with (
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch(
+                "cogs.events.data_access_get_pending_match_start_gif_message",
+                AsyncMock(
+                    return_value={
+                        "message_id": 9999,
+                        "last_result_key": "live:LEADING:3-2:Bank",
+                        "match_fingerprint": fingerprint,
+                        "match_participant_ids": [111, 222],
+                        "started_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                ),
+            ),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=None)),
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock()) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+        mock_send_gif.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_multiple_users_looking_for_ranked(self, mock_bot, mock_guild):
@@ -574,7 +702,9 @@ class TestMatchStartGif:
             await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
 
             # Verify: GIF was sent
-            mock_send_gif.assert_called_once_with(mock_bot, guild_id, channel_id)
+            mock_send_gif.assert_called_once()
+            assert mock_send_gif.call_args.args[:3] == (mock_bot, guild_id, channel_id)
+            assert mock_send_gif.call_args.kwargs["match_fingerprint"]
             mock_set_last_time.assert_called_once()
 
     async def test_concurrent_presence_updates_send_only_one_gif(self) -> None:
@@ -625,7 +755,9 @@ class TestMatchStartGif:
 
             # Verify: GIF was sent exactly once despite multiple concurrent tasks
             assert mock_send_gif.call_count == 1, f"Expected 1 GIF to be sent, but got {mock_send_gif.call_count}"
-            mock_send_gif.assert_called_with(mock_bot, guild_id, channel_id)
+            mock_send_gif.assert_called_once()
+            assert mock_send_gif.call_args.args[:3] == (mock_bot, guild_id, channel_id)
+            assert mock_send_gif.call_args.kwargs["match_fingerprint"]
             assert mock_set_last_time.call_count == 1
 
     async def test_concurrent_slow_match_start_send_reserves_before_posting(self) -> None:
@@ -650,7 +782,7 @@ class TestMatchStartGif:
             nonlocal last_gif_time
             last_gif_time = time
 
-        async def slow_send(*args):
+        async def slow_send(*args, **kwargs):
             await asyncio.sleep(0.01)
             return True
 
@@ -673,7 +805,9 @@ class TestMatchStartGif:
                 cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id),
             )
 
-            mock_send_gif.assert_awaited_once_with(mock_bot, guild_id, channel_id)
+            mock_send_gif.assert_awaited_once()
+            assert mock_send_gif.await_args.args[:3] == (mock_bot, guild_id, channel_id)
+            assert mock_send_gif.await_args.kwargs["match_fingerprint"]
             assert last_gif_time is not None
             mock_clear.assert_not_called()
 
@@ -700,7 +834,9 @@ class TestMatchStartGif:
         ):
             await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
 
-            mock_send_gif.assert_awaited_once_with(mock_bot, guild_id, channel_id)
+            mock_send_gif.assert_awaited_once()
+            assert mock_send_gif.await_args.args[:3] == (mock_bot, guild_id, channel_id)
+            assert mock_send_gif.await_args.kwargs["match_fingerprint"]
             mock_set_last_time.assert_awaited_once()
             mock_clear.assert_called_once_with(guild_id, channel_id)
 

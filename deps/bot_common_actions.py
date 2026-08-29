@@ -7,6 +7,7 @@ import asyncio
 import io
 import os
 import tempfile
+from contextlib import suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from collections import Counter
@@ -112,7 +113,9 @@ from deps.tribemarkets import (
 )
 from deps.tribemarkets_reconciliation import save_pending_market
 from deps.tribemarkets_reconciliation import (
+    MINIMUM_MARKET_AGE,
     list_pending_markets,
+    match_uuid_already_assigned,
     mark_attempted_market,
     mark_market_resolved,
     mark_reconciled_market,
@@ -542,14 +545,38 @@ async def reconcile_pending_tribemarkets(
                 else:
                     mark_attempted_market(pending.market_id)
                 continue
+            market_age = datetime.now(timezone.utc) - pending.started_at
+            if market_age < MINIMUM_MARKET_AGE:
+                print_log(
+                    f"reconcile_pending_tribemarkets: deferred R6 Tracker fallback for market "
+                    f"{pending.market_id}; age is {market_age.total_seconds():.0f}s, below the 10-minute safety gate."
+                )
+                continue
             result = reconcile_match(
                 started_at=pending.started_at,
                 member_ids=pending.member_ids,
                 matches_by_member=matches_by_member,
             )
             if result is None:
+                print_log(
+                    f"reconcile_pending_tribemarkets: no confident R6 Tracker result for market "
+                    f"{pending.market_id} (participants={len(pending.member_ids)})."
+                )
                 mark_attempted_market(pending.market_id)
                 continue
+
+            if match_uuid_already_assigned(result.match_uuid, exclude_market_id=pending.market_id):
+                print_log(
+                    f"reconcile_pending_tribemarkets: rejected match UUID {result.match_uuid} for market "
+                    f"{pending.market_id}; UUID is already assigned to another market."
+                )
+                mark_attempted_market(pending.market_id)
+                continue
+            print_log(
+                f"reconcile_pending_tribemarkets: accepted R6 Tracker match {result.match_uuid} for market "
+                f"{pending.market_id}; confidence={result.confidence}, participants={result.participant_count}, "
+                f"match_started={result.started_at.isoformat()}."
+            )
 
             market = MatchMarket.from_dict(pending.market)
             enriched_title = build_market_title(pending.started_at, result.map_name, pending.member_names)
@@ -1273,6 +1300,8 @@ async def send_match_start_gif(
     guild_id: int,
     voice_channel_id: int,
     started_at: datetime | None = None,
+    match_fingerprint: str | None = None,
+    match_participant_ids: list[int] | None = None,
 ) -> bool:
     """
     Generate and send match start GIF to main text channel.
@@ -1450,6 +1479,8 @@ async def send_match_start_gif(
             [m.id for m in members_for_gif],
             market=market.as_dict() if market is not None else None,
             started_at=started_at,
+            match_fingerprint=match_fingerprint,
+            match_participant_ids=match_participant_ids,
         )
         if market is not None:
             # The cache entry drives the short-lived GIF edits.  The durable
@@ -1730,6 +1761,13 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             pending_kwargs: dict[str, Any] = {"last_result_key": result_key}
             if market is not None:
                 pending_kwargs["market"] = market.as_dict()
+            if pending.get("match_fingerprint"):
+                pending_kwargs["match_fingerprint"] = pending["match_fingerprint"]
+            if pending.get("match_participant_ids"):
+                pending_kwargs["match_participant_ids"] = pending["match_participant_ids"]
+            if pending.get("started_at"):
+                with suppress(ValueError, TypeError):
+                    pending_kwargs["started_at"] = datetime.fromisoformat(str(pending["started_at"]))
             data_access_set_pending_match_start_gif_message(
                 guild.id, voice_channel_id, text_channel_id, message_id, member_ids, **pending_kwargs
             )
