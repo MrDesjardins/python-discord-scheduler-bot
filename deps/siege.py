@@ -258,6 +258,9 @@ _STATSCC_MATCH_END_SCORE_RE = re.compile(
     re.IGNORECASE,
 )
 
+# "<phase>: Ranked on <map>" -> "<map>" (case-insensitive: stats.cc casing is not guaranteed).
+_STATSCC_MAP_RE = re.compile(r"ranked on\s+(?P<map>.+?)\s*$", re.IGNORECASE)
+
 
 def _details_allowed_for_statscc_ranked_score(details: str) -> bool:
     """
@@ -265,11 +268,7 @@ def _details_allowed_for_statscc_ranked_score(details: str) -> bool:
 
     Includes ``Ranked on <map>`` (post-debounce presence often drops the ``Match Ending:`` prefix).
     """
-    if not details:
-        return False
-    if details.startswith("Ranked on ") and len(details) > len("Ranked on "):
-        return True
-    return _is_statscc_ranked_detail(details)
+    return is_statscc_ranked_detail(details) or casefold_startswith(details, ("Ranked on ",))
 
 
 @dataclass(frozen=True)
@@ -329,10 +328,9 @@ def parse_statscc_ranked_score_from_activity(
     is_tie = outcome == "tied"
     won = outcome == "winning" and not is_tie
     map_name: Optional[str] = None
-    marker = "Ranked on "
-    if marker in details:
-        tail = details.split(marker, 1)[1].strip()
-        map_name = tail or None
+    map_match = _STATSCC_MAP_RE.search(details)
+    if map_match:
+        map_name = map_match.group("map").strip() or None
     # "Match Ending:" appears between rounds too (logs: 1-1 tied then Picking Operators), so the score
     # must also be decided (see statscc_ranked_score_is_decided) before we treat it as final.
     details_l = details.casefold()
@@ -353,18 +351,17 @@ def parse_statscc_ranked_match_ending(activity: Optional[discord.Activity]) -> O
     return parse_statscc_ranked_score_from_activity(activity)
 
 
+# stats.cc is a third party and has quietly changed the casing of its rich-presence
+# strings before ("In round:" briefly shipped as "In Round:", which the new-match
+# guard missed and posted a phantom GIF/market). Every comparison against a stats.cc
+# string below folds case instead of hard-coding each spelling. Keep the constants in
+# their normal casing for readability; the helpers do the folding.
 _STATSCC_MAIN_MENU = ("At the Main Menu", "Idle - at Main Menu")
 
-# Known stats.cc detail strings that are distinct from native Siege detail strings
-_STATSCC_DETAILS = frozenset(
-    [
-        "At the Main Menu",
-        "In Queue",
-        "Match Started",
-    ]
-)
+# Exact stats.cc detail strings that are distinct from native Siege detail strings.
+_STATSCC_DETAILS = ("At the Main Menu", "In Queue", "Match Started")
 
-# Prefixes used by stats.cc for in-match details (e.g. "Picking Operators: Ranked on Villa")
+# Prefixes stats.cc uses while a player is inside a match (e.g. "Picking Operators: Ranked on Villa").
 _STATSCC_MATCH_PREFIXES = (
     "Picking Operators:",
     "Banning Operators:",
@@ -376,49 +373,63 @@ _STATSCC_MATCH_PREFIXES = (
 _STATSCC_WARMUP = ("SHOOTING RANGE", "Map Training", "ARCADE", "VERSUS AI")
 
 
-def _is_statscc_detail(detail: Optional[str]) -> bool:
-    """Return True if the detail string matches stats.cc patterns (distinct from native Siege patterns)."""
-    if detail is None:
+def casefold_startswith(text: Optional[str], prefixes: tuple[str, ...]) -> bool:
+    """Case-insensitive :meth:`str.startswith` accepting several prefixes."""
+    if not text:
         return False
-    if detail in _STATSCC_DETAILS:
-        return True
-    for prefix in _STATSCC_MATCH_PREFIXES:
-        if detail.startswith(prefix):
-            return True
-    # stats.cc also uses bare "Ranked" and "Standard" as detail strings
-    if detail in ("Ranked", "Standard"):
-        return True
-    return False
+    folded = text.casefold()
+    return any(folded.startswith(prefix.casefold()) for prefix in prefixes)
 
 
-def _is_statscc_ranked_detail(detail: Optional[str]) -> bool:
+def _casefold_in(text: Optional[str], options: tuple[str, ...]) -> bool:
+    """Case-insensitive membership test."""
+    return text is not None and any(text.casefold() == option.casefold() for option in options)
+
+
+def _is_statscc_mode_detail(detail: Optional[str], mode: str) -> bool:
+    """True when a stats.cc detail describes an in-match state for ``mode`` (``Ranked``/``Standard``)."""
+    if not detail:
+        return False
+    if detail.casefold() == mode.casefold():  # bare "Ranked" / "Standard" between matches
+        return True
+    return mode.casefold() in detail.casefold() and casefold_startswith(detail, _STATSCC_MATCH_PREFIXES)
+
+
+def is_statscc_ranked_detail(detail: Optional[str]) -> bool:
     """Return True if the stats.cc detail indicates a ranked match."""
-    if detail is None:
-        return False
-    if detail == "Ranked":
-        return True
-    if "Ranked" in detail and any(detail.startswith(p) for p in _STATSCC_MATCH_PREFIXES):
-        return True
-    return False
+    return _is_statscc_mode_detail(detail, "Ranked")
 
 
 def _is_statscc_standard_detail(detail: Optional[str]) -> bool:
     """Return True if the stats.cc detail indicates a standard match."""
+    return _is_statscc_mode_detail(detail, "Standard")
+
+
+def _is_statscc_ranked_in_progress_detail(detail: Optional[str]) -> bool:
+    """True when the player is already inside a ranked match, so a following
+    ``Picking Operators: Ranked`` is the next round rather than a new match.
+
+    Bare ``Ranked`` is intentionally excluded: it also shows during match handoff,
+    and treating it as in-progress hid the real ``Ranked`` -> ``Picking Operators``
+    new-match transition (commit 993b1f1).
+    """
+    return casefold_startswith(detail, _STATSCC_MATCH_PREFIXES) or casefold_startswith(detail, ("Ranked on ",))
+
+
+def _is_statscc_detail(detail: Optional[str]) -> bool:
+    """Return True if the detail string matches stats.cc patterns (distinct from native Siege patterns)."""
     if detail is None:
         return False
-    if detail == "Standard":
+    if _casefold_in(detail, _STATSCC_DETAILS):
         return True
-    if "Standard" in detail and any(detail.startswith(p) for p in _STATSCC_MATCH_PREFIXES):
+    if casefold_startswith(detail, _STATSCC_MATCH_PREFIXES):
         return True
-    return False
+    return _casefold_in(detail, ("Ranked", "Standard"))
 
 
 def _is_statscc_warmup(detail: Optional[str]) -> bool:
     """Return True if the stats.cc detail indicates a warmup activity."""
-    if detail is None:
-        return False
-
-    return any(detail.startswith(p) for p in _STATSCC_WARMUP)
+    return casefold_startswith(detail, _STATSCC_WARMUP)
 
 
 def get_aggregation_statscc_activity(
@@ -455,46 +466,33 @@ def get_aggregation_statscc_activity(
         aft = activity_before_after.after
         if bef is None and aft is None:
             game_not_started += 1
-        if aft == "At the Main Menu":
+        if _casefold_in(aft, ("At the Main Menu",)):
             count_in_menu += 1
         if bef is not None and aft is None:
             user_leaving += 1
         # Ranked match done, back to menu
-        if _is_statscc_ranked_detail(bef) and aft in _STATSCC_MAIN_MENU:
+        if is_statscc_ranked_detail(bef) and _casefold_in(aft, _STATSCC_MAIN_MENU):
             done_match_waiting_in_menu += 1
         # Standard match done, back to menu
-        if _is_statscc_standard_detail(bef) and aft in _STATSCC_MAIN_MENU:
+        if _is_statscc_standard_detail(bef) and _casefold_in(aft, _STATSCC_MAIN_MENU):
             done_match_waiting_in_menu += 1
 
         # Warming up done
-        if _is_statscc_warmup(bef) and aft in _STATSCC_MAIN_MENU:
+        if _is_statscc_warmup(bef) and _casefold_in(aft, _STATSCC_MAIN_MENU):
             done_warming_up_waiting_in_menu += 1
 
         # Currently in a ranked match
-        if _is_statscc_ranked_detail(aft):
+        if is_statscc_ranked_detail(aft):
             playing_rank += 1
         # Currently in a standard match
         if _is_statscc_standard_detail(aft):
             playing_standard += 1
-        # Detect ranked match START: transition TO "Picking Operators: Ranked on...".
-        # A bare "Ranked" is the generic stats.cc state between matches as well as
-        # during some match handoffs.  Treating it as an in-match state caused the
-        # real-world Ranked -> Picking transition to be missed, which suppressed
-        # both the GIF and the TribeMarkets handoff.  Keep the map-bearing states
-        # excluded because those reliably represent a new round in the same match;
-        # the caller's short rate limit also protects against duplicate sends.
-        if aft is not None and aft.startswith("Picking Operators: Ranked"):
-            # Check if user was NOT already in a ranked match (new round vs new match)
-            if bef is None or not (
-                bef.startswith("Picking Operators: Ranked")
-                or bef.startswith("In round: Ranked")  # stats.cc casing (see statscc.txt)
-                or bef.startswith("In Round: Ranked")
-                or bef.startswith("Match Ending: Ranked")
-                or bef.startswith("Ranked on")  # Generic ranked state between rounds
-                or bef.startswith("Banning Operators: Ranked")
-                or bef.startswith("Prep Phase: Ranked")
-            ):
-                looking_ranked_match += 1
+        # Detect ranked match START: a transition INTO "Picking Operators: Ranked ..."
+        # from a state that is not already inside a ranked match. Between rounds the
+        # player passes through "In round: ...", "Ranked on <map>", etc.; only a genuine
+        # new match comes from queue / menu / warmup / a bare "Ranked" handoff.
+        if casefold_startswith(aft, ("Picking Operators: Ranked",)) and not _is_statscc_ranked_in_progress_detail(bef):
+            looking_ranked_match += 1
         # NOTE: We don't count "In Queue" as looking_ranked_match for stats.cc
         # because stats.cc doesn't specify which mode (ranked/standard/deathmatch/etc.)
 

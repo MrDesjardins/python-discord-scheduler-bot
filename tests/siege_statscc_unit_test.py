@@ -9,14 +9,42 @@ import discord
 
 from deps.models import ActivityTransition
 from deps.siege import (
+    casefold_startswith,
     get_statscc_activity,
     get_aggregation_statscc_activity,
     get_aggregation_all_activities,
+    is_statscc_ranked_detail,
     _is_statscc_detail,
     parse_statscc_ranked_match_ending,
     parse_statscc_ranked_score_from_activity,
     statscc_ranked_score_is_decided,
 )
+
+
+# --- casing-proof stats.cc string matching (stats.cc has changed detail casing before) ---
+
+
+def test_casefold_startswith_is_case_insensitive() -> None:
+    assert casefold_startswith("IN ROUND: Ranked on Villa", ("In round:",)) is True
+    assert casefold_startswith("in round: ranked on villa", ("In round:",)) is True
+    assert casefold_startswith(None, ("In round:",)) is False
+    assert casefold_startswith("Prep Phase: Ranked", ("In round:", "Match Ending:")) is False
+
+
+def test_statscc_predicates_ignore_casing() -> None:
+    assert _is_statscc_detail("in queue") is True
+    assert _is_statscc_detail("IN ROUND: Ranked on Bank") is True
+    assert is_statscc_ranked_detail("MATCH ENDING: RANKED on Oregon") is True
+    assert is_statscc_ranked_detail("in round: ranked on villa") is True
+
+
+def test_statscc_aggregation_new_round_survives_casing_change() -> None:
+    """A round transition must not count as a new match even if stats.cc changes casing."""
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("In Round: Ranked on Villa", "Picking Operators: Ranked on Villa"),
+    }
+    result = get_aggregation_statscc_activity(dict_users_activities)
+    assert result.looking_ranked_match == 0
 
 
 # --- statscc_ranked_score_is_decided tests (documented 3-3 overtime rule, commit 2bf6c03) ---

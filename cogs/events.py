@@ -71,10 +71,12 @@ from deps.values import (
 )
 from deps.models import ActivityTransition
 from deps.siege import (
+    casefold_startswith,
     get_any_siege_activity,
     get_aggregation_all_activities,
     get_statscc_activity,
     get_user_rank_siege,
+    is_statscc_ranked_detail,
     parse_statscc_ranked_score_from_activity,
 )
 from deps.follow_functions import send_private_notification_following_user
@@ -101,24 +103,15 @@ MATCH_START_LIVE_MATCH_MAX_MINUTES = 50
 
 
 def _is_ranked_match_activity(detail: str | None) -> bool:
-    """Return whether an activity detail represents an active ranked match."""
+    """Return whether an activity detail represents an active ranked match.
+
+    Covers native Siege ("RANKED match ...") and every stats.cc ranked state
+    (picking/banning/prep/in-round/match-ending, plus the bare "Ranked on <map>"
+    between rounds). Comparisons fold case because stats.cc casing has changed.
+    """
     if not detail:
         return False
-    return (
-        detail.startswith(
-            (
-                "RANKED match",
-                "Picking Operators: Ranked",
-                "In round: Ranked",
-                "In Round: Ranked",
-                "Match Ending: Ranked",
-                "Ranked on",
-                "Banning Operators: Ranked",
-                "Prep Phase: Ranked",
-            )
-        )
-        or detail == "Ranked"
-    )
+    return casefold_startswith(detail, ("RANKED match", "Ranked on ")) or is_statscc_ranked_detail(detail)
 
 
 def _ranked_match_participant_ids(user_activities: dict[int, Any]) -> set[int]:
