@@ -9,10 +9,15 @@ Tests the critical bug fixes:
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, Mock, patch, call
 import pytest
 import discord
+from cogs.events import MyEventsCog, _match_start_fingerprint
+from deps.bot_common_actions import _choose_match_start_gif_result, try_update_match_start_gif_with_result
+from deps.data_access import data_access_update_voice_user_list, lock_voice_user_list
+from deps.models import ActivityTransition
+from deps.siege import StatsCcRankedMatchEndResult
 from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 
 
@@ -70,7 +75,6 @@ class TestGuildLoopBug:
     @pytest.mark.asyncio
     async def test_user_join_voice_channel_single_guild(self, mock_bot, mock_guild, mock_member, mock_voice_channel):
         """Verify that joining a voice channel only creates ONE database entry"""
-        from cogs.events import MyEventsCog
 
         # Setup: Bot has 3 guilds
         other_guild_1 = MagicMock(spec=discord.Guild)
@@ -135,7 +139,6 @@ class TestGuildLoopBug:
         self, mock_bot, mock_guild, mock_member, mock_voice_channel
     ):
         """Analytics run for any VoiceChannel; schedule is not required when LFG does not fire."""
-        from cogs.events import MyEventsCog
 
         mock_bot.guilds = [mock_guild]
         cog = MyEventsCog(mock_bot)
@@ -165,7 +168,6 @@ class TestGuildLoopBug:
     @pytest.mark.asyncio
     async def test_bot_user_ignored(self, mock_bot, mock_guild, mock_member, mock_voice_channel):
         """Verify that bot users are ignored"""
-        from cogs.events import MyEventsCog
 
         cog = MyEventsCog(mock_bot)
 
@@ -191,7 +193,6 @@ class TestShutdownHandler:
     @pytest.mark.asyncio
     async def test_shutdown_cleanup(self, mock_bot, mock_guild, mock_member, mock_voice_channel):
         """Verify that bot shutdown creates DISCONNECT events for all users in voice"""
-        from cogs.events import MyEventsCog
 
         # Setup: 2 users in voice channel
         user1 = MagicMock(spec=discord.Member)
@@ -238,12 +239,6 @@ class TestCacheRaceCondition:
     @pytest.mark.asyncio
     async def test_concurrent_cache_updates(self):
         """Verify that concurrent voice state changes don't corrupt cache"""
-        from deps.data_access import (
-            data_access_update_voice_user_list,
-            data_access_remove_voice_user_list,
-            data_access_get_voice_user_list,
-            lock_voice_user_list,
-        )
 
         guild_id = 12345
         channel_id = 67890
@@ -282,7 +277,6 @@ class TestChannelMoveAtomicity:
     @pytest.mark.asyncio
     async def test_user_move_between_channels(self, mock_bot, mock_guild, mock_member):
         """Verify that channel moves create atomic DISCONNECT+CONNECT"""
-        from cogs.events import MyEventsCog
 
         cog = MyEventsCog(mock_bot)
 
@@ -342,8 +336,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_gif_sent_when_conditions_met(self, mock_bot, mock_guild):
         """Verify GIF is sent when 2+ users looking for ranked and 2+ users in channel"""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
 
         cog = MyEventsCog(mock_bot)
 
@@ -380,8 +372,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_gif_not_sent_with_only_one_user(self, mock_bot, mock_guild):
         """Verify GIF is NOT sent when only 1 user in channel (even if looking for ranked)"""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
 
         cog = MyEventsCog(mock_bot)
 
@@ -409,8 +399,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_gif_not_sent_when_nobody_looking_for_ranked(self, mock_bot, mock_guild):
         """Verify GIF is NOT sent when nobody is looking for ranked match"""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
 
         cog = MyEventsCog(mock_bot)
 
@@ -439,9 +427,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_gif_respects_rate_limit(self, mock_bot, mock_guild):
         """Verify GIF respects 15-minute rate limit"""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
-        from datetime import timedelta
 
         cog = MyEventsCog(mock_bot)
 
@@ -476,9 +461,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_gif_sent_after_rate_limit_expires(self, mock_bot, mock_guild):
         """Verify GIF is sent after 15-minute rate limit expires"""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
-        from datetime import timedelta
 
         cog = MyEventsCog(mock_bot)
 
@@ -517,9 +499,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_stale_pending_match_does_not_suppress_new_match(self, mock_bot, mock_guild):
         """A missed final-result update must not block the next match indefinitely."""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
-        from datetime import timedelta
 
         cog = MyEventsCog(mock_bot)
         guild_id = mock_guild.id
@@ -556,9 +535,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_same_match_fingerprint_suppresses_overtime_duplicate(self, mock_bot, mock_guild):
         """An overtime match must reuse its existing GIF/market after the 20-minute fallback."""
-        from cogs.events import MyEventsCog, _match_start_fingerprint
-        from deps.models import ActivityTransition
-        from datetime import timedelta
 
         cog = MyEventsCog(mock_bot)
         guild_id = mock_guild.id
@@ -596,9 +572,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_new_match_after_stale_pending_sends_gif_and_market(self, mock_bot, mock_guild):
         """A new match with the same squad must not be suppressed by a long-finished prior match."""
-        from cogs.events import MyEventsCog, _match_start_fingerprint
-        from deps.models import ActivityTransition
-        from datetime import timedelta
 
         cog = MyEventsCog(mock_bot)
         guild_id = mock_guild.id
@@ -637,9 +610,6 @@ class TestMatchStartGif:
     async def test_roster_subset_starts_new_match_after_rate_limit_window(self, mock_bot, mock_guild):
         """2 players of a former 5-stack starting a fresh match past the rate-limit window
         must get their own GIF/market even if the 5-stack's pending never went 'final:'."""
-        from cogs.events import MyEventsCog, _match_start_fingerprint
-        from deps.models import ActivityTransition
-        from datetime import timedelta
 
         cog = MyEventsCog(mock_bot)
         guild_id = mock_guild.id
@@ -680,8 +650,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_voice_channel_spectator_does_not_change_match_identity(self, mock_bot, mock_guild):
         """People joining to watch must not create another GIF or TribeMarkets market."""
-        from cogs.events import MyEventsCog, _match_start_fingerprint
-        from deps.models import ActivityTransition
 
         cog = MyEventsCog(mock_bot)
         guild_id = mock_guild.id
@@ -717,8 +685,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_multiple_users_looking_for_ranked(self, mock_bot, mock_guild):
         """Verify GIF is sent when multiple users are looking for ranked"""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
 
         cog = MyEventsCog(mock_bot)
 
@@ -753,8 +719,6 @@ class TestMatchStartGif:
 
     async def test_concurrent_presence_updates_send_only_one_gif(self) -> None:
         """Test that concurrent presence updates only result in one GIF being sent due to locking"""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
 
         mock_bot = MagicMock()
         cog = MyEventsCog(mock_bot)
@@ -806,8 +770,6 @@ class TestMatchStartGif:
 
     async def test_concurrent_slow_match_start_send_reserves_before_posting(self) -> None:
         """Slow Discord sends should not allow a second queued task to post another GIF."""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
 
         mock_bot = MagicMock()
         cog = MyEventsCog(mock_bot)
@@ -850,6 +812,7 @@ class TestMatchStartGif:
             )
 
             mock_send_gif.assert_awaited_once()
+            assert mock_send_gif.await_args is not None
             assert mock_send_gif.await_args.args[:3] == (mock_bot, guild_id, channel_id)
             assert mock_send_gif.await_args.kwargs["match_fingerprint"]
             assert last_gif_time is not None
@@ -857,8 +820,6 @@ class TestMatchStartGif:
 
     async def test_failed_match_start_send_clears_reservation(self) -> None:
         """If Discord send exits without posting, the reservation should not block a later retry."""
-        from cogs.events import MyEventsCog
-        from deps.models import ActivityTransition
 
         mock_bot = MagicMock()
         cog = MyEventsCog(mock_bot)
@@ -879,6 +840,7 @@ class TestMatchStartGif:
             await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
 
             mock_send_gif.assert_awaited_once()
+            assert mock_send_gif.await_args is not None
             assert mock_send_gif.await_args.args[:3] == (mock_bot, guild_id, channel_id)
             assert mock_send_gif.await_args.kwargs["match_fingerprint"]
             mock_set_last_time.assert_awaited_once()
@@ -887,7 +849,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_match_gif_result_debounce_invokes_try_update(self, mock_bot, mock_guild):
         """After debounce sleep, ranked-score update task should call try_update_match_start_gif_with_result."""
-        from cogs.events import MyEventsCog
 
         mock_bot.get_guild = MagicMock(return_value=mock_guild)
         cog = MyEventsCog(mock_bot)
@@ -904,7 +865,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_edits_message(self, mock_bot, mock_guild):
         """Match Ending + pending should post static PNG, Won 4-1 line, attachment description, clear pending."""
-        from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
         act = discord.Activity(
@@ -958,7 +918,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_conflicting_final_scores_prefers_loss(self, mock_bot, mock_guild):
         """If stats.cc members disagree on a final 5-4, avoid a false positive Won label."""
-        from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
         winning_act = discord.Activity(
@@ -1021,7 +980,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_match_ending_low_score_stays_animated(self, mock_bot, mock_guild):
         """Match Ending at 1-0 must not use static PNG; message uses LEADING, not WINNING."""
-        from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
         act = discord.Activity(
@@ -1076,7 +1034,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_skips_duplicate_live_score(self, mock_bot, mock_guild):
         """A repeated live stats.cc score should not regenerate and re-edit the animated GIF."""
-        from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
         act = discord.Activity(
@@ -1120,7 +1077,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_try_update_match_start_gif_score_from_other_vc_member(self, mock_bot, mock_guild):
         """When GIF roster has no parseable stats.cc, use final score from another player in the same VC."""
-        from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
         m_primary = MagicMock(spec=discord.Member)
@@ -1201,8 +1157,6 @@ class TestMatchStartGif:
 
     def test_choose_result_prefers_complete_over_live_majority(self):
         """A single decided 'Match Ending' reading beats a stale live majority (staggered presence)."""
-        from deps.bot_common_actions import _choose_match_start_gif_result
-        from deps.siege import StatsCcRankedMatchEndResult
 
         live = StatsCcRankedMatchEndResult(
             won=True, our_score=3, their_score=2, map_name="Villa", is_match_complete=False
@@ -1218,7 +1172,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_try_update_recovers_final_score_when_match_end_frame_missed(self, mock_bot, mock_guild):
         """stats.cc dropped straight to the menu; the decided score stored mid-match settles the GIF."""
-        from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
         m1 = MagicMock(spec=discord.Member)
@@ -1271,7 +1224,6 @@ class TestMatchStartGif:
     @pytest.mark.asyncio
     async def test_try_update_does_not_recover_from_undecided_stored_score(self, mock_bot, mock_guild):
         """A non-terminal stored score (4-3 overtime) must never settle the match on its own."""
-        from deps.bot_common_actions import try_update_match_start_gif_with_result
 
         voice_id = 333333333
         m1 = MagicMock(spec=discord.Member)
