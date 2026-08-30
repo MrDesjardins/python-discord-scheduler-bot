@@ -1138,6 +1138,7 @@ class TestMatchStartGif:
             assert call_kw["attachments"][0].filename == "match_start.gif"
             assert call_kw["attachments"][0].description == "LEADING 7-5"
             mock_clear.assert_not_called()
+            # 7-5 is a decided score, so it is stashed for match-end recovery.
             mock_set_pending.assert_called_once_with(
                 mock_guild.id,
                 voice_id,
@@ -1145,4 +1146,120 @@ class TestMatchStartGif:
                 999,
                 [101],
                 last_result_key="live:LEADING:7-5:Oregon",
+                last_decided_result={
+                    "our_score": 7,
+                    "their_score": 5,
+                    "won": True,
+                    "is_tie": False,
+                    "map_name": "Oregon",
+                },
             )
+
+    def test_choose_result_prefers_complete_over_live_majority(self):
+        """A single decided 'Match Ending' reading beats a stale live majority (staggered presence)."""
+        from deps.bot_common_actions import _choose_match_start_gif_result
+        from deps.siege import StatsCcRankedMatchEndResult
+
+        live = StatsCcRankedMatchEndResult(
+            won=True, our_score=3, their_score=2, map_name="Villa", is_match_complete=False
+        )
+        final = StatsCcRankedMatchEndResult(
+            won=True, our_score=4, their_score=2, map_name="Villa", is_match_complete=True
+        )
+        chosen = _choose_match_start_gif_result([live, live, live, final])
+        assert chosen is not None
+        assert chosen.is_match_complete is True
+        assert (chosen.our_score, chosen.their_score) == (4, 2)
+
+    @pytest.mark.asyncio
+    async def test_try_update_recovers_final_score_when_match_end_frame_missed(self, mock_bot, mock_guild):
+        """stats.cc dropped straight to the menu; the decided score stored mid-match settles the GIF."""
+        from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+        voice_id = 333333333
+        m1 = MagicMock(spec=discord.Member)
+        m1.id = 101
+        m1.display_name = "PlayerOne"
+        m1.bot = False
+        m1.voice = MagicMock()
+        m1.voice.channel = MagicMock()
+        m1.voice.channel.id = voice_id
+        m1.activities = []  # back in the menu, nothing parseable
+        mock_guild.get_member = MagicMock(return_value=m1)
+
+        pending = {
+            "text_channel_id": 555,
+            "message_id": 999,
+            "member_ids": [101],
+            "last_decided_result": {
+                "our_score": 4,
+                "their_score": 1,
+                "won": True,
+                "is_tie": False,
+                "map_name": "Clubhouse",
+            },
+        }
+        msg = MagicMock()
+        msg.edit = AsyncMock()
+
+        with (
+            patch(
+                "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
+                AsyncMock(return_value=pending),
+            ),
+            patch("deps.bot_common_actions._members_in_voice_channel", return_value=[m1]),
+            patch("deps.bot_common_actions.generate_match_end_static_summary", AsyncMock(return_value=b"PNG")),
+            patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
+            patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+        ):
+            await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
+
+        call_kw = msg.edit.await_args.kwargs
+        assert "**Won 4-1**" in call_kw["content"]
+        assert call_kw["attachments"][0].filename == "match_result.png"
+        mock_clear.assert_called_once_with(mock_guild.id, voice_id)
+
+    @pytest.mark.asyncio
+    async def test_try_update_does_not_recover_from_undecided_stored_score(self, mock_bot, mock_guild):
+        """A non-terminal stored score (4-3 overtime) must never settle the match on its own."""
+        from deps.bot_common_actions import try_update_match_start_gif_with_result
+
+        voice_id = 333333333
+        m1 = MagicMock(spec=discord.Member)
+        m1.id = 101
+        m1.display_name = "PlayerOne"
+        m1.bot = False
+        m1.voice = MagicMock()
+        m1.voice.channel = MagicMock()
+        m1.voice.channel.id = voice_id
+        m1.activities = []
+        mock_guild.get_member = MagicMock(return_value=m1)
+
+        pending = {
+            "text_channel_id": 555,
+            "message_id": 999,
+            "member_ids": [101],
+            "last_decided_result": {
+                "our_score": 4,
+                "their_score": 3,
+                "won": True,
+                "is_tie": False,
+                "map_name": "Clubhouse",
+            },
+        }
+        msg = MagicMock()
+        msg.edit = AsyncMock()
+
+        with (
+            patch(
+                "deps.bot_common_actions.data_access_get_pending_match_start_gif_message",
+                AsyncMock(return_value=pending),
+            ),
+            patch("deps.bot_common_actions._members_in_voice_channel", return_value=[m1]),
+            patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
+            patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+        ):
+            await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
+
+        msg.edit.assert_not_awaited()
+        mock_clear.assert_not_called()

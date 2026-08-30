@@ -99,6 +99,7 @@ from deps.siege import (
     get_user_rank_emoji,
     parse_statscc_ranked_score_from_activity,
     resolve_rank_role_name,
+    statscc_ranked_score_is_decided,
     StatsCcRankedMatchEndResult,
 )
 from deps.tribemarkets import (
@@ -1258,7 +1259,18 @@ def _members_in_voice_channel(guild: discord.Guild, voice_channel_id: int) -> li
 def _choose_match_start_gif_result(
     results: list[StatsCcRankedMatchEndResult],
 ) -> Optional[StatsCcRankedMatchEndResult]:
-    """Choose the most common stats.cc result; ties prefer non-win to avoid false positive wins."""
+    """Choose the squad's stats.cc result to render.
+
+    A decided "Match Ending" reading (``is_match_complete``) wins over any number
+    of still-live readings: at match end presence updates arrive staggered over
+    several seconds (see statscc.txt) and the majority frequently still shows the
+    previous round, which used to leave the GIF stuck on ``LEADING/TRAILING``.
+    Among readings at the same completion level we take the most common one, then
+    break ties toward a non-win to avoid a false positive victory (the original
+    intent of this function, commit cf6e7f8). A premature or stale "Match Ending"
+    is already guarded against upstream: ``is_match_complete`` also requires a
+    decided score (see ``statscc_ranked_score_is_decided``).
+    """
     if not results:
         return None
     counts = Counter(
@@ -1275,9 +1287,9 @@ def _choose_match_start_gif_result(
     best_key, _ = max(
         counts.items(),
         key=lambda item: (
-            item[1],
-            item[0][0],
-            not item[0][2],
+            item[0][0],  # is_match_complete first: a decided result beats stale live majority
+            item[1],  # then squad consensus
+            not item[0][2],  # then prefer non-win on ties
             item[0][3] + item[0][4],
         ),
     )
@@ -1293,6 +1305,50 @@ def _choose_match_start_gif_result(
         if key == best_key:
             return result
     return results[0]
+
+
+def _decided_result_payload(result: StatsCcRankedMatchEndResult) -> dict[str, Any]:
+    """Serialisable snapshot of a decided score, stashed on the pending record."""
+    return {
+        "our_score": result.our_score,
+        "their_score": result.their_score,
+        "won": result.won,
+        "is_tie": result.is_tie,
+        "map_name": result.map_name or "",
+    }
+
+
+def _recover_completed_result_from_pending(
+    pending: Mapping[str, Any],
+) -> Optional[StatsCcRankedMatchEndResult]:
+    """Finalize from the last decided score seen mid-match.
+
+    stats.cc flips ``Match Ending:`` -> ``At the Main Menu`` inside a single
+    presence tick (see statscc.txt), so the debounced read almost always misses
+    the terminal frame and the "Won 4-1" summary never posts. When every squad
+    member has left ranked (``parsed_result is None``) we fall back to the
+    decided score captured while the live GIF was still animating. The score is
+    re-checked with ``statscc_ranked_score_is_decided`` so a non-terminal
+    snapshot (4-3, 3-3) can never settle a match or a TribeMarkets market.
+    """
+    raw = pending.get("last_decided_result")
+    if not isinstance(raw, dict):
+        return None
+    try:
+        our_score = int(raw["our_score"])
+        their_score = int(raw["their_score"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not statscc_ranked_score_is_decided(our_score, their_score):
+        return None
+    return StatsCcRankedMatchEndResult(
+        won=bool(raw.get("won")),
+        our_score=our_score,
+        their_score=their_score,
+        map_name=(raw.get("map_name") or None),
+        is_tie=bool(raw.get("is_tie")),
+        is_match_complete=True,
+    )
 
 
 async def send_match_start_gif(
@@ -1555,7 +1611,16 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
 
         parsed_result = _choose_match_start_gif_result(parsed_results)
         if parsed_result is None:
-            return
+            # Nobody is showing a ranked score any more (match ended, everyone back
+            # in the menu). Finalize from the decided score captured mid-match.
+            parsed_result = _recover_completed_result_from_pending(pending)
+            if parsed_result is None:
+                return
+            print_log(
+                "try_update_match_start_gif_with_result: recovered final score "
+                f"{parsed_result.our_score}-{parsed_result.their_score} from pending record "
+                f"for guild {guild.id}, channel {voice_channel_id} (stats.cc dropped the match-end frame)"
+            )
 
         members_for_gif: List[discord.Member] = []
         for uid in member_ids:
@@ -1768,6 +1833,14 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             if pending.get("started_at"):
                 with suppress(ValueError, TypeError):
                     pending_kwargs["started_at"] = datetime.fromisoformat(str(pending["started_at"]))
+            # Remember the decided score while the GIF is still live so we can post the
+            # final summary even if stats.cc never gives us a readable "Match Ending" frame.
+            if not parsed_result.is_match_complete and statscc_ranked_score_is_decided(
+                parsed_result.our_score, parsed_result.their_score
+            ):
+                pending_kwargs["last_decided_result"] = _decided_result_payload(parsed_result)
+            elif isinstance(pending.get("last_decided_result"), dict):
+                pending_kwargs["last_decided_result"] = pending["last_decided_result"]
             data_access_set_pending_match_start_gif_message(
                 guild.id, voice_channel_id, text_channel_id, message_id, member_ids, **pending_kwargs
             )

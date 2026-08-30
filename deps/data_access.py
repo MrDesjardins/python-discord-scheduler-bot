@@ -715,6 +715,7 @@ def data_access_set_pending_match_start_gif_message(
     started_at: datetime | None = None,
     match_fingerprint: str | None = None,
     match_participant_ids: list[int] | None = None,
+    last_decided_result: dict[str, Any] | None = None,
 ) -> None:
     """Store match-start GIF metadata and optional TribeMarkets state."""
     key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
@@ -729,6 +730,8 @@ def data_access_set_pending_match_start_gif_message(
         value["match_fingerprint"] = match_fingerprint
     if match_participant_ids is not None:
         value["match_participant_ids"] = match_participant_ids
+    if last_decided_result is not None:
+        value["last_decided_result"] = last_decided_result
     set_cache(
         False,
         key,

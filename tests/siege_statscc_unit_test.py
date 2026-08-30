@@ -15,7 +15,30 @@ from deps.siege import (
     _is_statscc_detail,
     parse_statscc_ranked_match_ending,
     parse_statscc_ranked_score_from_activity,
+    statscc_ranked_score_is_decided,
 )
+
+
+# --- statscc_ranked_score_is_decided tests (documented 3-3 overtime rule, commit 2bf6c03) ---
+
+
+def test_score_decided_regulation_wins() -> None:
+    assert statscc_ranked_score_is_decided(4, 0) is True
+    assert statscc_ranked_score_is_decided(4, 1) is True
+    assert statscc_ranked_score_is_decided(4, 2) is True
+    assert statscc_ranked_score_is_decided(1, 4) is True
+
+
+def test_score_not_decided_mid_or_overtime_one_round_lead() -> None:
+    assert statscc_ranked_score_is_decided(3, 2) is False
+    assert statscc_ranked_score_is_decided(4, 3) is False  # mid-overtime, not first-to-4
+    assert statscc_ranked_score_is_decided(4, 4) is False
+    assert statscc_ranked_score_is_decided(5, 5) is False
+
+
+def test_score_decided_overtime_at_five_rounds() -> None:
+    assert statscc_ranked_score_is_decided(5, 4) is True
+    assert statscc_ranked_score_is_decided(6, 5) is True
 
 
 # --- get_statscc_activity tests ---
