@@ -547,6 +547,9 @@ async def reconcile_pending_tribemarkets(
                 else:
                     mark_attempted_market(pending.market_id)
                 continue
+            # reconcile_match also enforces MINIMUM_MARKET_AGE, but pre-checking here
+            # lets a too-young market skip without burning a retry attempt (a plain
+            # `continue`, not mark_attempted_market), so it is retried unpenalised.
             market_age = datetime.now(timezone.utc) - pending.started_at
             if market_age < MINIMUM_MARKET_AGE:
                 print_log(

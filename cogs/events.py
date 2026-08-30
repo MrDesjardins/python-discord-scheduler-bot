@@ -1017,19 +1017,22 @@ class MyEventsCog(commands.Cog):
                     pending_match_could_be_live = pending_started_at is not None and (
                         datetime.now(timezone.utc) - pending_started_at
                     ) <= timedelta(minutes=MATCH_START_LIVE_MATCH_MAX_MINUTES)
-                    # Only suppress when the pending match could still be the one being
-                    # played AND we positively identified the same players.  An older
-                    # pending record, or an unknown roster, means this is a new match
-                    # and must get its own GIF and its own TribeMarkets market.
+                    # Suppress only a genuine duplicate of the pending match, never a real
+                    # new match. Two ways it is a duplicate:
+                    #   - exact same roster while that match could still be live (a debounce
+                    #     re-fire, or a mid-match reconnect by the whole squad); or
+                    #   - a subset of the roster, but only inside the short rate-limit
+                    #     window. Past that window a shrunk roster (e.g. 2 of a former
+                    #     5-stack) is a new match and must get its own GIF + market, even
+                    #     if the previous pending record never reached a 'final:' state.
+                    roster_is_known = bool(participant_ids and pending_participant_ids)
                     same_active_match = (
                         pending is not None
-                        and pending_match_could_be_live
                         and not pending_result_key.startswith("final:")
-                        and participant_ids
-                        and pending_participant_ids
+                        and roster_is_known
                         and (
-                            pending_fingerprint == match_fingerprint
-                            or participant_ids.issubset(pending_participant_ids)
+                            (pending_fingerprint == match_fingerprint and pending_match_could_be_live)
+                            or (participant_ids.issubset(pending_participant_ids) and rate_limited)
                         )
                     )
                     if same_active_match:
