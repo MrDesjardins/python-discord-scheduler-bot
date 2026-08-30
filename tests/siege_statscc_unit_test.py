@@ -263,6 +263,20 @@ def test_statscc_aggregation_new_round_not_new_match() -> None:
     assert result.playing_rank == 2  # Both users are playing ranked
 
 
+def test_statscc_aggregation_new_round_from_in_round_state() -> None:
+    """'In round: Ranked on ...' -> 'Picking Operators' is the next round, not a new match.
+
+    Regression: the guard used the wrong casing ('In Round:') and missed this
+    transition, which posted a phantom GIF/market right after a match finished.
+    """
+    dict_users_activities: dict[int, ActivityTransition] = {
+        1: ActivityTransition("In round: Ranked on Villa", "Picking Operators: Ranked on Villa"),
+        2: ActivityTransition("In round: Ranked on Villa", "Picking Operators: Ranked on Villa"),
+    }
+    result = get_aggregation_statscc_activity(dict_users_activities)
+    assert result.looking_ranked_match == 0
+
+
 def test_statscc_aggregation_new_round_from_generic_ranked_state() -> None:
     """Test that transitioning from generic 'Ranked on...' state to Picking Operators is NOT a new match"""
     dict_users_activities: dict[int, ActivityTransition] = {

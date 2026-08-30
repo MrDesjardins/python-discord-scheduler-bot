@@ -109,6 +109,7 @@ def _is_ranked_match_activity(detail: str | None) -> bool:
             (
                 "RANKED match",
                 "Picking Operators: Ranked",
+                "In round: Ranked",
                 "In Round: Ranked",
                 "Match Ending: Ranked",
                 "Ranked on",

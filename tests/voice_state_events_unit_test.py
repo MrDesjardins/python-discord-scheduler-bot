@@ -644,7 +644,7 @@ class TestMatchStartGif:
         channel_id = 333333333
         user_activities = {
             111: ActivityTransition("At the Main Menu", "Picking Operators: Ranked on Bank"),
-            222: ActivityTransition("In Round: Ranked on Bank", "Picking Operators: Ranked on Bank"),
+            222: ActivityTransition("In round: Ranked on Bank", "Picking Operators: Ranked on Bank"),
             999: ActivityTransition(None, "Watching the match"),
         }
         fingerprint = _match_start_fingerprint(guild_id, channel_id, [111, 222])
@@ -1211,6 +1211,7 @@ class TestMatchStartGif:
             patch("deps.bot_common_actions.generate_match_end_static_summary", AsyncMock(return_value=b"PNG")),
             patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
             patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
+            patch("deps.bot_common_actions.data_access_set_last_match_start_gif_time", AsyncMock()) as mock_set_time,
         ):
             await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
 
@@ -1218,6 +1219,10 @@ class TestMatchStartGif:
         assert "**Won 4-1**" in call_kw["content"]
         assert call_kw["attachments"][0].filename == "match_result.png"
         mock_clear.assert_called_once_with(mock_guild.id, voice_id)
+        # Dedup window is re-anchored to match end so post-match presence noise
+        # cannot spawn a phantom GIF/market before the next match.
+        mock_set_time.assert_awaited_once()
+        assert mock_set_time.await_args.args[:2] == (mock_guild.id, voice_id)
 
     @pytest.mark.asyncio
     async def test_try_update_does_not_recover_from_undecided_stored_score(self, mock_bot, mock_guild):

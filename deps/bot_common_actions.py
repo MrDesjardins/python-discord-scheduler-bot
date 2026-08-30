@@ -47,6 +47,7 @@ from deps.data_access import (
     data_access_get_pending_match_start_gif_message,
     data_access_set_pending_match_start_gif_message,
     data_access_clear_pending_match_start_gif_message,
+    data_access_set_last_match_start_gif_time,
     data_access_get_r6tracker_current_season_rank,
     data_access_prefetch_r6tracker_current_season_ranks,
     data_access_get_r6tracker_max_rank,
@@ -1813,11 +1814,18 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             content=new_content,
             attachments=[attachment],
         )
+        was_already_final = str(pending.get("last_result_key", "")).startswith("final:")
         result_key = (
             f"final:{wl}:{score_compact}:{parsed_result.map_name or ''}"
             if parsed_result.is_match_complete
             else result_key
         )
+        if parsed_result.is_match_complete and not was_already_final:
+            # Anchor the match-start dedup window to match END, not match start. stats.cc
+            # emits round-transition and re-queue presence for a minute or two after a
+            # match finishes; without this a stray "Picking Operators: Ranked" blip would
+            # post a brand new GIF and TribeMarkets market before the next match begins.
+            await data_access_set_last_match_start_gif_time(guild.id, voice_channel_id, datetime.now(timezone.utc))
         if parsed_result.is_match_complete and (
             market is None or (market.result_submitted and market.settlement_complete)
         ):

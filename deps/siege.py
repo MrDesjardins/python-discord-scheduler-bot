@@ -487,6 +487,7 @@ def get_aggregation_statscc_activity(
             # Check if user was NOT already in a ranked match (new round vs new match)
             if bef is None or not (
                 bef.startswith("Picking Operators: Ranked")
+                or bef.startswith("In round: Ranked")  # stats.cc casing (see statscc.txt)
                 or bef.startswith("In Round: Ranked")
                 or bef.startswith("Match Ending: Ranked")
                 or bef.startswith("Ranked on")  # Generic ranked state between rounds
