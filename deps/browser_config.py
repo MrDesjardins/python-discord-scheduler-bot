@@ -20,6 +20,8 @@ class BrowserConfig:
     page_load_timeout_seconds: int = 60
     initial_page_wait_timeout_seconds: int = 20
     element_wait_timeout_seconds: int = 10
+    # Extra time for a human to complete a Cloudflare challenge in the visible browser.
+    cloudflare_manual_wait_seconds: int = 0
     cleanup_max_wait_seconds: float = 3.0
     process_poll_interval_seconds: float = 0.1
 
@@ -48,6 +50,7 @@ class BrowserConfig:
             page_load_timeout_seconds=int(os.getenv("BROWSER_PAGE_LOAD_TIMEOUT", "60")),
             initial_page_wait_timeout_seconds=int(os.getenv("BROWSER_INITIAL_PAGE_WAIT_TIMEOUT", "20")),
             element_wait_timeout_seconds=int(os.getenv("BROWSER_ELEMENT_WAIT_TIMEOUT", "10")),
+            cloudflare_manual_wait_seconds=int(os.getenv("BROWSER_CLOUDFLARE_MANUAL_WAIT", "0")),
             cleanup_max_wait_seconds=float(os.getenv("BROWSER_CLEANUP_MAX_WAIT", "3.0")),
             process_poll_interval_seconds=float(os.getenv("BROWSER_PROCESS_POLL_INTERVAL", "0.1")),
             # Circuit breaker settings

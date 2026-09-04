@@ -21,6 +21,7 @@ def test_browser_config_defaults():
     assert config.page_load_timeout_seconds == 60
     assert config.initial_page_wait_timeout_seconds == 20
     assert config.element_wait_timeout_seconds == 10
+    assert config.cloudflare_manual_wait_seconds == 0
     assert config.cleanup_max_wait_seconds == 3.0
     assert config.process_poll_interval_seconds == 0.1
 
@@ -47,6 +48,7 @@ def test_browser_config_from_environment(monkeypatch):
     monkeypatch.setenv("BROWSER_PAGE_LOAD_TIMEOUT", "90")
     monkeypatch.setenv("BROWSER_INITIAL_PAGE_WAIT_TIMEOUT", "30")
     monkeypatch.setenv("BROWSER_ELEMENT_WAIT_TIMEOUT", "15")
+    monkeypatch.setenv("BROWSER_CLOUDFLARE_MANUAL_WAIT", "300")
     monkeypatch.setenv("BROWSER_CLEANUP_MAX_WAIT", "5.0")
     monkeypatch.setenv("BROWSER_PROCESS_POLL_INTERVAL", "0.2")
     monkeypatch.setenv("BROWSER_CIRCUIT_BREAKER_ENABLED", "false")
@@ -68,6 +70,7 @@ def test_browser_config_from_environment(monkeypatch):
     assert config.page_load_timeout_seconds == 90
     assert config.initial_page_wait_timeout_seconds == 30
     assert config.element_wait_timeout_seconds == 15
+    assert config.cloudflare_manual_wait_seconds == 300
     assert config.cleanup_max_wait_seconds == 5.0
     assert config.process_poll_interval_seconds == 0.2
     assert config.circuit_breaker_enabled is False

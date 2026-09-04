@@ -124,6 +124,45 @@ class BrowserContextManager:
             raise BrowserException("Browser driver is not initialized.")
         return self.driver
 
+    def _is_cloudflare_challenge(self) -> bool:
+        """Detect the challenge page that otherwise looks like a generic JSON timeout."""
+        driver = self._active_driver()
+        try:
+            title = (driver.title or "").lower()
+            source = (driver.page_source or "")[:200_000].lower()
+        except Exception:
+            return False
+
+        # The API returns a Cloudflare HTML challenge instead of <pre> JSON. Detecting it
+        # lets an operator solve it once and preserve the clearance cookie in the profile.
+        return any(
+            marker in title or marker in source
+            for marker in ("just a moment", "verify you are human", "cf-mitigated", "cloudflare")
+        )
+
+    def _wait_for_json(self, log_name: str) -> None:
+        """Wait for API JSON, allowing an optional manual Cloudflare validation."""
+        driver = self._active_driver()
+        challenge_detected = self._is_cloudflare_challenge()
+        timeout_seconds = self.config.element_wait_timeout_seconds
+        if challenge_detected and self.config.cloudflare_manual_wait_seconds > 0:
+            timeout_seconds += self.config.cloudflare_manual_wait_seconds
+            print_warning_log(
+                f"{log_name}: Cloudflare challenge detected. Complete it in the production browser "
+                f"within {self.config.cloudflare_manual_wait_seconds}s."
+            )
+
+        try:
+            WebDriverWait(driver, timeout_seconds).until(
+                lambda current_driver: bool(current_driver.find_elements(By.TAG_NAME, "pre"))
+            )
+        except TimeoutException as e:
+            if challenge_detected:
+                raise BrowserTimeoutException(
+                    f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
+                ) from e
+            raise BrowserTimeoutException(f"{log_name}: Timeout waiting for JSON data: {e}") from e
+
     @staticmethod
     def get_circuit_breaker_stats() -> dict:
         """Get circuit breaker statistics for monitoring"""
@@ -424,13 +463,16 @@ class BrowserContextManager:
                 print_warning_log("Some processes may still be terminating after timeout")
 
         # 4. Final Wipe of the specific profile directory
-        if self._profile_dir and os.path.exists(self._profile_dir):
+        profile_is_temporary = not os.getenv("BROWSER_PROFILE_DIR", "").strip()
+        if self._profile_dir and os.path.exists(self._profile_dir) and profile_is_temporary:
             try:
                 shutil.rmtree(self._profile_dir, ignore_errors=True)
                 print_log(f"Deleted profile directory: {self._profile_dir}")
             except Exception as e:
                 print_warning_log(f"Failed to delete profile directory {self._profile_dir}: {e}")
             self._profile_dir = None
+        elif self._profile_dir:
+            print_log(f"Preserved persistent Chrome profile: {self._profile_dir}")
 
         # 5. Always release the lock, even if cleanup partially failed
         if self._lock_acquired:
@@ -537,9 +579,15 @@ class BrowserContextManager:
         return diagnostics
 
     def _config_browser(self):
-        # 1. Create a unique path for THIS instance
-        # This ensures that even with the lock, we know exactly which folder to kill
-        self._profile_dir = tempfile.mkdtemp(prefix="chrome_profile_", dir="/tmp")
+        # Keep the clearance cookie across batches/restarts when configured. The old temporary
+        # profile made manual Cloudflare validation useless because cleanup deleted the cookie.
+        configured_profile = os.getenv("BROWSER_PROFILE_DIR", "").strip()
+        if configured_profile:
+            self._profile_dir = os.path.abspath(os.path.expanduser(configured_profile))
+            os.makedirs(self._profile_dir, exist_ok=True)
+            print_log(f"Using persistent Chrome profile: {self._profile_dir}")
+        else:
+            self._profile_dir = tempfile.mkdtemp(prefix="chrome_profile_", dir="/tmp")
         # Clean up any orphaned processes first
         self._kill_orphaned_chrome_processes()
 
@@ -705,12 +753,7 @@ class BrowserContextManager:
         print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
 
         # Wait until the page contains the expected JSON data
-        try:
-            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
-                EC.presence_of_element_located((By.TAG_NAME, "pre"))
-            )
-        except TimeoutException as e:
-            raise BrowserTimeoutException(f"download_matches: Timeout waiting for JSON data: {e}") from e
+        self._wait_for_json("download_matches")
 
         # Step 2: Extract the page content, expecting JSON
         page_source = driver.page_source
@@ -775,12 +818,7 @@ class BrowserContextManager:
         driver.get(api_url)
         print_log(f"{log_name}: Downloading profile for {ubisoft_user_name} using {api_url}")
 
-        try:
-            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
-                EC.presence_of_element_located((By.TAG_NAME, "pre"))
-            )
-        except TimeoutException as e:
-            raise BrowserTimeoutException(f"{log_name}: Timeout waiting for JSON data: {e}") from e
+        self._wait_for_json(log_name)
 
         page_source = driver.page_source
 
@@ -837,12 +875,7 @@ class BrowserContextManager:
         print_log(f"download_full_user_stats: Downloading stats for {ubisoft_user_name} using {api_url}")
 
         # Wait until the page contains the expected JSON data
-        try:
-            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
-                EC.presence_of_element_located((By.TAG_NAME, "pre"))
-            )
-        except TimeoutException as e:
-            raise BrowserTimeoutException(f"download_full_user_stats: Timeout waiting for JSON data: {e}") from e
+        self._wait_for_json("download_full_user_stats")
 
         # Step 2: Extract the page content, expecting JSON
         page_source = driver.page_source
@@ -902,12 +935,7 @@ class BrowserContextManager:
         print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
 
         # Wait until the page contains the expected JSON data
-        try:
-            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
-                EC.presence_of_element_located((By.TAG_NAME, "pre"))
-            )
-        except TimeoutException as e:
-            raise BrowserTimeoutException(f"download_operator_stats: Timeout waiting for JSON data: {e}") from e
+        self._wait_for_json("download_operator_stats")
 
         # Get the page source
         page_source = driver.page_source

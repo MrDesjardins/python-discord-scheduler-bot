@@ -514,7 +514,26 @@ BOT_TOKEN=<bot token>
 TRN_API_KEY<TRN token>
 GEMINI_API_KEY=<api key>
 OPENAI_API_KEY=<api key>
+
+# Optional: retain Cloudflare clearance cookies for the Selenium-based Tracker integration.
+# In production, set these in the bot's .env and complete a challenge in the visible browser
+# when the log asks for it.
+BROWSER_PROFILE_DIR=/home/<service-user>/.cache/gametimescheduler/chrome-profile
+BROWSER_CLOUDFLARE_MANUAL_WAIT=300
 ```
+
+If the bot logs that a Cloudflare challenge was detected, stop the service and open the same
+profile from a computer with X11 forwarding enabled:
+
+```sh
+sudo systemctl stop gametimescheduler.service
+ssh -Y <service-user>@<production-host> \
+  'cd /path/to/python-discord-scheduler-bot && ENV=dev .venv/bin/python deployment/validate_tracker_cloudflare.py'
+sudo systemctl start gametimescheduler.service
+```
+
+Complete the check in the Chrome window, press Enter, and start the bot again. Do not run the
+maintenance command while the service is using the profile.
 
 11. Install ffmpeg for the audio
 
