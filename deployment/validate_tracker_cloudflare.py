@@ -2,8 +2,13 @@
 
 import os
 from pathlib import Path
+import sys
 
 from dotenv import load_dotenv
+
+# Running this file directly makes deployment/ the import root; add the repository root so
+# it can use the same deps package as the bot.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from deps.browser_context_manager import BrowserContextManager
 
