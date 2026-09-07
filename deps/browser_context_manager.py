@@ -134,30 +134,148 @@ class BrowserContextManager:
             return False
 
         # The API returns a Cloudflare HTML challenge instead of <pre> JSON. Detecting it
-        # lets an operator solve it once and preserve the clearance cookie in the profile.
+        # lets us click the Turnstile checkbox and preserve the clearance cookie in the profile.
         return any(
             marker in title or marker in source
             for marker in ("just a moment", "verify you are human", "cf-mitigated", "cloudflare")
         )
 
-    def _wait_for_json(self, log_name: str) -> None:
-        """Wait for API JSON, allowing an optional manual Cloudflare validation."""
+    @staticmethod
+    def _find_cf_iframe_backend_id(node: dict) -> Optional[int]:
+        """Depth-first search of a CDP DOM tree for the Cloudflare challenge iframe."""
+        if node.get("nodeName") == "IFRAME":
+            attrs = node.get("attributes", [])
+            attr_pairs = dict(zip(attrs[::2], attrs[1::2]))
+            if "challenges.cloudflare.com" in attr_pairs.get("src", ""):
+                return node.get("backendNodeId")
+        for key in ("children", "contentDocument", "shadowRoots"):
+            value = node.get(key)
+            candidates = value if isinstance(value, list) else [value] if isinstance(value, dict) else []
+            for candidate in candidates:
+                found = BrowserContextManager._find_cf_iframe_backend_id(candidate)
+                if found is not None:
+                    return found
+        return None
+
+    def _find_cloudflare_widget_rect(self) -> Optional[dict]:
+        """
+        Return the viewport rectangle of the Cloudflare "verify you are human" widget.
+
+        The checkbox lives in a cross-origin iframe nested in a *closed* shadow root,
+        so it is invisible to document.querySelectorAll. CDP's DOM.getDocument with
+        pierce=true walks through closed shadow roots and iframe documents.
+        """
         driver = self._active_driver()
-        challenge_detected = self._is_cloudflare_challenge()
-        timeout_seconds = self.config.element_wait_timeout_seconds
-        if challenge_detected and self.config.cloudflare_manual_wait_seconds > 0:
-            timeout_seconds += self.config.cloudflare_manual_wait_seconds
-            print_warning_log(
-                f"{log_name}: Cloudflare challenge detected. Complete it in the production browser "
-                f"within {self.config.cloudflare_manual_wait_seconds}s."
+        try:
+            document = driver.execute_cdp_cmd("DOM.getDocument", {"depth": -1, "pierce": True})
+            backend_id = self._find_cf_iframe_backend_id(document["root"])
+            if backend_id is None:
+                return None
+            box = driver.execute_cdp_cmd("DOM.getBoxModel", {"backendNodeId": backend_id})
+            content = box["model"]["content"]  # x1,y1, x2,y2, x3,y3, x4,y4
+        except Exception as e:
+            print_warning_log(f"_find_cloudflare_widget_rect: {e}")
+            return None
+        rect = {
+            "x": content[0],
+            "y": content[1],
+            "width": content[2] - content[0],
+            "height": content[5] - content[1],
+        }
+        if rect["width"] < 10 or rect["height"] < 10:
+            return None
+        return rect
+
+    def _cdp_trusted_click(self, x: float, y: float) -> None:
+        """
+        Click at viewport coordinates using CDP input events.
+
+        CDP-dispatched mouse events carry isTrusted=true, which the Cloudflare
+        Turnstile checkbox requires; synthetic DOM events would be ignored.
+        """
+        driver = self._active_driver()
+        driver.execute_cdp_cmd(
+            "Input.dispatchMouseEvent",
+            {"type": "mouseMoved", "x": x, "y": y},
+        )
+        time.sleep(0.05 + random.random() * 0.15)
+        for event_type in ("mousePressed", "mouseReleased"):
+            driver.execute_cdp_cmd(
+                "Input.dispatchMouseEvent",
+                {"type": event_type, "x": x, "y": y, "button": "left", "clickCount": 1},
             )
+            time.sleep(0.04 + random.random() * 0.08)
+
+    def _json_is_ready(self) -> bool:
+        driver = self._active_driver()
+        try:
+            return bool(driver.find_elements(By.TAG_NAME, "pre"))
+        except Exception:
+            return False
+
+    def _attempt_cloudflare_solve(self, log_name: str) -> bool:
+        """
+        Poll the challenge page and click the Turnstile checkbox until the API JSON
+        appears or the budget runs out. Returns True if the JSON is ready.
+        """
+        budget = self.config.cloudflare_auto_solve_seconds
+        if budget <= 0:
+            return self._json_is_ready()
+
+        print_warning_log(f"{log_name}: Cloudflare challenge detected; attempting automatic checkbox solve.")
+        deadline = time.time() + budget
+        while time.time() < deadline:
+            if self._json_is_ready():
+                print_log(f"{log_name}: Cloudflare challenge cleared.")
+                return True
+            if not self._is_cloudflare_challenge():
+                # Challenge gone but JSON not rendered yet; give the reload a moment.
+                time.sleep(1.5)
+                continue
+            rect = self._find_cloudflare_widget_rect()
+            if rect is not None:
+                # The checkbox sits near the left edge, vertically centred in the widget.
+                click_x = rect["x"] + 30
+                click_y = rect["y"] + rect["height"] / 2
+                time.sleep(0.2 + random.random() * 0.6)
+                try:
+                    self._cdp_trusted_click(click_x, click_y)
+                    print_log(f"{log_name}: Clicked Cloudflare checkbox at ({click_x:.0f}, {click_y:.0f}).")
+                except Exception as e:
+                    print_warning_log(f"{log_name}: Cloudflare checkbox click failed: {e}")
+            time.sleep(3.0)
+        return self._json_is_ready()
+
+    def _wait_for_json(self, log_name: str) -> None:
+        """Wait for the API JSON, solving a Cloudflare challenge automatically if one appears."""
+        driver = self._active_driver()
+
+        if self._is_cloudflare_challenge():
+            if not self._attempt_cloudflare_solve(log_name):
+                # Optional last-resort window for a human watching the live browser.
+                manual_wait = self.config.cloudflare_manual_wait_seconds
+                if manual_wait > 0:
+                    print_warning_log(f"{log_name}: Auto-solve failed. Waiting {manual_wait}s for manual completion.")
+                    try:
+                        WebDriverWait(driver, manual_wait).until(lambda d: bool(d.find_elements(By.TAG_NAME, "pre")))
+                    except TimeoutException as e:
+                        raise BrowserTimeoutException(
+                            f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
+                        ) from e
+                    return
+                raise BrowserTimeoutException(
+                    f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
+                )
+            return
 
         try:
-            WebDriverWait(driver, timeout_seconds).until(
+            WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 lambda current_driver: bool(current_driver.find_elements(By.TAG_NAME, "pre"))
             )
         except TimeoutException as e:
-            if challenge_detected:
+            if self._is_cloudflare_challenge():
+                if self._attempt_cloudflare_solve(log_name):
+                    return
                 raise BrowserTimeoutException(
                     f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
                 ) from e
@@ -323,6 +441,11 @@ class BrowserContextManager:
 
                 self._cleanup()  # Full wipe before retry
 
+                # A persistent profile that crashes Chrome on startup will keep crashing;
+                # wipe it so the next attempt (and future runs) start from a clean profile.
+                if is_retryable and self._looks_like_corrupt_profile_error(error_msg):
+                    self._wipe_persistent_profile()
+
                 # Don't retry if we know it won't help or if out of retries
                 if not is_retryable or attempt == self.config.max_retries - 1:
                     if not is_retryable:
@@ -423,15 +546,21 @@ class BrowserContextManager:
 
                 self.driver.quit()
 
-                # Force kill the specific browser PID just in case
+                # With a persistent profile, let Chrome finish flushing its user-data-dir
+                # before force-killing it: a SIGKILL mid-write corrupts the profile and
+                # makes every later launch crash. Only escalate if it overstays.
+                persistent_profile = bool(os.getenv("BROWSER_PROFILE_DIR", "").strip())
                 if browser_pid:
+                    if persistent_profile:
+                        self._wait_for_process_termination([browser_pid], self.config.cleanup_max_wait_seconds)
                     try:
                         os.kill(browser_pid, signal.SIGKILL)
                     except ProcessLookupError:
-                        pass  # Already dead
+                        pass  # Already dead (expected for a clean quit)
             except Exception as e:
                 print_warning_log(f"BrowserContextManager: Error during driver cleanup: {e}")
             self.driver = None
+            self._reap_zombie_children()
 
         # 2. Kill the Xvfb process group (the nuclear option)
         if self._xvfb_proc:
@@ -488,16 +617,15 @@ class BrowserContextManager:
         try:
             # Only do this in production to avoid interfering with developer's Chrome instances
             if self.environment == "prod":
-                # Kill orphaned chrome processes
-                # Note: capture_output=True returns strings, not file objects, so no .close() needed
-                subprocess.run(
-                    ["pkill", "-9", "-f", "google-chrome.*--remote-debugging"],
-                    check=False,
-                    capture_output=True,
-                    timeout=5,
-                )
-
-                subprocess.run(["pkill", "-9", "-f", "chromedriver"], check=False, capture_output=True, timeout=5)
+                # Ask orphaned processes to exit cleanly first (SIGTERM), then wait, then
+                # SIGKILL survivors. A blunt SIGKILL can catch a still-shutting-down Chrome
+                # mid-write and corrupt a persistent profile.
+                patterns = ("google-chrome.*--remote-debugging", "chromedriver")
+                for pattern in patterns:
+                    subprocess.run(["pkill", "-f", pattern], check=False, capture_output=True, timeout=5)
+                time.sleep(1.0)
+                for pattern in patterns:
+                    subprocess.run(["pkill", "-9", "-f", pattern], check=False, capture_output=True, timeout=5)
 
                 time.sleep(0.5)  # Give processes time to die
                 print_log("Cleaned up any orphaned Chrome processes")
@@ -515,6 +643,80 @@ class BrowserContextManager:
                 time.sleep(0.5)  # Give processes time to die
         except Exception as e:
             print_log(f"Failed to kill orphaned processes (non-critical): {e}")
+
+    def _reap_zombie_children(self) -> None:
+        """
+        Reap defunct chromedriver/chrome children of this process.
+
+        undetected-chromedriver does not always wait() on the chromedriver it
+        spawns, leaving zombies that slowly consume PID slots over days of uptime.
+        """
+        try:
+            children = psutil.Process(os.getpid()).children(recursive=False)
+        except psutil.Error:
+            return
+        for child in children:
+            pid = child.pid
+            try:
+                # A true zombie raises ZombieProcess from name()/status(); either way
+                # we know its pid and can reap it. Non-zombie children are left alone.
+                if child.status() != psutil.STATUS_ZOMBIE:
+                    continue
+            except psutil.ZombieProcess:
+                pass
+            except psutil.Error:
+                continue
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except (ChildProcessError, OSError):
+                continue
+
+    def _clear_stale_profile_locks(self) -> None:
+        """Remove Chrome's Singleton* lock files left behind by an unclean shutdown."""
+        if not self._profile_dir:
+            return
+        for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+            path = os.path.join(self._profile_dir, name)
+            try:
+                os.unlink(path)
+                print_log(f"Removed stale profile lock: {path}")
+            except FileNotFoundError:
+                pass
+            except OSError as e:
+                print_warning_log(f"Could not remove stale profile lock {path}: {e}")
+
+    def _wipe_persistent_profile(self) -> None:
+        """
+        Delete a corrupted persistent profile so the next launch recreates it.
+
+        A profile left in an inconsistent state by a mid-write SIGKILL can crash
+        Chrome on startup indefinitely; the Cloudflare clearance cookie is
+        re-acquired automatically, so wiping is the safe recovery.
+        """
+        configured_profile = os.getenv("BROWSER_PROFILE_DIR", "").strip()
+        if not configured_profile or not self._profile_dir or not os.path.exists(self._profile_dir):
+            return
+        try:
+            shutil.rmtree(self._profile_dir, ignore_errors=True)
+            print_warning_log(f"Wiped corrupted persistent Chrome profile: {self._profile_dir}")
+        except Exception as e:
+            print_warning_log(f"Failed to wipe persistent Chrome profile {self._profile_dir}: {e}")
+
+    @staticmethod
+    def _looks_like_corrupt_profile_error(error_msg: str) -> bool:
+        """True when a startup error is consistent with a broken user-data-dir."""
+        lowered = error_msg.lower()
+        return any(
+            marker in lowered
+            for marker in (
+                "cannot connect to chrome",
+                "chrome not reachable",
+                "session not created",
+                "devtoolsactiveport",
+                "crashed",
+                "tab crashed",
+            )
+        )
 
     def _check_chrome_environment(self) -> dict[str, Any]:
         """
@@ -590,6 +792,9 @@ class BrowserContextManager:
             self._profile_dir = tempfile.mkdtemp(prefix="chrome_profile_", dir="/tmp")
         # Clean up any orphaned processes first
         self._kill_orphaned_chrome_processes()
+        # A hard-killed Chrome leaves Singleton* lock files behind; with a persistent
+        # profile these block every future launch ("cannot connect to chrome").
+        self._clear_stale_profile_locks()
 
         # 2. Check environment before attempting launch
         self._check_chrome_environment()
