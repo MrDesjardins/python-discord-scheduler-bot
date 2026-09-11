@@ -68,6 +68,7 @@ from deps.values import (
     COMMAND_CUSTOM_GAME_LFG,
     COMMAND_CUSTOM_GAME_SUBSCRIBE,
     COMMAND_LFG,
+    MATCH_START_GIF_DEDUPLICATION_MINUTES,
 )
 from deps.models import ActivityTransition
 from deps.siege import (
@@ -95,7 +96,6 @@ MESSAGE_ARCHIVE_DRAIN_TIMEOUT_SECONDS = 10
 MESSAGE_ARCHIVE_STOP_TIMEOUT_SECONDS = 5
 MESSAGE_ARCHIVE_SPOOL_POLL_SECONDS = 1
 MESSAGE_ARCHIVE_SPOOL_BATCH_SIZE = 100
-MATCH_START_GIF_DEDUPLICATION_MINUTES = 20
 # A ranked Siege match cannot realistically last longer than this.  Past it, a
 # re-detection with the same roster is a brand new match, not the live one, and
 # must get its own GIF and its own TribeMarkets market.
@@ -1041,13 +1041,16 @@ class MyEventsCog(commands.Cog):
                             f"{guild_id}, channel {channel_id}; skipping duplicate GIF and market."
                         )
                         return
-                    if pending is not None and not pending_result_key.startswith("final:") and not rate_limited:
-                        # A prior match can remain live when stats.cc misses its final presence update or the
-                        # process restarts. Do not let that stale record suppress the next real match forever.
+                    if pending is not None and not rate_limited:
+                        # Past the dedup window this pending record is either stale (stats.cc
+                        # missed the final frame, or a restart) or a settled 'final:' record
+                        # from the previous match. Neither may suppress this new match or be
+                        # left for try_update_match_start_gif_with_result to overwrite in
+                        # place - the next match gets its own GIF and its own market.
                         data_access_clear_pending_match_start_gif_message(guild_id, channel_id)
-                        print_warning_log(
-                            f"Cleared stale pending match handoff for guild {guild_id}, channel {channel_id}; "
-                            f"last GIF reservation was {last_time.isoformat() if last_time else 'not found'}."
+                        print_log(
+                            f"Cleared previous match handoff for guild {guild_id}, channel {channel_id} "
+                            f"({pending_result_key or 'no result yet'}); starting a fresh GIF + market."
                         )
                     if not rate_limited:
                         from deps.bot_common_actions import send_match_start_gif

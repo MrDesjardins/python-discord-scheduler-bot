@@ -248,6 +248,10 @@ async def test_async_reconciliation_resolves_from_fetched_history(monkeypatch):
     )
     await bot_common_actions.reconcile_pending_tribemarkets(fetched_users=[fetched])
 
+    # get_result_summary() returns None here (TribeMarkets' 120-minute challenge window is
+    # still open), so the market must NOT be marked resolved yet - only "matched" (evidence
+    # recorded) - or the settled recap from the later poll-only branch would never post
+    # (list_pending_markets excludes anything already marked resolved).
     assert calls == [
         "title:2026-08-18 03:03 UTC · Oregon - Alice",
         "close",
@@ -255,8 +259,59 @@ async def test_async_reconciliation_resolves_from_fetched_history(monkeypatch):
         "summary",
         "discord-edit",
         "matched",
-        "resolved",
     ]
+
+
+@pytest.mark.asyncio
+async def test_async_reconciliation_settles_a_previously_matched_market(monkeypatch):
+    """Once the challenge window closes, a later poll must post the recap and resolve it."""
+    from deps import bot_common_actions
+
+    market = {
+        "market_id": "market-settle",
+        "community_id": "tribe",
+        "yes_outcome_id": "yes",
+        "no_outcome_id": "no",
+        "share_url": "https://example.test/market-settle",
+        "external_event_id": "discord-ranked:1:2:3",
+        "title": "2026-08-18 03:03 UTC · Oregon - Alice",
+        "vote_message_id": 40,
+        "result_submitted": True,
+    }
+    pending = SimpleNamespace(
+        market_id="market-settle",
+        guild_id=10,
+        voice_channel_id=20,
+        text_channel_id=30,
+        vote_message_id=40,
+        member_ids=(1,),
+        member_names=("Alice",),
+        market=market,
+        started_at=START,
+        resolution_source="r6_tracker",
+        match_uuid="match-async",
+        map_name="Oregon",
+    )
+    calls: list[str] = []
+
+    class FakeClient:
+        async def get_result_summary(self, market):
+            calls.append("summary")
+            return {"won": True, "score": "4-1"}
+
+    class FakeMessage:
+        async def edit(self, *, content, view):
+            calls.append("discord-edit")
+
+    monkeypatch.setattr(bot_common_actions, "list_pending_markets", lambda: [pending])
+    monkeypatch.setattr(bot_common_actions, "TribeMarketsClient", FakeClient)
+    monkeypatch.setattr(bot_common_actions, "data_access_get_message", lambda *args: _resolved_message(FakeMessage()))
+    monkeypatch.setattr(bot_common_actions, "mark_reconciled_market", lambda *args, **kwargs: calls.append("matched"))
+    monkeypatch.setattr(bot_common_actions, "mark_market_resolved", lambda *args: calls.append("resolved"))
+
+    await bot_common_actions.reconcile_pending_tribemarkets(fetched_users=[])
+
+    assert calls == ["summary", "discord-edit", "matched", "resolved"]
 
 
 async def _resolved_message(message):
