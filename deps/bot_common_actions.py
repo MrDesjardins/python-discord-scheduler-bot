@@ -36,6 +36,7 @@ from deps.data_access import (
     data_access_get_daily_message_id,
     data_access_get_gaming_session_last_activity,
     data_access_get_gaming_session_text_channel_id,
+    data_access_get_guild,
     data_access_get_guild_schedule_text_channel_id,
     data_access_get_guild_username_text_channel_id,
     data_access_get_guild_voice_channel_ids,
@@ -119,6 +120,7 @@ from deps.tribemarkets_reconciliation import save_pending_market
 from deps.tribemarkets_reconciliation import (
     MINIMUM_MARKET_AGE,
     PendingMarket,
+    ReconciledMatch,
     list_pending_markets,
     match_uuid_already_assigned,
     mark_attempted_market,
@@ -528,6 +530,103 @@ async def _post_tribemarkets_vote_message_update(
         )
 
 
+async def _update_match_start_gif_message_from_r6_tracker(
+    guild_id: int,
+    voice_channel_id: int,
+    member_ids: tuple[int, ...],
+    result: ReconciledMatch,
+) -> None:
+    """Finish the match-start GIF message when only the R6 Tracker fallback resolved the match.
+
+    stats.cc is optional software: when nobody in the squad is running it, ``try_update_match_start_gif_with_result``
+    never runs, so the "Match starting..." message is otherwise left with no score, no title update, and no final
+    image forever (until it auto-deletes). This mirrors the tail end of that function using the R6 Tracker result
+    instead of a stats.cc-parsed one, so the GIF message and the TribeMarkets market always agree.
+    """
+    try:
+        pending = await data_access_get_pending_match_start_gif_message(guild_id, voice_channel_id)
+        if not pending:
+            return
+        if str(pending.get("last_result_key", "")).startswith("final:"):
+            # stats.cc (or an earlier R6 Tracker pass) already finished this message.
+            return
+
+        our_score: int | None = None
+        their_score: int | None = None
+        if result.score:
+            parts = result.score.split("-", 1)
+            if len(parts) == 2 and all(part.strip().lstrip("-").isdigit() for part in parts):
+                our_score, their_score = int(parts[0]), int(parts[1])
+
+        guild = await data_access_get_guild(guild_id)
+        if guild is None:
+            return
+        members_for_gif: List[discord.Member] = []
+        for uid in member_ids:
+            member = guild.get_member(uid)
+            if member is not None:
+                members_for_gif.append(member)
+        if not members_for_gif:
+            print_log(
+                "_update_match_start_gif_message_from_r6_tracker: could not resolve any members; "
+                "clearing pending GIF metadata"
+            )
+            data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+            return
+
+        synthetic_result = StatsCcRankedMatchEndResult(
+            won=result.won,
+            our_score=our_score if our_score is not None else (1 if result.won else 0),
+            their_score=their_score if their_score is not None else (0 if result.won else 1),
+            map_name=result.map_name,
+            is_tie=our_score is not None and our_score == their_score,
+            is_match_complete=True,
+        )
+        wl, _ = match_result_final_plain_summary(synthetic_result, spaced_hyphen=False)
+        media_bytes = await generate_match_end_static_summary(members_for_gif, synthetic_result)
+        if not media_bytes:
+            return
+
+        text_channel_id = int(pending["text_channel_id"])
+        message_id = int(pending["message_id"])
+        message = await data_access_get_message(guild_id, text_channel_id, message_id)
+        if message is None:
+            data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+            return
+
+        # Re-check right before editing: the awaits above (guild fetch, PNG render, message
+        # fetch) give the presence-driven stats.cc path a window to finish this same message
+        # first. Losing the race here means stats.cc's result stands; do not clobber it.
+        refreshed = await data_access_get_pending_match_start_gif_message(guild_id, voice_channel_id)
+        if not refreshed or str(refreshed.get("last_result_key", "")).startswith("final:"):
+            print_log(
+                "_update_match_start_gif_message_from_r6_tracker: message "
+                f"{message_id} was finished by stats.cc while the R6 Tracker fallback was running; skipping."
+            )
+            return
+
+        new_content = f"🎮 Match starting in <#{voice_channel_id}>! Good luck!\n**{wl}**"
+        if result.map_name:
+            new_content += f" · {result.map_name}"
+        attachment = discord.File(
+            fp=io.BytesIO(media_bytes),
+            filename="match_result.png",
+            description=wl[:1024],
+        )
+        await message.edit(content=new_content, attachments=[attachment])
+        data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+        print_log(
+            "_update_match_start_gif_message_from_r6_tracker: finished match message "
+            f"{message_id} from R6 Tracker fallback in guild {guild_id}"
+        )
+    except discord.NotFound:
+        data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+    except discord.HTTPException as exc:
+        print_warning_log(f"_update_match_start_gif_message_from_r6_tracker: HTTP error: {exc}")
+    except Exception as exc:  # must never abort the caller's TribeMarkets title/close/submit_result calls
+        print_error_log(f"_update_match_start_gif_message_from_r6_tracker: unexpected error: {exc}")
+
+
 async def reconcile_pending_tribemarkets(
     fetched_users: list[UserWithUserMatchInfo] | None = None,
 ) -> None:
@@ -632,6 +731,13 @@ async def reconcile_pending_tribemarkets(
                 f"reconcile_pending_tribemarkets: accepted R6 Tracker match {result.match_uuid} for market "
                 f"{pending.market_id}; confidence={result.confidence}, participants={result.participant_count}, "
                 f"match_started={result.started_at.isoformat()}."
+            )
+
+            # Independent of the TribeMarkets calls below: when stats.cc never reported a
+            # score for this squad, the match-start GIF message would otherwise be stuck
+            # showing "Match starting..." forever. Finish it now that R6 Tracker has a result.
+            await _update_match_start_gif_message_from_r6_tracker(
+                pending.guild_id, pending.voice_channel_id, pending.member_ids, result
             )
 
             market = MatchMarket.from_dict(pending.market)
