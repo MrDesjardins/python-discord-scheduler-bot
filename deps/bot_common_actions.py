@@ -81,7 +81,9 @@ from deps.functions import (
 )
 from deps.values import (
     DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS,
+    MATCH_START_GIF_DEDUPLICATION_MINUTES,
     MATCH_START_GIF_DELETE_AFTER_SECONDS,
+    MATCH_START_GIF_POST_MATCH_GRACE_MINUTES,
     MAX_STATS_QUEUE_ATTEMPTS,
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
@@ -116,6 +118,7 @@ from deps.tribemarkets import (
 from deps.tribemarkets_reconciliation import save_pending_market
 from deps.tribemarkets_reconciliation import (
     MINIMUM_MARKET_AGE,
+    PendingMarket,
     list_pending_markets,
     match_uuid_already_assigned,
     mark_attempted_market,
@@ -494,6 +497,37 @@ async def send_session_stats_directly(member: discord.Member, guild_id: int) -> 
     await post_queued_user_stats(False)
 
 
+async def _post_tribemarkets_vote_message_update(
+    pending: PendingMarket,
+    market: MatchMarket,
+    *,
+    summary: dict[str, Any] | None,
+    provisional_text: str,
+) -> None:
+    """Update the Discord vote message once a market has a (pending) result.
+
+    ``summary`` is the settled recap once TribeMarkets has finished its challenge
+    window; until then it is ``None`` and ``provisional_text`` (if any) is shown.
+    An empty ``provisional_text`` with no summary means "nothing new to say" and
+    the message is left untouched. Shared by every reconciliation path so a
+    settled market reaches Discord exactly once, with the buttons disabled.
+    """
+    if pending.vote_message_id is None:
+        return
+    if summary is None and not provisional_text:
+        return
+    message = await data_access_get_message(pending.guild_id, pending.text_channel_id, pending.vote_message_id)
+    if message is None:
+        return
+    content = format_result_summary(summary, market.share_url) if summary is not None else provisional_text
+    try:
+        await message.edit(content=content, view=TribeMarketsVoteView(market, disabled=True))
+    except discord.HTTPException as exc:
+        print_warning_log(
+            f"reconcile_pending_tribemarkets: could not update vote message for market {market.market_id}: {exc}"
+        )
+
+
 async def reconcile_pending_tribemarkets(
     fetched_users: list[UserWithUserMatchInfo] | None = None,
 ) -> None:
@@ -537,15 +571,32 @@ async def reconcile_pending_tribemarkets(
     client = TribeMarketsClient()
     for pending in pending_markets:
         try:
-            # Stats.cc may have submitted a signed result while TribeMarkets'
-            # challenge window is still open.  Poll that market directly; do
-            # not replace authoritative Stats.cc evidence with the fallback.
-            if pending.resolution_source == "stats.cc" and pending.market.get("result_submitted"):
+            # A result was already submitted (by the live Stats.cc path or a prior
+            # R6 Tracker reconciliation) and is only waiting out TribeMarkets'
+            # 120-minute challenge window. Just poll for the settled recap - never
+            # re-run the R6 Tracker scrape or overwrite the recorded evidence - and
+            # only mark it resolved once that recap has reached Discord.
+            if pending.resolution_source in ("stats.cc", "r6_tracker") and pending.market.get("result_submitted"):
                 market = MatchMarket.from_dict(pending.market)
-                if await client.get_result_summary(market) is not None:
-                    mark_market_resolved(pending.market_id)
-                else:
+                summary = await client.get_result_summary(market)
+                if summary is None:
                     mark_attempted_market(pending.market_id)
+                    continue
+                market.settlement_complete = True
+                await _post_tribemarkets_vote_message_update(pending, market, summary=summary, provisional_text="")
+                mark_reconciled_market(
+                    pending.market_id,
+                    match_uuid=pending.match_uuid,
+                    map_name=pending.map_name or "Unknown",
+                    resolution_source=pending.resolution_source,
+                    status="matched",
+                    market=market.as_dict(),
+                )
+                mark_market_resolved(pending.market_id)
+                print_log(
+                    f"reconcile_pending_tribemarkets: settled {pending.resolution_source} market "
+                    f"{pending.market_id} and posted the result recap to Discord."
+                )
                 continue
             # reconcile_match also enforces MINIMUM_MARKET_AGE, but pre-checking here
             # lets a too-young market skip without burning a retry attempt (a plain
@@ -615,23 +666,16 @@ async def reconcile_pending_tribemarkets(
 
             summary = await client.get_result_summary(market)
             market.settlement_complete = summary is not None
-            if pending.vote_message_id is not None:
-                message = await data_access_get_message(
-                    pending.guild_id,
-                    pending.text_channel_id,
-                    pending.vote_message_id,
-                )
-                if message is not None:
-                    content = (
-                        format_result_summary(summary, market.share_url)
-                        if summary is not None
-                        else (
-                            f"✅ Result recorded later from R6 Tracker: the squad "
-                            f"{'won' if result.won else 'lost'} ({result.map_name}). Settlement is still being confirmed.\n"
-                            f"{market.share_url}"
-                        )
-                    )
-                    await message.edit(content=content, view=TribeMarketsVoteView(market, disabled=True))
+            await _post_tribemarkets_vote_message_update(
+                pending,
+                market,
+                summary=summary,
+                provisional_text=(
+                    f"✅ Result recorded later from R6 Tracker: the squad "
+                    f"{'won' if result.won else 'lost'} ({result.map_name}). "
+                    f"Settlement is still being confirmed.\n{market.share_url}"
+                ),
+            )
             mark_reconciled_market(
                 pending.market_id,
                 match_uuid=result.match_uuid,
@@ -640,7 +684,11 @@ async def reconcile_pending_tribemarkets(
                 status="matched",
                 market=market.as_dict(),
             )
-            mark_market_resolved(pending.market_id)
+            # Usually the challenge window is still open here, so the settled recap
+            # is posted later by the poll-only branch above. Resolve now only if it
+            # somehow already settled.
+            if summary is not None:
+                mark_market_resolved(pending.market_id)
         except Exception as exc:  # one market must not block the others
             mark_attempted_market(pending.market_id)
             print_warning_log(f"reconcile_pending_tribemarkets: failed market {pending.market_id}: {exc}")
@@ -1626,6 +1674,29 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                 f"for guild {guild.id}, channel {voice_channel_id} (stats.cc dropped the match-end frame)"
             )
 
+        pending_result_key = str(pending.get("last_result_key", ""))
+        was_already_final = pending_result_key.startswith("final:")
+        finished_map = (
+            pending_result_key.split(":", 3)[3] if was_already_final and pending_result_key.count(":") >= 3 else ""
+        )
+        is_next_match = not parsed_result.is_match_complete and (
+            (parsed_result.our_score + parsed_result.their_score) <= 3
+            or bool(finished_map and parsed_result.map_name and parsed_result.map_name != finished_map)
+        )
+        if was_already_final and is_next_match:
+            # This pending record already posted its final result; a fresh low score
+            # (or a different map) is the squad's NEXT match. Leave it for
+            # send_match_start_gif to give that match its own GIF and its own
+            # TribeMarkets market rather than overwriting the finished one here (and
+            # hammering its now-closed market with title edits).
+            print_log(
+                "try_update_match_start_gif_with_result: ignoring next-match score "
+                f"{parsed_result.our_score}-{parsed_result.their_score} "
+                f"({parsed_result.map_name or 'unknown map'}) for guild {guild.id}, "
+                f"channel {voice_channel_id}; the tracked match is already finalized."
+            )
+            return
+
         members_for_gif: List[discord.Member] = []
         for uid in member_ids:
             m = guild.get_member(uid)
@@ -1817,18 +1888,22 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             content=new_content,
             attachments=[attachment],
         )
-        was_already_final = str(pending.get("last_result_key", "")).startswith("final:")
         result_key = (
             f"final:{wl}:{score_compact}:{parsed_result.map_name or ''}"
             if parsed_result.is_match_complete
             else result_key
         )
         if parsed_result.is_match_complete and not was_already_final:
-            # Anchor the match-start dedup window to match END, not match start. stats.cc
-            # emits round-transition and re-queue presence for a minute or two after a
-            # match finishes; without this a stray "Picking Operators: Ranked" blip would
-            # post a brand new GIF and TribeMarkets market before the next match begins.
-            await data_access_set_last_match_start_gif_time(guild.id, voice_channel_id, datetime.now(timezone.utc))
+            # Re-anchor the dedup window to the END of the match, but keep only the
+            # short post-match grace: stats.cc emits round-transition and re-queue
+            # presence for a minute or two after a match, and a stray
+            # "Picking Operators: Ranked" blip must not spawn a second GIF + market.
+            # Past that grace, though, a genuine next match has to get its own GIF
+            # and its own TribeMarkets market instead of overwriting this one.
+            grace_anchor = datetime.now(timezone.utc) - timedelta(
+                minutes=MATCH_START_GIF_DEDUPLICATION_MINUTES - MATCH_START_GIF_POST_MATCH_GRACE_MINUTES
+            )
+            await data_access_set_last_match_start_gif_time(guild.id, voice_channel_id, grace_anchor)
         if parsed_result.is_match_complete and (
             market is None or (market.result_submitted and market.settlement_complete)
         ):

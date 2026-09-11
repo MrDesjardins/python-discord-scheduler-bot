@@ -70,6 +70,18 @@ DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS = 0.1
 # 90 minutes so the post (and optional match-result edit) stays visible longer
 MATCH_START_GIF_DELETE_AFTER_SECONDS = 90 * 60
 
+# How long a channel is blocked from posting a second match-start GIF (and creating
+# a second TribeMarkets market) after the previous one. Anchored to the previous
+# match's END, it bridges the staggered stats.cc presence updates around match end.
+MATCH_START_GIF_DEDUPLICATION_MINUTES = 20
+
+# Once the previous match's final result has posted, only this slice of the
+# deduplication window is kept: long enough to swallow the stray
+# "Picking Operators: Ranked" presence blips stats.cc emits for a minute or two
+# after a match, short enough that the squad's very next match still gets its own
+# GIF and its own TribeMarkets market instead of overwriting the finished one.
+MATCH_START_GIF_POST_MATCH_GRACE_MINUTES = 3
+
 # -----------------------
 # User's commands
 ## Initialization, Setup
