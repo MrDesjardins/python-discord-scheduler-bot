@@ -159,9 +159,7 @@ def test_validate_generated_sql_rejects_discord_names_for_partner_results():
 def test_query_plan_parser_accepts_json_with_provider_fence():
     bot_ai = BotAI()
 
-    plan = bot_ai.parse_query_plan(
-        '```json\n{"needs_sql": true, "domain": "matches", "user_ids": [1]}\n```'
-    )
+    plan = bot_ai.parse_query_plan('```json\n{"needs_sql": true, "domain": "matches", "user_ids": [1]}\n```')
 
     assert plan == {"needs_sql": True, "domain": "matches", "user_ids": [1]}
 
@@ -171,17 +169,13 @@ def test_query_plan_validation_requires_explicitly_resolved_users():
     user = create_mock_user(7, "Fridge")
 
     with pytest.raises(ValueError, match="omitted"):
-        bot_ai.validate_query_plan(
-            {"needs_sql": True, "domain": "matches", "user_ids": []}, 99, [user]
-        )
+        bot_ai.validate_query_plan({"needs_sql": True, "domain": "matches", "user_ids": []}, 99, [user])
 
 
 def test_query_plan_does_not_limit_global_leaderboard_to_requester():
     bot_ai = BotAI()
 
-    plan = bot_ai.validate_query_plan(
-        {"needs_sql": True, "domain": "matches", "user_ids": [], "limit": 10}, 99, []
-    )
+    plan = bot_ai.validate_query_plan({"needs_sql": True, "domain": "matches", "user_ids": [], "limit": 10}, 99, [])
 
     assert plan["user_ids"] == []
 
@@ -206,7 +200,7 @@ async def test_stats_question_can_skip_sql_when_plan_says_not_needed():
     ) as ask_ai:
         result = await bot_ai.ask_ai_sql_for_stats(1, "what does K/D mean?", 99, [])
 
-    assert result == ""
+    assert result is None
     assert ask_ai.call_count == 1
     assert "Classify the user's request" in ask_ai.call_args.args[0]
 
@@ -341,7 +335,7 @@ async def test_generate_answer_when_mentioning_bot_includes_guild_ai_context():
     ask_ai_async = AsyncMock(return_value="Reply text")
     with (
         patch.object(bot_ai, "ask_ai_async", ask_ai_async),
-        patch.object(bot_ai, "ask_ai_sql_for_stats", AsyncMock(return_value="")),
+        patch.object(bot_ai, "ask_ai_sql_for_stats", AsyncMock(return_value=None)),
     ):
         response = await bot_ai.generate_answer_when_mentioning_bot(
             guild_id,
@@ -398,7 +392,7 @@ async def test_generate_answer_when_mentioning_bot_includes_resolved_mentions():
     resolved_user = create_mock_user(55, "fridge")
 
     ask_ai_async = AsyncMock(return_value="Reply text")
-    ask_ai_sql_for_stats = AsyncMock(return_value="")
+    ask_ai_sql_for_stats = AsyncMock(return_value=None)
     with (
         patch.object(bot_ai, "ask_ai_async", ask_ai_async),
         patch.object(bot_ai, "ask_ai_sql_for_stats", ask_ai_sql_for_stats),
@@ -485,3 +479,75 @@ async def test_resolve_user_mentions_prefers_live_discord_display_name():
     assert len(resolved_users) == 1
     assert resolved_users[0].display_name == "t1deus"
     assert resolved_users[0].ubisoft_username_active == "deus_active"
+
+
+@pytest.mark.asyncio
+async def test_ask_ai_sql_for_stats_uses_planner_when_no_keyword_matches():
+    """A stats question with no known keyword must still reach SQL generation via the planner."""
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+    responses = [
+        '{"needs_sql": true, "domain": "matches", "user_ids": [1], "metrics": ["kd"], ' '"time_range": "9/7 to 9/9"}',
+        "SELECT AVG(kd_ratio) FROM user_full_match_info WHERE user_id = 1",
+    ]
+    with patch.object(bot_ai, "ask_ai", side_effect=responses) as ask_ai:
+        result = await bot_ai.ask_ai_sql_for_stats(1, "compare my performance from 9/7 to 9/9", 99, [user])
+
+    assert result == "SELECT AVG(kd_ratio) FROM user_full_match_info WHERE user_id = 1"
+    assert ask_ai.call_count == 2
+    assert "Classify the user's request" in ask_ai.call_args_list[0].args[0]
+    assert "match_timestamp" in ask_ai.call_args_list[1].args[0]
+
+
+@pytest.mark.asyncio
+async def test_ask_ai_sql_for_stats_returns_none_for_conversational_message():
+    """A non-data message returns None so the caller stays on the conversational path."""
+    bot_ai = BotAI()
+    with patch.object(
+        bot_ai,
+        "ask_ai",
+        return_value='{"needs_sql": false, "domain": "general", "user_ids": []}',
+    ):
+        result = await bot_ai.ask_ai_sql_for_stats(1, "gg wp everyone", 99, [])
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_date_reference_triggers_stats_path_when_planner_unavailable():
+    """A bare date range keeps the stats path alive even if the planner returns nothing usable."""
+    bot_ai = BotAI()
+    responses = ["not json", "SELECT * FROM user_full_match_info WHERE user_id = 99"]
+    with patch.object(bot_ai, "ask_ai", side_effect=responses):
+        result = await bot_ai.ask_ai_sql_for_stats(1, "how did I do on 9/7", 99, [])
+
+    assert result == "SELECT * FROM user_full_match_info WHERE user_id = 99"
+
+
+@pytest.mark.asyncio
+async def test_generate_answer_asks_for_clarification_when_data_missing():
+    """When a recognized stats question yields no data, the bot asks one clarifying question."""
+    bot_ai = BotAI()
+    clarifying = AsyncMock(return_value="Which exact dates (with year) and which stat?")
+    with (
+        patch.object(bot_ai, "ask_ai_sql_for_stats", AsyncMock(return_value="")),
+        patch.object(bot_ai, "generate_clarifying_question", clarifying),
+        patch.object(bot_ai, "ask_ai_async", AsyncMock(return_value="should not be used")),
+    ):
+        response = await bot_ai.generate_answer_when_mentioning_bot(
+            1, "fridge said: hi", "compare my performance from 9/7 to 9/9", [], "fridge", 1, "Gold"
+        )
+
+    assert response == "Which exact dates (with year) and which stat?"
+    assert clarifying.await_count == 1
+    assert bot_ai.is_running() is False
+
+
+@pytest.mark.asyncio
+async def test_generate_clarifying_question_falls_back_when_provider_fails():
+    """A provider failure still yields a usable clarifying question."""
+    bot_ai = BotAI()
+    with patch.object(bot_ai, "ask_ai_async", AsyncMock(return_value=None)):
+        question = await bot_ai.generate_clarifying_question(1, "compare my perf", "context")
+
+    assert "clarify" in question.lower()
