@@ -74,3 +74,18 @@ def data_access_fetch_player_values_by_algorithm(algorithm: PlayerValueAlgorithm
         .fetchall()
     )
     return {row[0]: row[1] for row in result}
+
+
+def data_access_fetch_player_values_and_ratings_by_algorithm(
+    algorithm: PlayerValueAlgorithm,
+) -> Dict[int, tuple[float, float]]:
+    """All stored (value, rating) tuples for one algorithm, keyed by user id."""
+    result = (
+        database_manager.get_cursor()
+        .execute(
+            "SELECT user_id, value, rating FROM user_player_value WHERE algorithm = :algorithm",
+            {"algorithm": algorithm.value},
+        )
+        .fetchall()
+    )
+    return {row[0]: (row[1], row[2]) for row in result}

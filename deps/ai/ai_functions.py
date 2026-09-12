@@ -3,6 +3,7 @@ Generate message for the matches played by the users
 """
 
 from __future__ import annotations  # Enables forward reference resolution
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import os
 import asyncio
@@ -10,7 +11,7 @@ import time
 import re
 import json
 from uuid import uuid4
-from typing import List, Union
+from typing import List, Optional, Tuple, Union
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
@@ -76,6 +77,19 @@ OPENAI_FALLBACK_MODELS = ["gpt-5.6-terra", "gpt-5.6-luna"]
 # Gemini SDK HTTP timeout in milliseconds (large prompts; avoids stuck sockets indefinitely)
 GEMINI_HTTP_TIMEOUT_MS = 4 * 60 * 1000
 DAILY_SUMMARY_MAX_CONTEXT_CHARS = 90_000
+
+
+@dataclass
+class DailySummarySections:
+    """
+    The daily AI summary split into structured per-user pieces for rich rendering
+    (banner image + one embed per user), as an alternative to the flat text message.
+    """
+
+    fallback_text: Optional[str]  # Already-worded fallback ("no matches"/AI unavailable/error); sections empty when set
+    sections: List[Tuple[UserInfo, str]]  # (user, paragraph) pairs matched to a user, in response order
+    users: List[UserInfo]  # Full active-with-matches roster, for the banner (even users without a matched section)
+    matches_by_user_id: dict[int, List[UserFullMatchStats]]  # This window's matches, keyed by user id
 
 
 class BotAI:
@@ -553,13 +567,78 @@ class BotAI:
     async def generate_message_summary_matches_async(self, guild_id: Union[int, None], hours: int) -> str:
         """
         Async version: Generate a message summary of the matches played by the users without blocking the event loop.
-        Uses automatic Gemini->GPT fallback from ask_ai_async.
+        Uses automatic Gemini->GPT fallback from ask_ai_async. Flat-text form used by the manual admin command.
+        """
+        fallback_text, normalized_response, users, _matches = await self._build_daily_summary_response_async(
+            guild_id, hours
+        )
+        header = f"✨**AI summary generated of the last {hours} hours**✨\n"
+        if fallback_text is not None or normalized_response is None:
+            return header + (fallback_text or "")
+        return header + self.mention_users_in_response(normalized_response, users)
+
+    async def generate_daily_summary_sections_async(
+        self, guild_id: Union[int, None], hours: int
+    ) -> DailySummarySections:
+        """
+        Structured form of the daily AI summary: one (user, paragraph) section per user plus the
+        full active roster, for rendering a banner image + one Discord embed per user.
+        """
+        fallback_text, normalized_response, users, matches = await self._build_daily_summary_response_async(
+            guild_id, hours
+        )
+        if fallback_text is not None or normalized_response is None:
+            return DailySummarySections(fallback_text=fallback_text or "", sections=[], users=[], matches_by_user_id={})
+        sections = self.split_daily_summary_sections(normalized_response, users)
+        matches_by_user_id: dict[int, List[UserFullMatchStats]] = {}
+        for match in matches:
+            matches_by_user_id.setdefault(match.user_id, []).append(match)
+        return DailySummarySections(
+            fallback_text=None, sections=sections, users=users, matches_by_user_id=matches_by_user_id
+        )
+
+    def split_daily_summary_sections(self, response: str, users: List[UserInfo]) -> List[Tuple[UserInfo, str]]:
+        """
+        Split the daily-summary response into per-user sections, relying on the prompt's existing
+        "blank line between each user's section" instruction. Each paragraph is matched to the
+        first not-yet-matched user whose canonical Ubisoft name or display name appears in it;
+        paragraphs matching no user are dropped (defensive - should not normally happen).
+        """
+        paragraphs = [p.strip() for p in response.split("\n\n") if p.strip()]
+        remaining_users = list(users)
+        sections: List[Tuple[UserInfo, str]] = []
+        for paragraph in paragraphs:
+            casefolded = paragraph.casefold()
+            matched_user = next(
+                (
+                    user
+                    for user in remaining_users
+                    if any(
+                        name and name.casefold() in casefolded
+                        for name in (user.ubisoft_username_active, user.ubisoft_username_max, user.display_name)
+                    )
+                ),
+                None,
+            )
+            if matched_user is not None:
+                sections.append((matched_user, paragraph))
+                remaining_users.remove(matched_user)
+        return sections
+
+    async def _build_daily_summary_response_async(
+        self, guild_id: Union[int, None], hours: int
+    ) -> Tuple[Optional[str], Optional[str], List[UserInfo], List[UserFullMatchStats]]:
+        """
+        Shared LLM call behind the daily summary. Returns (fallback_text, normalized_response, users, matches):
+        exactly one of fallback_text/normalized_response is set. normalized_response has canonical
+        Ubisoft names substituted for aliases (see ``normalize_user_names_in_response``) but no
+        Discord mentions yet - callers decide whether/where a mention makes sense.
         """
         users, full_matches_info_by_user_id = self.gather_information_for_generating_message_summary(
             hours, guild_id=guild_id
         )
         if len(users) == 0 or len(full_matches_info_by_user_id) == 0:
-            return f"✨**AI summary generated of the last {hours} hours**✨\nNo user played any match in the last {hours} hours."
+            return f"No user played any match in the last {hours} hours.", None, [], []
         print_log(f"Users display name {', '.join([u.display_name for u in users])}")
 
         user_info_serialized = self.summarize_users_list(users)
@@ -611,7 +690,7 @@ class BotAI:
         )
         if omitted_match_count > 0:
             print_log(
-                f"generate_message_summary_matches_async: Omitted {omitted_match_count} "
+                f"_build_daily_summary_response_async: Omitted {omitted_match_count} "
                 f"of {len(full_matches_info_by_user_id)} match records to keep context under "
                 f"{DAILY_SUMMARY_MAX_CONTEXT_CHARS} characters."
             )
@@ -620,7 +699,7 @@ class BotAI:
         context = await self.apply_guild_ai_context(guild_id, context)
 
         print_log(
-            f"generate_message_summary_matches_async: Asking AI for {hours} hours summary "
+            f"_build_daily_summary_response_async: Asking AI for {hours} hours summary "
             f"with context size of {len(context)} characters. "
             f"Data contains {len(users)} users and {len(full_matches_info_by_user_id)} matches."
         )
@@ -635,18 +714,28 @@ class BotAI:
                 # Dump context for debugging if both APIs failed
                 file_name = "ai_context_failed.txt"
                 print_error_log(
-                    f"generate_message_summary_matches_async: Both Gemini and GPT failed. Context dumped to {file_name}"
+                    f"_build_daily_summary_response_async: Both Gemini and GPT failed. Context dumped to {file_name}"
                 )
                 with open(file_name, "w", encoding="utf-8") as f:
                     f.write(context)
-                return f"✨**AI summary generated of the last {hours} hours**✨\n⚠️ Unable to generate summary. Both AI services are currently unavailable."
+                return (
+                    "⚠️ Unable to generate summary. Both AI services are currently unavailable.",
+                    None,
+                    users,
+                    full_matches_info_by_user_id,
+                )
 
-            ai_response = self.normalize_user_names_in_response(ai_response, users)
-            return f"✨**AI summary generated of the last {hours} hours**✨\n" + ai_response
+            normalized_response = self.normalize_user_names_in_response(ai_response, users)
+            return None, normalized_response, users, full_matches_info_by_user_id
 
         except Exception as e:
-            print_error_log(f"generate_message_summary_matches_async: Unexpected error: {e}")
-            return f"✨**AI summary generated of the last {hours} hours**✨\n⚠️ An error occurred while generating the summary."
+            print_error_log(f"_build_daily_summary_response_async: Unexpected error: {e}")
+            return (
+                "⚠️ An error occurred while generating the summary.",
+                None,
+                users,
+                full_matches_info_by_user_id,
+            )
 
     async def generate_answer_when_mentioning_bot(
         self,
@@ -851,6 +940,17 @@ class BotAI:
                 rf"(?<!\w){re.escape(alias)}(?!\w)", canonical, normalized, flags=re.IGNORECASE
             )
         return normalized
+
+    def mention_users_in_response(self, response: str, users: List[UserInfo]) -> str:
+        """Replace each user's canonical name with a clickable Discord mention (<@user_id>)."""
+        mentioned = response
+        replacements = [
+            (user.ubisoft_username_active or user.ubisoft_username_max or user.display_name, f"<@{user.id}>")
+            for user in users
+        ]
+        for name, mention in sorted(replacements, key=lambda item: len(item[0]), reverse=True):
+            mentioned = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", mention, mentioned, flags=re.IGNORECASE)
+        return mentioned
 
     def validate_generated_sql(
         self,

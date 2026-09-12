@@ -108,6 +108,89 @@ def test_normalize_user_names_uses_canonical_ubisoft_name():
     assert result == "ubi_1 had a strong game."
 
 
+def test_mention_users_in_response_replaces_canonical_name_with_discord_mention():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+
+    result = bot_ai.mention_users_in_response("ubi_1 had a strong game.", [user])
+
+    assert result == "<@1> had a strong game."
+
+
+def test_normalize_then_mention_users_in_response_replaces_display_name_with_mention():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+
+    normalized = bot_ai.normalize_user_names_in_response("Fridge had a strong game.", [user])
+    result = bot_ai.mention_users_in_response(normalized, [user])
+
+    assert result == "<@1> had a strong game."
+
+
+def test_split_daily_summary_sections_matches_each_paragraph_to_its_user():
+    bot_ai = BotAI()
+    user_one = create_mock_user(1, "Fridge")
+    user_two = create_mock_user(2, "Obey")
+    response = "ubi_1 had a strong game with three clutches.\n\nubi_2 struggled but pulled off an ace."
+
+    sections = bot_ai.split_daily_summary_sections(response, [user_one, user_two])
+
+    assert [user.id for user, _ in sections] == [1, 2]
+    assert sections[0][1] == "ubi_1 had a strong game with three clutches."
+    assert sections[1][1] == "ubi_2 struggled but pulled off an ace."
+
+
+def test_split_daily_summary_sections_drops_unmatched_paragraphs():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+    response = "A general note about the server.\n\nubi_1 had a strong game."
+
+    sections = bot_ai.split_daily_summary_sections(response, [user])
+
+    assert len(sections) == 1
+    assert sections[0][0].id == 1
+
+
+@pytest.mark.asyncio
+@patch("deps.ai.ai_functions.get_active_user_info")
+@patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range")
+async def test_generate_daily_summary_sections_async_builds_one_section_per_user(
+    mock_fetch_matches, mock_get_active_users
+):
+    guild_id = 42
+    bot_ai = BotAI()
+    user_one = create_mock_user(1, "Fridge")
+    user_two = create_mock_user(2, "Obey")
+    match_one = create_mock_match(1, "match-1")
+    match_two = create_mock_match(2, "match-2")
+
+    mock_get_active_users.return_value = [user_one, user_two]
+    mock_fetch_matches.return_value = {1: [match_one], 2: [match_two]}
+
+    ai_response = "ubi_1 had a strong game.\n\nubi_2 pulled off an ace."
+    with patch.object(bot_ai, "ask_ai_async", AsyncMock(return_value=ai_response)):
+        result = await bot_ai.generate_daily_summary_sections_async(guild_id, 24)
+
+    assert result.fallback_text is None
+    assert {user.id for user, _ in result.sections} == {1, 2}
+    assert {user.id for user in result.users} == {1, 2}
+    assert result.matches_by_user_id == {1: [match_one], 2: [match_two]}
+
+
+@pytest.mark.asyncio
+@patch("deps.ai.ai_functions.get_active_user_info")
+async def test_generate_daily_summary_sections_async_returns_fallback_when_no_matches(mock_get_active_users):
+    guild_id = 42
+    bot_ai = BotAI()
+    mock_get_active_users.return_value = []
+
+    result = await bot_ai.generate_daily_summary_sections_async(guild_id, 24)
+
+    assert result.sections == []
+    assert result.users == []
+    assert "No user played any match" in result.fallback_text
+
+
 def test_validate_generated_sql_rejects_display_name_identity_filter():
     bot_ai = BotAI()
     user = create_mock_user(1, "Fridge")

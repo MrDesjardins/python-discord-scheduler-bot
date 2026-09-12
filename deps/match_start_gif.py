@@ -15,9 +15,8 @@ Individual frames display each player's stats:
 
 from PIL import Image, ImageDraw, ImageFont
 import io
-import aiohttp
 from datetime import datetime, timedelta, date, timezone as dt_timezone
-from typing import Any, List, Optional, Sequence, Union, cast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import discord
 import pytz
 from deps.analytic_leaderboard_data_access import data_access_fetch_users_operators
@@ -29,6 +28,12 @@ from deps.analytic_data_access import (
 )
 from deps.analytic_profile_data_access import data_access_fetch_total_hours
 from deps.operator_mapping import get_operator_role
+from deps.player_value_display import (
+    PLAYER_VALUE_LEGEND,
+    build_player_value_lookup,
+    download_avatar,
+    format_player_value_line,
+)
 from deps.siege import StatsCcRankedMatchEndResult, get_user_rank_emoji
 from deps.log import print_error_log
 
@@ -141,7 +146,7 @@ async def generate_match_end_static_summary(
     for i, member in enumerate(members):
         x = start_x + i * spacing
         try:
-            av = await _download_avatar(member)
+            av = await download_avatar(member)
             av = av.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
             if av.mode == "RGBA":
                 img.paste(av, (x, row_top), av)
@@ -200,12 +205,19 @@ async def generate_match_start_gif(
             user_operator_map[stat.user] = []
         user_operator_map[stat.user].append(stat)
 
+    # Nightly-computed player value (MMR / rank / value), looked up once for all members
+    try:
+        player_value_lookup = build_player_value_lookup()
+    except Exception as e:
+        print_error_log(f"generate_match_start_gif: Failed to fetch player values: {e}")
+        player_value_lookup = {}
+
     # Create frames
     frames = []
 
     # First frame: "Good luck to..." with all players
     try:
-        good_luck_frame = await _create_good_luck_frame(members)
+        good_luck_frame = await _create_good_luck_frame(members, player_value_lookup)
         frames.append(good_luck_frame)
     except Exception as e:
         print_error_log(f"generate_match_start_gif: Failed to create good luck frame: {e}")
@@ -213,7 +225,7 @@ async def generate_match_start_gif(
     # Individual player frames
     for member in members:
         try:
-            frame = await _create_player_frame(member, user_operator_map, guild_id, guild_emoji)
+            frame = await _create_player_frame(member, user_operator_map, guild_id, guild_emoji, player_value_lookup)
             frames.append(frame)
         except Exception as e:
             print_error_log(f"generate_match_start_gif: Failed to create frame for {member.display_name}: {e}")
@@ -254,19 +266,22 @@ async def generate_match_start_gif(
         return None
 
 
-async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
+async def _create_good_luck_frame(
+    members: List[discord.Member], player_value_lookup: Dict[int, Tuple[int, int, float]]
+) -> Image.Image:
     """
     Create the first "Good luck to..." frame showing all players.
 
     Args:
         members: List of Discord members
+        player_value_lookup: user_id -> (mmr, position, value), see ``build_player_value_lookup``
 
     Returns:
         PIL Image object
     """
-    # Frame size - increase height for 4+ members to fit team stats
+    # Frame size - increase height for 4+ members to fit team stats, and for the legend line
     width = 800
-    height = 650 if len(members) > 3 else 600
+    height = 690 if len(members) > 3 else 640
     img = Image.new("RGB", (width, height), color="#2C2F33")
     draw = ImageDraw.Draw(img)
 
@@ -275,12 +290,16 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
     try:
         font_title: Any = ImageFont.truetype(font_path, 40)
         font_name: Any = ImageFont.truetype(font_path, 22)
+        font_value: Any = ImageFont.truetype(font_path, 16)
         font_stats: Any = ImageFont.truetype(font_path, 20)
+        font_legend: Any = ImageFont.truetype(font_path, 14)
     except Exception as e:
         print_error_log(f"_create_good_luck_frame: Failed to load font: {e}")
         font_title = ImageFont.load_default()
         font_name = ImageFont.load_default()
+        font_value = ImageFont.load_default()
         font_stats = ImageFont.load_default()
+        font_legend = ImageFont.load_default()
 
     # Title
     title = "Good luck to"
@@ -317,7 +336,7 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
         y = y_position + row * 220
 
         # Download and place avatar
-        avatar = await _download_avatar(member)
+        avatar = await download_avatar(member)
         avatar = avatar.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
         img.paste(avatar, (x, y))
 
@@ -326,6 +345,12 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
         if len(name) > 12:
             name = name[:12] + "..."
         draw.text((x + avatar_size // 2, y + avatar_size + 10), name, fill="white", font=font_name, anchor="mt")
+
+        # Draw MMR / rank position / player value below the name
+        value_line = format_player_value_line(player_value_lookup, member.id)
+        draw.text(
+            (x + avatar_size // 2, y + avatar_size + 36), value_line, fill="#FFD700", font=font_value, anchor="mt"
+        )
 
         col += 1
 
@@ -357,11 +382,18 @@ async def _create_good_luck_frame(members: List[discord.Member]) -> Image.Image:
             # Don't fail the entire frame if stats fetch fails
             print_error_log(f"_create_good_luck_frame: Failed to fetch team stats: {e}")
 
+    # Legend explaining the MMR / rank / value triplet shown under each avatar
+    draw.text((width // 2, height - 18), PLAYER_VALUE_LEGEND, fill="#99AAB5", font=font_legend, anchor="mm")
+
     return img
 
 
 async def _create_player_frame(
-    member: discord.Member, user_operator_map: dict, guild_id: int, guild_emoji: dict
+    member: discord.Member,
+    user_operator_map: dict,
+    guild_id: int,
+    guild_emoji: dict,
+    player_value_lookup: Dict[int, Tuple[int, int, float]],
 ) -> Image.Image:
     """
     Create single frame for one player.
@@ -371,6 +403,7 @@ async def _create_player_frame(
         user_operator_map: Dictionary mapping display names to operator stats
         guild_id: Guild ID
         guild_emoji: Dictionary of guild emojis
+        player_value_lookup: user_id -> (mmr, position, value), see ``build_player_value_lookup``
 
     Returns:
         PIL Image object
@@ -386,15 +419,17 @@ async def _create_player_frame(
         font_large: Any = ImageFont.truetype(font_path, 32)
         font_medium: Any = ImageFont.truetype(font_path, 22)
         font_small: Any = ImageFont.truetype(font_path, 20)
+        font_legend: Any = ImageFont.truetype(font_path, 14)
     except Exception as e:
         print_error_log(f"_create_player_frame: Failed to load font: {e}")
         # Fallback to default font
         font_large = ImageFont.load_default()
         font_medium = ImageFont.load_default()
         font_small = ImageFont.load_default()
+        font_legend = ImageFont.load_default()
 
     # Download and paste avatar
-    avatar = await _download_avatar(member)
+    avatar = await download_avatar(member)
     img.paste(avatar, (20, 20))
 
     # Player name
@@ -414,6 +449,10 @@ async def _create_player_frame(
             draw.text((140, 95), f"{user_profile.time_zone} - {time_str}", fill="#99AAB5", font=font_small)
         except Exception as e:
             print_error_log(f"_create_player_frame: Failed to get timezone for {member.display_name}: {e}")
+
+    # Player value: MMR / rank position / computed value (nightly TIME_DECAYED job)
+    value_line = format_player_value_line(player_value_lookup, member.id)
+    draw.text((140, 118), value_line, fill="#FFD700", font=font_small)
 
     # Get full user stats
     try:
@@ -440,10 +479,10 @@ async def _create_player_frame(
         total_hours = 0
 
     # Stats display
-    draw.text((20, 140), f"Ranked K/D: {overall_kd:.2f}", fill="white", font=font_medium)
-    draw.text((400, 140), f"Win Rate: {win_rate:.1f}%", fill="white", font=font_medium)
-    draw.text((20, 170), f"Last 10: {wins}W - {losses}L", fill="white", font=font_medium)
-    draw.text((400, 170), f"Time on Server: {total_hours}h", fill="white", font=font_medium)
+    draw.text((20, 150), f"Ranked K/D: {overall_kd:.2f}", fill="white", font=font_medium)
+    draw.text((400, 150), f"Win Rate: {win_rate:.1f}%", fill="white", font=font_medium)
+    draw.text((20, 180), f"Last 10: {wins}W - {losses}L", fill="white", font=font_medium)
+    draw.text((400, 180), f"Time on Server: {total_hours}h", fill="white", font=font_medium)
 
     # Get operator stats for this user
     operators = user_operator_map.get(member.display_name, [])
@@ -482,30 +521,7 @@ async def _create_player_frame(
     else:
         draw.text((40, y), "No recent data", fill="#99AAB5", font=font_small)
 
+    # Legend explaining the MMR / rank / value triplet shown above
+    draw.text((width // 2, height - 18), PLAYER_VALUE_LEGEND, fill="#99AAB5", font=font_legend, anchor="mm")
+
     return img
-
-
-async def _download_avatar(member: discord.Member) -> Image.Image:
-    """
-    Download and resize Discord avatar to 100x100.
-
-    Args:
-        member: Discord member
-
-    Returns:
-        PIL Image object (100x100 pixels)
-    """
-    avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(str(avatar_url)) as resp:
-                if resp.status == 200:
-                    data = await resp.read()
-                    avatar_img = cast(Image.Image, Image.open(io.BytesIO(data)))
-                    return avatar_img.resize((100, 100), Image.Resampling.LANCZOS)
-    except Exception as e:
-        print_error_log(f"_download_avatar: Failed to download avatar for {member.display_name}: {e}")
-
-    # Fallback: gray placeholder
-    return Image.new("RGB", (100, 100), "#23272A")

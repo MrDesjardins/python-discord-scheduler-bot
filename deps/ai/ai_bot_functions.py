@@ -2,9 +2,12 @@
 Function to interact with the AI bot and Discord bot
 """
 
+import io
+
 import discord
 
 from deps.ai.ai_functions import BotAISingleton
+from deps.ai.daily_summary_visual import build_daily_recap_banner, build_daily_summary_embeds
 from deps.data_access import data_access_get_ai_text_channel_id, data_access_get_channel, data_access_get_main_text_channel_id
 from deps.log import print_error_log, print_warning_log
 
@@ -69,7 +72,8 @@ def split_message_at_paragraphs(message: str, max_length: int = 2000) -> list[st
 
 async def send_daily_ai_summary_guild(guild: discord.Guild):
     """
-    Send a daily message in the guild main text channel with the summary of the last 24 hours
+    Send a daily message in the guild main text channel with the summary of the last 24 hours:
+    a banner image of the active roster, then one embed per user (avatar + AI-written recap).
     """
     guild_id = guild.id
 
@@ -83,17 +87,33 @@ async def send_daily_ai_summary_guild(guild: discord.Guild):
     if channel is None:
         print_error_log(f"\t⚠️ send_daily_ai_summary_guild: Channel not found for guild {guild.name}. Skipping.")
         return
-    try:
-        msg = await BotAISingleton().generate_message_summary_matches_async(guild.id, 24)
-    except Exception as e:
-        print_error_log(f"send_daily_ai_summary_guild>generate_message_summary_matches_async: {e}")
-        msg = ""
 
-    if msg == "":
-        print_warning_log(f"\t⚠️ send_daily_ai_summary_guild: No summary found for guild {guild.name}. Skipping.")
+    try:
+        summary = await BotAISingleton().generate_daily_summary_sections_async(guild.id, 24)
+    except Exception as e:
+        print_error_log(f"send_daily_ai_summary_guild>generate_daily_summary_sections_async: {e}")
         return
-    # Split the message into chunks at paragraph boundaries to avoid breaking mid-paragraph
-    chunks = split_message_at_paragraphs(msg)
-    # Send each chunk as a separate message
-    for chunk in chunks:
-        await channel.send(content=chunk)
+
+    if summary.fallback_text is not None:
+        await channel.send(content=f"✨**AI summary generated of the last 24 hours**✨\n{summary.fallback_text}")
+        return
+
+    if not summary.sections:
+        print_warning_log(f"\t⚠️ send_daily_ai_summary_guild: No summary sections found for guild {guild.name}. Skipping.")
+        return
+
+    mentions = " ".join(f"<@{user.id}>" for user, _ in summary.sections)
+    header = f"📊 **Daily Recap** — {mentions}"
+
+    embed_batches = build_daily_summary_embeds(summary, guild)
+    banner_bytes = await build_daily_recap_banner(guild, summary.users)
+
+    first_batch = embed_batches[0] if embed_batches else []
+    if banner_bytes is not None:
+        file = discord.File(fp=io.BytesIO(banner_bytes), filename="daily_recap.png")
+        await channel.send(content=header, file=file, embeds=first_batch)
+    else:
+        await channel.send(content=header, embeds=first_batch)
+
+    for batch in embed_batches[1:]:
+        await channel.send(embeds=batch)
