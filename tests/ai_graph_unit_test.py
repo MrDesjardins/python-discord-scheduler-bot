@@ -22,7 +22,11 @@ def _user() -> UserInfo:
 
 
 def _activities() -> list[UserActivity]:
-    now = datetime.now(timezone.utc).replace(day=15, hour=12, minute=0, second=0, microsecond=0)
+    # Anchor to the actual current moment (not a fixed day-of-month): the graph filters
+    # activity to `start_month <= timestamp < now`, computed with a fresh `datetime.now()`
+    # inside render_graph. Forcing a fixed day (e.g. the 15th) made this data land in the
+    # future - and get filtered out - whenever the test ran before the 15th of the month.
+    now = datetime.now(timezone.utc)
     return [
         UserActivity(42, 100, "connect", (now - timedelta(hours=2)).isoformat(), 7),
         UserActivity(42, 100, "disconnect", now.isoformat(), 7),
