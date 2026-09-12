@@ -67,6 +67,13 @@ def match_result_final_plain_summary(
     return f"Loss {score_part}", "#ED4245"
 
 
+def _pad_frame(frame: Image.Image, width: int, height: int) -> Image.Image:
+    """Pad a GIF frame to a uniform canvas size so it fully overwrites any previous frame."""
+    padded = Image.new("RGB", (width, height), color=frame.getpixel((0, 0)))
+    padded.paste(frame, (0, 0))
+    return padded
+
+
 def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Image:
     """Final GIF frame: live LEADING/TRAILING or final Win/Loss line with score (stats.cc)."""
     width, height = 800, 600
@@ -242,6 +249,16 @@ async def generate_match_start_gif(
     # Combine into animated GIF
     if not frames:
         return None
+
+    # Frames have different heights (the "Good luck to" frame is taller than player/result
+    # frames to fit team stats + the legend). GIF frames share one canvas, so a shorter frame
+    # leaves the previous, taller frame's pixels - including its legend line - showing through
+    # below it. Pad every frame to the largest size so each frame fully overwrites the canvas.
+    max_width = max(frame.width for frame in frames)
+    max_height = max(frame.height for frame in frames)
+    frames = [
+        frame if frame.size == (max_width, max_height) else _pad_frame(frame, max_width, max_height) for frame in frames
+    ]
 
     try:
         output = io.BytesIO()
