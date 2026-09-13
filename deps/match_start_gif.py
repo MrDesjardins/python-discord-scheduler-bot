@@ -82,9 +82,9 @@ def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Ima
 
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_huge: Any = ImageFont.truetype(font_path, 72)
-        font_score: Any = ImageFont.truetype(font_path, 60)
-        font_sub: Any = ImageFont.truetype(font_path, 26)
+        font_huge: Any = ImageFont.truetype(font_path, 74)
+        font_score: Any = ImageFont.truetype(font_path, 62)
+        font_sub: Any = ImageFont.truetype(font_path, 28)
     except Exception as e:
         print_error_log(f"_create_match_result_frame: Failed to load font: {e}")
         font_huge = ImageFont.load_default()
@@ -126,15 +126,15 @@ async def generate_match_end_static_summary(
     row_top = 200
     avatar_size = 72 if len(members) >= 4 else 88
     spacing = 140 if len(members) <= 3 else 118
-    height = max(540, row_top + avatar_size + 56)
+    height = max(540, row_top + avatar_size + 60)
 
     img = Image.new("RGB", (width, height), color="#1E2124")
     draw = ImageDraw.Draw(img)
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_head: Any = ImageFont.truetype(font_path, 52)
-        font_sub: Any = ImageFont.truetype(font_path, 22)
-        font_name: Any = ImageFont.truetype(font_path, 18)
+        font_head: Any = ImageFont.truetype(font_path, 54)
+        font_sub: Any = ImageFont.truetype(font_path, 24)
+        font_name: Any = ImageFont.truetype(font_path, 20)
     except Exception as e:
         print_error_log(f"generate_match_end_static_summary: Failed to load font: {e}")
         font_head = ImageFont.load_default()
@@ -305,10 +305,10 @@ async def _create_good_luck_frame(
     # Load font
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_title: Any = ImageFont.truetype(font_path, 40)
-        font_name: Any = ImageFont.truetype(font_path, 22)
-        font_value: Any = ImageFont.truetype(font_path, 16)
-        font_stats: Any = ImageFont.truetype(font_path, 20)
+        font_title: Any = ImageFont.truetype(font_path, 42)
+        font_name: Any = ImageFont.truetype(font_path, 24)
+        font_value: Any = ImageFont.truetype(font_path, 18)
+        font_stats: Any = ImageFont.truetype(font_path, 22)
         font_legend: Any = ImageFont.truetype(font_path, 14)
     except Exception as e:
         print_error_log(f"_create_good_luck_frame: Failed to load font: {e}")
@@ -323,19 +323,25 @@ async def _create_good_luck_frame(
     draw.text((width // 2, 50), title, fill="#FFD700", font=font_title, anchor="mm")
 
     # Calculate layout for avatars and names
+    # Spacing is the distance between avatar centers on a row; it must be wide enough that
+    # neighboring "MMR xxxx | #xx | xxx.x" value lines (~170px wide) never touch.
     num_members = len(members)
     if num_members <= 3:
         # Single row
         avatar_size = 120
-        spacing = 180
-        start_x = (width - (num_members * spacing - 60)) // 2
+        spacing = 220
         y_position = 150
     else:
         # Two rows for 4-5 members
         avatar_size = 100
-        spacing = 150
-        start_x = (width - (min(3, num_members) * spacing - 50)) // 2
+        spacing = 220
         y_position = 130
+
+    def _row_start_x(count: int) -> int:
+        row_span = (count - 1) * spacing + avatar_size
+        return (width - row_span) // 2
+
+    start_x = _row_start_x(min(3, num_members))
 
     # Download avatars and place them
     row = 0
@@ -347,7 +353,7 @@ async def _create_good_luck_frame(
             col = 0
             # Center the second row if fewer than 3 in it
             remaining = num_members - 3
-            start_x = (width - (remaining * spacing - 50)) // 2
+            start_x = _row_start_x(remaining)
 
         x = start_x + col * spacing
         y = y_position + row * 220
@@ -361,12 +367,12 @@ async def _create_good_luck_frame(
         name = member.display_name
         if len(name) > 12:
             name = name[:12] + "..."
-        draw.text((x + avatar_size // 2, y + avatar_size + 10), name, fill="white", font=font_name, anchor="mt")
+        draw.text((x + avatar_size // 2, y + avatar_size + 12), name, fill="white", font=font_name, anchor="mt")
 
         # Draw MMR / rank position / player value below the name
         value_line = format_player_value_line(player_value_lookup, member.id)
         draw.text(
-            (x + avatar_size // 2, y + avatar_size + 36), value_line, fill="#FFD700", font=font_value, anchor="mt"
+            (x + avatar_size // 2, y + avatar_size + 40), value_line, fill="#FFD700", font=font_value, anchor="mt"
         )
 
         col += 1
@@ -425,17 +431,17 @@ async def _create_player_frame(
     Returns:
         PIL Image object
     """
-    # Frame size
-    width, height = 800, 600
+    # Frame size (taller than before to fit the larger fonts below without crowding)
+    width, height = 800, 630
     img = Image.new("RGB", (width, height), color="#2C2F33")  # Discord dark theme color
     draw = ImageDraw.Draw(img)
 
     # Load font
     font_path = "./fonts/Minecraft.ttf"
     try:
-        font_large: Any = ImageFont.truetype(font_path, 32)
-        font_medium: Any = ImageFont.truetype(font_path, 22)
-        font_small: Any = ImageFont.truetype(font_path, 20)
+        font_large: Any = ImageFont.truetype(font_path, 34)
+        font_medium: Any = ImageFont.truetype(font_path, 24)
+        font_small: Any = ImageFont.truetype(font_path, 22)
         font_legend: Any = ImageFont.truetype(font_path, 14)
     except Exception as e:
         print_error_log(f"_create_player_frame: Failed to load font: {e}")
@@ -450,11 +456,11 @@ async def _create_player_frame(
     img.paste(avatar, (20, 20))
 
     # Player name
-    draw.text((140, 30), f"{member.display_name}", fill="white", font=font_large)
+    draw.text((140, 26), f"{member.display_name}", fill="white", font=font_large)
 
     # Rank emoji (text representation)
     rank_emoji_str = get_user_rank_emoji(guild_emoji, member)
-    draw.text((140, 65), f"Rank: {rank_emoji_str}", fill="#7289DA", font=font_medium)
+    draw.text((140, 70), f"Rank: {rank_emoji_str}", fill="#7289DA", font=font_medium)
 
     # Get user profile info for timezone
     user_profile = await fetch_user_info_by_user_id(member.id)
@@ -463,13 +469,13 @@ async def _create_player_frame(
             tz = pytz.timezone(user_profile.time_zone)
             current_time = datetime.now(tz)
             time_str = current_time.strftime("%I:%M %p")
-            draw.text((140, 95), f"{user_profile.time_zone} - {time_str}", fill="#99AAB5", font=font_small)
+            draw.text((140, 104), f"{user_profile.time_zone} - {time_str}", fill="#99AAB5", font=font_small)
         except Exception as e:
             print_error_log(f"_create_player_frame: Failed to get timezone for {member.display_name}: {e}")
 
     # Player value: MMR / rank position / computed value (nightly TIME_DECAYED job)
     value_line = format_player_value_line(player_value_lookup, member.id)
-    draw.text((140, 118), value_line, fill="#FFD700", font=font_small)
+    draw.text((140, 134), value_line, fill="#FFD700", font=font_small)
 
     # Get full user stats
     try:
@@ -496,10 +502,10 @@ async def _create_player_frame(
         total_hours = 0
 
     # Stats display
-    draw.text((20, 150), f"Ranked K/D: {overall_kd:.2f}", fill="white", font=font_medium)
-    draw.text((400, 150), f"Win Rate: {win_rate:.1f}%", fill="white", font=font_medium)
-    draw.text((20, 180), f"Last 10: {wins}W - {losses}L", fill="white", font=font_medium)
-    draw.text((400, 180), f"Time on Server: {total_hours}h", fill="white", font=font_medium)
+    draw.text((20, 170), f"Ranked K/D: {overall_kd:.2f}", fill="white", font=font_medium)
+    draw.text((400, 170), f"Win Rate: {win_rate:.1f}%", fill="white", font=font_medium)
+    draw.text((20, 204), f"Last 10: {wins}W - {losses}L", fill="white", font=font_medium)
+    draw.text((400, 204), f"Time on Server: {total_hours}h", fill="white", font=font_medium)
 
     # Get operator stats for this user
     operators = user_operator_map.get(member.display_name, [])
@@ -512,29 +518,29 @@ async def _create_player_frame(
     defenders.sort(key=lambda x: x.count, reverse=True)
 
     # Top 3 attackers
-    y = 220
+    y = 244
     draw.text((20, y), "TOP ATTACKERS (Last 30 Days)", fill="#FF8C00", font=font_medium)
-    y += 40
+    y += 44
 
     if attackers:
         for i, op in enumerate(attackers[:3]):
             draw.text((40, y), f"{i+1}. {op.operator_name}", fill="white", font=font_small)
             draw.text((400, y), f"{op.count} rounds", fill="#99AAB5", font=font_small)
-            y += 30
+            y += 34
     else:
         draw.text((40, y), "No recent data", fill="#99AAB5", font=font_small)
-        y += 30
+        y += 34
 
     # Top 3 defenders
-    y += 20
+    y += 22
     draw.text((20, y), "TOP DEFENDERS (Last 30 Days)", fill="#43B581", font=font_medium)
-    y += 40
+    y += 44
 
     if defenders:
         for i, op in enumerate(defenders[:3]):
             draw.text((40, y), f"{i+1}. {op.operator_name}", fill="white", font=font_small)
             draw.text((400, y), f"{op.count} rounds", fill="#99AAB5", font=font_small)
-            y += 30
+            y += 34
     else:
         draw.text((40, y), "No recent data", fill="#99AAB5", font=font_small)
 
