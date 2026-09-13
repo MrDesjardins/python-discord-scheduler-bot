@@ -1034,8 +1034,9 @@ class BotAI:
             raise ValueError("Query-plan metrics must be a list of strings")
 
         limit = plan.get("limit", 25)
-        if not isinstance(limit, int) or not 1 <= limit <= 100:
-            raise ValueError("Query-plan limit must be between 1 and 100")
+        if not isinstance(limit, int):
+            limit = 25
+        limit = max(1, min(100, limit))
 
         normalized = dict(plan)
         normalized["domain"] = domain
