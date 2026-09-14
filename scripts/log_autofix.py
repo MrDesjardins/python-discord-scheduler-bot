@@ -30,9 +30,14 @@ from typing import Any, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from dotenv import load_dotenv
+
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+
+# Same convention as bot.py: read secrets/tuning knobs from the repo-root .env.
+load_dotenv(ROOT_DIR / ".env")
 
 SENSITIVE_PARTS = (
     "authorization",
