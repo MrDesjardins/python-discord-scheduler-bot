@@ -16,6 +16,13 @@ the issue. It never merges or deploys. See `scripts/log_autofix.py` for the
 full guardrails (same shape as `privatepredictionmarket`'s
 `scripts/bugsink_autofix.py`).
 
+Patch validation (branch checkout, `make unit-test`, etc.) never touches this
+live checkout — it runs in a disposable `git worktree` under `/tmp`, built
+from the exact commit currently deployed, so a slow validation run can't leave
+the running bot's on-disk code pointed at an unmerged candidate patch. A file
+lock (also outside the repo) prevents an overlapping manual run from racing
+the timer.
+
 **Not installed by `deployment/update.sh` on its own** — `update.sh` only
 keeps these two unit files in sync *after* they already exist under
 `/etc/systemd/system/`, since enabling this requires secrets on the box.

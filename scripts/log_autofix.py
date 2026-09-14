@@ -12,6 +12,12 @@ still use ``AUTO_FIX_ENABLED=false`` for triage-only inspection; this script
 never merges or deploys. Log content is untrusted and is scrubbed before model
 use. NVIDIA is the default model provider; OpenAI remains available through
 ``AUTOFIX_PROVIDER=openai`` as a deliberate fallback.
+
+``--repo-root`` (default: this repo) is the *live* checkout the bot service
+runs from, so it is only ever read from (log file, current commit, source
+context) — all branch/patch/test/commit/push work happens in a disposable
+``git worktree`` instead (see ``create_worktree``), and a file lock prevents
+overlapping runs.
 """
 
 from __future__ import annotations
@@ -23,6 +29,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -31,6 +38,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
+from filelock import FileLock
+from filelock import Timeout as FileLockTimeout
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -280,19 +289,37 @@ class LogState:
 def read_new_log_records(log_path: Path, state: LogState) -> list[LogRecord]:
     """Read only the bytes appended to ``log_path`` since the last checkpoint.
 
-    A rotated backup (``<log_path>.1``) is inspected first when the file's
-    inode changed, so a rotation between runs doesn't silently drop records.
+    ``deps/log.py`` configures ``backupCount=2``, so up to two rotations
+    (``<log_path>.1``, the most recent rotated-out file, and ``.2``, the one
+    before it) are inspected when the file's inode changed: the checkpointed
+    backup is resumed from its saved offset, and any newer backup between it
+    and the live file is read in full. A third-or-later rotation between runs
+    (very unlikely at the timer's cadence vs. the 5MB rotation size) falls
+    outside that window and its lines are best-effort dropped rather than
+    erroring.
     """
     if not log_path.exists():
         return []
     current_stat = log_path.stat()
     records: list[LogRecord] = []
     if state.checkpoint_inode is not None and state.checkpoint_inode != current_stat.st_ino:
-        backup_path = log_path.with_suffix(log_path.suffix + ".1")
-        if backup_path.exists() and backup_path.stat().st_ino == state.checkpoint_inode:
-            with backup_path.open("r", encoding="utf-8", errors="replace") as handle:
+        backups = [log_path.with_suffix(log_path.suffix + f".{n}") for n in (1, 2)]
+        matched_index = next(
+            (
+                i
+                for i, backup in enumerate(backups)
+                if backup.exists() and backup.stat().st_ino == state.checkpoint_inode
+            ),
+            None,
+        )
+        if matched_index is not None:
+            matched_backup = backups[matched_index]
+            with matched_backup.open("r", encoding="utf-8", errors="replace") as handle:
                 handle.seek(state.checkpoint_offset)
                 records.extend(parse_log_lines(handle.read()))
+            for newer_backup in reversed(backups[:matched_index]):
+                if newer_backup.exists():
+                    records.extend(parse_log_lines(newer_backup.read_text(encoding="utf-8", errors="replace")))
         state.checkpoint_offset = 0
     offset = state.checkpoint_offset if state.checkpoint_offset <= current_stat.st_size else 0
     with log_path.open("r", encoding="utf-8", errors="replace") as handle:
@@ -433,24 +460,36 @@ def openai_output_text(payload: dict[str, Any]) -> str:
     return "".join(chunks)
 
 
-def chat_completion_output_text(payload: dict[str, Any]) -> str:
+def chat_completion_output(payload: dict[str, Any]) -> tuple[str, str]:
+    """Return ``(content_text, finish_reason)``.
+
+    Some NVIDIA-hosted reasoning models (observed with ``z-ai/glm-5.3-flash``)
+    can return ``"content": null`` alongside a populated ``reasoning_content``
+    when the response is cut off before the final answer — most often
+    ``finish_reason == "length"``. That reasoning text is not the requested
+    JSON payload, so it is intentionally not treated as a fallback answer;
+    the caller uses ``finish_reason`` only to produce a diagnosable error
+    instead of an opaque "non-JSON output" one.
+    """
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
-        return ""
+        return "", ""
     first = choices[0]
     if not isinstance(first, dict):
-        return ""
+        return "", ""
+    finish_reason = str(first.get("finish_reason") or "")
     message = first.get("message")
     if not isinstance(message, dict):
-        return ""
+        return "", finish_reason
     content = message.get("content")
     if isinstance(content, str):
-        return content
+        return content, finish_reason
     if isinstance(content, list):
-        return "".join(
+        text = "".join(
             str(item["text"]) for item in content if isinstance(item, dict) and isinstance(item.get("text"), str)
         )
-    return ""
+        return text, finish_reason
+    return "", finish_reason
 
 
 def parse_plan(text: str, *, provider: str) -> dict[str, Any]:
@@ -593,7 +632,14 @@ def request_nvidia_fix_plan(config: Config, context: dict[str, Any]) -> dict[str
             payload = json.load(response)
     except (HTTPError, URLError, TimeoutError) as exc:
         raise AutoFixError(f"NVIDIA request failed: {exc}") from exc
-    return parse_plan(chat_completion_output_text(payload), provider="NVIDIA")
+    text, finish_reason = chat_completion_output(payload)
+    if not text.strip():
+        detail = f" (finish_reason={finish_reason!r})" if finish_reason else ""
+        raise ModelOutputError(
+            f"NVIDIA returned empty content{detail}; the model likely spent its token "
+            "budget on internal reasoning before answering"
+        )
+    return parse_plan(text, provider="NVIDIA")
 
 
 def request_fix_plan(config: Config, context: dict[str, Any]) -> dict[str, Any]:
@@ -652,13 +698,31 @@ def github_request(config: Config, method: str, path: str, payload: dict[str, An
         raise AutoFixError(f"GitHub request failed: {path}: {exc}") from exc
 
 
+def github_paginate(config: Config, path: str, *, max_pages: int = 20) -> list[dict[str, Any]]:
+    """Follow ``page=`` through a GitHub list endpoint instead of trusting a single 100-item page.
+
+    A hard 100-item first page silently missed older PRs/issues/branches once
+    a repo grew past that; this walks up to ``max_pages`` (2,000 items) pages.
+    """
+    separator = "&" if "?" in path else "?"
+    results: list[dict[str, Any]] = []
+    for page in range(1, max_pages + 1):
+        payload = github_request(config, "GET", f"{path}{separator}page={page}")
+        if not isinstance(payload, list) or not payload:
+            break
+        results.extend(item for item in payload if isinstance(item, dict))
+        if len(payload) < 100:
+            break
+    return results
+
+
 def existing_automation_pr_or_branch(config: Config, marker: str, key: str) -> bool:
-    pulls = github_request(config, "GET", f"/repos/{config.github_repository}/pulls?state=all&per_page=100")
-    if isinstance(pulls, list) and any(isinstance(p, dict) and marker in str(p.get("body", "")) for p in pulls):
+    pulls = github_paginate(config, f"/repos/{config.github_repository}/pulls?state=all&per_page=100")
+    if any(marker in str(p.get("body", "")) for p in pulls):
         return True
-    branches = github_request(config, "GET", f"/repos/{config.github_repository}/branches?per_page=100")
+    branches = github_paginate(config, f"/repos/{config.github_repository}/branches?per_page=100")
     branch_name = f"automation/log-autofix/{key}"
-    return isinstance(branches, list) and any(isinstance(b, dict) and b.get("name") == branch_name for b in branches)
+    return any(b.get("name") == branch_name for b in branches)
 
 
 def ensure_github_incident(config: Config, *, key: str, fp: str, entry: dict[str, Any]) -> dict[str, Any] | None:
@@ -696,18 +760,17 @@ def ensure_github_incident(config: Config, *, key: str, fp: str, entry: dict[str
             f"/repos/{config.github_repository}/labels",
             {"name": "prod-log-incident", "color": "D93F0B", "description": "Repeated production log incident"},
         )
-    issues = github_request(config, "GET", f"/repos/{config.github_repository}/issues?state=all&per_page=100")
-    if isinstance(issues, list):
-        for existing in issues:
-            if isinstance(existing, dict) and marker in str(existing.get("body", "")):
-                if existing.get("state") == "closed":
-                    github_request(
-                        config,
-                        "PATCH",
-                        f"/repos/{config.github_repository}/issues/{existing['number']}",
-                        {"state": "open", "body": body},
-                    )
-                return {"number": existing.get("number"), "html_url": existing.get("html_url")}
+    issues = github_paginate(config, f"/repos/{config.github_repository}/issues?state=all&per_page=100")
+    for existing in issues:
+        if marker in str(existing.get("body", "")):
+            if existing.get("state") == "closed":
+                github_request(
+                    config,
+                    "PATCH",
+                    f"/repos/{config.github_repository}/issues/{existing['number']}",
+                    {"state": "open", "body": body},
+                )
+            return {"number": existing.get("number"), "html_url": existing.get("html_url")}
     return cast(
         dict[str, Any],
         github_request(
@@ -720,13 +783,11 @@ def ensure_github_incident(config: Config, *, key: str, fp: str, entry: dict[str
 
 
 def automation_prs_last_24_hours(config: Config) -> int:
-    pulls = github_request(config, "GET", f"/repos/{config.github_repository}/pulls?state=all&per_page=100")
-    if not isinstance(pulls, list):
-        return 0
+    pulls = github_paginate(config, f"/repos/{config.github_repository}/pulls?state=all&per_page=100")
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     count = 0
     for pull in pulls:
-        if not isinstance(pull, dict) or PR_MARKER_PREFIX not in str(pull.get("body", "")):
+        if PR_MARKER_PREFIX not in str(pull.get("body", "")):
             continue
         created_at = pull.get("created_at")
         if not isinstance(created_at, str):
@@ -780,6 +841,44 @@ def create_pull_request(
         },
     )
     return str(result.get("html_url", ""))
+
+
+def create_worktree(repo_root: Path, branch: str) -> Path:
+    """Check out ``branch`` in a disposable ``git worktree`` instead of ``repo_root`` itself.
+
+    ``repo_root`` is the live production checkout — the same directory
+    ``gametimescheduler.service`` runs the bot from. Branch-switching it in
+    place would leave the running service's on-disk code pointed at an
+    unvalidated candidate patch for however long validation takes, and would
+    race a concurrent ``deployment/update.sh`` pull. A worktree gives patch
+    application, linting, and the test suite their own working directory,
+    built from the exact commit ``current_release()`` reported, while
+    ``repo_root`` stays untouched throughout.
+    """
+    base = Path(tempfile.mkdtemp(prefix="log-autofix-wt-"))
+    worktree_path = base / "wt"
+    run_command(repo_root, ["git", "worktree", "add", "-b", branch, str(worktree_path), "HEAD"])
+    venv_source = repo_root / ".venv"
+    if venv_source.is_dir():
+        (worktree_path / ".venv").symlink_to(venv_source, target_is_directory=True)
+    return worktree_path
+
+
+def remove_worktree(repo_root: Path, worktree_path: Path, branch: str) -> None:
+    """Best-effort cleanup; never raises, since it always runs from a ``finally``."""
+    subprocess.run(
+        ["git", "worktree", "remove", "--force", str(worktree_path)],
+        cwd=repo_root,
+        capture_output=True,
+        check=False,
+    )
+    subprocess.run(["git", "worktree", "prune"], cwd=repo_root, capture_output=True, check=False)
+    subprocess.run(["git", "branch", "-D", branch], cwd=repo_root, capture_output=True, check=False)
+    try:
+        if worktree_path.parent.is_dir():
+            worktree_path.parent.rmdir()
+    except OSError:
+        pass
 
 
 def build_context(config: Config, fp: str, entry: dict[str, Any]) -> dict[str, Any]:
@@ -880,12 +979,12 @@ def process(config: Config) -> dict[str, Any]:
             report["skipped"].append({**candidate, "reason": "model changed_files do not match the patch"})
             continue
         branch = f"automation/log-autofix/{key}"
-        run_command(config.repo_root, ["git", "checkout", "-b", branch])
+        worktree_path = create_worktree(config.repo_root, branch)
         try:
-            validation = validate_patch(config.repo_root, str(plan.get("patch", "")))
-            run_command(config.repo_root, ["git", "add", "--", *sorted(patch_paths(str(plan["patch"])))])
-            run_command(config.repo_root, ["git", "commit", "-m", f"Fix production log incident {fp}"])
-            run_command(config.repo_root, ["git", "push", "--set-upstream", "origin", branch], timeout=300)
+            validation = validate_patch(worktree_path, str(plan.get("patch", "")))
+            run_command(worktree_path, ["git", "add", "--", *sorted(patch_paths(str(plan["patch"])))])
+            run_command(worktree_path, ["git", "commit", "-m", f"Fix production log incident {fp}"])
+            run_command(worktree_path, ["git", "push", "--set-upstream", "origin", branch], timeout=300)
             candidate.update(
                 {
                     "validation": validation,
@@ -907,7 +1006,7 @@ def process(config: Config) -> dict[str, Any]:
             report["prs_opened"].append(candidate)
             opened += 1
         finally:
-            run_command(config.repo_root, ["git", "checkout", "--detach", "HEAD"])
+            remove_worktree(config.repo_root, worktree_path, branch)
     (config.output_dir / "report.json").write_text(
         json.dumps(scrub(report), indent=2, sort_keys=True), encoding="utf-8"
     )
@@ -921,20 +1020,33 @@ def main() -> int:
     args = parser.parse_args()
     try:
         config = Config.from_environment(output_dir=args.output_dir, repo_root=args.repo_root.resolve())
-        report = process(config)
-        print(
-            json.dumps(
-                {
-                    "records_seen": report["records_seen"],
-                    "candidates": len(report["candidates"]),
-                    "prs_opened": len(report["prs_opened"]),
-                }
-            )
-        )
+    except AutoFixError as exc:
+        print(f"log-autofix: {exc}", file=sys.stderr)
+        return 2
+    # A manual run overlapping the timer (or two timer fires overlapping, if
+    # validate_patch's test suite runs long) would otherwise race on the
+    # shared state file and worktree bookkeeping. The lock lives outside the
+    # repo so it never needs a .gitignore entry.
+    lock_path = Path(tempfile.gettempdir()) / f"log-autofix-{config.repo_root.name}.lock"
+    try:
+        with FileLock(str(lock_path)).acquire(timeout=0):
+            report = process(config)
+    except FileLockTimeout:
+        print("log-autofix: another run is already in progress; skipping", file=sys.stderr)
         return 0
     except AutoFixError as exc:
         print(f"log-autofix: {exc}", file=sys.stderr)
         return 2
+    print(
+        json.dumps(
+            {
+                "records_seen": report["records_seen"],
+                "candidates": len(report["candidates"]),
+                "prs_opened": len(report["prs_opened"]),
+            }
+        )
+    )
+    return 0
 
 
 if __name__ == "__main__":
