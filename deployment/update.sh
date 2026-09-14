@@ -34,6 +34,17 @@ else
     echo "Systemd service file unchanged"
 fi
 
+# Update the log-autofix service/timer if they changed (not enabled here;
+# see systemd/README.md to opt in on a box that has NVIDIA_API_KEY/GITHUB_TOKEN set)
+for unit in gametimescheduler-log-autofix.service gametimescheduler-log-autofix.timer; do
+    if [ -f "/etc/systemd/system/$unit" ] && ! cmp -s "systemd/$unit" "/etc/systemd/system/$unit"; then
+        echo "$unit has changed, updating..."
+        sudo cp "systemd/$unit" "/etc/systemd/system/$unit"
+        sudo systemctl daemon-reload
+        echo "✓ $unit updated"
+    fi
+done
+
 # Restart the service
 echo "Restarting gametimescheduler.service..."
 sudo systemctl restart gametimescheduler.service

@@ -1,0 +1,21 @@
+[Unit]
+Description=Discord Scheduler Bot - app.log triage / guarded auto-fix
+After=network.target local-fs.target
+Requires=network.target local-fs.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pdesjardins/code/python-discord-scheduler-bot
+ExecStart=/home/pdesjardins/.local/bin/uv run /home/pdesjardins/code/python-discord-scheduler-bot/scripts/log_autofix.py
+User=pdesjardins
+Group=pdesjardins
+
+# .env carries NVIDIA_API_KEY / GITHUB_TOKEN / AUTO_FIX_* — same load_dotenv()
+# convention as bot.py, read directly from the working directory.
+EnvironmentFile=/etc/environment
+Environment="PATH=/home/pdesjardins/.local/bin:/usr/local/bin:/usr/bin:/bin:/home/pdesjardins/code/python-discord-scheduler-bot/.venv/bin"
+Environment=PYTHONUNBUFFERED=1
+Environment=ENV=prod
+
+StandardOutput=journal
+StandardError=journal

@@ -181,3 +181,7 @@ reports/
 
 # Generated player value comparison reports
 player_values_*.csv
+
+# log_autofix.py local checkpoint/occurrence state and triage reports
+scripts/.log_autofix_state.json
+artifacts/log-autofix/
