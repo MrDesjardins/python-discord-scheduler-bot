@@ -139,7 +139,7 @@ class Config:
             openai_api_key=os.environ.get("OPENAI_API_KEY", "").strip(),
             openai_model=os.environ.get("OPENAI_MODEL", "gpt-5-mini").strip(),
             nvidia_api_key=os.environ.get("NVIDIA_API_KEY", "").strip(),
-            nvidia_model=os.environ.get("NVIDIA_AUTOFIX_MODEL", "moonshotai/Kimi-K3").strip(),
+            nvidia_model=os.environ.get("NVIDIA_AUTOFIX_MODEL", "z-ai/glm-5.3-flash").strip(),
             output_dir=output_dir,
             repo_root=repo_root,
             enabled=os.environ.get("AUTO_FIX_ENABLED", "false").lower() == "true",

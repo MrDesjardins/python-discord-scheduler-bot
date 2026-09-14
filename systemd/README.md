@@ -30,11 +30,15 @@ keeps these two unit files in sync *after* they already exist under
                  Pull requests (write), Issues (write)>
    NVIDIA_API_KEY=<NVIDIA integrate.api.nvidia.com key>
 
-   # Model used for triage/fix-plan generation. Defaults to moonshotai/Kimi-K3
-   # (https://build.nvidia.com/moonshotai/kimi-k3) if unset; override to try
-   # another NVIDIA-hosted model, or set AUTOFIX_PROVIDER=openai + OPENAI_MODEL
-   # to use OpenAI instead.
-   NVIDIA_AUTOFIX_MODEL=moonshotai/Kimi-K3
+   # Model used for triage/fix-plan generation. Defaults to z-ai/glm-5.3-flash
+   # if unset (confirmed ~46s round trip on this account). moonshotai/kimi-k3
+   # was tried first but its ~2.8T parameters make it too slow for NVIDIA's
+   # shared serverless hosting: a real request timed out after 302s with a
+   # 504 from NVIDIA's own gateway, not just our client-side timeout — so it
+   # is not viable for this synchronous guarded-fix flow. Override to try a
+   # different NVIDIA-hosted model (verify its latency first), or set
+   # AUTOFIX_PROVIDER=openai + OPENAI_MODEL to use OpenAI instead.
+   NVIDIA_AUTOFIX_MODEL=z-ai/glm-5.3-flash
 
    # Guarded by default — set to true only once you've reviewed a few
    # triage-only runs (AUTO_FIX_ENABLED=false) and trust the output:
