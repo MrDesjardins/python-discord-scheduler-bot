@@ -1785,9 +1785,9 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
         finished_map = (
             pending_result_key.split(":", 3)[3] if was_already_final and pending_result_key.count(":") >= 3 else ""
         )
-        is_next_match = not parsed_result.is_match_complete and (
-            (parsed_result.our_score + parsed_result.their_score) <= 3
-            or bool(finished_map and parsed_result.map_name and parsed_result.map_name != finished_map)
+        different_map = bool(finished_map and parsed_result.map_name and parsed_result.map_name != finished_map)
+        is_next_match = different_map or (
+            not parsed_result.is_match_complete and (parsed_result.our_score + parsed_result.their_score) <= 3
         )
         if was_already_final and is_next_match:
             # This pending record already posted its final result; a fresh low score

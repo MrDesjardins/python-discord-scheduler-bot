@@ -80,7 +80,7 @@ MATCH_START_GIF_DEDUPLICATION_MINUTES = 20
 # "Picking Operators: Ranked" presence blips stats.cc emits for a minute or two
 # after a match, short enough that the squad's very next match still gets its own
 # GIF and its own TribeMarkets market instead of overwriting the finished one.
-MATCH_START_GIF_POST_MATCH_GRACE_MINUTES = 3
+MATCH_START_GIF_POST_MATCH_GRACE_MINUTES = 2
 
 # -----------------------
 # User's commands
