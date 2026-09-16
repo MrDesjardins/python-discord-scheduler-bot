@@ -39,3 +39,15 @@ class BrowserVersionMismatchException(BrowserStartupException):
 
 class CircuitBreakerOpenException(BrowserException):
     """Raised when circuit breaker is open and not accepting requests"""
+
+
+class TrackerAccountNotFoundException(BrowserException):
+    """Raised when tracker.gg reports the Ubisoft username on file does not exist.
+
+    This means the account was likely renamed and the username stored for the
+    Discord member is stale, not a transient fetch failure.
+    """
+
+    def __init__(self, ubisoft_username: str):
+        super().__init__(f"tracker.gg has no player named '{ubisoft_username}'")
+        self.ubisoft_username = ubisoft_username

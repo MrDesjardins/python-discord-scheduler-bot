@@ -320,6 +320,9 @@ class UserWithUserMatchInfo:
 
     user_request_stats: UserQueueForStats
     match_stats: List[UserFullMatchStats]
+    # True when tracker.gg reported the Ubisoft username on file does not exist
+    # (stale/renamed account), rather than simply having no recent matches.
+    account_not_found: bool = False
 
 
 @dataclasses.dataclass

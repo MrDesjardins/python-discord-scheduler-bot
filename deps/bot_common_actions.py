@@ -81,6 +81,8 @@ from deps.functions import (
     set_member_role_from_rank,
 )
 from deps.values import (
+    COMMAND_ACTIVE_RANK_USER_ACCOUNT,
+    COMMAND_INIT_USER,
     DELAY_BETWEEN_DISCORD_ACTIONS_SECONDS,
     MATCH_START_GIF_DEDUPLICATION_MINUTES,
     MATCH_START_GIF_DELETE_AFTER_SECONDS,
@@ -907,6 +909,33 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
             print_log(f"send_channel_list_stats: User {user_info.display_name} has no active Ubisoft account set")
             await data_acess_remove_list_member_stats(user_stats.user_request_stats)
             continue
+        if user_stats.account_not_found:
+            # Deterministic failure (the username itself does not exist on tracker.gg): retrying
+            # on later cycles cannot help, so notify the member once now instead of retrying.
+            print_log(
+                f"send_channel_list_stats: Ubisoft account '{user_info.ubisoft_username_active}' for "
+                f"{user_info.display_name} not found on tracker.gg. Notifying the member."
+            )
+            await data_acess_remove_list_member_stats(user_stats.user_request_stats)
+            channel_id = await data_access_get_gaming_session_text_channel_id(guild_id)
+            if channel_id is None:
+                print_warning_log(f"send_channel_list_stats: Text channel not set for guild {guild_id}. Skipping.")
+                continue
+            channel = await data_access_get_channel(channel_id)
+            if channel is None:
+                print_warning_log(f"send_channel_list_stats: Text channel not found for guild {guild_id}. Skipping.")
+                continue
+            member = await data_access_get_member(guild_id, member_id)
+            if member is None:
+                print_error_log(f"send_channel_list_stats: Member {member_id} not found in guild {guild_id}")
+                continue
+            try:
+                await channel.send(
+                    content=get_gaming_session_account_not_found_message(member, user_info.ubisoft_username_active)
+                )
+            except Exception as e:
+                print_error_log(f"send_channel_list_stats: Error notifying account not found: {e}")
+            continue
         try:
             aggregation: Optional[UserMatchInfoSessionAggregate] = get_user_gaming_session_stats(
                 user_info.ubisoft_username_active, time_past, user_stats.match_stats
@@ -949,6 +978,19 @@ async def send_channel_list_stats(users_stats: List[UserWithUserMatchInfo]) -> N
         except Exception as e:
             print_error_log(f"send_channel_list_stats: Error sending the user stats: {e}")
             continue  # Skip to the next user
+
+
+def get_gaming_session_account_not_found_message(member: discord.Member, ubisoft_username: str) -> str:
+    """Message asking a member to fix their Ubisoft username after tracker.gg reported it does not exist."""
+    return (
+        f"{member.mention} I could not fetch your stats: tracker.gg has no player named `{ubisoft_username}`. "
+        "This usually means your Ubisoft account was renamed and the username saved for you is out of date.\n\n"
+        f"To fix it, run one of these:\n"
+        f"- **/{COMMAND_ACTIVE_RANK_USER_ACCOUNT}** `ubisoft_connect_name:<your current Ubisoft username>` - "
+        "just updates the Ubisoft account used to fetch your match stats and rank, without touching anything else.\n"
+        f"- **/{COMMAND_INIT_USER}** - redoes your whole profile setup (timezone, active account, and max rank "
+        "account); use this if you haven't set up your profile in a while."
+    )
 
 
 def get_gaming_session_user_embed_message(

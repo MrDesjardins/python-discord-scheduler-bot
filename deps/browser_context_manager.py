@@ -41,6 +41,7 @@ from deps.browser_exceptions import (
     BrowserTimeoutException,
     BrowserVersionMismatchException,
     CircuitBreakerOpenException,
+    TrackerAccountNotFoundException,
 )
 from deps.browser_circuit_breaker import BrowserCircuitBreaker
 
@@ -986,6 +987,14 @@ class BrowserContextManager:
                         file.write(json.dumps(data, indent=4))
                 except Exception as e:
                     print_warning_log(f"Failed to write debug JSON file: {e}")
+            # tracker.gg reports this specific error code when the username itself does not
+            # exist (confirmed by checking the profile page directly: "404 PLAYER NOT FOUND"),
+            # not merely "no recent matches". The stored username is stale (likely renamed).
+            errors = data.get("errors") if isinstance(data, dict) else None
+            if isinstance(errors, list) and any(
+                isinstance(err, dict) and err.get("code") == "StandardApiV2::NoData" for err in errors
+            ):
+                raise TrackerAccountNotFoundException(ubisoft_user_name)
             # Step 6: Parse the JSON data to extract the matches
             return parse_json_from_full_matches(data, user_queued.user_info)
         except json.JSONDecodeError as e:

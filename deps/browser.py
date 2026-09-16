@@ -11,6 +11,7 @@ from deps.browser_exceptions import (
     BrowserStartupException,
     BrowserTimeoutException,
     CircuitBreakerOpenException,
+    TrackerAccountNotFoundException,
 )
 from deps.data_access_data_class import UserInfo
 from deps.models import (
@@ -40,6 +41,14 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
                     if len(users_queued) > 1:
                         time.sleep(random.uniform(3, 12))  # Sleep few seconds between each request
 
+                except TrackerAccountNotFoundException as e:
+                    # The username on file does not exist on tracker.gg (likely renamed).
+                    # Record it (instead of just logging) so the caller can tell the member.
+                    print_error_log(
+                        f"download_full_matches: Account not found for {user_queue.user_info.display_name}: {e}"
+                    )
+                    all_users_matches.append(UserWithUserMatchInfo(user_queue, [], account_not_found=True))
+                    continue
                 except BrowserTimeoutException as e:
                     # Timeout for individual user - log and continue with next user
                     print_error_log(
