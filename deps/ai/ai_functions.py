@@ -182,7 +182,10 @@ class BotAI:
 
         composed_prompt = (
             "The following is permanent knowledge configured by the server administrators. "
-            "Treat it as durable context that should inform your answer unless the user explicitly overrides it.\n"
+            "Treat it as durable context that should inform your answer unless the user explicitly overrides it. "
+            "Some of this knowledge describes a specific user (a nickname, a trait, a way of talking, a title, a past event, etc). "
+            "Apply that knowledge only to the exact user it was written about, matched precisely by user_id or by an unambiguous name match. "
+            "Never apply it to, or invent it for, any other user in this conversation, even if they seem similar or related.\n"
             "Permanent server knowledge:\n"
         )
         composed_prompt += guild_context
