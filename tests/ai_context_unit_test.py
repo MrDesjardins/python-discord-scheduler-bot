@@ -151,6 +151,22 @@ def test_split_daily_summary_sections_drops_unmatched_paragraphs():
     assert sections[0][0].id == 1
 
 
+def test_split_daily_summary_sections_merges_name_heading_with_recap():
+    bot_ai = BotAI()
+    user_one = create_mock_user(1, "Fridge")
+    user_two = create_mock_user(2, "Obey")
+    response = (
+        "ubi_1\n\nubi_1 had a dominant win with three clutches.\n\n"
+        "ubi_2\n\nubi_2 struggled but pulled off an ace."
+    )
+
+    sections = bot_ai.split_daily_summary_sections(response, [user_one, user_two])
+
+    assert [user.id for user, _ in sections] == [1, 2]
+    assert sections[0][1] == "ubi_1\nubi_1 had a dominant win with three clutches."
+    assert sections[1][1] == "ubi_2\nubi_2 struggled but pulled off an ace."
+
+
 @pytest.mark.asyncio
 @patch("deps.ai.ai_functions.get_active_user_info")
 @patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range")

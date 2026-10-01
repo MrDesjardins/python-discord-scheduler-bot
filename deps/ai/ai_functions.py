@@ -610,12 +610,13 @@ class BotAI:
         paragraphs = [p.strip() for p in response.split("\n\n") if p.strip()]
         remaining_users = list(users)
         sections: List[Tuple[UserInfo, str]] = []
-        for paragraph in paragraphs:
+
+        def find_matching_user(paragraph: str, candidates: Optional[List[UserInfo]] = None) -> Optional[UserInfo]:
             casefolded = paragraph.casefold()
-            matched_user = next(
+            return next(
                 (
                     user
-                    for user in remaining_users
+                    for user in remaining_users if candidates is None or user in candidates
                     if any(
                         name and name.casefold() in casefolded
                         for name in (user.ubisoft_username_active, user.ubisoft_username_max, user.display_name)
@@ -623,9 +624,39 @@ class BotAI:
                 ),
                 None,
             )
+
+        def is_name_heading(paragraph: str, candidates: List[UserInfo]) -> bool:
+            heading_text = paragraph.rstrip(" .:!-—")
+            return any(
+                alias and heading_text.casefold() == alias.casefold()
+                for user in candidates
+                for alias in (
+                    user.ubisoft_username_active,
+                    user.ubisoft_username_max,
+                    user.display_name,
+                )
+            )
+
+        index = 0
+        while index < len(paragraphs):
+            paragraph = paragraphs[index]
+            matched_user = find_matching_user(paragraph)
+
+            # Gemini sometimes emits a player's name as a heading paragraph followed by the
+            # actual recap. Merge them before consuming the user; otherwise the heading is
+            # rendered as the embed description and the useful match paragraph is discarded.
+            if matched_user is not None and index + 1 < len(paragraphs):
+                other_users = [user for user in remaining_users if user is not matched_user]
+                if is_name_heading(paragraph, [matched_user]) and not is_name_heading(
+                    paragraphs[index + 1], other_users
+                ):
+                    paragraph = f"{paragraph}\n{paragraphs[index + 1]}"
+                    index += 1
+
             if matched_user is not None:
                 sections.append((matched_user, paragraph))
                 remaining_users.remove(matched_user)
+            index += 1
         return sections
 
     async def _build_daily_summary_response_async(
