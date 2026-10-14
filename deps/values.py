@@ -82,6 +82,10 @@ MATCH_START_GIF_DEDUPLICATION_MINUTES = 20
 # GIF and its own TribeMarkets market instead of overwriting the finished one.
 MATCH_START_GIF_POST_MATCH_GRACE_MINUTES = 2
 
+# Kill switch for the TribeMarkets integration: no market creation, no result
+# reconciliation and no startup access check while False. The GIF still posts.
+TRIBEMARKETS_ENABLED = False
+
 # -----------------------
 # User's commands
 ## Initialization, Setup

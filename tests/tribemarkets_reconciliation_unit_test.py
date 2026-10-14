@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import discord
 import pytest
 
+from deps import bot_common_actions
 from deps.tribemarkets_reconciliation import ReconciledMatch, match_uuid_already_assigned, reconcile_match
 import deps.tribemarkets_reconciliation as reconciliation
 from deps.system_database import DatabaseManager
@@ -14,6 +15,12 @@ from deps.models import UserQueueForStats, UserWithUserMatchInfo
 
 
 START = datetime(2026, 8, 18, 3, 3, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def tribemarkets_enabled(monkeypatch):
+    """Exercise the reconciliation path even while the integration is switched off."""
+    monkeypatch.setattr(bot_common_actions, "TRIBEMARKETS_ENABLED", True)
 
 
 def match(*, user_id: int, uuid: str, offset_minutes: int = 2, won: bool = True, map_name: str = "Villa"):
@@ -191,7 +198,6 @@ def test_pending_market_persistence_expires_after_retry_retention(tmp_path, monk
 
 @pytest.mark.asyncio
 async def test_async_reconciliation_resolves_from_fetched_history(monkeypatch):
-    from deps import bot_common_actions
 
     market = {
         "market_id": "market-async",
@@ -267,7 +273,6 @@ async def test_async_reconciliation_resolves_from_fetched_history(monkeypatch):
 @pytest.mark.asyncio
 async def test_async_reconciliation_settles_a_previously_matched_market(monkeypatch):
     """Once the challenge window closes, a later poll must post the recap and resolve it."""
-    from deps import bot_common_actions
 
     market = {
         "market_id": "market-settle",
@@ -507,7 +512,6 @@ async def test_update_match_start_gif_message_clears_pending_when_no_members_res
 @pytest.mark.asyncio
 async def test_reconcile_pending_tribemarkets_finishes_gif_message_from_r6_tracker(monkeypatch):
     """The R6 Tracker fallback branch must also finish the match-start GIF message."""
-    from deps import bot_common_actions
 
     market = {
         "market_id": "market-gif",

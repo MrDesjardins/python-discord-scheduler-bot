@@ -90,6 +90,7 @@ from deps.values import (
     MAX_STATS_QUEUE_ATTEMPTS,
     STATS_HOURS_WINDOW_IN_PAST,
     SUPPORTED_TIMES_STR,
+    TRIBEMARKETS_ENABLED,
 )
 from deps.siege import (
     get_aggregation_all_activities,
@@ -641,6 +642,8 @@ async def reconcile_pending_tribemarkets(
     already isolated in ``download_full_matches_async`` (``asyncio.to_thread``)
     and must never run directly on the Discord event loop.
     """
+    if not TRIBEMARKETS_ENABLED:
+        return
     pending_markets = list_pending_markets()
     if not pending_markets:
         return
@@ -1633,37 +1636,38 @@ async def send_match_start_gif(
                 "send_match_start_gif: GIF send timed out after 15 seconds; " "continuing with TribeMarkets handoff"
             )
         market: MatchMarket | None = None
-        try:
-            map_name = next(
-                (
-                    inferred_map
-                    for member in members_for_gif
-                    if (inferred_map := infer_map_name(getattr(get_statscc_activity(member), "details", None)))
-                ),
-                None,
-            )
-            market = await asyncio.wait_for(
-                TribeMarketsClient().create_match_market(
-                    guild_id=guild_id,
-                    voice_channel_id=voice_channel_id,
-                    member_names=[member.display_name for member in members_for_gif if not member.bot],
-                    started_at=started_at,
-                    map_name=map_name,
-                ),
-                timeout=TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS,
-            )
-            if market is not None:
-                print_log(
-                    f"send_match_start_gif: Created TribeMarkets market {market.market_id}; "
-                    f"share URL {market.share_url}"
+        if TRIBEMARKETS_ENABLED:
+            try:
+                map_name = next(
+                    (
+                        inferred_map
+                        for member in members_for_gif
+                        if (inferred_map := infer_map_name(getattr(get_statscc_activity(member), "details", None)))
+                    ),
+                    None,
                 )
-        except asyncio.TimeoutError:
-            print_warning_log(
-                "send_match_start_gif: TribeMarkets market creation timed out after "
-                f"{TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS} seconds"
-            )
-        except Exception as exc:
-            print_warning_log(f"send_match_start_gif: TribeMarkets market unavailable: {exc}")
+                market = await asyncio.wait_for(
+                    TribeMarketsClient().create_match_market(
+                        guild_id=guild_id,
+                        voice_channel_id=voice_channel_id,
+                        member_names=[member.display_name for member in members_for_gif if not member.bot],
+                        started_at=started_at,
+                        map_name=map_name,
+                    ),
+                    timeout=TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS,
+                )
+                if market is not None:
+                    print_log(
+                        f"send_match_start_gif: Created TribeMarkets market {market.market_id}; "
+                        f"share URL {market.share_url}"
+                    )
+            except asyncio.TimeoutError:
+                print_warning_log(
+                    "send_match_start_gif: TribeMarkets market creation timed out after "
+                    f"{TRIBEMARKETS_MARKET_CREATE_TIMEOUT_SECONDS} seconds"
+                )
+            except Exception as exc:
+                print_warning_log(f"send_match_start_gif: TribeMarkets market unavailable: {exc}")
 
         if market is not None:
             vote_content = format_vote_open_message(market)
@@ -1859,7 +1863,7 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
 
         market: MatchMarket | None = None
         raw_market = pending.get("market")
-        if isinstance(raw_market, dict):
+        if TRIBEMARKETS_ENABLED and isinstance(raw_market, dict):
             try:
                 market = MatchMarket.from_dict(raw_market)
             except (KeyError, TypeError, ValueError) as exc:

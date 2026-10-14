@@ -6,6 +6,7 @@ import discord
 from discord.ext import commands
 from deps.log import print_log, print_error_log
 from deps.tribemarkets import TribeMarketsClient
+from deps.values import TRIBEMARKETS_ENABLED
 
 
 class MyBot(commands.Bot):
@@ -27,6 +28,8 @@ class MyBot(commands.Bot):
     async def setup_hook(self) -> None:
         """Load bot extensions during discord.py startup."""
         await self.load_cogs()
+        if not TRIBEMARKETS_ENABLED:
+            return
         try:
             await TribeMarketsClient().check_access()
         except Exception as exc:  # pylint: disable=broad-exception-caught
