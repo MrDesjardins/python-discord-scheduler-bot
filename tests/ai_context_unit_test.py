@@ -6,7 +6,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from deps.ai.ai_functions import DAILY_SUMMARY_MAX_CONTEXT_CHARS, OPENAI_FALLBACK_MODELS, BotAI
+from deps.ai.ai_functions import (
+    DAILY_SUMMARY_MAX_CONTEXT_CHARS,
+    DAILY_SUMMARY_RETRY_DELAYS_SECONDS,
+    OPENAI_FALLBACK_MODELS,
+    BotAI,
+)
 from deps.data_access import (
     data_access_clear_guild_ai_context,
     data_access_get_guild_ai_context,
@@ -791,3 +796,65 @@ async def test_generate_clarifying_question_falls_back_when_provider_fails():
         question = await bot_ai.generate_clarifying_question(1, "compare my perf", "context")
 
     assert "clarify" in question.lower()
+
+
+@pytest.mark.asyncio
+@patch("deps.ai.ai_functions.asyncio.sleep", new_callable=AsyncMock)
+@patch("deps.ai.ai_functions.get_active_user_info")
+@patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range")
+async def test_generate_daily_summary_sections_async_retries_until_ai_answers(
+    mock_fetch_matches, mock_get_active_users, mock_sleep
+):
+    bot_ai = BotAI()
+    mock_get_active_users.return_value = [create_mock_user(1, "Fridge")]
+    mock_fetch_matches.return_value = {1: [create_mock_match(1, "match-1")]}
+    ask = AsyncMock(side_effect=[None, None, "[[user_id=1]]\nubi_1 won."])
+
+    with patch.object(bot_ai, "ask_ai_async", ask):
+        result = await bot_ai.generate_daily_summary_sections_async(42, 24)
+
+    assert result.fallback_text is None
+    assert [(user.id, text) for user, text in result.sections] == [(1, "ubi_1 won.")]
+    assert ask.await_count == 3
+    assert [c.args[0] for c in mock_sleep.await_args_list] == list(DAILY_SUMMARY_RETRY_DELAYS_SECONDS[:2])
+
+
+@pytest.mark.asyncio
+@patch("deps.ai.ai_functions.asyncio.sleep", new_callable=AsyncMock)
+@patch("deps.ai.ai_functions.get_active_user_info")
+@patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range")
+async def test_generate_daily_summary_sections_async_gives_up_after_all_retries(
+    mock_fetch_matches, mock_get_active_users, mock_sleep, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)  # failure path dumps the prompt to ai_context_failed.txt
+    bot_ai = BotAI()
+    mock_get_active_users.return_value = [create_mock_user(1, "Fridge")]
+    mock_fetch_matches.return_value = {1: [create_mock_match(1, "match-1")]}
+    ask = AsyncMock(return_value=None)
+
+    with patch.object(bot_ai, "ask_ai_async", ask):
+        result = await bot_ai.generate_daily_summary_sections_async(42, 24)
+
+    assert result.fallback_text is not None and "unavailable" in result.fallback_text
+    assert ask.await_count == len(DAILY_SUMMARY_RETRY_DELAYS_SECONDS) + 1
+    assert mock_sleep.await_count == len(DAILY_SUMMARY_RETRY_DELAYS_SECONDS)
+
+
+@pytest.mark.asyncio
+@patch("deps.ai.ai_functions.asyncio.sleep", new_callable=AsyncMock)
+@patch("deps.ai.ai_functions.get_active_user_info")
+@patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range")
+async def test_generate_message_summary_matches_async_does_not_retry(
+    mock_fetch_matches, mock_get_active_users, mock_sleep, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    bot_ai = BotAI()
+    mock_get_active_users.return_value = [create_mock_user(1, "Fridge")]
+    mock_fetch_matches.return_value = {1: [create_mock_match(1, "match-1")]}
+    ask = AsyncMock(return_value=None)
+
+    with patch.object(bot_ai, "ask_ai_async", ask):
+        await bot_ai.generate_message_summary_matches_async(42, 24)
+
+    assert ask.await_count == 1
+    mock_sleep.assert_not_awaited()

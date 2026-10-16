@@ -77,6 +77,9 @@ OPENAI_FALLBACK_MODELS = ["gpt-5.6-terra", "gpt-5.6-luna"]
 # Gemini SDK HTTP timeout in milliseconds (large prompts; avoids stuck sockets indefinitely)
 GEMINI_HTTP_TIMEOUT_MS = 4 * 60 * 1000
 DAILY_SUMMARY_MAX_CONTEXT_CHARS = 90_000
+# Waits between attempts of the scheduled daily summary (~33 min total) so a temporary provider outage
+# (e.g. Gemini 503 "high demand") does not skip the day's recap.
+DAILY_SUMMARY_RETRY_DELAYS_SECONDS: Tuple[int, ...] = (60, 120, 300, 600, 900)
 # Each daily-summary section opens with this marker so ownership never depends on parsing names in prose.
 DAILY_SUMMARY_SECTION_MARKER_RE = re.compile(r"\[{1,2}\s*user_id\s*=\s*(\d+)\s*\]{1,2}", re.IGNORECASE)
 
@@ -591,7 +594,7 @@ class BotAI:
         full active roster, for rendering a banner image + one Discord embed per user.
         """
         fallback_text, normalized_response, users, matches = await self._build_daily_summary_response_async(
-            guild_id, hours
+            guild_id, hours, retry_delays_seconds=DAILY_SUMMARY_RETRY_DELAYS_SECONDS
         )
         if fallback_text is not None or normalized_response is None:
             return DailySummarySections(fallback_text=fallback_text or "", sections=[], users=[], matches_by_user_id={})
@@ -708,11 +711,12 @@ class BotAI:
         return users[min(candidates)[2]] if candidates else None
 
     async def _build_daily_summary_response_async(
-        self, guild_id: Union[int, None], hours: int
+        self, guild_id: Union[int, None], hours: int, retry_delays_seconds: Tuple[int, ...] = ()
     ) -> Tuple[Optional[str], Optional[str], List[UserInfo], List[UserFullMatchStats]]:
         """
         Shared LLM call behind the daily summary. Returns (fallback_text, normalized_response, users, matches):
-        exactly one of fallback_text/normalized_response is set. normalized_response has canonical
+        exactly one of fallback_text/normalized_response is set. Each entry of retry_delays_seconds
+        is one more attempt after waiting that long when both AI providers fail. normalized_response has canonical
         Ubisoft names substituted for aliases (see ``normalize_user_names_in_response``) but no
         Discord mentions yet - callers decide whether/where a mention makes sense.
         """
@@ -788,10 +792,7 @@ class BotAI:
         )
 
         try:
-            # ask_ai_async will automatically fallback from Gemini to GPT on failure
-            ai_response = await self.ask_ai_async(
-                context, timeout=800, use_gpt=False, request_type="daily_summary"
-            )
+            ai_response = await self._ask_ai_with_retry_async(context, "daily_summary", retry_delays_seconds)
 
             if ai_response is None:
                 # Dump context for debugging if both APIs failed
@@ -819,6 +820,23 @@ class BotAI:
                 users,
                 full_matches_info_by_user_id,
             )
+
+    async def _ask_ai_with_retry_async(
+        self, question: str, request_type: str, retry_delays_seconds: Tuple[int, ...]
+    ) -> Union[str, None]:
+        """Call ask_ai_async (Gemini then GPT), waiting and retrying while both providers fail."""
+        total_attempts = len(retry_delays_seconds) + 1
+        for attempt, delay in enumerate((0, *retry_delays_seconds), start=1):
+            if delay > 0:
+                print_warning_log(
+                    f"_ask_ai_with_retry_async: Both AI providers failed for {request_type}, "
+                    f"retrying in {delay}s (attempt {attempt}/{total_attempts})"
+                )
+                await asyncio.sleep(delay)
+            ai_response = await self.ask_ai_async(question, timeout=800, use_gpt=False, request_type=request_type)
+            if ai_response is not None:
+                return ai_response
+        return None
 
     async def generate_answer_when_mentioning_bot(
         self,
