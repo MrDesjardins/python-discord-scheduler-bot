@@ -108,6 +108,34 @@ def test_normalize_user_names_uses_canonical_ubisoft_name():
     assert result == "ubi_1 had a strong game."
 
 
+def test_normalize_user_names_in_response_does_not_double_dotted_canonical_names():
+    """Regression: 2026-10-15 prod recap produced Backburners.., Dom1nator.PLX.PLX and nuclear.nuclear.fridge."""
+    bot_ai = BotAI()
+
+    def user(user_id: int, display: str, active: str, max_name: str) -> UserInfo:
+        return UserInfo(
+            id=user_id,
+            display_name=display,
+            ubisoft_username_max=max_name,
+            ubisoft_username_active=active,
+            r6_tracker_active_id=f"uuid-{user_id}",
+            time_zone="US/Eastern",
+            max_mmr=3500,
+        )
+
+    users = [
+        user(1, "Backburners", "Backburners.", "Backburners."),
+        user(2, "Dom1nator", "Dom1nator.PLX", "Dom1nator.gov"),
+        user(3, "fridge", "nuclear.fridge", "nuclear.fridge"),
+    ]
+    response = "Backburners. won with Dom1nator.PLX and nuclear.fridge, while fridge thanked Dom1nator."
+
+    normalized = bot_ai.normalize_user_names_in_response(response, users)
+
+    assert normalized == "Backburners. won with Dom1nator.PLX and nuclear.fridge, while nuclear.fridge thanked Dom1nator.PLX."
+    assert bot_ai.mention_users_in_response(normalized, users) == "<@1> won with <@2> and <@3>, while <@3> thanked <@2>."
+
+
 def test_mention_users_in_response_replaces_canonical_name_with_discord_mention():
     bot_ai = BotAI()
     user = create_mock_user(1, "Fridge")
@@ -163,8 +191,121 @@ def test_split_daily_summary_sections_merges_name_heading_with_recap():
     sections = bot_ai.split_daily_summary_sections(response, [user_one, user_two])
 
     assert [user.id for user, _ in sections] == [1, 2]
-    assert sections[0][1] == "ubi_1\nubi_1 had a dominant win with three clutches."
-    assert sections[1][1] == "ubi_2\nubi_2 struggled but pulled off an ace."
+    assert sections[0][1] == "ubi_1 had a dominant win with three clutches."
+    assert sections[1][1] == "ubi_2 struggled but pulled off an ace."
+
+
+def test_split_daily_summary_sections_bold_headings_do_not_leak_to_mentioned_teammates():
+    """Regression: 2026-10-15 prod recap, bold headings + teammates named in each recap."""
+    bot_ai = BotAI()
+    lee = create_mock_user(1, "Lee")
+    dom = create_mock_user(2, "Dom1nator")
+    fridge = create_mock_user(3, "fridge")
+    response = (
+        "**ubi_1**\n\nubi_1 lost both games. He competed alongside ubi_2 in both outings.\n\n"
+        "**ubi_2**\n\nubi_2 won on Villa where he played alongside ubi_3 and ubi_1.\n\n"
+        "**ubi_3**\n\nubi_3 was perfect, sharing the win with ubi_2."
+    )
+
+    sections = bot_ai.split_daily_summary_sections(response, [lee, dom, fridge])
+
+    assert [(user.id, text) for user, text in sections] == [
+        (1, "ubi_1 lost both games. He competed alongside ubi_2 in both outings."),
+        (2, "ubi_2 won on Villa where he played alongside ubi_3 and ubi_1."),
+        (3, "ubi_3 was perfect, sharing the win with ubi_2."),
+    ]
+
+
+def test_split_daily_summary_sections_heading_matches_canonical_name_ending_with_period():
+    bot_ai = BotAI()
+    user = UserInfo(
+        id=1,
+        display_name="Burner",
+        ubisoft_username_max="Backburners.",
+        ubisoft_username_active="Backburners.",
+        r6_tracker_active_id="uuid-1",
+        time_zone="US/Eastern",
+        max_mmr=3500,
+    )
+    other = create_mock_user(2, "Obey")
+    response = "**Backburners.**\n\nubi_2 got carried by Backburners. all night."
+
+    sections = bot_ai.split_daily_summary_sections(response, [user, other])
+
+    assert [(u.id, text) for u, text in sections] == [(1, "ubi_2 got carried by Backburners. all night.")]
+
+
+def test_split_daily_summary_sections_without_headings_uses_first_named_user():
+    bot_ai = BotAI()
+    user_one = create_mock_user(1, "Fridge")
+    user_two = create_mock_user(2, "Obey")
+    response = "ubi_2 carried, teaming with ubi_1 twice.\n\nubi_1 had a quiet night alongside ubi_2."
+
+    sections = bot_ai.split_daily_summary_sections(response, [user_one, user_two])
+
+    assert [user.id for user, _ in sections] == [2, 1]
+    assert sections[0][1] == "ubi_2 carried, teaming with ubi_1 twice."
+
+
+def test_split_daily_summary_sections_ignores_alias_inside_another_word():
+    bot_ai = BotAI()
+    lee = create_mock_user(1, "Lee")
+    obey = create_mock_user(2, "Obey")
+    response = "After fleeing early, Obey still found an ace."
+
+    sections = bot_ai.split_daily_summary_sections(response, [lee, obey])
+
+    assert [user.id for user, _ in sections] == [2]
+
+
+def test_split_daily_summary_sections_markers_assign_owner_even_when_teammate_named_first():
+    bot_ai = BotAI()
+    user_one = create_mock_user(1, "Fridge")
+    user_two = create_mock_user(2, "Obey")
+    response = (
+        "[[user_id=1]]\n**ubi_1**\n\nAlongside ubi_2, ubi_1 won twice.\n\n"
+        "[[user_id=2]]\nubi_2 struggled next to ubi_1."
+    )
+
+    sections = bot_ai.split_daily_summary_sections(response, [user_one, user_two])
+
+    assert [(user.id, text) for user, text in sections] == [
+        (1, "Alongside ubi_2, ubi_1 won twice."),
+        (2, "ubi_2 struggled next to ubi_1."),
+    ]
+
+
+def test_split_daily_summary_sections_markers_drop_unknown_user_and_preamble():
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+    response = "What a night.\n\n[user_id=99]\nGhost played.\n\n[[ user_id = 1 ]] ubi_1 had a strong game."
+
+    sections = bot_ai.split_daily_summary_sections(response, [user])
+
+    assert [(u.id, text) for u, text in sections] == [(1, "ubi_1 had a strong game.")]
+
+
+def test_strip_daily_summary_section_markers_removes_ids():
+    bot_ai = BotAI()
+    response = "[[user_id=1]]\nubi_1 won.\n\n[[user_id=2]]\n\nubi_2 lost."
+
+    assert bot_ai.strip_daily_summary_section_markers(response) == "ubi_1 won.\n\nubi_2 lost."
+
+
+@pytest.mark.asyncio
+@patch("deps.ai.ai_functions.get_active_user_info")
+@patch("deps.ai.ai_functions.data_access_fetch_user_matches_in_time_range")
+async def test_generate_message_summary_matches_async_hides_section_markers(mock_fetch_matches, mock_get_active_users):
+    bot_ai = BotAI()
+    user = create_mock_user(1, "Fridge")
+    mock_get_active_users.return_value = [user]
+    mock_fetch_matches.return_value = {1: [create_mock_match(1, "match-1")]}
+
+    with patch.object(bot_ai, "ask_ai_async", AsyncMock(return_value="[[user_id=1]]\nubi_1 won.")):
+        result = await bot_ai.generate_message_summary_matches_async(42, 24)
+
+    assert "user_id" not in result
+    assert result.endswith("<@1> won.")
 
 
 @pytest.mark.asyncio

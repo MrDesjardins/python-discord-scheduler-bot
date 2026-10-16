@@ -49,7 +49,7 @@ from deps.analytic_data_access import (
 )
 from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats
-from deps.log import print_ai_audit_log, print_error_log, print_log
+from deps.log import print_ai_audit_log, print_error_log, print_log, print_warning_log
 from deps.tournaments.tournament_data_access import (
     KEY_TOURNAMENT,
     KEY_TOURNAMENT_GAME,
@@ -77,6 +77,8 @@ OPENAI_FALLBACK_MODELS = ["gpt-5.6-terra", "gpt-5.6-luna"]
 # Gemini SDK HTTP timeout in milliseconds (large prompts; avoids stuck sockets indefinitely)
 GEMINI_HTTP_TIMEOUT_MS = 4 * 60 * 1000
 DAILY_SUMMARY_MAX_CONTEXT_CHARS = 90_000
+# Each daily-summary section opens with this marker so ownership never depends on parsing names in prose.
+DAILY_SUMMARY_SECTION_MARKER_RE = re.compile(r"\[{1,2}\s*user_id\s*=\s*(\d+)\s*\]{1,2}", re.IGNORECASE)
 
 
 @dataclass
@@ -578,7 +580,8 @@ class BotAI:
         header = f"✨**AI summary generated of the last {hours} hours**✨\n"
         if fallback_text is not None or normalized_response is None:
             return header + (fallback_text or "")
-        return header + self.mention_users_in_response(normalized_response, users)
+        flat_response = self.strip_daily_summary_section_markers(normalized_response)
+        return header + self.mention_users_in_response(flat_response, users)
 
     async def generate_daily_summary_sections_async(
         self, guild_id: Union[int, None], hours: int
@@ -593,6 +596,7 @@ class BotAI:
         if fallback_text is not None or normalized_response is None:
             return DailySummarySections(fallback_text=fallback_text or "", sections=[], users=[], matches_by_user_id={})
         sections = self.split_daily_summary_sections(normalized_response, users)
+        self._warn_users_without_section(sections, users)
         matches_by_user_id: dict[int, List[UserFullMatchStats]] = {}
         for match in matches:
             matches_by_user_id.setdefault(match.user_id, []).append(match)
@@ -602,62 +606,106 @@ class BotAI:
 
     def split_daily_summary_sections(self, response: str, users: List[UserInfo]) -> List[Tuple[UserInfo, str]]:
         """
-        Split the daily-summary response into per-user sections, relying on the prompt's existing
-        "blank line between each user's section" instruction. Each paragraph is matched to the
-        first not-yet-matched user whose canonical Ubisoft name or display name appears in it;
-        paragraphs matching no user are dropped (defensive - should not normally happen).
+        Split the daily-summary response into per-user sections. The prompt asks for a
+        ``[[user_id=<id>]]`` marker opening each section, which is authoritative when present;
+        otherwise fall back to inferring ownership from names.
+        """
+        if DAILY_SUMMARY_SECTION_MARKER_RE.search(response):
+            return self._split_sections_by_marker(response, users)
+        print_warning_log("split_daily_summary_sections: No user_id markers in response, falling back to name matching")
+        return self._split_sections_by_name(response, users)
+
+    def strip_daily_summary_section_markers(self, response: str) -> str:
+        """Remove section markers (and the blank lines they leave) so IDs never reach Discord."""
+        without_markers = DAILY_SUMMARY_SECTION_MARKER_RE.sub("", response)
+        return re.sub(r"\n{3,}", "\n\n", without_markers).strip()
+
+    def _split_sections_by_marker(self, response: str, users: List[UserInfo]) -> List[Tuple[UserInfo, str]]:
+        """Text between a marker and the next one belongs to the marker's user; any preamble is dropped."""
+        users_by_id = {user.id: user for user in users}
+        texts_by_user_id: dict[int, List[str]] = {}
+        # re.split with one capture group yields [preamble, id1, body1, id2, body2, ...]
+        parts = DAILY_SUMMARY_SECTION_MARKER_RE.split(response)
+        for raw_user_id, body in zip(parts[1::2], parts[2::2]):
+            user = users_by_id.get(int(raw_user_id))
+            if user is None:
+                print_warning_log(f"split_daily_summary_sections: Dropping section for unknown user_id {raw_user_id}")
+                continue
+            stripped = (raw.strip() for raw in body.split("\n\n"))
+            paragraphs = [p for p in stripped if p and self._find_heading_user(p, [user]) is None]
+            if paragraphs and self._find_first_named_user(paragraphs[0], users) is not user:
+                print_warning_log(
+                    f"split_daily_summary_sections: Section for {user.display_name} does not open with their name"
+                )
+            if paragraphs:
+                texts_by_user_id.setdefault(user.id, []).extend(paragraphs)
+        return [(users_by_id[user_id], "\n".join(texts)) for user_id, texts in texts_by_user_id.items()]
+
+    def _warn_users_without_section(self, sections: List[Tuple[UserInfo, str]], users: List[UserInfo]) -> None:
+        covered_ids = {user.id for user, _ in sections}
+        missing = [user.display_name for user in users if user.id not in covered_ids]
+        if missing:
+            print_warning_log(f"generate_daily_summary_sections_async: No recap section for {', '.join(missing)}")
+
+    def _split_sections_by_name(self, response: str, users: List[UserInfo]) -> List[Tuple[UserInfo, str]]:
+        """
+        Fallback when the AI omitted section markers, relying on the prompt's
+        "blank line between each user's section" instruction.
+
+        A paragraph belongs to its subject, never to a teammate it mentions: a name-only heading
+        paragraph (e.g. ``**Name**``) assigns every following paragraph to that user until the
+        next heading; without a heading, the user named first in the paragraph owns it.
+        Headings are dropped from the text since the embed author already shows the user.
+        Paragraphs naming no user are dropped (defensive - should not normally happen).
         """
         paragraphs = [p.strip() for p in response.split("\n\n") if p.strip()]
-        remaining_users = list(users)
-        sections: List[Tuple[UserInfo, str]] = []
+        users_by_id = {user.id: user for user in users}
+        texts_by_user_id: dict[int, List[str]] = {}
+        heading_user: Optional[UserInfo] = None
 
-        def find_matching_user(paragraph: str, candidates: Optional[List[UserInfo]] = None) -> Optional[UserInfo]:
-            casefolded = paragraph.casefold()
-            return next(
-                (
-                    user
-                    for user in remaining_users if candidates is None or user in candidates
-                    if any(
-                        name and name.casefold() in casefolded
-                        for name in (user.ubisoft_username_active, user.ubisoft_username_max, user.display_name)
-                    )
-                ),
-                None,
-            )
+        for paragraph in paragraphs:
+            heading = self._find_heading_user(paragraph, users)
+            if heading is not None:
+                heading_user = heading
+                continue
+            owner = heading_user or self._find_first_named_user(paragraph, users)
+            if owner is None:
+                continue
+            texts_by_user_id.setdefault(owner.id, []).append(paragraph)
 
-        def is_name_heading(paragraph: str, candidates: List[UserInfo]) -> bool:
-            heading_text = paragraph.rstrip(" .:!-—")
-            return any(
-                alias and heading_text.casefold() == alias.casefold()
-                for user in candidates
-                for alias in (
-                    user.ubisoft_username_active,
-                    user.ubisoft_username_max,
-                    user.display_name,
-                )
-            )
+        return [(users_by_id[user_id], "\n".join(texts)) for user_id, texts in texts_by_user_id.items()]
 
-        index = 0
-        while index < len(paragraphs):
-            paragraph = paragraphs[index]
-            matched_user = find_matching_user(paragraph)
+    @staticmethod
+    def _user_aliases(user: UserInfo) -> List[str]:
+        return [
+            alias.strip()
+            for alias in (user.ubisoft_username_active, user.ubisoft_username_max, user.display_name)
+            if alias and alias.strip()
+        ]
 
-            # Gemini sometimes emits a player's name as a heading paragraph followed by the
-            # actual recap. Merge them before consuming the user; otherwise the heading is
-            # rendered as the embed description and the useful match paragraph is discarded.
-            if matched_user is not None and index + 1 < len(paragraphs):
-                other_users = [user for user in remaining_users if user is not matched_user]
-                if is_name_heading(paragraph, [matched_user]) and not is_name_heading(
-                    paragraphs[index + 1], other_users
-                ):
-                    paragraph = f"{paragraph}\n{paragraphs[index + 1]}"
-                    index += 1
+    def _find_heading_user(self, paragraph: str, users: List[UserInfo]) -> Optional[UserInfo]:
+        """Return the user when the paragraph is only that user's name, ignoring markdown and punctuation."""
+        decoration = " \t\n*_#`>.:!-—"
+        heading_text = paragraph.strip(decoration).casefold()
+        return next(
+            (
+                user
+                for user in users
+                if any(heading_text == alias.strip(decoration).casefold() for alias in self._user_aliases(user))
+            ),
+            None,
+        )
 
-            if matched_user is not None:
-                sections.append((matched_user, paragraph))
-                remaining_users.remove(matched_user)
-            index += 1
-        return sections
+    def _find_first_named_user(self, paragraph: str, users: List[UserInfo]) -> Optional[UserInfo]:
+        """Return the user whose name (whole-word match) appears earliest in the paragraph."""
+        # Earliest position wins; on a tie the longer alias is the more specific match.
+        candidates = [
+            (found.start(), -len(alias), index)
+            for index, user in enumerate(users)
+            for alias in self._user_aliases(user)
+            if (found := re.search(rf"(?<!\w){re.escape(alias)}(?!\w)", paragraph, flags=re.IGNORECASE))
+        ]
+        return users[min(candidates)[2]] if candidates else None
 
     async def _build_daily_summary_response_async(
         self, guild_id: Union[int, None], hours: int
@@ -679,8 +727,9 @@ class BotAI:
         context_before_matches = "Your goal is to generate a summary of the ranked matches played by the users below, kept concise. Provide one section per user."
         context_before_matches += "The canonical public identity is canonical_ubisoft_name. Use that exact name in the response; discord_display_name is only an alias for disambiguation. Never invent, shorten, or substitute a name. "
         context_before_matches += "The identity records and verified summary facts are authoritative. Match records are evidence for specific highlights. "
-        context_before_matches += "You can use match_uuid and user_id to correlate users and matches, but never print IDs. "
+        context_before_matches += "You can use match_uuid and user_id to correlate users and matches, but never print IDs, except in the section marker described below. "
         context_before_matches += "Your message must never have more than 100 words per user and have a blank line (two line breaks: \\n\\n) between each user's section. "
+        context_before_matches += "Start each user's section with a line containing exactly [[user_id=<that user's user_id>]] (for example [[user_id=123]]), then the section text beginning with that user's canonical_ubisoft_name. The marker must carry the user_id of the user the section is about, never a teammate's. Do not add headings or titles. "
         context_before_matches += "If no match, say nothing, don't say they did not play. "
         context_before_matches += (
             "Mention every user who has match data by their canonical Ubisoft name. "
@@ -702,7 +751,7 @@ class BotAI:
         context_after_matches += "Try to have the tone of a sport commentary. "
         context_after_matches += "Dont mention anything about what I asked you to do, just the result. No notes in the result concerning your task. "
         context_after_matches += (
-            "Dont mention any ID, for example do not talk about r6_tracker_active_id or match_uuid. "
+            "Dont mention any ID outside the [[user_id=...]] section markers, for example do not talk about r6_tracker_active_id or match_uuid. "
         )
         context_after_matches += "Dont mention any thing about the time. I provide the time and match_uuid for your to correlate the users and matches. "
         context_after_matches += "IMPORTANT: Separate each user's summary with a blank line (\\n\\n) to make it easy to read and split into Discord messages. Within a user's section, use single line breaks (\\n) for sentences. "
@@ -962,29 +1011,36 @@ class BotAI:
 
     def normalize_user_names_in_response(self, response: str, users: List[UserInfo]) -> str:
         """Replace known Discord aliases with the canonical Ubisoft name in final prose."""
-        normalized = response
-        replacements: list[tuple[str, str]] = []
+        replacements: dict[str, str] = {}
         for user in users:
             canonical = user.ubisoft_username_active or user.ubisoft_username_max or user.display_name
             for alias in (user.display_name, user.ubisoft_username_max):
-                if alias and alias.casefold() != canonical.casefold():
-                    replacements.append((alias, canonical))
-        for alias, canonical in sorted(replacements, key=lambda item: len(item[0]), reverse=True):
-            normalized = re.sub(
-                rf"(?<!\w){re.escape(alias)}(?!\w)", canonical, normalized, flags=re.IGNORECASE
-            )
-        return normalized
+                if alias:
+                    replacements[alias] = canonical
+            # The canonical name maps to itself so an alias never re-matches inside it (fridge in nuclear.fridge).
+            replacements[canonical] = canonical
+        return self._replace_names_single_pass(response, replacements)
 
     def mention_users_in_response(self, response: str, users: List[UserInfo]) -> str:
         """Replace each user's canonical name with a clickable Discord mention (<@user_id>)."""
-        mentioned = response
-        replacements = [
-            (user.ubisoft_username_active or user.ubisoft_username_max or user.display_name, f"<@{user.id}>")
+        replacements = {
+            user.ubisoft_username_active or user.ubisoft_username_max or user.display_name: f"<@{user.id}>"
             for user in users
-        ]
-        for name, mention in sorted(replacements, key=lambda item: len(item[0]), reverse=True):
-            mentioned = re.sub(rf"(?<!\w){re.escape(name)}(?!\w)", mention, mentioned, flags=re.IGNORECASE)
-        return mentioned
+        }
+        return self._replace_names_single_pass(response, replacements)
+
+    @staticmethod
+    def _replace_names_single_pass(text: str, replacements: dict[str, str]) -> str:
+        """
+        Replace whole-word names in a single regex pass, longest name first. Sequential re.sub calls
+        would let a short name match inside a longer one or inside an earlier replacement.
+        """
+        replacement_by_key = {name.casefold(): replacement for name, replacement in replacements.items() if name}
+        if not replacement_by_key:
+            return text
+        names = sorted((name for name in replacements if name), key=len, reverse=True)
+        pattern = re.compile(rf"(?<!\w)(?:{'|'.join(re.escape(name) for name in names)})(?!\w)", re.IGNORECASE)
+        return pattern.sub(lambda found: replacement_by_key.get(found.group(0).casefold(), found.group(0)), text)
 
     def validate_generated_sql(
         self,
