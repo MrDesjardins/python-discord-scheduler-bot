@@ -46,6 +46,8 @@ RANK_DOLLAR_TABLE = [
     (4000, 90.0),  # Diamond
     (4500, 120.0),  # Champion
 ]
+# Tier name of each RANK_DOLLAR_TABLE entry, in the same order
+RANK_DOLLAR_TIER_NAMES = ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"]
 # Dollars per rank point above the Champion threshold (same slope as Diamond->Champion)
 DOLLAR_SLOPE_ABOVE_CHAMPION = (120.0 - 90.0) / 500.0
 

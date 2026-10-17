@@ -16,7 +16,13 @@ from PIL import Image, ImageDraw, ImageFont
 from deps.analytic_activity_data_access import fetch_user_info_by_user_id_list
 from deps.analytic_match_data_access import data_access_fetch_user_matches_in_time_range
 from deps.analytic_player_value_data_access import data_access_fetch_all_user_ids_with_matches
-from deps.analytic_player_value_functions import compute_value_time_decayed
+from deps.analytic_player_value_functions import (
+    RANK_DOLLAR_TABLE,
+    RANK_DOLLAR_TIER_NAMES,
+    TIME_DECAY_KD_HALF_LIFE_DAYS,
+    TIME_DECAY_PEAK_FADE_RP_PER_DAY,
+    compute_value_time_decayed,
+)
 from deps.data_access import data_access_get_ai_text_channel_id, data_access_get_channel
 from deps.log import print_error_log, print_log
 from deps.models import UserFullMatchStats
@@ -25,6 +31,23 @@ WEEKLY_VALUE_ACTIVE_DAYS = 30
 WEEKLY_VALUE_TOP_COUNT = 60
 WEEKLY_VALUE_ROWS_PER_COLUMN = 30
 WEEKLY_VALUE_DELTA_DAYS = 7
+
+# Built from the TIME_DECAYED algorithm constants so the note follows any retuning
+_TIER_DOLLARS = ", ".join(
+    f"{name} ${dollar:.0f}" for name, (_, dollar) in zip(RANK_DOLLAR_TIER_NAMES, RANK_DOLLAR_TABLE)
+)
+WEEKLY_VALUE_EXPLANATION = (
+    "**How it is calculated**\n"
+    f"• Value = your rank tier in dollars × your K/D. {_TIER_DOLLARS}+.\n"
+    f"• The rank is your best rank points ever, minus {TIME_DECAY_PEAK_FADE_RP_PER_DAY:g} points for every day "
+    f"since you reached it (about {TIME_DECAY_PEAK_FADE_RP_PER_DAY * 365:.0f} points per year), so old peaks fade.\n"
+    "• The K/D uses all your matches, but recent matches count more: a match loses half its weight "
+    f"after {TIME_DECAY_KD_HALF_LIFE_DAYS / 30:.0f} months. It is also pulled toward 1.0 when you have few matches.\n"
+    "• Only ranked matches the bot recorded count: stats are collected when you leave a voice channel "
+    "after playing. Rollbacks are ignored.\n"
+    f"• You appear only with a recorded match in the last {WEEKLY_VALUE_ACTIVE_DAYS} days. The #rank "
+    'counts every player, so numbers can skip. "new" means you had no recorded match a week ago.'
+)
 
 font_path = os.path.abspath("./fonts/Minecraft.ttf")
 font_title = ImageFont.truetype(font_path, 24)
@@ -108,7 +131,7 @@ def generate_weekly_value_image(rows: List[WeeklyValueRow], now: datetime) -> by
 
     image = Image.new("RGB", (width, height), COLOR_BACKGROUND)
     draw = ImageDraw.Draw(image)
-    draw.text((margin, 14), f"Player Value - Top {WEEKLY_VALUE_TOP_COUNT}", font=font_title, fill=COLOR_TITLE)
+    draw.text((margin, 14), f"Player Value - Top {len(rows)}", font=font_title, fill=COLOR_TITLE)
     draw.text(
         (margin, 44),
         f"Active last {WEEKLY_VALUE_ACTIVE_DAYS} days - {now.strftime('%Y-%m-%d')}",
@@ -173,7 +196,7 @@ async def send_weekly_player_value_to_a_guild(guild: discord.Guild, now: datetim
     image_bytes = generate_weekly_value_image(rows, now)
     file = discord.File(fp=io.BytesIO(image_bytes), filename="player_values.png")
     await channel.send(
-        content=f"📊 **Weekly Player Value** — top {WEEKLY_VALUE_TOP_COUNT} players active in the last 30 days, "
-        "with the change since last week. Values update every night based on your ranked matches.",
+        content=f"📊 **Weekly Player Value** — top {len(rows)} players active in the last "
+        f"{WEEKLY_VALUE_ACTIVE_DAYS} days, with the change since last week.\n{WEEKLY_VALUE_EXPLANATION}",
         file=file,
     )

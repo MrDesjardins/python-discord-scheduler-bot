@@ -5,7 +5,9 @@ from datetime import datetime, timedelta, timezone
 
 from PIL import Image as PILImage
 
+from deps.analytic_player_value_functions import RANK_DOLLAR_TABLE, RANK_DOLLAR_TIER_NAMES
 from deps.analytic_player_value_weekly import (
+    WEEKLY_VALUE_EXPLANATION,
     WEEKLY_VALUE_TOP_COUNT,
     build_weekly_value_rows,
     generate_weekly_value_image,
@@ -90,3 +92,10 @@ def test_image_over_30_rows_doubles_width_keeps_height():
     two_columns = PILImage.open(io.BytesIO(generate_weekly_value_image(rows, NOW)))
     assert two_columns.width == 2 * single_column.width
     assert two_columns.height == single_column.height
+
+
+def test_explanation_lists_every_rank_tier():
+    """Each dollar table entry has a tier name, so the posted note shows all of them"""
+    assert len(RANK_DOLLAR_TIER_NAMES) == len(RANK_DOLLAR_TABLE)
+    assert "Copper $10" in WEEKLY_VALUE_EXPLANATION
+    assert "Champion $120+" in WEEKLY_VALUE_EXPLANATION
