@@ -1264,3 +1264,53 @@ class TestMatchStartGif:
 
         msg.edit.assert_not_awaited()
         mock_clear.assert_not_called()
+
+
+class TestMatchStartGifDebounce:
+    """A presence update must not cancel a GIF send that is already past the debounce wait."""
+
+    @pytest.mark.asyncio
+    async def test_presence_update_during_send_does_not_cancel_it(self, mock_bot):
+        """Prod 2026-11-01: the GIF posted but the cancelled send never saved its pending record."""
+        cog = MyEventsCog(mock_bot)
+        guild_id, channel_id = 111, 333
+        user_activities = {
+            1: ActivityTransition("Looking for RANKED match", "RANKED match"),
+            2: ActivityTransition("Looking for RANKED match", "RANKED match"),
+        }
+        send_started = asyncio.Event()
+        release_send = asyncio.Event()
+        completed_sends = []
+
+        async def slow_send(*_args, **_kwargs):
+            send_started.set()
+            await release_send.wait()
+            completed_sends.append(True)
+            return True
+
+        real_sleep = asyncio.sleep
+        with (
+            patch("cogs.events.asyncio.sleep", AsyncMock()),
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch("cogs.events.data_access_get_pending_match_start_gif_message", AsyncMock(return_value=None)),
+            patch(
+                "cogs.events.data_access_get_last_match_start_gif_time",
+                AsyncMock(side_effect=[None, datetime.now(timezone.utc)]),
+            ),
+            patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()),
+            patch("deps.bot_common_actions.send_match_start_gif", side_effect=slow_send),
+        ):
+            await cog.send_match_start_gif_debounced(guild_id, channel_id)
+            first_task = cog.last_task[f"matchstartgif-{guild_id}-{channel_id}"]
+            await send_started.wait()
+
+            # A teammate's presence changes mid-send: this used to cancel the first task.
+            await cog.send_match_start_gif_debounced(guild_id, channel_id)
+            release_send.set()
+            await first_task
+            await real_sleep(0)
+            second_task = cog.last_task.get(f"matchstartgif-{guild_id}-{channel_id}")
+            if second_task is not None:
+                await second_task
+
+        assert completed_sends == [True]

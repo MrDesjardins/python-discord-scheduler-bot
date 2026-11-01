@@ -94,6 +94,26 @@ def get_value_with_presence(key: str) -> tuple[bool, Any]:
     return True, value
 
 
+def get_values_by_prefix(prefix: str) -> list[Any]:
+    """
+    Get every unexpired value whose key starts with the prefix
+    """
+    rows = (
+        database_manager.get_cursor()
+        .execute(
+            """
+    SELECT value
+    FROM cache
+    WHERE key LIKE :prefix
+      AND (expiration IS NULL OR expiration > :now)
+    """,
+            {"prefix": f"{prefix}%", "now": datetime.now(timezone.utc).isoformat()},
+        )
+        .fetchall()
+    )
+    return [pickle.loads(base64.b64decode(row[0])) for row in rows]
+
+
 def remove_key(key: str) -> None:
     """
     Remove a key from the cache

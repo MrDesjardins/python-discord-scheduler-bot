@@ -22,7 +22,7 @@ from deps.cache import (
     reset_cache_by_prefixes,
     set_cache,
 )
-from deps.cache_data_access import get_value_with_presence
+from deps.cache_data_access import get_value_with_presence, get_values_by_prefix
 from deps.models import ActivityTransition, SimpleUser, SimpleUserHour, UserQueueForStats
 from deps.log import print_error_log, print_log, print_warning_log
 from deps.functions_date import get_now_eastern
@@ -60,6 +60,7 @@ KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1 = "GuildCustomGameVoiceChannelTeam1"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2 = "GuildCustomGameVoiceChannelTeam2"
 KEY_LAST_MATCH_START_GIF = "LastMatchStartGif"
 KEY_PENDING_MATCH_START_GIF = "PendingMatchStartGif"
+KEY_MATCH_GIF_AWAITING_RESULT = "MatchGifAwaitingResult"
 KEY_GUILD_PRIVATE_CHANNEL_CATEGORY = "GuildPrivateChannelCategory"
 KEY_GUILD_ACTIVE_PRIVATE_CHANNEL = "GuildActivePrivateChannel"
 
@@ -744,6 +745,29 @@ def data_access_clear_pending_match_start_gif_message(guild_id: int, voice_chann
     """Remove pending match-start GIF metadata (after successful result edit or abandon)."""
     key = f"{KEY_PENDING_MATCH_START_GIF}:{guild_id}:{voice_channel_id}"
     remove_cache(False, key)
+
+
+def data_access_set_match_gif_awaiting_result(record: dict[str, Any], ttl_seconds: int) -> None:
+    """Remember a posted match-start GIF until a final score (stats.cc or R6 Tracker) is written on it.
+
+    Keyed by message id rather than voice channel, so the squad's next match cannot drop it.
+    """
+    set_cache(False, f"{KEY_MATCH_GIF_AWAITING_RESULT}:{record['message_id']}", record, ttl_seconds)
+
+
+async def data_access_get_match_gif_awaiting_result(message_id: int) -> Optional[dict[str, Any]]:
+    """The awaiting-result record of one match-start GIF message, if it still needs a score."""
+    return await get_cache(False, f"{KEY_MATCH_GIF_AWAITING_RESULT}:{message_id}")
+
+
+def data_access_list_match_gifs_awaiting_result() -> list[dict[str, Any]]:
+    """Every match-start GIF message still waiting for a final score."""
+    return get_values_by_prefix(f"{KEY_MATCH_GIF_AWAITING_RESULT}:")
+
+
+def data_access_clear_match_gif_awaiting_result(message_id: int) -> None:
+    """The GIF message has its final score (or is gone); stop looking for its result."""
+    remove_cache(False, f"{KEY_MATCH_GIF_AWAITING_RESULT}:{message_id}")
 
 
 async def data_access_get_guild_private_channel_category_id(guild_id: int) -> Union[int, None]:

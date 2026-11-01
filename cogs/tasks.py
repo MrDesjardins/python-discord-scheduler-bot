@@ -11,6 +11,7 @@ from deps.monthly_report import send_monthly_analytics_report_guild
 from deps.streak_functions import announce_streak_milestones_for_guild
 from deps.bot_common_actions import (
     check_voice_channel,
+    finish_match_gifs_from_r6_tracker,
     persist_matches_and_refresh_rank_roles,
     persist_user_full_information_cross_guilds,
     post_queued_user_stats,
@@ -54,6 +55,7 @@ class MyTasksCog(commands.Cog):
         self.check_voice_channel_task.start()  # Start the task when the cog is loaded
         self.send_queue_user_stats.start()  # Start the task when the cog is loaded
         self.reconcile_tribemarkets_task.start()  # Recover delayed markets after restart and during the day
+        self.finish_match_gifs_task.start()  # Score match-start GIFs when nobody in the squad runs stats.cc
         self.send_daily_question_to_all_guild_task.start()  # Start the task when the cog is loaded
         self.daily_saving_active_user_match_stats_task.start()  # Start the task when the cog is loaded
         self.daily_saving_active_user_information_task.start()  # Start the task when the cog is loaded
@@ -85,6 +87,14 @@ class MyTasksCog(commands.Cog):
             await post_queued_user_stats()
         except Exception as e:
             print_error_log(f"send_queue_user_stats task: {e}")
+
+    @tasks.loop(minutes=10)
+    async def finish_match_gifs_task(self):
+        """Put the final score on match-start GIFs from R6 Tracker when stats.cc did not report it."""
+        try:
+            await finish_match_gifs_from_r6_tracker()
+        except Exception as e:
+            print_error_log(f"finish_match_gifs_task task: {e}")
 
     @tasks.loop(minutes=30)
     async def reconcile_tribemarkets_task(self):
@@ -297,6 +307,7 @@ class MyTasksCog(commands.Cog):
         self.send_monthly_analytics_report.cancel()
         self.daily_compute_player_values_task.cancel()
         self.send_weekly_player_value_task.cancel()
+        self.finish_match_gifs_task.cancel()
 
 
 async def setup(bot):

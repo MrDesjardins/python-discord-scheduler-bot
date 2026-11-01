@@ -976,8 +976,12 @@ class MyEventsCog(commands.Cog):
     async def send_match_start_gif_debounced_cancellable_task(self, guild_id: int, channel_id: int) -> None:
         """
         A task that can be cancelled and will wait for X seconds before checking if a ranked match started.
+        Only the wait is cancellable: once it ends, the task detaches from the debounce map so a later
+        presence update cannot cancel it mid-send (the GIF would post but its pending record would never
+        be saved, leaving the "Good luck" message without a score forever).
         """
         lock_key = f"{guild_id}:{channel_id}"
+        task_key = f"matchstartgif-{guild_id}-{channel_id}"
 
         # Ensure we have a lock for this channel BEFORE the sleep
         # Use a creation lock to prevent race condition where multiple tasks create separate locks
@@ -987,6 +991,7 @@ class MyEventsCog(commands.Cog):
 
         try:
             await asyncio.sleep(5)  # Wait for all presence updates to settle
+            await self._detach_debounced_task(task_key)
 
             # Use a lock to prevent multiple GIFs from being sent simultaneously for the same channel
             async with self.match_start_gif_locks[lock_key]:
@@ -1085,8 +1090,13 @@ class MyEventsCog(commands.Cog):
         except Exception as e:
             print_error_log(f"send_match_start_gif_debounced_cancellable_task: {e}")
         finally:
-            async with self.last_task_lock:
-                self.last_task.pop(f"matchstartgif-{guild_id}-{channel_id}", None)
+            await self._detach_debounced_task(task_key)
+
+    async def _detach_debounced_task(self, task_key: str) -> None:
+        """Drop the current task from the debounce map, unless a newer task already replaced it."""
+        async with self.last_task_lock:
+            if self.last_task.get(task_key) is asyncio.current_task():
+                self.last_task.pop(task_key, None)
 
     async def update_match_start_gif_result_debounced(self, guild_id: int, channel_id: int) -> None:
         """Debounce stats.cc ranked score updates so multiple members do not race GIF regeneration."""

@@ -3,6 +3,11 @@
 import time
 import pytest
 from deps.cache import set_cache
+from deps.data_access import (
+    data_access_clear_match_gif_awaiting_result,
+    data_access_list_match_gifs_awaiting_result,
+    data_access_set_match_gif_awaiting_result,
+)
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, database_manager
 
 
@@ -41,3 +46,17 @@ def test_set_cache_performance_memory():
     end = time.perf_counter()
     elapsed = (end - start) * 1000
     assert elapsed < 5
+
+
+def test_awaiting_match_gifs_round_trip_and_expire():
+    """Match GIFs awaiting a score are listed until cleared or expired."""
+    data_access_set_match_gif_awaiting_result({"message_id": 1, "member_ids": [7]}, 60)
+    data_access_set_match_gif_awaiting_result({"message_id": 2, "member_ids": [8]}, 60)
+    data_access_set_match_gif_awaiting_result({"message_id": 3, "member_ids": [9]}, -1)  # already expired
+    set_cache(False, "UnrelatedKey:1", "noise", 60)
+
+    listed = sorted(record["message_id"] for record in data_access_list_match_gifs_awaiting_result())
+    assert listed == [1, 2]
+
+    data_access_clear_match_gif_awaiting_result(1)
+    assert [record["message_id"] for record in data_access_list_match_gifs_awaiting_result()] == [2]

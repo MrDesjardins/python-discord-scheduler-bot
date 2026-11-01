@@ -48,6 +48,10 @@ from deps.data_access import (
     data_access_get_pending_match_start_gif_message,
     data_access_set_pending_match_start_gif_message,
     data_access_clear_pending_match_start_gif_message,
+    data_access_clear_match_gif_awaiting_result,
+    data_access_get_match_gif_awaiting_result,
+    data_access_list_match_gifs_awaiting_result,
+    data_access_set_match_gif_awaiting_result,
     data_access_set_last_match_start_gif_time,
     data_access_get_r6tracker_current_season_rank,
     data_access_prefetch_r6tracker_current_season_ranks,
@@ -119,11 +123,11 @@ from deps.tribemarkets import (
     infer_map_name,
     score_reached_close_threshold,
 )
+from deps.match_gif_r6_tracker import find_r6_tracker_match_for_gif, match_end_result_from_r6_tracker
 from deps.tribemarkets_reconciliation import save_pending_market
 from deps.tribemarkets_reconciliation import (
     MINIMUM_MARKET_AGE,
     PendingMarket,
-    ReconciledMatch,
     list_pending_markets,
     match_uuid_already_assigned,
     mark_attempted_market,
@@ -533,101 +537,139 @@ async def _post_tribemarkets_vote_message_update(
         )
 
 
-async def _update_match_start_gif_message_from_r6_tracker(
-    guild_id: int,
-    voice_channel_id: int,
-    member_ids: tuple[int, ...],
-    result: ReconciledMatch,
+# No ranked match is over this fast, so polling R6 Tracker earlier only burns a browser session.
+MATCH_GIF_R6_TRACKER_MIN_AGE = timedelta(minutes=20)
+# While stats.cc streams live scores it finishes the GIF itself; R6 Tracker only steps in past this age.
+MATCH_GIF_STATSCC_PRIORITY = timedelta(minutes=60)
+
+
+def _matches_by_member(fetched_users: List[UserWithUserMatchInfo]) -> dict[int, list[UserFullMatchStats]]:
+    """Index a batch of R6 Tracker histories by Discord member id."""
+    matches: dict[int, list[UserFullMatchStats]] = {}
+    for user_matches in fetched_users:
+        user_id = user_matches.user_request_stats.user_info.id
+        matches.setdefault(user_id, []).extend(user_matches.match_stats)
+    return matches
+
+
+async def _statscc_reports_live_score(record: dict[str, Any]) -> bool:
+    """True while stats.cc is streaming the score of this GIF's match (it will post the final itself)."""
+    pending = await data_access_get_pending_match_start_gif_message(record["guild_id"], record["voice_channel_id"])
+    return (
+        pending is not None
+        and int(pending.get("message_id", 0)) == record["message_id"]
+        and str(pending.get("last_result_key", "")).startswith("live:")
+    )
+
+
+async def _next_tracker_account(record: dict[str, Any]) -> Optional[UserInfo]:
+    """One squad member's R6 Tracker account per poll, rotating so a private/stale profile cannot block it."""
+    member_ids: list[int] = record["member_ids"]
+    attempts = int(record.get("attempts", 0))
+    for offset in range(len(member_ids)):
+        user_info = await fetch_user_info_by_user_id(member_ids[(attempts + offset) % len(member_ids)])
+        if user_info is not None and user_info.ubisoft_username_active is not None:
+            return user_info
+    return None
+
+
+async def _fetch_r6_tracker_for_match_gifs(
+    records: list[dict[str, Any]], matches_by_member: dict[int, list[UserFullMatchStats]]
 ) -> None:
-    """Finish the match-start GIF message when only the R6 Tracker fallback resolved the match.
+    """Fetch R6 Tracker history for GIFs old enough to be finished that stats.cc is not handling."""
+    now = datetime.now(timezone.utc)
+    queue: dict[int, UserQueueForStats] = {}
+    for record in records:
+        age = now - datetime.fromisoformat(record["started_at"])
+        if age < MATCH_GIF_R6_TRACKER_MIN_AGE:
+            continue
+        if age < MATCH_GIF_STATSCC_PRIORITY and await _statscc_reports_live_score(record):
+            continue
+        user_info = await _next_tracker_account(record)
+        if user_info is None or user_info.id in matches_by_member:
+            continue
+        queue[user_info.id] = UserQueueForStats(user_info, record["guild_id"], now)
+        remaining_seconds = int(MATCH_START_GIF_DELETE_AFTER_SECONDS - age.total_seconds())
+        if remaining_seconds > 0:
+            data_access_set_match_gif_awaiting_result(
+                {**record, "attempts": int(record.get("attempts", 0)) + 1}, remaining_seconds
+            )
+    if queue:
+        for user_matches in await download_full_matches_async(list(queue.values())):
+            user_id = user_matches.user_request_stats.user_info.id
+            matches_by_member.setdefault(user_id, []).extend(user_matches.match_stats)
 
-    stats.cc is optional software: when nobody in the squad is running it, ``try_update_match_start_gif_with_result``
-    never runs, so the "Match starting..." message is otherwise left with no score, no title update, and no final
-    image forever (until it auto-deletes). This mirrors the tail end of that function using the R6 Tracker result
-    instead of a stats.cc-parsed one, so the GIF message and the TribeMarkets market always agree.
+
+async def finish_match_gifs_from_r6_tracker(fetched_users: Optional[List[UserWithUserMatchInfo]] = None) -> None:
+    """Put the final score on match-start GIFs that stats.cc never finished, using R6 Tracker history.
+
+    stats.cc is optional software; without it the "Match starting... Good luck!" message would never get a
+    score. ``fetched_users`` is the normal leave-voice fetch (no extra browser session); the periodic task
+    calls this without it and fetches one squad member per waiting GIF.
     """
+    records = data_access_list_match_gifs_awaiting_result()
+    if not records:
+        return
+    matches_by_member = _matches_by_member(fetched_users or [])
+    if fetched_users is None:
+        await _fetch_r6_tracker_for_match_gifs(records, matches_by_member)
+    for record in records:
+        try:
+            match = find_r6_tracker_match_for_gif(
+                datetime.fromisoformat(record["started_at"]), record["member_ids"], matches_by_member
+            )
+            if match is not None:
+                await _finish_match_gif_from_r6_tracker(record, match)
+        except Exception as exc:  # one message must not block the others
+            print_error_log(f"finish_match_gifs_from_r6_tracker: message {record.get('message_id')}: {exc}")
+
+
+async def _finish_match_gif_from_r6_tracker(record: dict[str, Any], match: UserFullMatchStats) -> None:
+    """Replace the match-start GIF with the static final-score summary from an R6 Tracker match."""
+    guild_id: int = record["guild_id"]
+    voice_channel_id: int = record["voice_channel_id"]
+    message_id: int = record["message_id"]
     try:
-        pending = await data_access_get_pending_match_start_gif_message(guild_id, voice_channel_id)
-        if not pending:
-            return
-        if str(pending.get("last_result_key", "")).startswith("final:"):
-            # stats.cc (or an earlier R6 Tracker pass) already finished this message.
-            return
-
-        our_score: int | None = None
-        their_score: int | None = None
-        if result.score:
-            parts = result.score.split("-", 1)
-            if len(parts) == 2 and all(part.strip().lstrip("-").isdigit() for part in parts):
-                our_score, their_score = int(parts[0]), int(parts[1])
-
         guild = await data_access_get_guild(guild_id)
         if guild is None:
             return
-        members_for_gif: List[discord.Member] = []
-        for uid in member_ids:
-            member = guild.get_member(uid)
-            if member is not None:
-                members_for_gif.append(member)
+        members_for_gif = [m for m in (guild.get_member(uid) for uid in record["member_ids"]) if m is not None]
         if not members_for_gif:
-            print_log(
-                "_update_match_start_gif_message_from_r6_tracker: could not resolve any members; "
-                "clearing pending GIF metadata"
-            )
-            data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+            data_access_clear_match_gif_awaiting_result(message_id)
             return
 
-        synthetic_result = StatsCcRankedMatchEndResult(
-            won=result.won,
-            our_score=our_score if our_score is not None else (1 if result.won else 0),
-            their_score=their_score if their_score is not None else (0 if result.won else 1),
-            map_name=result.map_name,
-            is_tie=our_score is not None and our_score == their_score,
-            is_match_complete=True,
-        )
-        wl, _ = match_result_final_plain_summary(synthetic_result, spaced_hyphen=False)
-        media_bytes = await generate_match_end_static_summary(members_for_gif, synthetic_result)
+        result = match_end_result_from_r6_tracker(match)
+        wl, _ = match_result_final_plain_summary(result, spaced_hyphen=False)
+        media_bytes = await generate_match_end_static_summary(members_for_gif, result)
         if not media_bytes:
             return
-
-        text_channel_id = int(pending["text_channel_id"])
-        message_id = int(pending["message_id"])
-        message = await data_access_get_message(guild_id, text_channel_id, message_id)
+        message = await data_access_get_message(guild_id, record["text_channel_id"], message_id)
         if message is None:
-            data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+            data_access_clear_match_gif_awaiting_result(message_id)
             return
-
-        # Re-check right before editing: the awaits above (guild fetch, PNG render, message
-        # fetch) give the presence-driven stats.cc path a window to finish this same message
-        # first. Losing the race here means stats.cc's result stands; do not clobber it.
-        refreshed = await data_access_get_pending_match_start_gif_message(guild_id, voice_channel_id)
-        if not refreshed or str(refreshed.get("last_result_key", "")).startswith("final:"):
-            print_log(
-                "_update_match_start_gif_message_from_r6_tracker: message "
-                f"{message_id} was finished by stats.cc while the R6 Tracker fallback was running; skipping."
-            )
+        # The awaits above give stats.cc a window to finish this same message first; its result stands.
+        if await data_access_get_match_gif_awaiting_result(message_id) is None:
+            print_log(f"_finish_match_gif_from_r6_tracker: message {message_id} was finished by stats.cc; skipping.")
             return
 
         new_content = f"🎮 Match starting in <#{voice_channel_id}>! Good luck!\n**{wl}**"
         if result.map_name:
             new_content += f" · {result.map_name}"
-        attachment = discord.File(
-            fp=io.BytesIO(media_bytes),
-            filename="match_result.png",
-            description=wl[:1024],
-        )
+        attachment = discord.File(fp=io.BytesIO(media_bytes), filename="match_result.png", description=wl[:1024])
         await message.edit(content=new_content, attachments=[attachment])
-        data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+        data_access_clear_match_gif_awaiting_result(message_id)
+        pending = await data_access_get_pending_match_start_gif_message(guild_id, voice_channel_id)
+        if pending is not None and int(pending.get("message_id", 0)) == message_id:
+            # Stop stats.cc from later treating this finished message as the squad's live match.
+            data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
         print_log(
-            "_update_match_start_gif_message_from_r6_tracker: finished match message "
-            f"{message_id} from R6 Tracker fallback in guild {guild_id}"
+            f"_finish_match_gif_from_r6_tracker: finished match message {message_id} with {wl} "
+            f"(R6 Tracker match {match.match_uuid}) in guild {guild_id}"
         )
     except discord.NotFound:
-        data_access_clear_pending_match_start_gif_message(guild_id, voice_channel_id)
+        data_access_clear_match_gif_awaiting_result(message_id)
     except discord.HTTPException as exc:
-        print_warning_log(f"_update_match_start_gif_message_from_r6_tracker: HTTP error: {exc}")
-    except Exception as exc:  # must never abort the caller's TribeMarkets title/close/submit_result calls
-        print_error_log(f"_update_match_start_gif_message_from_r6_tracker: unexpected error: {exc}")
+        print_warning_log(f"_finish_match_gif_from_r6_tracker: HTTP error: {exc}")
 
 
 async def reconcile_pending_tribemarkets(
@@ -736,13 +778,6 @@ async def reconcile_pending_tribemarkets(
                 f"reconcile_pending_tribemarkets: accepted R6 Tracker match {result.match_uuid} for market "
                 f"{pending.market_id}; confidence={result.confidence}, participants={result.participant_count}, "
                 f"match_started={result.started_at.isoformat()}."
-            )
-
-            # Independent of the TribeMarkets calls below: when stats.cc never reported a
-            # score for this squad, the match-start GIF message would otherwise be stuck
-            # showing "Match starting..." forever. Finish it now that R6 Tracker has a result.
-            await _update_match_start_gif_message_from_r6_tracker(
-                pending.guild_id, pending.voice_channel_id, pending.member_ids, result
             )
 
             market = MatchMarket.from_dict(pending.market)
@@ -882,6 +917,11 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
             insert_if_nonexistant_full_match_info(user_stats.user_request_stats.user_info, user_stats.match_stats)
         except Exception as e:
             print_error_log(f"post_queued_user_stats: Error persisting the data: {e}")
+    try:
+        # Reuse the just-fetched match history to finish match-start GIFs stats.cc never scored.
+        await finish_match_gifs_from_r6_tracker(all_users_matches)
+    except Exception as e:
+        print_error_log(f"post_queued_user_stats: Error finishing match GIFs from R6 Tracker: {e}")
     try:
         # Reuse the just-fetched match history for delayed market resolution.
         # This keeps the normal leave-voice path to one R6 Tracker fetch.
@@ -1631,6 +1671,17 @@ async def send_match_start_gif(
                 f"send_match_start_gif: Posted GIF message {sent_message.id} in channel {text_channel.id}; "
                 "starting TribeMarkets handoff"
             )
+            data_access_set_match_gif_awaiting_result(
+                {
+                    "guild_id": guild_id,
+                    "voice_channel_id": voice_channel_id,
+                    "text_channel_id": text_channel.id,
+                    "message_id": sent_message.id,
+                    "member_ids": [m.id for m in members_for_gif],
+                    "started_at": started_at.astimezone(timezone.utc).isoformat(),
+                },
+                MATCH_START_GIF_DELETE_AFTER_SECONDS,
+            )
         except asyncio.TimeoutError:
             print_error_log(
                 "send_match_start_gif: GIF send timed out after 15 seconds; " "continuing with TribeMarkets handoff"
@@ -2045,6 +2096,8 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
             if parsed_result.is_match_complete
             else result_key
         )
+        if parsed_result.is_match_complete:
+            data_access_clear_match_gif_awaiting_result(message_id)
         if parsed_result.is_match_complete and not was_already_final:
             # Re-anchor the dedup window to the END of the match, but keep only the
             # short post-match grace: stats.cc emits round-transition and re-queue
