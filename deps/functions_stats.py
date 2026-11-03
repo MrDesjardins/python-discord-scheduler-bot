@@ -49,6 +49,9 @@ from deps.functions import (
 )
 from deps.log import print_error_log, print_log
 
+DISCORD_MESSAGE_MAX_LENGTH = 2000
+CODE_BLOCK_FENCE = "```"
+
 
 async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Optional[int] = None):
     """
@@ -187,9 +190,22 @@ The rollbacks that added points are not counted in this stats and will be shown 
         return
     msg_len = len(msg)
     print_log(f"send_daily_stats_to_a_guild: Sending stats {function_number} to {guild.name} total size {msg_len}")
-    await channel.send(content=msg[:1999])
+    await channel.send(content=fit_code_block_message(msg))
     if msg_instruction is not None:
         await channel.send(content=msg_instruction)
+
+
+def fit_code_block_message(msg: str, max_length: int = DISCORD_MESSAGE_MAX_LENGTH) -> str:
+    """
+    Shorten a message ending with a code block to fit Discord's limit.
+    Whole rows are dropped from the end so the code block always stays closed.
+    """
+    if len(msg) <= max_length:
+        return msg
+    if not msg.endswith(CODE_BLOCK_FENCE):
+        return msg[:max_length]
+    last_full_row_end = msg.rfind("\n", 0, max_length - len(CODE_BLOCK_FENCE))
+    return msg[: last_full_row_end + 1] + CODE_BLOCK_FENCE
 
 
 def stats_rank_match_count(day: int, last_x_days: date) -> str:
