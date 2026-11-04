@@ -502,7 +502,7 @@ python3 bot.py # or ./bot.py
 
 1. Upgrade apt packages `sudo apt-get update` and upgrade `sudo apt-get upgrade`
 2. SSH into the machine
-3. `ssh pi@10.0.0.181`
+3. `ssh pdesjardins@10.0.0.181`
 4. Clone the repository
 5. `git clone https://github.com/MrDesjardins/python-discord-scheduler-bot.git`
 6. Install `uv`: `curl -LsSf https://astral.sh/uv/install.sh | sh` 
