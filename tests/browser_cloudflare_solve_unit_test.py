@@ -480,6 +480,25 @@ def test_wipe_persistent_profile_only_when_configured(tmp_path, monkeypatch):
     assert not tmp_path.exists()
 
 
+@pytest.mark.parametrize("environment,wipes", [("prod", True), ("dev", False)])
+def test_chrome_startup_failure_wipes_the_shared_profile_only_on_the_bot(environment, wipes):
+    """A manual session without a display fails the same way as a corrupt profile."""
+    manager = _manager(max_retries=1)
+    manager.environment = environment
+    manager._lock = MagicMock()
+
+    with (
+        patch("deps.browser_context_manager.tracker_block_remaining_seconds", return_value=0.0),
+        patch.object(manager, "_config_browser", side_effect=RuntimeError("chrome not reachable")),
+        patch.object(manager, "_cleanup"),
+        patch.object(manager, "_wipe_persistent_profile") as mock_wipe,
+        pytest.raises(BrowserException),
+    ):
+        manager.__enter__()
+
+    assert mock_wipe.called is wipes
+
+
 @pytest.mark.parametrize(
     "message,expected",
     [

@@ -533,7 +533,7 @@ DM.
 
 When tracker.gg blocks the bot, or every automatic attempt fails, the owner of the Discord
 application gets a DM (at most one per hour) with the command to run from a computer with X11
-forwarding enabled. The bot can keep running: the command holds the browser lock, so the
+forwarding enabled (on Windows, from WSL: PowerShell has no X server). The bot can keep running: the command holds the browser lock, so the
 bot stays out of the profile until it finishes.
 
 ```sh

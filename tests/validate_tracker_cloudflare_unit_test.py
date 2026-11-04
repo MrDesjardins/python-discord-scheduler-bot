@@ -1,10 +1,10 @@
 """Unit tests for the maintenance command used to solve a tracker.gg challenge by hand"""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deployment.validate_tracker_cloudflare import clearance_works
+from deployment.validate_tracker_cloudflare import clearance_works, main
 from deps.browser_exceptions import BrowserTimeoutException, TrackerBlockedException
 
 
@@ -24,3 +24,17 @@ def test_refused_request_means_it_did_not_work(error):
     context.download_current_season_rank.side_effect = error
 
     assert clearance_works(context) is False
+
+
+def test_missing_display_stops_before_chrome_touches_the_shared_profile(monkeypatch):
+    monkeypatch.setenv("BROWSER_PROFILE_DIR", "/tmp/profile")
+    monkeypatch.delenv("DISPLAY", raising=False)
+
+    with (
+        patch("deployment.validate_tracker_cloudflare.load_dotenv"),
+        patch("deployment.validate_tracker_cloudflare.BrowserContextManager") as manager_class,
+        pytest.raises(SystemExit, match="WSL"),
+    ):
+        main()
+
+    manager_class.assert_not_called()

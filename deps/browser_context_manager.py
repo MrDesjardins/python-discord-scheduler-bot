@@ -668,7 +668,9 @@ class BrowserContextManager:
 
                 # A persistent profile that crashes Chrome on startup will keep crashing;
                 # wipe it so the next attempt (and future runs) start from a clean profile.
-                if is_retryable and self._looks_like_corrupt_profile_error(error_msg):
+                # Only on the bot itself: a manual session shares this profile, and its Chrome
+                # also fails to start when the display is missing, which says nothing about it.
+                if self.environment == "prod" and is_retryable and self._looks_like_corrupt_profile_error(error_msg):
                     self._wipe_persistent_profile()
 
                 # Don't retry if we know it won't help or if out of retries

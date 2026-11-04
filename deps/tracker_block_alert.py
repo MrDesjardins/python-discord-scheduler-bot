@@ -29,7 +29,7 @@ def build_tracker_block_message(cooldown_seconds: float) -> str:
     )
     return (
         f"**tracker.gg wants a human check.** {status}\n"
-        f"1. From your PC, run (no need to stop the bot):\n```sh\n{command}\n```\n"
+        f"1. From WSL on your PC, not PowerShell, run (no need to stop the bot):\n```sh\n{command}\n```\n"
         "2. Tick the box in the Chrome window, then press Enter in the terminal.\n"
         "3. If the terminal says it worked, press **Solved, retry now**."
     )

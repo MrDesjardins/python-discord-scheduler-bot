@@ -30,6 +30,11 @@ def main() -> None:
     profile_dir = os.getenv("BROWSER_PROFILE_DIR", "").strip()
     if not profile_dir:
         raise SystemExit("Set BROWSER_PROFILE_DIR to the same persistent profile used by the bot.")
+    if not os.getenv("DISPLAY"):
+        raise SystemExit(
+            "No display to open Chrome on: X11 forwarding is not active. "
+            "Run the ssh -Y command from a terminal with an X server (WSL on Windows, not PowerShell)."
+        )
 
     profile_path = Path(profile_dir).expanduser()
     print(f"Using Chrome profile: {profile_path}")
