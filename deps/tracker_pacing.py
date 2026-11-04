@@ -30,6 +30,11 @@ def tracker_block_remaining_seconds() -> float:
     return max(0.0, _blocked_until - time.monotonic())
 
 
+def tracker_block_consecutive_blocks() -> int:
+    """How many Warden blocks happened in a row; drives the cooldown escalation."""
+    return _consecutive_blocks
+
+
 def wait_before_request(log_name: str) -> None:
     """Sleep a random gap since the previous request; raise instead while a block cooldown is active."""
     global _last_request_at  # pylint: disable=global-statement

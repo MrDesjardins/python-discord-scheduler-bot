@@ -173,6 +173,7 @@ COMMAND_SHOW_COMMUNITY = "modshowcommunity"
 COMMAND_GUILD_ENABLE_BOT_VOICE = "modenablebotvoice"  # Acts like a feature flag
 COMMAND_VERSION = "modversion"
 COMMAND_RESET_CACHE = "modresetcache"  # Only owner of the server can execute that one
+COMMAND_TRACKER_STATUS = "modtrackerstatus"  # Probe tracker.gg instead of waiting for a DM
 COMMAND_RESET_RANK = "modresetrank"
 COMMAND_REFRESH_ACTIVE_RANKS = "modrefreshactiveranks"
 COMMAND_STATS_MATCHES = "modstatsmatches"

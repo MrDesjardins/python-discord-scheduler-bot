@@ -65,3 +65,12 @@ class TrackerBlockedException(BrowserException):
             f"tracker.gg is blocking requests (Warden challenge); retry in {retry_in_seconds / 60:.0f} min"
         )
         self.retry_in_seconds = retry_in_seconds
+
+
+class CloudflareChallengeNotClearedException(BrowserTimeoutException):
+    """Raised when every automatic Cloudflare fallback failed and a human is needed."""
+
+
+# Every remaining request of a batch would fail the same way, and a challenge costs minutes under
+# the browser lock per request: stop the batch and leave the remaining work for the next cycle.
+TRACKER_UNAVAILABLE_EXCEPTIONS = (TrackerBlockedException, CloudflareChallengeNotClearedException)

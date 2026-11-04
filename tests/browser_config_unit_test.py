@@ -22,6 +22,10 @@ def test_browser_config_defaults():
     assert config.initial_page_wait_timeout_seconds == 20
     assert config.element_wait_timeout_seconds == 10
     assert config.cloudflare_manual_wait_seconds == 0
+    assert config.cloudflare_max_reloads == 1
+    assert config.cloudflare_reload_after_seconds == 25
+    assert config.cloudflare_http_fallback_enabled is True
+    assert config.cloudflare_http_fallback_timeout_seconds == 20.0
     assert config.cleanup_max_wait_seconds == 3.0
     assert config.process_poll_interval_seconds == 0.1
 
@@ -49,6 +53,10 @@ def test_browser_config_from_environment(monkeypatch):
     monkeypatch.setenv("BROWSER_INITIAL_PAGE_WAIT_TIMEOUT", "30")
     monkeypatch.setenv("BROWSER_ELEMENT_WAIT_TIMEOUT", "15")
     monkeypatch.setenv("BROWSER_CLOUDFLARE_MANUAL_WAIT", "300")
+    monkeypatch.setenv("BROWSER_CLOUDFLARE_MAX_RELOADS", "4")
+    monkeypatch.setenv("BROWSER_CLOUDFLARE_RELOAD_AFTER", "30")
+    monkeypatch.setenv("BROWSER_CLOUDFLARE_HTTP_FALLBACK", "false")
+    monkeypatch.setenv("BROWSER_CLOUDFLARE_HTTP_TIMEOUT", "5.0")
     monkeypatch.setenv("BROWSER_CLEANUP_MAX_WAIT", "5.0")
     monkeypatch.setenv("BROWSER_PROCESS_POLL_INTERVAL", "0.2")
     monkeypatch.setenv("BROWSER_CIRCUIT_BREAKER_ENABLED", "false")
@@ -71,6 +79,10 @@ def test_browser_config_from_environment(monkeypatch):
     assert config.initial_page_wait_timeout_seconds == 30
     assert config.element_wait_timeout_seconds == 15
     assert config.cloudflare_manual_wait_seconds == 300
+    assert config.cloudflare_max_reloads == 4
+    assert config.cloudflare_reload_after_seconds == 30
+    assert config.cloudflare_http_fallback_enabled is False
+    assert config.cloudflare_http_fallback_timeout_seconds == 5.0
     assert config.cleanup_max_wait_seconds == 5.0
     assert config.process_poll_interval_seconds == 0.2
     assert config.circuit_breaker_enabled is False

@@ -24,6 +24,7 @@ from deps.values import (
     COMMAND_TEST_JOIN,
     COMMAND_VERSION,
     COMMAND_RESET_CACHE,
+    COMMAND_TRACKER_STATUS,
     COMMAND_GUILD_ENABLE_BOT_VOICE,
     COMMAND_TEST_MATCH_START_GIF,
     MATCH_START_GIF_DELETE_AFTER_SECONDS,
@@ -46,8 +47,12 @@ from deps.log import print_error_log, print_log, print_warning_log
 from deps.siege import NO_RANK_ROLE, get_any_siege_activity, is_no_rank_role, siege_ranks
 from deps.functions_stats import send_daily_stats_to_a_guild
 from deps.match_start_gif import generate_match_start_gif
+from deps.tracker_block_alert import build_tracker_block_message
+from deps.tracker_pacing import tracker_block_consecutive_blocks, tracker_block_remaining_seconds
+from deps.tracker_probe import STATE_LABELS, probe_tracker_api
 from deps.ai.ai_functions import BotAISingleton
 from deps.ai.ai_bot_functions import split_message_at_paragraphs
+from ui.tracker_block_view import TrackerBlockView
 
 
 class ModBasic(commands.Cog):
@@ -107,6 +112,30 @@ class ModBasic(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         sha = get_sha()
         await interaction.followup.send(f"Version: {sha}", ephemeral=True)
+
+    @app_commands.command(name=COMMAND_TRACKER_STATUS)
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    async def tracker_status(self, interaction: discord.Interaction):
+        """Check whether tracker.gg is reachable right now with one live request"""
+        await interaction.response.defer(ephemeral=True)
+        remaining = tracker_block_remaining_seconds()
+        lines = []
+        if remaining > 0:
+            lines.append(
+                f"Cooldown: {remaining / 60:.0f} min left "
+                f"({tracker_block_consecutive_blocks()} Warden block(s) in a row)."
+            )
+        else:
+            lines.append("Cooldown: none.")
+        result = await asyncio.to_thread(probe_tracker_api)
+        lines.append(f"Probe: {STATE_LABELS.get(result['state'], result['state'])} - {result['detail']}")
+        if result["state"] == "challenge":
+            lines.append(build_tracker_block_message(remaining))
+        if result["state"] in ("challenge", "blocked"):
+            await interaction.followup.send("\n".join(lines), ephemeral=True, view=TrackerBlockView())
+            return
+        await interaction.followup.send("\n".join(lines), ephemeral=True)
 
     @app_commands.command(name=COMMAND_RESET_CACHE)
     @commands.has_permissions(administrator=True)

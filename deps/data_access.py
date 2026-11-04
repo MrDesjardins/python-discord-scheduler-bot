@@ -6,7 +6,7 @@ import asyncio
 import re
 import discord
 from deps.browser_context_manager import BrowserContextManager
-from deps.browser_exceptions import BrowserException, TrackerBlockedException
+from deps.browser_exceptions import BrowserException, TRACKER_UNAVAILABLE_EXCEPTIONS
 from deps.bot_singleton import BotSingleton
 from deps.cache import (
     ALWAYS_TTL,
@@ -293,9 +293,9 @@ def _download_current_season_ranks_sync(ubisoft_user_names: List[str]) -> dict[s
         for ubisoft_user_name in ubisoft_user_names:
             try:
                 ranks[ubisoft_user_name] = context.download_current_season_rank(ubisoft_user_name)
-            except TrackerBlockedException as e:
+            except TRACKER_UNAVAILABLE_EXCEPTIONS as e:
                 print_warning_log(f"_download_current_season_ranks_sync: Stopping, {e}")
-                break  # Every remaining request would be refused too
+                break  # Every remaining request would fail too
             except BrowserException as e:
                 print_warning_log(
                     f"_download_current_season_ranks_sync: Could not fetch rank for {ubisoft_user_name}: {e}"

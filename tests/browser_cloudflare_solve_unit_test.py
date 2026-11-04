@@ -4,10 +4,12 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
+from deps import tracker_pacing
 from deps.browser_config import BrowserConfig
 from deps.browser_context_manager import BrowserContextManager
-from deps.browser_exceptions import BrowserTimeoutException
+from deps.browser_exceptions import BrowserException, BrowserTimeoutException, TrackerBlockedException
 
 
 def _manager(**config_kwargs) -> BrowserContextManager:
@@ -82,7 +84,7 @@ def test_attempt_cloudflare_solve_times_out_returns_false():
     assert manager._attempt_cloudflare_solve("test") is False
 
 
-def test_wait_for_json_raises_when_challenge_never_clears():
+def test_wait_for_json_requests_human_dm_only_after_first_two_fallbacks_fail():
     manager = _manager(cloudflare_auto_solve_seconds=1, cloudflare_manual_wait_seconds=0)
     driver = MagicMock()
     manager.driver = driver
@@ -97,6 +99,308 @@ def test_wait_for_json_raises_when_challenge_never_clears():
     ):
         manager._wait_for_json("test")
     mock_attention.assert_called_once_with()
+
+
+def test_cookie_replay_is_tried_before_cloudflare_solver_and_human_dm():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.find_elements.return_value = []
+    driver.page_source = "verify you are human"
+    driver.title = "Just a moment..."
+
+    with (
+        patch.object(manager, "_http_fetch_json", return_value={"data": "cached cookie"}) as mock_cookie,
+        patch.object(manager, "_attempt_cloudflare_solve") as mock_solver,
+        patch.object(manager, "_wait_for_manual_cloudflare_solve") as mock_manual,
+        patch("deps.browser_context_manager.request_tracker_attention") as mock_attention,
+    ):
+        assert manager._wait_for_json("test", "https://api.tracker.gg/x") == {"data": "cached cookie"}
+
+    mock_cookie.assert_called_once_with("https://api.tracker.gg/x", "test")
+    mock_solver.assert_not_called()
+    mock_manual.assert_not_called()
+    mock_attention.assert_not_called()
+
+
+def test_cloudflare_solver_runs_after_cookie_replay_fails_and_precedes_human_dm():
+    manager = _manager(cloudflare_manual_wait_seconds=0)
+    driver = MagicMock()
+    manager.driver = driver
+    driver.find_elements.return_value = []
+    driver.page_source = "verify you are human"
+    driver.title = "Just a moment..."
+
+    with (
+        patch.object(manager, "_http_fetch_json", return_value=None) as mock_cookie,
+        patch.object(manager, "_attempt_cloudflare_solve", return_value=True) as mock_solver,
+        patch.object(manager, "_wait_for_manual_cloudflare_solve") as mock_manual,
+        patch("deps.browser_context_manager.request_tracker_attention") as mock_attention,
+    ):
+        assert manager._wait_for_json("test", "https://api.tracker.gg/x") is None
+
+    mock_cookie.assert_called_once_with("https://api.tracker.gg/x", "test")
+    mock_solver.assert_called_once_with("test", "https://api.tracker.gg/x")
+    mock_manual.assert_not_called()
+    mock_attention.assert_not_called()
+
+
+def test_visible_browser_manual_wait_precedes_human_dm():
+    manager = _manager(cloudflare_manual_wait_seconds=10)
+    driver = MagicMock()
+    manager.driver = driver
+    driver.find_elements.return_value = []
+    driver.page_source = "verify you are human"
+    driver.title = "Just a moment..."
+
+    with (
+        patch.object(manager, "_http_fetch_json", return_value=None),
+        patch.object(manager, "_attempt_cloudflare_solve", return_value=False),
+        patch.object(manager, "_wait_for_manual_cloudflare_solve", return_value=True) as mock_manual,
+        patch("deps.browser_context_manager.request_tracker_attention") as mock_attention,
+    ):
+        assert manager._wait_for_json("test", "https://api.tracker.gg/x") is None
+
+    mock_manual.assert_called_once_with("test")
+    mock_attention.assert_not_called()
+
+
+def test_clear_cloudflare_cookies_keeps_unrelated_cookies():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.get_cookies.return_value = [
+        {"name": "cf_clearance", "value": "x"},
+        {"name": "theme", "value": "dark"},
+        {"name": "__cf_bm", "value": "y"},
+        {"name": "_cfuvid", "value": "z"},
+    ]
+
+    manager._clear_cloudflare_cookies()
+
+    assert [call.args[0] for call in driver.delete_cookie.call_args_list] == [
+        "cf_clearance",
+        "__cf_bm",
+        "_cfuvid",
+    ]
+
+
+def test_http_fetch_json_sends_browser_cookies_and_returns_data():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.execute_script.return_value = "TestUA"
+    driver.get_cookies.return_value = [{"name": "cf_clearance", "value": "token"}]
+    response = MagicMock(status_code=200)
+    response.json.return_value = {"data": 1}
+
+    with (
+        patch("deps.browser_context_manager.wait_before_request") as mock_pacing,
+        patch("deps.browser_context_manager.requests.get", return_value=response) as mock_get,
+    ):
+        result = manager._http_fetch_json("https://api.tracker.gg/x", "test")
+
+    assert result == {"data": 1}
+    assert mock_get.call_args.kwargs["cookies"] == {"cf_clearance": "token"}
+    assert mock_get.call_args.kwargs["headers"]["User-Agent"] == "TestUA"
+    mock_pacing.assert_called_once_with("test")
+
+
+def _http_fetch_with_response(status_code, body):
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.execute_script.return_value = "TestUA"
+    driver.get_cookies.return_value = [{"name": "cf_clearance", "value": "token"}]
+    response = MagicMock(status_code=status_code)
+    response.json.return_value = body
+
+    with (
+        patch("deps.browser_context_manager.wait_before_request"),
+        patch("deps.browser_context_manager.requests.get", return_value=response),
+    ):
+        return manager._http_fetch_json("https://api.tracker.gg/x", "test")
+
+
+def test_http_fetch_json_returns_an_error_body_so_a_warden_block_starts_the_cooldown():
+    warden = {"errors": [{"code": "Warden::Challenge"}]}
+
+    assert _http_fetch_with_response(403, warden) == warden
+
+
+def test_http_fetch_json_ignores_a_refusal_without_an_error_body():
+    assert _http_fetch_with_response(403, {"message": "denied"}) is None
+
+
+def test_http_fetch_json_skipped_without_clearance_cookie():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.get_cookies.return_value = [{"name": "theme", "value": "dark"}]
+
+    with patch("deps.browser_context_manager.requests.get") as mock_get:
+        assert manager._http_fetch_json("https://api.tracker.gg/x", "test") is None
+
+    mock_get.assert_not_called()
+
+
+def test_challenge_after_initial_page_wait_uses_cookie_replay_before_auto_solve():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.find_elements.return_value = []
+
+    with (
+        patch.object(manager, "_is_cloudflare_challenge", side_effect=[False, True]),
+        patch("deps.browser_context_manager.WebDriverWait") as mock_wait,
+        patch.object(manager, "_http_fetch_json", return_value={"data": "cookie"}) as mock_cookie,
+        patch.object(manager, "_attempt_cloudflare_solve") as mock_solver,
+        patch("deps.browser_context_manager.request_tracker_attention") as mock_attention,
+    ):
+        mock_wait.return_value.until.side_effect = TimeoutException
+        assert manager._wait_for_json("test", "https://api.tracker.gg/x") == {"data": "cookie"}
+
+    mock_wait.return_value.until.assert_called_once()
+    mock_cookie.assert_called_once_with("https://api.tracker.gg/x", "test")
+    mock_solver.assert_not_called()
+    mock_attention.assert_not_called()
+
+
+def test_page_already_holding_json_skips_replay_when_challenge_detection_misfires():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.find_elements.return_value = [MagicMock()]
+    driver.title = ""
+    driver.page_source = '<pre>{"note": "cloudflare"}</pre>'
+
+    with patch.object(manager, "_http_fetch_json") as mock_cookie:
+        assert manager._wait_for_json("test", "https://api.tracker.gg/x") is None
+
+    mock_cookie.assert_not_called()
+
+
+def test_reload_failure_does_not_abort_the_batch():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+    driver.get.side_effect = WebDriverException("tab crashed")
+
+    manager._reload_challenge_page("https://api.tracker.gg/x")  # should not raise
+
+
+def _run_solver_on_a_fake_clock(manager, widget_clicked):
+    """Run a solver that never clears; returns the clock time of each reload and the mocked pacing."""
+    driver = MagicMock()
+    manager.driver = driver
+    driver.find_elements.return_value = []
+    driver.page_source = "verify you are human"
+    driver.title = "Just a moment..."
+    clock = {"now": 0.0}
+    reload_times = []
+
+    def fake_sleep(seconds):
+        clock["now"] += seconds
+
+    with (
+        patch.object(manager, "_click_cloudflare_widget", return_value=widget_clicked),
+        patch.object(manager, "_clear_cloudflare_cookies"),
+        patch.object(manager, "_reload_challenge_page", side_effect=lambda _url: reload_times.append(clock["now"])),
+        patch("deps.browser_context_manager.wait_before_request") as mock_pacing,
+        patch("deps.browser_context_manager.time.sleep", side_effect=fake_sleep),
+        patch("deps.browser_context_manager.time.time", side_effect=lambda: clock["now"]),
+    ):
+        assert manager._attempt_cloudflare_solve("test", "https://api.tracker.gg/x") is False
+    return reload_times, mock_pacing
+
+
+def test_solver_reloads_with_fresh_cookies_only_after_the_widget_had_its_time():
+    manager = _manager(cloudflare_auto_solve_seconds=45, cloudflare_max_reloads=1, cloudflare_reload_after_seconds=25)
+
+    reload_times, mock_pacing = _run_solver_on_a_fake_clock(manager, widget_clicked=True)
+
+    assert len(reload_times) == 1
+    assert reload_times[0] >= 25
+    mock_pacing.assert_called_once_with("test")
+
+
+def test_solver_keeps_clicking_without_a_reload_when_the_budget_is_shorter_than_the_patience():
+    manager = _manager(cloudflare_auto_solve_seconds=20, cloudflare_max_reloads=1, cloudflare_reload_after_seconds=25)
+
+    reload_times, _ = _run_solver_on_a_fake_clock(manager, widget_clicked=True)
+
+    assert reload_times == []
+
+
+def test_solver_does_not_interrupt_a_challenge_that_shows_no_widget():
+    """Without a widget the non-interactive check may still be running."""
+    manager = _manager(cloudflare_auto_solve_seconds=45, cloudflare_max_reloads=1, cloudflare_reload_after_seconds=25)
+
+    reload_times, _ = _run_solver_on_a_fake_clock(manager, widget_clicked=False)
+
+    assert reload_times == []
+
+
+def test_probe_reports_an_unsolved_challenge_without_queuing_the_owner_dm():
+    manager = _manager(cloudflare_auto_solve_seconds=0)
+    driver = MagicMock()
+    manager.driver = driver
+    driver.find_elements.return_value = []
+    driver.title = "Just a moment..."
+    driver.page_source = "verify you are human"
+
+    with (
+        patch("deps.browser_context_manager.wait_before_request"),
+        patch("deps.browser_context_manager.request_tracker_attention") as mock_attention,
+    ):
+        assert manager.probe_api("someone")["state"] == "challenge"
+
+    mock_attention.assert_not_called()
+
+
+def test_probe_still_queues_the_owner_dm_on_a_warden_block(monkeypatch):
+    """The cooldown stops the jobs that would otherwise alert the owner."""
+    monkeypatch.setattr(tracker_pacing, "_blocked_until", 0.0)
+    monkeypatch.setattr(tracker_pacing, "_consecutive_blocks", 0)
+    manager = _manager()
+    manager.driver = MagicMock()
+
+    with (
+        patch("deps.browser_context_manager.wait_before_request"),
+        patch.object(manager, "_wait_for_json", return_value={"errors": [{"code": "Warden::Challenge"}]}),
+        patch("deps.tracker_pacing.request_tracker_attention") as mock_attention,
+        pytest.raises(TrackerBlockedException),
+    ):
+        manager.probe_api("someone")
+
+    mock_attention.assert_called_once_with()
+
+
+def test_probe_api_reports_challenge_when_auto_solve_cannot_clear():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+
+    with (
+        patch("deps.browser_context_manager.wait_before_request"),
+        patch.object(manager, "_wait_for_json", return_value=None),
+        patch.object(manager, "_extract_json_from_page", side_effect=BrowserException("no json")),
+        patch.object(manager, "_is_cloudflare_challenge", return_value=True),
+    ):
+        assert manager.probe_api("someone")["state"] == "challenge"
+
+
+def test_probe_api_reports_ok_when_json_is_present():
+    manager = _manager()
+    driver = MagicMock()
+    manager.driver = driver
+
+    with (
+        patch("deps.browser_context_manager.wait_before_request"),
+        patch.object(manager, "_wait_for_json", return_value=None),
+        patch.object(manager, "_extract_json_from_page", return_value={"data": {}}),
+    ):
+        assert manager.probe_api("someone") == {"state": "ok", "detail": "JSON received"}
 
 
 def test_cdp_trusted_click_dispatches_move_press_release():

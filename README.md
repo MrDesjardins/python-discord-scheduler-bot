@@ -518,11 +518,22 @@ OPENAI_API_KEY=<api key>
 # Required for solving a tracker.gg challenge by hand: keeps the clearance in a Chrome profile
 # shared by the bot and the maintenance command below. Without it the bot uses a temporary profile.
 BROWSER_PROFILE_DIR=/home/<service-user>/.cache/gametimescheduler/chrome-profile
+# Development only, when watching the bot's browser: extra seconds to finish a challenge by hand.
+# Leave unset in production: nobody sees the Xvfb window and each challenged user would hold the
+# browser lock for that long.
+# BROWSER_CLOUDFLARE_MANUAL_WAIT=300
 ```
 
-When tracker.gg blocks the bot, or the automatic Cloudflare checkbox click fails, the owner of
-the Discord application gets a DM (at most one per hour) with the command to run from a computer
-with X11 forwarding enabled. The bot can keep running: the command holds the browser lock, so the
+The tracker request uses three fallbacks in order: (1) reuse the persistent browser clearance
+cookie, including an HTTP replay when a challenged page already has one; (2) run the automatic
+Cloudflare solver, clicking the Turnstile widget or press-and-hold and retrying with fresh cookies
+when a stale clearance loops; (3) offer the optional visible-browser window and then DM the owner
+for a human solve. `/modtrackerstatus` (administrator) runs a live probe instead of waiting for a
+DM.
+
+When tracker.gg blocks the bot, or every automatic attempt fails, the owner of the Discord
+application gets a DM (at most one per hour) with the command to run from a computer with X11
+forwarding enabled. The bot can keep running: the command holds the browser lock, so the
 bot stays out of the profile until it finishes.
 
 ```sh

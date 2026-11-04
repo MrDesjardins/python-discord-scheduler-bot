@@ -22,8 +22,19 @@ class BrowserConfig:
     element_wait_timeout_seconds: int = 10
     # Budget for automatically clicking the Cloudflare "verify you are human" checkbox.
     cloudflare_auto_solve_seconds: int = 45
+    # Fresh challenge reloads tried when clicking the widget stops making progress. A stale
+    # clearance cookie can keep serving the same unsolvable widget, so drop it and retry.
+    # Each reload is a paced tracker.gg request held under the browser lock, so keep this low.
+    cloudflare_max_reloads: int = 1
+    # Time the widget gets on a loaded page before a reload, which leaves time to solve the new one.
+    cloudflare_reload_after_seconds: int = 25
     # Extra time for a human to complete a Cloudflare challenge in the visible browser.
     cloudflare_manual_wait_seconds: int = 0
+    # Replay the API URL over HTTP with the browser's clearance cookie when the page stays
+    # challenged. Cloudflare binds the cookie to the IP and User-Agent, and Selenium is only
+    # needed to earn it, not to read the JSON.
+    cloudflare_http_fallback_enabled: bool = True
+    cloudflare_http_fallback_timeout_seconds: float = 20.0
     cleanup_max_wait_seconds: float = 3.0
     process_poll_interval_seconds: float = 0.1
 
@@ -53,7 +64,11 @@ class BrowserConfig:
             initial_page_wait_timeout_seconds=int(os.getenv("BROWSER_INITIAL_PAGE_WAIT_TIMEOUT", "20")),
             element_wait_timeout_seconds=int(os.getenv("BROWSER_ELEMENT_WAIT_TIMEOUT", "10")),
             cloudflare_auto_solve_seconds=int(os.getenv("BROWSER_CLOUDFLARE_AUTO_SOLVE", "45")),
+            cloudflare_max_reloads=int(os.getenv("BROWSER_CLOUDFLARE_MAX_RELOADS", "1")),
+            cloudflare_reload_after_seconds=int(os.getenv("BROWSER_CLOUDFLARE_RELOAD_AFTER", "25")),
             cloudflare_manual_wait_seconds=int(os.getenv("BROWSER_CLOUDFLARE_MANUAL_WAIT", "0")),
+            cloudflare_http_fallback_enabled=os.getenv("BROWSER_CLOUDFLARE_HTTP_FALLBACK", "true").lower() == "true",
+            cloudflare_http_fallback_timeout_seconds=float(os.getenv("BROWSER_CLOUDFLARE_HTTP_TIMEOUT", "20.0")),
             cleanup_max_wait_seconds=float(os.getenv("BROWSER_CLEANUP_MAX_WAIT", "3.0")),
             process_poll_interval_seconds=float(os.getenv("BROWSER_PROCESS_POLL_INTERVAL", "0.1")),
             # Circuit breaker settings

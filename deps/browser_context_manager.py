@@ -12,11 +12,12 @@ import time
 from typing import Any, List, Optional, Union
 
 import psutil
+import requests
 from filelock import FileLock, Timeout as FileLockTimeout
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import TimeoutException, WebDriverException
 import undetected_chromedriver as uc  # type: ignore
 from bs4 import BeautifulSoup
 from deps.models import UserFullMatchStats, UserInformation, UserQueueForStats
@@ -41,6 +42,7 @@ from deps.browser_exceptions import (
     BrowserTimeoutException,
     BrowserVersionMismatchException,
     CircuitBreakerOpenException,
+    CloudflareChallengeNotClearedException,
     TrackerAccountNotFoundException,
     TrackerBlockedException,
 )
@@ -123,6 +125,7 @@ class BrowserContextManager:
         self._xvfb_proc: Optional[subprocess.Popen] = None
         self._profile_dir: Optional[str] = None
         self._lock_acquired = False
+        self._alert_owner_on_challenge = True
         self.config = config or BrowserConfig.from_environment()
 
         # Initialize global circuit breaker if needed
@@ -228,17 +231,99 @@ class BrowserContextManager:
         except Exception:
             return False
 
-    def _attempt_cloudflare_solve(self, log_name: str) -> bool:
+    def _cdp_press_and_hold(self, x: float, y: float, hold_seconds: float = 1.2) -> None:
+        """Press and hold with trusted CDP events, for Turnstile's "Press & Hold" variant."""
+        driver = self._active_driver()
+        driver.execute_cdp_cmd("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
+        time.sleep(0.05 + random.random() * 0.1)
+        driver.execute_cdp_cmd(
+            "Input.dispatchMouseEvent",
+            {"type": "mousePressed", "x": x, "y": y, "button": "left", "clickCount": 1},
+        )
+        time.sleep(hold_seconds + random.random() * 0.3)
+        driver.execute_cdp_cmd(
+            "Input.dispatchMouseEvent",
+            {"type": "mouseReleased", "x": x, "y": y, "button": "left", "clickCount": 1},
+        )
+
+    def _clear_cloudflare_cookies(self) -> None:
         """
-        Poll the challenge page and click the Turnstile checkbox until the API JSON
+        Drop only the Cloudflare cookies so the next load is issued a fresh challenge.
+
+        A clearance cookie can outlive the browser state Cloudflare tied it to and then
+        serve the same widget forever. The rest of the profile stays intact.
+        """
+        driver = self._active_driver()
+        try:
+            for cookie in driver.get_cookies():
+                if cookie.get("name", "").startswith(("cf_", "__cf", "_cfuvid")):
+                    driver.delete_cookie(cookie["name"])
+        except Exception as e:
+            print_warning_log(f"_clear_cloudflare_cookies: {e}")
+
+    def _reload_challenge_page(self, url: str) -> None:
+        """Load the API URL again so Cloudflare hands out a new challenge."""
+        driver = self._active_driver()
+        try:
+            if url:
+                driver.get(url)
+            else:
+                driver.refresh()
+        except WebDriverException as e:
+            # A raw WebDriver error would skip the per-user handlers and abort the whole batch.
+            print_warning_log(f"_reload_challenge_page: reload failed; continuing to poll: {e}")
+
+    def _click_cloudflare_widget(self, attempt: int) -> bool:
+        """
+        Interact with the challenge widget.
+
+        Turnstile renders a checkbox at the widget's left edge for the common case and a
+        centered button for interactive challenges, so alternate between them and use a
+        press-and-hold on every third attempt.
+        """
+        rect = self._find_cloudflare_widget_rect()
+        if rect is None:
+            return False
+
+        click_y = rect["y"] + rect["height"] / 2
+        time.sleep(0.2 + random.random() * 0.6)
+        if attempt % 3 == 2:
+            click_x = rect["x"] + rect["width"] / 2
+            try:
+                self._cdp_press_and_hold(click_x, click_y)
+                print_log(f"Pressed and held the Cloudflare widget at ({click_x:.0f}, {click_y:.0f}).")
+            except Exception as e:
+                print_warning_log(f"Cloudflare press-and-hold failed: {e}")
+                return False
+            return True
+
+        click_x = rect["x"] + rect["width"] / 2 if attempt % 2 == 1 else rect["x"] + min(30.0, rect["width"] / 4)
+        try:
+            self._cdp_trusted_click(click_x, click_y)
+            print_log(f"Clicked the Cloudflare widget at ({click_x:.0f}, {click_y:.0f}).")
+        except Exception as e:
+            print_warning_log(f"Cloudflare widget click failed: {e}")
+            return False
+        return True
+
+    def _attempt_cloudflare_solve(self, log_name: str, url: str = "") -> bool:
+        """
+        Poll the challenge page and interact with the Turnstile widget until the API JSON
         appears or the budget runs out. Returns True if the JSON is ready.
+
+        Retries with alternating hit points, then a bounded cookie reset + reload, because the
+        widget can ignore a click and a stale clearance cookie can loop on the same challenge.
         """
         budget = self.config.cloudflare_auto_solve_seconds
         if budget <= 0:
             return self._json_is_ready()
 
-        print_warning_log(f"{log_name}: Cloudflare challenge detected; attempting automatic checkbox solve.")
+        print_warning_log(f"{log_name}: Cloudflare challenge detected; attempting automatic solve.")
         deadline = time.time() + budget
+        attempt = 0
+        clicks_since_load = 0
+        reloads = 0
+        page_loaded_at = time.time()
         while time.time() < deadline:
             if self._json_is_ready():
                 print_log(f"{log_name}: Cloudflare challenge cleared.")
@@ -247,54 +332,174 @@ class BrowserContextManager:
                 # Challenge gone but JSON not rendered yet; give the reload a moment.
                 time.sleep(1.5)
                 continue
-            rect = self._find_cloudflare_widget_rect()
-            if rect is not None:
-                # The checkbox sits near the left edge, vertically centred in the widget.
-                click_x = rect["x"] + 30
-                click_y = rect["y"] + rect["height"] / 2
-                time.sleep(0.2 + random.random() * 0.6)
-                try:
-                    self._cdp_trusted_click(click_x, click_y)
-                    print_log(f"{log_name}: Clicked Cloudflare checkbox at ({click_x:.0f}, {click_y:.0f}).")
-                except Exception as e:
-                    print_warning_log(f"{log_name}: Cloudflare checkbox click failed: {e}")
-            time.sleep(3.0)
+
+            if self._click_cloudflare_widget(attempt):
+                attempt += 1
+                clicks_since_load += 1
+
+            # Let Turnstile process the interaction before judging it.
+            time.sleep(3.0 + random.random() * 2.0)
+            if self._json_is_ready():
+                print_log(f"{log_name}: Cloudflare challenge cleared.")
+                return True
+
+            # Turnstile can verify for many seconds after a click, and a reload throws that away.
+            patience_over = time.time() - page_loaded_at >= self.config.cloudflare_reload_after_seconds
+            if clicks_since_load > 0 and patience_over and reloads < self.config.cloudflare_max_reloads:
+                print_warning_log(f"{log_name}: Challenge did not clear; reloading with fresh cookies.")
+                # The reload is a tracker.gg request, but its pause must not eat the solve budget.
+                pause_started_at = time.time()
+                wait_before_request(log_name)
+                deadline += time.time() - pause_started_at
+                self._clear_cloudflare_cookies()
+                self._reload_challenge_page(url)
+                reloads += 1
+                clicks_since_load = 0
+                page_loaded_at = time.time()
+                time.sleep(1.0)
         return self._json_is_ready()
 
-    def _wait_for_json(self, log_name: str) -> None:
-        """Wait for the API JSON, solving a Cloudflare challenge automatically if one appears."""
+    def _read_clearance_identity(self, log_name: str) -> Optional[tuple[str, dict[str, str]]]:
+        """Return the browser's User-Agent and cookies, or None without a clearance cookie to replay."""
+        driver = self._active_driver()
+        try:
+            user_agent = driver.execute_script("return navigator.userAgent")
+            cookies = {c["name"]: c["value"] for c in driver.get_cookies() if c.get("name") and c.get("value")}
+        except Exception as e:
+            print_warning_log(f"{log_name}: Could not read browser cookies for the HTTP fallback: {e}")
+            return None
+        if "cf_clearance" not in cookies:
+            print_warning_log(f"{log_name}: HTTP fallback skipped (no Cloudflare clearance cookie yet).")
+            return None
+        return user_agent, cookies
+
+    def _http_fetch_json(self, url: str, log_name: str) -> Optional[Any]:
+        """
+        Replay the API URL over plain HTTP with the browser's User-Agent and cookies.
+
+        Selenium is only needed to earn the cf_clearance cookie; once it is set, an HTTP
+        request from the same IP and User-Agent returns the JSON even while the page itself
+        is stuck on the challenge. Without a clearance cookie the different TLS fingerprint
+        would just collect another challenge, so the fallback is skipped then.
+        """
+        if not self.config.cloudflare_http_fallback_enabled or not url:
+            return None
+        identity = self._read_clearance_identity(log_name)
+        if identity is None:
+            return None
+        user_agent, cookies = identity
+
+        headers = {
+            "User-Agent": user_agent,
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        wait_before_request(log_name)
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                cookies=cookies,
+                timeout=self.config.cloudflare_http_fallback_timeout_seconds,
+            )
+        except requests.RequestException as e:
+            print_warning_log(f"{log_name}: HTTP fallback failed: {e}")
+            return None
+        try:
+            data = response.json()
+        except ValueError:
+            print_warning_log(f"{log_name}: HTTP fallback returned non-JSON content (HTTP {response.status_code}).")
+            return None
+        # An error body (Warden block, unknown player) is what the browser would have rendered:
+        # the callers must see it to start the cooldown instead of solving a challenge for nothing.
+        if response.status_code != 200 and not (isinstance(data, dict) and data.get("errors")):
+            print_warning_log(f"{log_name}: HTTP fallback returned HTTP {response.status_code}.")
+            return None
+        print_log(f"{log_name}: Recovered the JSON over HTTP with the browser clearance cookie.")
+        return data
+
+    def _wait_for_manual_cloudflare_solve(self, log_name: str) -> bool:
+        """Allow a human already watching the live browser to complete the final fallback."""
+        manual_wait = self.config.cloudflare_manual_wait_seconds
+        if manual_wait <= 0:
+            return False
+        print_warning_log(f"{log_name}: Auto-solve failed. Waiting {manual_wait}s for manual completion.")
+        try:
+            WebDriverWait(self._active_driver(), manual_wait).until(
+                lambda driver: bool(driver.find_elements(By.TAG_NAME, "pre"))
+            )
+            return True
+        except WebDriverException:
+            return False
+
+    def _solve_with_cloudflare_fallbacks(
+        self, log_name: str, url: str, cause: Optional[TimeoutException] = None
+    ) -> Optional[Any]:
+        """
+        Resolve a challenge in strict order: cookie replay, auto-solve, visible-browser help, owner DM.
+
+        The replay comes first because the solver resets the cookies, which must not burn a
+        still-valid clearance. ``_challenge_not_cleared`` requests the attention that
+        ``tracker_block_alert_task`` turns into the owner DM.
+
+        Returns the replayed JSON, or None when the browser page holds the JSON.
+        """
+        if self._json_is_ready():
+            return None
+        data = self._http_fetch_json(url, log_name)
+        if data is not None:
+            return data
+        if self._attempt_cloudflare_solve(log_name, url):
+            return None
+        if self._wait_for_manual_cloudflare_solve(log_name):
+            return None
+        raise self._challenge_not_cleared(log_name) from cause
+
+    def _wait_for_json(self, log_name: str, url: str = "") -> Optional[Any]:
+        """
+        Fetch JSON using the three tracker.gg fallbacks in order.
+
+        1. Reuse the persistent browser clearance cookie through the normal page wait; a
+           challenge then gets one HTTP replay before any cookie is reset.
+        2. Run the automatic Cloudflare widget solver, including bounded reloads.
+        3. Offer the visible-browser manual window, then request the owner-DM human solve.
+
+        Returns parsed JSON when an HTTP cookie replay was needed, or None when the browser
+        page itself holds the JSON (the caller then reads page_source).
+        """
         driver = self._active_driver()
 
         if self._is_cloudflare_challenge():
-            if not self._attempt_cloudflare_solve(log_name):
-                # Optional last-resort window for a human watching the live browser.
-                manual_wait = self.config.cloudflare_manual_wait_seconds
-                if manual_wait > 0:
-                    print_warning_log(f"{log_name}: Auto-solve failed. Waiting {manual_wait}s for manual completion.")
-                    try:
-                        WebDriverWait(driver, manual_wait).until(lambda d: bool(d.find_elements(By.TAG_NAME, "pre")))
-                    except TimeoutException as e:
-                        raise self._challenge_not_cleared(log_name) from e
-                    return
-                raise self._challenge_not_cleared(log_name)
-            return
+            return self._solve_with_cloudflare_fallbacks(log_name, url)
 
         try:
             WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 lambda current_driver: bool(current_driver.find_elements(By.TAG_NAME, "pre"))
             )
+            return None
         except TimeoutException as e:
             if self._is_cloudflare_challenge():
-                if self._attempt_cloudflare_solve(log_name):
-                    return
-                raise self._challenge_not_cleared(log_name) from e
+                return self._solve_with_cloudflare_fallbacks(log_name, url, e)
             raise BrowserTimeoutException(f"{log_name}: Timeout waiting for JSON data: {e}") from e
 
-    @staticmethod
-    def _challenge_not_cleared(log_name: str) -> BrowserTimeoutException:
-        """Ask a human to solve the challenge the automatic checkbox click could not clear."""
-        request_tracker_attention()
-        return BrowserTimeoutException(f"{log_name}: Cloudflare challenge was not cleared; no JSON response received")
+    def _challenge_not_cleared(self, log_name: str) -> CloudflareChallengeNotClearedException:
+        """Ask a human to solve the challenge the automatic fallbacks could not clear."""
+        if self._alert_owner_on_challenge:
+            request_tracker_attention()
+        return CloudflareChallengeNotClearedException(
+            f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
+        )
+
+    def _extract_json_from_page(self, log_name: str) -> Any:
+        """Read the JSON <pre> block rendered by the browser."""
+        soup = BeautifulSoup(self._active_driver().page_source, "html.parser")
+        pre_tag = soup.find("pre")
+        if not pre_tag:
+            raise BrowserException(f"{log_name}: JSON data not found within <pre> tag.")
+        try:
+            return json.loads(pre_tag.get_text().strip())
+        except json.JSONDecodeError as e:
+            raise BrowserException(f"{log_name}: Error parsing JSON: {e}") from e
 
     @staticmethod
     def get_circuit_breaker_stats() -> dict:
@@ -963,6 +1168,31 @@ class BrowserContextManager:
         except Exception as e:
             print_warning_log(f"Initial page load encountered unexpected error: {e}, proceeding anyway...")
 
+    def probe_api(self, ubisoft_user_name: str) -> dict[str, str]:
+        """
+        Make one real tracker.gg request and describe what came back.
+
+        Used by the owner status command; it reuses the normal challenge fallbacks so the
+        answer reflects what the bot would actually experience. An unsolved challenge is
+        already in the command's reply and the next real job will alert the owner if it
+        persists, so no DM here. A Warden block still alerts: its cooldown stops those jobs.
+        """
+        self._alert_owner_on_challenge = False
+        driver = self._active_driver()
+        api_url = get_url_api_user_info(ubisoft_user_name)
+        wait_before_request("probe")
+        driver.get(api_url)
+        try:
+            data = self._wait_for_json("probe", api_url)
+            if data is None:
+                data = self._extract_json_from_page("probe")
+        except BrowserException:
+            if self._is_cloudflare_challenge():
+                return {"state": "challenge", "detail": "Cloudflare challenge could not be solved"}
+            return {"state": "unreachable", "detail": "no JSON and no challenge page"}
+        check_tracker_response(data, "probe")  # raises on a Warden block
+        return {"state": "ok", "detail": "JSON received"}
+
     def download_full_matches(self, user_queued: UserQueueForStats) -> List[UserFullMatchStats]:
         """
         Download the matches for the given Ubisoft username
@@ -985,48 +1215,28 @@ class BrowserContextManager:
         driver.get(api_url)
         print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
 
-        # Wait until the page contains the expected JSON data
-        self._wait_for_json("download_matches")
+        data = self._wait_for_json("download_matches", api_url)
+        if data is None:
+            data = self._extract_json_from_page("download_matches")
 
-        # Step 2: Extract the page content, expecting JSON
-        page_source = driver.page_source
-
-        # Step 3: Remove the HTML
-        soup = BeautifulSoup(page_source, "html.parser")
-        # Find the <pre> tag containing the JSON
-        pre_tag = soup.find("pre")
-
-        # Ensure the <pre> tag is found and contains the expected JSON data
-        if not pre_tag:
-            raise BrowserException("download_matches: JSON data not found within <pre> tag.")
-
-        # Step 4: Extract the text content of the <pre> tag
-        json_data = pre_tag.get_text().strip()
-
-        try:
-            # Step 5: Parse the JSON data
-            data = json.loads(json_data)
-            print_log(f"download_matches: JSON found for {ubisoft_user_name}")
-            check_tracker_response(data, "download_matches")
-            # Save the JSON data to a file for debugging
-            if os.getenv("ENV") == "dev":
-                try:
-                    with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
-                        file.write(json.dumps(data, indent=4))
-                except Exception as e:
-                    print_warning_log(f"Failed to write debug JSON file: {e}")
-            # tracker.gg reports this specific error code when the username itself does not
-            # exist (confirmed by checking the profile page directly: "404 PLAYER NOT FOUND"),
-            # not merely "no recent matches". The stored username is stale (likely renamed).
-            errors = data.get("errors") if isinstance(data, dict) else None
-            if isinstance(errors, list) and any(
-                isinstance(err, dict) and err.get("code") == "StandardApiV2::NoData" for err in errors
-            ):
-                raise TrackerAccountNotFoundException(ubisoft_user_name)
-            # Step 6: Parse the JSON data to extract the matches
-            return parse_json_from_full_matches(data, user_queued.user_info)
-        except json.JSONDecodeError as e:
-            raise BrowserException(f"download_matches: Error parsing JSON: {e}") from e
+        print_log(f"download_matches: JSON found for {ubisoft_user_name}")
+        check_tracker_response(data, "download_matches")
+        # Save the JSON data to a file for debugging
+        if os.getenv("ENV") == "dev":
+            try:
+                with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
+                    file.write(json.dumps(data, indent=4))
+            except Exception as e:
+                print_warning_log(f"Failed to write debug JSON file: {e}")
+        # tracker.gg reports this specific error code when the username itself does not
+        # exist (confirmed by checking the profile page directly: "404 PLAYER NOT FOUND"),
+        # not merely "no recent matches". The stored username is stale (likely renamed).
+        errors = data.get("errors") if isinstance(data, dict) else None
+        if isinstance(errors, list) and any(
+            isinstance(err, dict) and err.get("code") == "StandardApiV2::NoData" for err in errors
+        ):
+            raise TrackerAccountNotFoundException(ubisoft_user_name)
+        return parse_json_from_full_matches(data, user_queued.user_info)
 
     def refresh_browser(self) -> None:
         """Refresh the browser"""
@@ -1061,31 +1271,19 @@ class BrowserContextManager:
         driver.get(api_url)
         print_log(f"{log_name}: Downloading profile for {ubisoft_user_name} using {api_url}")
 
-        self._wait_for_json(log_name)
+        data = self._wait_for_json(log_name, api_url)
+        if data is None:
+            data = self._extract_json_from_page(log_name)
 
-        page_source = driver.page_source
-
-        soup = BeautifulSoup(page_source, "html.parser")
-        pre_tag = soup.find("pre")
-
-        if not pre_tag:
-            raise BrowserException(f"{log_name}: JSON data not found within <pre> tag.")
-
-        json_data = pre_tag.get_text().strip()
-
-        try:
-            data = json.loads(json_data)
-            print_log(f"{log_name}: JSON found for {ubisoft_user_name}")
-            check_tracker_response(data, log_name)
-            if os.getenv("ENV") == "dev":
-                try:
-                    with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
-                        file.write(json.dumps(data, indent=4))
-                except Exception as e:
-                    print_warning_log(f"Failed to write debug JSON file: {e}")
-            return parser(data)
-        except json.JSONDecodeError as e:
-            raise BrowserException(f"{log_name}: Error parsing JSON: {e}") from e
+        print_log(f"{log_name}: JSON found for {ubisoft_user_name}")
+        check_tracker_response(data, log_name)
+        if os.getenv("ENV") == "dev":
+            try:
+                with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
+                    file.write(json.dumps(data, indent=4))
+            except Exception as e:
+                print_warning_log(f"Failed to write debug JSON file: {e}")
+        return parser(data)
 
     def download_max_rank(self, ubisoft_user_name: Optional[str] = None) -> tuple[str, int]:
         """Download the web page, and extract the max rank."""
@@ -1119,40 +1317,20 @@ class BrowserContextManager:
         driver.get(api_url)
         print_log(f"download_full_user_stats: Downloading stats for {ubisoft_user_name} using {api_url}")
 
-        # Wait until the page contains the expected JSON data
-        self._wait_for_json("download_full_user_stats")
+        data = self._wait_for_json("download_full_user_stats", api_url)
+        if data is None:
+            data = self._extract_json_from_page("download_full_user_stats")
 
-        # Step 2: Extract the page content, expecting JSON
-        page_source = driver.page_source
-
-        # Step 3: Remove the HTML
-        soup = BeautifulSoup(page_source, "html.parser")
-        # Find the <pre> tag containing the JSON
-        pre_tag = soup.find("pre")
-
-        # Ensure the <pre> tag is found and contains the expected JSON data
-        if not pre_tag:
-            raise BrowserException("download_full_user_stats: JSON data not found within <pre> tag.")
-
-        # Step 4: Extract the text content of the <pre> tag
-        json_data = pre_tag.get_text().strip()
-
-        try:
-            # Step 5: Parse the JSON data
-            data = json.loads(json_data)
-            print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
-            check_tracker_response(data, "download_full_user_stats")
-            # Save the JSON data to a file for debugging
-            if os.getenv("ENV") == "dev":
-                try:
-                    with open(f"r6tracker_data_full_user_stats_{self.counter}.json", "w", encoding="utf8") as file:
-                        file.write(json.dumps(data, indent=4))
-                except Exception as e:
-                    print_warning_log(f"Failed to write debug JSON file: {e}")
-            # Step 6: Parse the JSON data to extract the matches
-            return parse_json_user_info(user_queued.user_info.id, data)
-        except json.JSONDecodeError as e:
-            raise BrowserException(f"download_full_user_stats: Error parsing JSON: {e}") from e
+        print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
+        check_tracker_response(data, "download_full_user_stats")
+        # Save the JSON data to a file for debugging
+        if os.getenv("ENV") == "dev":
+            try:
+                with open(f"r6tracker_data_full_user_stats_{self.counter}.json", "w", encoding="utf8") as file:
+                    file.write(json.dumps(data, indent=4))
+            except Exception as e:
+                print_warning_log(f"Failed to write debug JSON file: {e}")
+        return parse_json_user_info(user_queued.user_info.id, data)
 
     def download_operator_stats(self, r6_tracker_user_uuid: str) -> Optional[dict[str, Any]]:
         """
@@ -1181,37 +1359,19 @@ class BrowserContextManager:
         driver.get(api_url)
         print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
 
-        # Wait until the page contains the expected JSON data
-        self._wait_for_json("download_operator_stats")
+        data = self._wait_for_json("download_operator_stats", api_url)
+        if data is None:
+            data = self._extract_json_from_page("download_operator_stats")
 
-        # Get the page source
-        page_source = driver.page_source
+        print_log(f"download_operator_stats: JSON found for UUID {r6_tracker_user_uuid}")
+        check_tracker_response(data, "download_operator_stats")
 
-        # Remove the HTML
-        soup = BeautifulSoup(page_source, "html.parser")
-        pre_tag = soup.find("pre")
+        # Save the JSON data to a file for debugging in dev
+        if os.getenv("ENV") == "dev":
+            try:
+                with open(f"r6tracker_operator_stats_{self.counter}.json", "w", encoding="utf8") as file:
+                    file.write(json.dumps(data, indent=4))
+            except Exception as e:
+                print_warning_log(f"Failed to write debug JSON file: {e}")
 
-        if not pre_tag:
-            raise BrowserException("download_operator_stats: JSON data not found within <pre> tag.")
-
-        # Extract the text content of the <pre> tag
-        json_data = pre_tag.get_text().strip()
-
-        try:
-            # Parse the JSON data
-            data = json.loads(json_data)
-            print_log(f"download_operator_stats: JSON found for UUID {r6_tracker_user_uuid}")
-            check_tracker_response(data, "download_operator_stats")
-
-            # Save the JSON data to a file for debugging in dev
-            if os.getenv("ENV") == "dev":
-                try:
-                    with open(f"r6tracker_operator_stats_{self.counter}.json", "w", encoding="utf8") as file:
-                        file.write(json.dumps(data, indent=4))
-                except Exception as e:
-                    print_warning_log(f"Failed to write debug JSON file: {e}")
-
-            return data
-
-        except json.JSONDecodeError as e:
-            raise BrowserException(f"download_operator_stats: Error parsing JSON: {e}") from e
+        return data

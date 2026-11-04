@@ -22,5 +22,6 @@ class TrackerBlockView(discord.ui.View):
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(
             "tracker.gg requests are back on and will resume within a few minutes. "
-            "I will DM you again if it is still blocking."
+            "I will DM you again if it is still blocking.",
+            ephemeral=True,  # The button can also come from /modtrackerstatus in a public channel
         )
