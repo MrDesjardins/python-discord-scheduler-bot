@@ -11,6 +11,18 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from deps.browser_context_manager import BrowserContextManager
+from deps.browser_exceptions import BrowserException, BrowserLockContentionException
+
+
+def clearance_works(context: BrowserContextManager) -> bool:
+    """Send one real tracker.gg API request and report whether it was answered."""
+    print("Checking with tracker.gg, this can take up to a minute...")
+    try:
+        context.download_current_season_rank(context.default_profile)
+    except BrowserException as e:
+        print(f"Still not cleared: {e}")
+        return False
+    return True
 
 
 def main() -> None:
@@ -21,14 +33,20 @@ def main() -> None:
 
     profile_path = Path(profile_dir).expanduser()
     print(f"Using Chrome profile: {profile_path}")
-    print("A visible Chrome window should open. Complete any Cloudflare check, then press Enter.")
+    print("A visible Chrome window should open on a tracker.gg profile page.")
 
     # ENV=dev keeps this maintenance command on the caller's forwarded display; the profile
     # itself is shared with production so the clearance cookie survives the bot's restart.
-    with BrowserContextManager() as context:
-        driver = context._active_driver()  # pylint: disable=protected-access
-        driver.get("https://tracker.gg")
-        input("After validation succeeds, press Enter to close Chrome: ")
+    # The context holds the browser lock, which keeps the running bot out of the profile.
+    try:
+        with BrowserContextManager() as context:
+            input("Tick the box if one shows up, wait for the page to load, then press Enter: ")
+            if clearance_works(context):
+                print("It worked. Press 'Solved, retry now' in the Discord DM.")
+            else:
+                print("tracker.gg is still refusing requests. Leave the bot paused and try again later.")
+    except BrowserLockContentionException as e:
+        raise SystemExit(f"The bot is using the browser right now, try again in a few minutes. ({e})") from e
 
 
 if __name__ == "__main__":

@@ -45,7 +45,12 @@ from deps.browser_exceptions import (
     TrackerBlockedException,
 )
 from deps.browser_circuit_breaker import BrowserCircuitBreaker
-from deps.tracker_pacing import tracker_block_remaining_seconds, check_tracker_response, wait_before_request
+from deps.tracker_pacing import (
+    check_tracker_response,
+    request_tracker_attention,
+    tracker_block_remaining_seconds,
+    wait_before_request,
+)
 
 CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
 # CHROMIUM_LOCK is thread-local, so other threads cannot ask it whether a session holds it
@@ -269,13 +274,9 @@ class BrowserContextManager:
                     try:
                         WebDriverWait(driver, manual_wait).until(lambda d: bool(d.find_elements(By.TAG_NAME, "pre")))
                     except TimeoutException as e:
-                        raise BrowserTimeoutException(
-                            f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
-                        ) from e
+                        raise self._challenge_not_cleared(log_name) from e
                     return
-                raise BrowserTimeoutException(
-                    f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
-                )
+                raise self._challenge_not_cleared(log_name)
             return
 
         try:
@@ -286,10 +287,14 @@ class BrowserContextManager:
             if self._is_cloudflare_challenge():
                 if self._attempt_cloudflare_solve(log_name):
                     return
-                raise BrowserTimeoutException(
-                    f"{log_name}: Cloudflare challenge was not cleared; no JSON response received"
-                ) from e
+                raise self._challenge_not_cleared(log_name) from e
             raise BrowserTimeoutException(f"{log_name}: Timeout waiting for JSON data: {e}") from e
+
+    @staticmethod
+    def _challenge_not_cleared(log_name: str) -> BrowserTimeoutException:
+        """Ask a human to solve the challenge the automatic checkbox click could not clear."""
+        request_tracker_attention()
+        return BrowserTimeoutException(f"{log_name}: Cloudflare challenge was not cleared; no JSON response received")
 
     @staticmethod
     def get_circuit_breaker_stats() -> dict:

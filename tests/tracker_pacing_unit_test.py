@@ -24,6 +24,8 @@ def reset_pacing_state(monkeypatch):
     monkeypatch.setattr(tracker_pacing, "_last_request_at", float("-inf"))
     monkeypatch.setattr(tracker_pacing, "_blocked_until", 0.0)
     monkeypatch.setattr(tracker_pacing, "_consecutive_blocks", 0)
+    monkeypatch.setattr(tracker_pacing, "_attention_requested", False)
+    monkeypatch.setattr(tracker_pacing, "_last_attention_at", float("-inf"))
 
 
 def test_first_request_does_not_wait():
@@ -79,3 +81,47 @@ def test_valid_response_resets_the_escalation():
 def test_other_tracker_errors_are_not_a_block():
     tracker_pacing.check_tracker_response({"errors": [{"code": "StandardApiV2::NoData"}]}, "test")
     assert tracker_pacing.tracker_block_remaining_seconds() == 0
+    assert tracker_pacing.take_tracker_attention_request() is False
+
+
+def test_warden_block_asks_for_attention_once():
+    with pytest.raises(TrackerBlockedException):
+        tracker_pacing.check_tracker_response(WARDEN_RESPONSE, "test")
+
+    assert tracker_pacing.take_tracker_attention_request() is True
+    assert tracker_pacing.take_tracker_attention_request() is False
+
+
+def test_attention_requests_wait_for_the_gap_without_being_lost():
+    with patch("deps.tracker_pacing.time.monotonic", return_value=1000.0):
+        tracker_pacing.request_tracker_attention()
+        assert tracker_pacing.take_tracker_attention_request() is True
+        tracker_pacing.request_tracker_attention()
+        assert tracker_pacing.take_tracker_attention_request() is False
+
+    later = 1000.0 + tracker_pacing.ATTENTION_MIN_GAP_SECONDS
+    with patch("deps.tracker_pacing.time.monotonic", return_value=later):
+        assert tracker_pacing.take_tracker_attention_request() is True
+
+
+def test_clearing_the_block_allows_requests_and_keeps_the_escalation():
+    with pytest.raises(TrackerBlockedException):
+        tracker_pacing.check_tracker_response(WARDEN_RESPONSE, "test")
+
+    tracker_pacing.clear_tracker_block()
+
+    assert tracker_pacing.tracker_block_remaining_seconds() == 0
+    assert tracker_pacing.take_tracker_attention_request() is False
+    with pytest.raises(TrackerBlockedException) as exc_info:
+        tracker_pacing.check_tracker_response(WARDEN_RESPONSE, "test")
+    assert exc_info.value.retry_in_seconds == tracker_pacing.BLOCK_COOLDOWNS_SECONDS[1]
+
+
+def test_clearing_the_block_alerts_right_away_if_it_comes_back():
+    tracker_pacing.request_tracker_attention()
+    assert tracker_pacing.take_tracker_attention_request() is True
+
+    tracker_pacing.clear_tracker_block()
+    tracker_pacing.request_tracker_attention()
+
+    assert tracker_pacing.take_tracker_attention_request() is True

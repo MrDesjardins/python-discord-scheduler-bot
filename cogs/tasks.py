@@ -21,6 +21,7 @@ from deps.bot_common_actions import (
 from deps.mybot import MyBot
 from deps.log import print_error_log, print_log
 from deps.system_database import run_wal_checkpoint
+from deps.tracker_block_alert import send_tracker_block_alert
 from deps.functions_stats import send_daily_stats_to_a_guild
 from deps.analytic_player_value_functions import compute_and_store_player_values
 from deps.analytic_player_value_weekly import send_weekly_player_value_to_a_guild
@@ -54,6 +55,7 @@ class MyTasksCog(commands.Cog):
         print_log("MyTasksCog>start_task: Bot is ready, starting tasks...")
         self.check_voice_channel_task.start()  # Start the task when the cog is loaded
         self.send_queue_user_stats.start()  # Start the task when the cog is loaded
+        self.tracker_block_alert_task.start()  # Poke the owner when tracker.gg needs a human check
         self.reconcile_tribemarkets_task.start()  # Recover delayed markets after restart and during the day
         self.finish_match_gifs_task.start()  # Score match-start GIFs when nobody in the squad runs stats.cc
         self.send_daily_question_to_all_guild_task.start()  # Start the task when the cog is loaded
@@ -87,6 +89,11 @@ class MyTasksCog(commands.Cog):
             await post_queued_user_stats()
         except Exception as e:
             print_error_log(f"send_queue_user_stats task: {e}")
+
+    @tasks.loop(minutes=2)
+    async def tracker_block_alert_task(self):
+        """DM the owner from the bot's event loop; the block itself is detected in a browser thread."""
+        await send_tracker_block_alert(self.bot)
 
     @tasks.loop(minutes=10)
     async def finish_match_gifs_task(self):

@@ -515,25 +515,23 @@ TRN_API_KEY<TRN token>
 GEMINI_API_KEY=<api key>
 OPENAI_API_KEY=<api key>
 
-# Optional: retain Cloudflare clearance cookies for the Selenium-based Tracker integration.
-# In production, set these in the bot's .env and complete a challenge in the visible browser
-# when the log asks for it.
+# Required for solving a tracker.gg challenge by hand: keeps the clearance in a Chrome profile
+# shared by the bot and the maintenance command below. Without it the bot uses a temporary profile.
 BROWSER_PROFILE_DIR=/home/<service-user>/.cache/gametimescheduler/chrome-profile
-BROWSER_CLOUDFLARE_MANUAL_WAIT=300
 ```
 
-If the bot logs that a Cloudflare challenge was detected, stop the service and open the same
-profile from a computer with X11 forwarding enabled:
+When tracker.gg blocks the bot, or the automatic Cloudflare checkbox click fails, the owner of
+the Discord application gets a DM (at most one per hour) with the command to run from a computer
+with X11 forwarding enabled. The bot can keep running: the command holds the browser lock, so the
+bot stays out of the profile until it finishes.
 
 ```sh
-sudo systemctl stop gametimescheduler.service
 ssh -Y <service-user>@<production-host> \
   'cd /path/to/python-discord-scheduler-bot && ENV=dev .venv/bin/python deployment/validate_tracker_cloudflare.py'
-sudo systemctl start gametimescheduler.service
 ```
 
-Complete the check in the Chrome window, press Enter, and start the bot again. Do not run the
-maintenance command while the service is using the profile.
+Tick the box in the Chrome window and press Enter. The command sends one tracker.gg request to
+check the result. If it worked, press **Solved, retry now** in the DM to end the cooldown.
 
 11. Install ffmpeg for the audio
 

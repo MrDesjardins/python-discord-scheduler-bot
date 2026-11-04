@@ -14,11 +14,15 @@ MAX_REQUEST_GAP_SECONDS = 50.0
 # blocked IP only keep it blocked.
 BLOCK_COOLDOWNS_SECONDS = (60 * 60, 2 * 60 * 60, 4 * 60 * 60, 6 * 60 * 60)
 WARDEN_CHALLENGE_CODE = "Warden::Challenge"
+# A failed Cloudflare check repeats on every request, the owner only needs to hear about it once in a while.
+ATTENTION_MIN_GAP_SECONDS = 60 * 60
 
 # Requests are serialized by the browser FileLock, so this state needs no lock of its own.
 _last_request_at: float = float("-inf")
 _blocked_until: float = 0.0
 _consecutive_blocks: int = 0
+_attention_requested: bool = False
+_last_attention_at: float = float("-inf")
 
 
 def tracker_block_remaining_seconds() -> float:
@@ -52,8 +56,36 @@ def check_tracker_response(data: Any, log_name: str) -> None:
     cooldown = BLOCK_COOLDOWNS_SECONDS[min(_consecutive_blocks, len(BLOCK_COOLDOWNS_SECONDS) - 1)]
     _consecutive_blocks += 1
     _blocked_until = time.monotonic() + cooldown
+    request_tracker_attention()
     print_error_log(
         f"{log_name}: tracker.gg Warden block ({_consecutive_blocks} in a row); "
         f"pausing all tracker.gg requests for {cooldown / 60:.0f} min"
     )
     raise TrackerBlockedException(cooldown)
+
+
+def request_tracker_attention() -> None:
+    """Ask for the bot owner to be told a tracker.gg challenge needs a human."""
+    global _attention_requested  # pylint: disable=global-statement
+    _attention_requested = True
+
+
+def take_tracker_attention_request() -> bool:
+    """True when the owner should be alerted now; the request is consumed and the alert gap restarts."""
+    global _attention_requested, _last_attention_at  # pylint: disable=global-statement
+    if not _attention_requested or time.monotonic() - _last_attention_at < ATTENTION_MIN_GAP_SECONDS:
+        return False
+    _attention_requested = False
+    _last_attention_at = time.monotonic()
+    return True
+
+
+def clear_tracker_block() -> None:
+    """
+    End the cooldown because the owner solved the challenge. The escalation is kept until a
+    request succeeds, and the next failure alerts right away so a wrong guess is reported.
+    """
+    global _blocked_until, _attention_requested, _last_attention_at  # pylint: disable=global-statement
+    _blocked_until = 0.0
+    _attention_requested = False
+    _last_attention_at = float("-inf")

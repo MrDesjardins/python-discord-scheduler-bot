@@ -1,7 +1,7 @@
 """Unit tests for the automatic Cloudflare challenge solver and profile-lock hardening."""
 
 import os
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -91,8 +91,12 @@ def test_wait_for_json_raises_when_challenge_never_clears():
     driver.title = "Just a moment..."
     driver.execute_cdp_cmd.side_effect = _cdp_router(dom={"root": {"nodeName": "#document", "children": []}})
 
-    with pytest.raises(BrowserTimeoutException):
+    with (
+        patch("deps.browser_context_manager.request_tracker_attention") as mock_attention,
+        pytest.raises(BrowserTimeoutException),
+    ):
         manager._wait_for_json("test")
+    mock_attention.assert_called_once_with()
 
 
 def test_cdp_trusted_click_dispatches_move_press_release():
