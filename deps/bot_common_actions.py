@@ -14,6 +14,7 @@ from collections import Counter
 from typing import Any, Dict, List, Mapping, Optional, Union
 from gtts import gTTS  # type: ignore
 import discord
+from deps.browser_context_manager import is_browser_busy
 from deps.browser import (
     download_full_matches_async,
     download_full_user_information_async,
@@ -31,6 +32,10 @@ from deps.data_access_data_class import UserInfo
 from deps.operator_stats_data_access import upsert_operator_stats
 from deps.data_access import (
     data_access_add_list_member_stats,
+    data_access_has_cached_r6tracker_current_season_rank,
+    data_access_mark_r6tracker_matches_fetched,
+    data_access_set_r6tracker_current_season_rank,
+    data_access_were_r6tracker_matches_fetched,
     data_access_get_bot_voice_first_user,
     data_access_get_channel,
     data_access_get_daily_message_id,
@@ -135,7 +140,12 @@ from deps.tribemarkets_reconciliation import (
     mark_reconciled_market,
     reconcile_match,
 )
-from deps.functions_r6_tracker import get_user_gaming_session_stats, parse_operator_stats_from_json
+from deps.tracker_pacing import tracker_block_remaining_seconds
+from deps.functions_r6_tracker import (
+    current_season_rank_from_matches,
+    get_user_gaming_session_stats,
+    parse_operator_stats_from_json,
+)
 from deps.functions_schedule import (
     adjust_reaction,
     get_daily_embed_message,
@@ -537,10 +547,31 @@ async def _post_tribemarkets_vote_message_update(
         )
 
 
+# Matches the periodic persist/rank-refresh job: a fetch within it already persisted the matches and the rank.
+R6_TRACKER_FETCH_MEMORY_SECONDS = 4 * 60 * 60
 # No ranked match is over this fast, so polling R6 Tracker earlier only burns a browser session.
 MATCH_GIF_R6_TRACKER_MIN_AGE = timedelta(minutes=20)
 # While stats.cc streams live scores it finishes the GIF itself; R6 Tracker only steps in past this age.
 MATCH_GIF_STATSCC_PRIORITY = timedelta(minutes=60)
+# Each poll is an R6 Tracker request, and the leave-voice fetch also finishes GIFs for free.
+MATCH_GIF_R6_TRACKER_MAX_ATTEMPTS = 3
+
+
+async def download_full_matches_remembering_ranks(
+    users: List[UserQueueForStats],
+) -> List[UserWithUserMatchInfo]:
+    """
+    Download match histories and remember the rank they show, so the periodic rank
+    refresh does not need one extra R6 Tracker profile request per member.
+    """
+    fetched = await download_full_matches_async(users)
+    played_after = datetime.now(timezone.utc) - timedelta(seconds=R6_TRACKER_FETCH_MEMORY_SECONDS)
+    for user_matches in fetched:
+        ubisoft_user_name = user_matches.user_request_stats.user_info.ubisoft_username_active
+        rank = current_season_rank_from_matches(user_matches.match_stats, played_after)
+        if ubisoft_user_name is not None and rank is not None:
+            data_access_set_r6tracker_current_season_rank(ubisoft_user_name, rank, R6_TRACKER_FETCH_MEMORY_SECONDS)
+    return fetched
 
 
 def _matches_by_member(fetched_users: List[UserWithUserMatchInfo]) -> dict[int, list[UserFullMatchStats]]:
@@ -577,11 +608,13 @@ async def _fetch_r6_tracker_for_match_gifs(
     records: list[dict[str, Any]], matches_by_member: dict[int, list[UserFullMatchStats]]
 ) -> None:
     """Fetch R6 Tracker history for GIFs old enough to be finished that stats.cc is not handling."""
+    if tracker_block_remaining_seconds() > 0:
+        return  # Do not burn the GIFs' attempts while every request would be refused
     now = datetime.now(timezone.utc)
     queue: dict[int, UserQueueForStats] = {}
     for record in records:
         age = now - datetime.fromisoformat(record["started_at"])
-        if age < MATCH_GIF_R6_TRACKER_MIN_AGE:
+        if age < MATCH_GIF_R6_TRACKER_MIN_AGE or int(record.get("attempts", 0)) >= MATCH_GIF_R6_TRACKER_MAX_ATTEMPTS:
             continue
         if age < MATCH_GIF_STATSCC_PRIORITY and await _statscc_reports_live_score(record):
             continue
@@ -595,7 +628,7 @@ async def _fetch_r6_tracker_for_match_gifs(
                 {**record, "attempts": int(record.get("attempts", 0)) + 1}, remaining_seconds
             )
     if queue:
-        for user_matches in await download_full_matches_async(list(queue.values())):
+        for user_matches in await download_full_matches_remembering_ranks(list(queue.values())):
             user_id = user_matches.user_request_stats.user_info.id
             matches_by_member.setdefault(user_id, []).extend(user_matches.match_stats)
 
@@ -709,7 +742,7 @@ async def reconcile_pending_tribemarkets(
             if user_info is not None and user_info.ubisoft_username_active is not None:
                 fetch_queue.append(UserQueueForStats(user_info, 0, datetime.now(timezone.utc)))
         if fetch_queue:
-            fetched = await download_full_matches_async(fetch_queue)
+            fetched = await download_full_matches_remembering_ranks(fetch_queue)
             for user_matches in fetched:
                 user_id = user_matches.user_request_stats.user_info.id
                 matches_by_member.setdefault(user_id, []).extend(user_matches.match_stats)
@@ -907,14 +940,22 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
     if len(users) == 0:
         return
 
+    if tracker_block_remaining_seconds() > 0 or is_browser_busy():
+        # Keep everyone queued without burning their attempts; they are posted once the block
+        # lifts or the long daily collection releases the browser
+        return
+
     # Accumulate all the stats for all the users before posting them
-    all_users_matches = await download_full_matches_async(users)
+    all_users_matches = await download_full_matches_remembering_ranks(users)
 
     # Post to the channel the stats for the users who disconnected
     for user_stats in all_users_matches:
         # Persist the data into the database
         try:
             insert_if_nonexistant_full_match_info(user_stats.user_request_stats.user_info, user_stats.match_stats)
+            data_access_mark_r6tracker_matches_fetched(
+                user_stats.user_request_stats.user_info.id, R6_TRACKER_FETCH_MEMORY_SECONDS
+            )
         except Exception as e:
             print_error_log(f"post_queued_user_stats: Error persisting the data: {e}")
     try:
@@ -1200,11 +1241,13 @@ async def get_currently_connected_user_ids(bot: MyBot) -> set[int]:
 
 
 async def persist_siege_matches_cross_guilds(
-    from_time: datetime, to_time: datetime, bot: Optional[MyBot] = None
+    from_time: datetime, to_time: datetime, bot: Optional[MyBot] = None, skip_recently_fetched: bool = False
 ) -> None:
     """
     Fetch and persist the matches between two dates for users who were active.
     If bot is provided, also includes users currently connected to voice channels.
+    With skip_recently_fetched, users whose matches were persisted in the last
+    R6_TRACKER_FETCH_MEMORY_SECONDS (usually when they left voice) are not fetched again.
     """
     # Get the list of users who were active between the time
     users: List[UserInfo] = get_active_user_info(from_time, to_time)
@@ -1232,11 +1275,16 @@ async def persist_siege_matches_cross_guilds(
     print_log(
         f"persist_siege_matches_cross_guilds: Found {len(users)} total users (activity + connected) between {from_time} and {to_time}"
     )
+    if skip_recently_fetched:
+        users = [user for user in users if not await data_access_were_r6tracker_matches_fetched(user.id)]
+        print_log(f"persist_siege_matches_cross_guilds: {len(users)} users not fetched recently")
     print_log(f"persist_siege_matches_cross_guilds: Users: {[user.display_name for user in users]}")
+    if len(users) == 0:
+        return
     users_stats: List[UserQueueForStats] = [UserQueueForStats(user, 0, from_time) for user in users]
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API
-    all_users_matches = await download_full_matches_async(users_stats)
+    all_users_matches = await download_full_matches_remembering_ranks(users_stats)
 
     # Persist the match info in the database
     # Persist the r6 tracker UUID in the user profile table if available
@@ -1248,6 +1296,7 @@ async def persist_siege_matches_cross_guilds(
         match_stats = user_and_matches.match_stats
         try:
             insert_if_nonexistant_full_match_info(user_info, match_stats)
+            data_access_mark_r6tracker_matches_fetched(user_info.id, R6_TRACKER_FETCH_MEMORY_SECONDS)
         except Exception as e:
             print_error_log(f"persist_siege_matches_cross_guilds: Error saving the match info: {e}")
             continue
@@ -1280,19 +1329,31 @@ async def get_active_user_info_with_connected_voice(
     return users
 
 
-async def refresh_current_rank_roles_cross_guilds(
+async def refresh_current_rank_roles_cross_guilds(  # pylint: disable=too-many-arguments
     from_time: datetime,
     to_time: datetime,
     bot: MyBot,
     guild: Optional[discord.Guild] = None,
     include_connected_voice: bool = True,
+    fetch_missing_ranks: bool = True,
 ) -> RankRefreshSummary:
-    """Refresh current-season rank roles for users who played, optionally including users in voice."""
+    """
+    Refresh current-season rank roles for users who played, optionally including users in voice.
+    Without fetch_missing_ranks, only users whose rank is already known (from a recent match
+    download) are refreshed: anyone else has not played ranked since, so their rank is unchanged.
+    """
     users = await get_active_user_info_with_connected_voice(
         from_time,
         to_time,
         bot if include_connected_voice else None,
     )
+    if not fetch_missing_ranks:
+        users = [
+            user
+            for user in users
+            if user.ubisoft_username_active is not None
+            and await data_access_has_cached_r6tracker_current_season_rank(user.ubisoft_username_active)
+        ]
     print_log(f"refresh_current_rank_roles_cross_guilds: Refreshing rank roles for {len(users)} users")
 
     summary = RankRefreshSummary(candidates=len(users))
@@ -1406,8 +1467,8 @@ async def persist_matches_and_refresh_rank_roles(bot: MyBot, hours: int) -> None
     """Persist Siege matches and refresh current-season rank roles for the last N hours."""
     now_utc = datetime.now(timezone.utc)
     begin_time = now_utc - timedelta(hours=hours)
-    await persist_siege_matches_cross_guilds(begin_time, now_utc, bot)
-    await refresh_current_rank_roles_cross_guilds(begin_time, now_utc, bot)
+    await persist_siege_matches_cross_guilds(begin_time, now_utc, bot, skip_recently_fetched=True)
+    await refresh_current_rank_roles_cross_guilds(begin_time, now_utc, bot, fetch_missing_ranks=False)
 
 
 async def fetch_and_persist_operator_stats(users: List[UserInfo]) -> None:

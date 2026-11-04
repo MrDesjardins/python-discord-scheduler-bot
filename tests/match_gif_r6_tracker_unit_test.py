@@ -265,3 +265,35 @@ async def test_periodic_poll_leaves_live_stats_cc_match_to_stats_cc():
         await bot_common_actions.finish_match_gifs_from_r6_tracker()
 
     download.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_periodic_poll_stops_after_max_attempts():
+    now = datetime.now(timezone.utc)
+    record = awaiting_record(
+        attempts=bot_common_actions.MATCH_GIF_R6_TRACKER_MAX_ATTEMPTS,
+        started_at=(now - timedelta(minutes=50)).isoformat(),
+    )
+    with (
+        patch.object(bot_common_actions, "data_access_list_match_gifs_awaiting_result", return_value=[record]),
+        patch.object(bot_common_actions, "download_full_matches_async", AsyncMock()) as download,
+    ):
+        await bot_common_actions.finish_match_gifs_from_r6_tracker()
+
+    download.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_periodic_poll_keeps_attempts_while_tracker_blocks():
+    now = datetime.now(timezone.utc)
+    record = awaiting_record(started_at=(now - timedelta(minutes=30)).isoformat())
+    with (
+        patch.object(bot_common_actions, "data_access_list_match_gifs_awaiting_result", return_value=[record]),
+        patch.object(bot_common_actions, "tracker_block_remaining_seconds", return_value=1800.0),
+        patch.object(bot_common_actions, "data_access_set_match_gif_awaiting_result") as save_attempt,
+        patch.object(bot_common_actions, "download_full_matches_async", AsyncMock()) as download,
+    ):
+        await bot_common_actions.finish_match_gifs_from_r6_tracker()
+
+    save_attempt.assert_not_called()
+    download.assert_not_awaited()

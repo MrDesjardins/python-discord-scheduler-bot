@@ -3,12 +3,10 @@
 from typing import Any, List, Optional, Union
 from datetime import datetime, timedelta, timezone
 import asyncio
-import random
 import re
-from time import sleep
 import discord
 from deps.browser_context_manager import BrowserContextManager
-from deps.browser_exceptions import BrowserException
+from deps.browser_exceptions import BrowserException, TrackerBlockedException
 from deps.bot_singleton import BotSingleton
 from deps.cache import (
     ALWAYS_TTL,
@@ -44,6 +42,7 @@ KEY_CHANNEL = "Channel"
 KEY_GUILD_BOT_VOICE_FIRST_USER = "GuildBotVoiceFirstUser"
 KEY_R6TRACKER = "R6Tracker"
 KEY_R6TRACKER_CURRENT_SEASON_RANK = "R6TrackerCurrentSeasonRank"
+KEY_R6TRACKER_MATCHES_FETCHED = "R6TrackerMatchesFetched"
 KEY_GAMING_SESSION_LAST_ACTIVITY = "GamingSessionLastActivity"
 KEY_QUEUE_USER_STATS = "QueueUserStats"
 KEY_GUILD_TOURNAMENT_TEXT_CHANNEL = "GuildAdminConfigTournamentTextChannel"
@@ -267,19 +266,40 @@ async def data_access_get_r6tracker_current_season_rank(
     return await get_cache(False, cache_key, fetch, ttl_in_seconds=TWO_HOUR_TTL)
 
 
+def data_access_set_r6tracker_current_season_rank(ubisoft_user_name: str, rank: tuple[str, int], ttl: int) -> None:
+    """Remember a current season rank obtained without a profile request (e.g. from match history)."""
+    set_cache(False, _current_season_rank_cache_key(ubisoft_user_name), rank, ttl)
+
+
+async def data_access_has_cached_r6tracker_current_season_rank(ubisoft_user_name: str) -> bool:
+    """True when the current season rank is known without a new R6 Tracker request."""
+    return await get_cache(False, _current_season_rank_cache_key(ubisoft_user_name)) is not None
+
+
+def data_access_mark_r6tracker_matches_fetched(user_id: int, ttl: int) -> None:
+    """Remember that the member's R6 Tracker match history was just downloaded and persisted."""
+    set_cache(False, f"{KEY_R6TRACKER_MATCHES_FETCHED}:{user_id}", True, ttl)
+
+
+async def data_access_were_r6tracker_matches_fetched(user_id: int) -> bool:
+    """True if the member's match history was downloaded within the TTL given when it was marked."""
+    return await get_cache(False, f"{KEY_R6TRACKER_MATCHES_FETCHED}:{user_id}") is not None
+
+
 def _download_current_season_ranks_sync(ubisoft_user_names: List[str]) -> dict[str, tuple[str, int]]:
     """Download the current season rank for many users while opening a single browser session."""
     ranks: dict[str, tuple[str, int]] = {}
     with BrowserContextManager(ubisoft_user_names[0]) as context:
-        for i, ubisoft_user_name in enumerate(ubisoft_user_names):
+        for ubisoft_user_name in ubisoft_user_names:
             try:
                 ranks[ubisoft_user_name] = context.download_current_season_rank(ubisoft_user_name)
+            except TrackerBlockedException as e:
+                print_warning_log(f"_download_current_season_ranks_sync: Stopping, {e}")
+                break  # Every remaining request would be refused too
             except BrowserException as e:
                 print_warning_log(
                     f"_download_current_season_ranks_sync: Could not fetch rank for {ubisoft_user_name}: {e}"
                 )
-            if i < len(ubisoft_user_names) - 1:
-                sleep(random.uniform(3, 12))  # Sleep few seconds between each request
     return ranks
 
 
@@ -367,13 +387,17 @@ async def data_access_get_list_member_stats() -> Optional[List[UserQueueForStats
     return await get_cache(True, f"{KEY_QUEUE_USER_STATS}")
 
 
+# Long enough to outlast a tracker.gg block cooldown; the posted stats cover the last 12 hours anyway.
+STATS_QUEUE_MAX_AGE = timedelta(hours=6)
+
+
 def _evict_stale_member_stats(list_users: List[UserQueueForStats]) -> List[UserQueueForStats]:
     """
-    Remove all the user where the time_queue is over 1 hour.
+    Remove all the user where the time_queue is older than STATS_QUEUE_MAX_AGE.
     Evicted users never got their stats posted, so log them loudly instead of dropping silently.
     """
     current_time = datetime.now(timezone.utc)
-    delta = current_time - timedelta(hours=1)
+    delta = current_time - STATS_QUEUE_MAX_AGE
     fresh_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue > delta]
     evicted_users = [user_in_list for user_in_list in list_users if user_in_list.time_queue <= delta]
     if len(evicted_users) > 0:
@@ -384,7 +408,7 @@ def _evict_stale_member_stats(list_users: List[UserQueueForStats]) -> List[UserQ
         )
         print_warning_log(
             f"_evict_stale_member_stats: Dropping {len(evicted_users)} stats queue entry(ies) older than "
-            f"1 hour without posting their stats: {names}"
+            f"{STATS_QUEUE_MAX_AGE} without posting their stats: {names}"
         )
     return fresh_users
 

@@ -51,3 +51,17 @@ class TrackerAccountNotFoundException(BrowserException):
     def __init__(self, ubisoft_username: str):
         super().__init__(f"tracker.gg has no player named '{ubisoft_username}'")
         self.ubisoft_username = ubisoft_username
+
+
+class TrackerBlockedException(BrowserException):
+    """Raised when tracker.gg answers with its Warden "solve a captcha" block.
+
+    Every request is refused until the block lifts, so callers must stop the batch
+    and keep their work queued instead of treating it as "no data".
+    """
+
+    def __init__(self, retry_in_seconds: float):
+        super().__init__(
+            f"tracker.gg is blocking requests (Warden challenge); retry in {retry_in_seconds / 60:.0f} min"
+        )
+        self.retry_in_seconds = retry_in_seconds

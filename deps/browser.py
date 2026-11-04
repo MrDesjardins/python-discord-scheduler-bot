@@ -1,8 +1,6 @@
 """Browser manipulation functions"""
 
 import asyncio
-import random
-import time
 from typing import Any, List, Union
 from deps.browser_context_manager import BrowserContextManager
 from deps.browser_exceptions import (
@@ -12,6 +10,7 @@ from deps.browser_exceptions import (
     BrowserTimeoutException,
     CircuitBreakerOpenException,
     TrackerAccountNotFoundException,
+    TrackerBlockedException,
 )
 from deps.data_access_data_class import UserInfo
 from deps.models import (
@@ -37,10 +36,8 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
                 try:
                     matches: List[UserFullMatchStats] = context.download_full_matches(user_queue)
                     all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
-
-                    if len(users_queued) > 1:
-                        time.sleep(random.uniform(3, 12))  # Sleep few seconds between each request
-
+                except TrackerBlockedException:
+                    raise  # Every remaining request would be refused too
                 except TrackerAccountNotFoundException as e:
                     # The username on file does not exist on tracker.gg (likely renamed).
                     # Record it (instead of just logging) so the caller can tell the member.
@@ -61,6 +58,9 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
                         f"download_full_matches: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
+    except TrackerBlockedException as e:
+        # tracker.gg refuses every request until the block lifts; callers keep their work queued
+        print_warning_log(f"download_full_matches: Stopping, {e}")
     except BrowserLockContentionException as e:
         # Browser busy with another task - users stay queued and retry next cycle
         print_warning_log(f"download_full_matches: Browser lock busy, will retry next cycle: {e}")
@@ -106,10 +106,8 @@ def download_full_user_information(users_queued: List[UserQueueForStats]) -> Lis
                         )
                         continue
                     all_user_stats.append(UserWithUserInformation(user_queue, user_info))
-
-                    if len(users_queued) > 1:
-                        time.sleep(random.uniform(3, 12))  # Sleep few seconds between each request
-
+                except TrackerBlockedException:
+                    raise  # Every remaining request would be refused too
                 except BrowserTimeoutException as e:
                     # Timeout for individual user - log and continue with next user
                     print_error_log(
@@ -122,6 +120,9 @@ def download_full_user_information(users_queued: List[UserQueueForStats]) -> Lis
                         f"download_full_user_information: Error getting the user ({user_queue.user_info.display_name}) stats from R6 tracker: {e}"
                     )
                     continue  # Skip to the next user
+    except TrackerBlockedException as e:
+        # tracker.gg refuses every request until the block lifts; callers keep their work queued
+        print_warning_log(f"download_full_user_information: Stopping, {e}")
     except BrowserLockContentionException as e:
         # Browser busy with another task - callers can retry on their next cycle
         print_warning_log(f"download_full_user_information: Browser lock busy, will retry next cycle: {e}")
@@ -162,7 +163,7 @@ def download_operator_stats_for_users(
 
     try:
         with BrowserContextManager() as context:
-            for i, user in enumerate(users):
+            for user in users:
                 try:
                     # Skip users without R6 Tracker ID
                     if not user.r6_tracker_active_id:
@@ -177,15 +178,8 @@ def download_operator_stats_for_users(
                         print_log(f"download_operator_stats_for_users: Downloaded stats for {user.display_name}")
                     else:
                         print_log(f"download_operator_stats_for_users: No stats found for {user.display_name}")
-
-                    # Rate limiting: sleep between requests (except for the last one)
-                    if i < len(users) - 1:
-                        sleep_time = random.uniform(8, 12)  # Random 8-12 seconds to avoid rate limiting
-                        print_log(
-                            f"download_operator_stats_for_users: Waiting {sleep_time:.1f} seconds before next request..."
-                        )
-                        time.sleep(sleep_time)
-
+                except TrackerBlockedException:
+                    raise  # Every remaining request would be refused too
                 except BrowserTimeoutException as e:
                     # Timeout for individual user - log and continue with next user
                     print_error_log(
@@ -199,6 +193,9 @@ def download_operator_stats_for_users(
                     )
                     continue
 
+    except TrackerBlockedException as e:
+        # tracker.gg refuses every request until the block lifts; callers keep their work queued
+        print_warning_log(f"download_operator_stats_for_users: Stopping, {e}")
     except BrowserLockContentionException as e:
         # Browser busy with another task - callers can retry on their next cycle
         print_warning_log(f"download_operator_stats_for_users: Browser lock busy, will retry next cycle: {e}")

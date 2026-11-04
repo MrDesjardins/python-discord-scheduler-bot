@@ -3,9 +3,11 @@ Test for the Tracker
 """
 
 import json
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any, Dict
 
-from deps.functions_r6_tracker import parse_json_user_info
+from deps.functions_r6_tracker import current_season_rank_from_matches, parse_json_user_info
 from deps.models import UserInformation
 
 
@@ -112,3 +114,34 @@ def test_get_r6tracker_user_info():
     assert user_info.quickmatch_kd_ratio == 0.92
     assert user_info.quickmatch_kill_per_match == 2.6
     assert user_info.quickmatch_win_percentage == 50.6
+
+
+RANK_NOW = datetime(2026, 11, 3, 5, 0, tzinfo=timezone.utc)
+
+
+def _ranked_match(minutes_ago: int, rank_points: int, rank_name: str, is_rollback: bool = False) -> Any:
+    return SimpleNamespace(
+        match_timestamp=RANK_NOW - timedelta(minutes=minutes_ago),
+        is_rollback=is_rollback,
+        rank_points=rank_points,
+        rank_name=rank_name,
+    )
+
+
+def test_current_season_rank_from_matches_uses_newest_recent_match():
+    matches = [_ranked_match(90, 3050, "PLATINUM V"), _ranked_match(30, 3120, "EMERALD V")]
+    assert current_season_rank_from_matches(matches, RANK_NOW - timedelta(hours=4)) == ("Emerald", 3120)
+
+
+def test_current_season_rank_from_matches_ignores_old_and_rollback_matches():
+    matches = [_ranked_match(60 * 5, 3120, "EMERALD V"), _ranked_match(10, 3500, "DIAMOND V", is_rollback=True)]
+    assert current_season_rank_from_matches(matches, RANK_NOW - timedelta(hours=4)) is None
+
+
+def test_current_season_rank_from_matches_ignores_placement_matches():
+    """Placement matches report 0 points and "Unknown"; they must not change the rank role"""
+    assert current_season_rank_from_matches([_ranked_match(10, 0, "Unknown")], RANK_NOW - timedelta(hours=4)) is None
+
+
+def test_current_season_rank_from_matches_with_unlabeled_points_is_unknown():
+    assert current_season_rank_from_matches([_ranked_match(10, 3000, "Unknown")], RANK_NOW - timedelta(hours=4)) is None

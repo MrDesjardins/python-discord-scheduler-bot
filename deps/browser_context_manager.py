@@ -42,10 +42,14 @@ from deps.browser_exceptions import (
     BrowserVersionMismatchException,
     CircuitBreakerOpenException,
     TrackerAccountNotFoundException,
+    TrackerBlockedException,
 )
 from deps.browser_circuit_breaker import BrowserCircuitBreaker
+from deps.tracker_pacing import tracker_block_remaining_seconds, check_tracker_response, wait_before_request
 
 CHROMIUM_LOCK = FileLock("/tmp/chromium.lock")
+# CHROMIUM_LOCK is thread-local, so other threads cannot ask it whether a session holds it
+_BROWSER_LOCK_HELD = False
 # Shared circuit breaker across all BrowserContextManager instances
 _CIRCUIT_BREAKER: Optional[BrowserCircuitBreaker] = None
 
@@ -53,6 +57,11 @@ _CHROME_BINARY_CANDIDATES = (
     "/usr/bin/google-chrome-stable",
     "/usr/bin/google-chrome",
 )
+
+
+def is_browser_busy() -> bool:
+    """True while a browser session of this process holds the browser lock."""
+    return _BROWSER_LOCK_HELD
 
 
 def detect_chrome_major_version(chrome_paths: Optional[List[str]] = None) -> Optional[int]:
@@ -341,6 +350,10 @@ class BrowserContextManager:
         return max(0.1, backoff_with_jitter)  # Ensure minimum 0.1s
 
     def __enter__(self):
+        # Do not even launch Chrome while tracker.gg is blocking us
+        if tracker_block_remaining_seconds() > 0:
+            raise TrackerBlockedException(tracker_block_remaining_seconds())
+
         # Check circuit breaker first
         if self.config.circuit_breaker_enabled and _CIRCUIT_BREAKER:
             if not _CIRCUIT_BREAKER.allow_request():
@@ -368,6 +381,7 @@ class BrowserContextManager:
             try:
                 self._lock.acquire(timeout=120)
                 self._lock_acquired = True
+                self._set_browser_lock_held(True)
                 self._config_browser()
 
                 # Success! Record with circuit breaker
@@ -612,6 +626,12 @@ class BrowserContextManager:
             except Exception as e:
                 print_warning_log(f"Failed to release lock: {e}")
             self._lock_acquired = False
+            self._set_browser_lock_held(False)
+
+    @staticmethod
+    def _set_browser_lock_held(held: bool) -> None:
+        global _BROWSER_LOCK_HELD  # pylint: disable=global-statement
+        _BROWSER_LOCK_HELD = held
 
     def _kill_orphaned_chrome_processes(self) -> None:
         """Kill any orphaned Chrome/chromedriver processes before starting"""
@@ -910,6 +930,7 @@ class BrowserContextManager:
         driver.set_page_load_timeout(self.config.page_load_timeout_seconds)
         warmup_url = get_url_user_profile_main(self.default_profile)
         try:
+            wait_before_request("warm-up")
             driver.get(warmup_url)
         except TimeoutException as e:
             # The browser process is healthy at this point; a slow warm-up page should not be
@@ -955,6 +976,7 @@ class BrowserContextManager:
 
         api_url = get_url_api_ranked_matches(ubisoft_user_name)
         driver = self._active_driver()
+        wait_before_request("download_matches")
         driver.get(api_url)
         print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
 
@@ -980,6 +1002,7 @@ class BrowserContextManager:
             # Step 5: Parse the JSON data
             data = json.loads(json_data)
             print_log(f"download_matches: JSON found for {ubisoft_user_name}")
+            check_tracker_response(data, "download_matches")
             # Save the JSON data to a file for debugging
             if os.getenv("ENV") == "dev":
                 try:
@@ -1029,6 +1052,7 @@ class BrowserContextManager:
 
         api_url = get_url_api_user_info(ubisoft_user_name)
         driver = self._active_driver()
+        wait_before_request(log_name)
         driver.get(api_url)
         print_log(f"{log_name}: Downloading profile for {ubisoft_user_name} using {api_url}")
 
@@ -1047,6 +1071,7 @@ class BrowserContextManager:
         try:
             data = json.loads(json_data)
             print_log(f"{log_name}: JSON found for {ubisoft_user_name}")
+            check_tracker_response(data, log_name)
             if os.getenv("ENV") == "dev":
                 try:
                     with open(f"r6tracker_data_{self.counter}.json", "w", encoding="utf8") as file:
@@ -1085,6 +1110,7 @@ class BrowserContextManager:
 
         api_url = get_url_api_user_info(ubisoft_user_name)
         driver = self._active_driver()
+        wait_before_request("download_full_user_stats")
         driver.get(api_url)
         print_log(f"download_full_user_stats: Downloading stats for {ubisoft_user_name} using {api_url}")
 
@@ -1110,6 +1136,7 @@ class BrowserContextManager:
             # Step 5: Parse the JSON data
             data = json.loads(json_data)
             print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
+            check_tracker_response(data, "download_full_user_stats")
             # Save the JSON data to a file for debugging
             if os.getenv("ENV") == "dev":
                 try:
@@ -1145,6 +1172,7 @@ class BrowserContextManager:
         api_url = f"https://api.tracker.gg/api/v2/r6siege/standard/profile/ubi/{r6_tracker_user_uuid}/segments/operator?sessionType=ranked&season=all"
 
         driver = self._active_driver()
+        wait_before_request("download_operator_stats")
         driver.get(api_url)
         print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
 
@@ -1168,6 +1196,7 @@ class BrowserContextManager:
             # Parse the JSON data
             data = json.loads(json_data)
             print_log(f"download_operator_stats: JSON found for UUID {r6_tracker_user_uuid}")
+            check_tracker_response(data, "download_operator_stats")
 
             # Save the JSON data to a file for debugging in dev
             if os.getenv("ENV") == "dev":

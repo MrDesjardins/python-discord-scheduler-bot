@@ -87,7 +87,7 @@ async def test_adding_two_members_stat_with_first_one_expired(mock_datetime):
         user1 = UserQueueForStats(mock_user1, "Diamond", time1)
         await data_access_add_list_member_stats(user1)
 
-        time2 = datetime(2024, 11, 25, 11, 31, 0, tzinfo=timezone.utc)
+        time2 = datetime(2024, 11, 25, 16, 31, 0, tzinfo=timezone.utc)
         mock_datetime.now.return_value = time2
         user2 = UserQueueForStats(mock_user2, "Diamond", time2)
         await data_access_add_list_member_stats(user2)
@@ -124,7 +124,7 @@ async def test_remove_expired_user(mock_datetime):
 @patch("deps.data_access.print_warning_log")
 @patch("deps.data_access.datetime")
 async def test_adding_member_stat_logs_warning_for_evicted_stale_entry(mock_datetime, mock_warning):
-    """A stale entry (>1 hour) evicted on add is logged loudly since its stats were never posted"""
+    """A stale entry (>6 hours) evicted on add is logged loudly since its stats were never posted"""
     async with lock:
         remove_cache(False, KEY_QUEUE_USER_STATS)
         time1 = datetime(2024, 11, 25, 10, 0, 0, tzinfo=timezone.utc)
@@ -132,7 +132,7 @@ async def test_adding_member_stat_logs_warning_for_evicted_stale_entry(mock_date
         user1 = UserQueueForStats(mock_user1, "Diamond", time1)
         await data_access_add_list_member_stats(user1)
 
-        time2 = datetime(2024, 11, 25, 11, 31, 0, tzinfo=timezone.utc)
+        time2 = datetime(2024, 11, 25, 16, 31, 0, tzinfo=timezone.utc)
         mock_datetime.now.return_value = time2
         user2 = UserQueueForStats(mock_user2, "Diamond", time2)
         await data_access_add_list_member_stats(user2)

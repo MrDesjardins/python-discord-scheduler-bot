@@ -166,6 +166,24 @@ def _normalize_rank_name(rank_name: Any, default: str = "Copper") -> str:
     return normalized.split(" ")[0].lower().capitalize()
 
 
+def current_season_rank_from_matches(
+    matches: List[UserFullMatchStats], played_after: datetime
+) -> Optional[tuple[str, int]]:
+    """
+    The rank after the newest ranked match played after ``played_after``, as (rank_name, rank_points).
+    Saves a profile request. None when there is no such match or it carries no rank: placement
+    matches report 0 points and "Unknown", which must not strip the member's rank role.
+    """
+    recent = [match for match in matches if match.match_timestamp > played_after and not match.is_rollback]
+    if len(recent) == 0:
+        return None
+    newest = max(recent, key=lambda match: match.match_timestamp)
+    rank_name = _normalize_rank_name(newest.rank_name, NO_RANK_ROLE)
+    if newest.rank_points <= 0 or rank_name == NO_RANK_ROLE:
+        return None
+    return (rank_name, newest.rank_points)
+
+
 def _get_current_season_number(data_dict: dict) -> Optional[int]:
     """Return the live ranked season number from Tracker metadata."""
     metadata = data_dict.get("data", {}).get("metadata", {})
