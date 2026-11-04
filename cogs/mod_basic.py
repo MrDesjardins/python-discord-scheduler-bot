@@ -9,6 +9,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from cogs.events import MyEventsCog
+from deps.app_command_checks import admin_only
 from deps.bot_common_actions import refresh_current_rank_roles_cross_guilds, send_daily_question_to_a_guild
 from deps.values import (
     COMMAND_AI_CONTEXT_CLEAR,
@@ -106,7 +107,7 @@ class ModBasic(commands.Cog):
         return [role for role in roles if not role.managed and role.position < bot_member.top_role.position]
 
     @app_commands.command(name=COMMAND_VERSION)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def show_version(self, interaction: discord.Interaction):
         """Show the version of the bot"""
         await interaction.response.defer(ephemeral=True)
@@ -114,8 +115,7 @@ class ModBasic(commands.Cog):
         await interaction.followup.send(f"Version: {sha}", ephemeral=True)
 
     @app_commands.command(name=COMMAND_TRACKER_STATUS)
-    @app_commands.default_permissions(administrator=True)
-    @app_commands.checks.has_permissions(administrator=True)
+    @admin_only
     async def tracker_status(self, interaction: discord.Interaction):
         """Check whether tracker.gg is reachable right now with one live request"""
         await interaction.response.defer(ephemeral=True)
@@ -138,7 +138,7 @@ class ModBasic(commands.Cog):
         await interaction.followup.send("\n".join(lines), ephemeral=True)
 
     @app_commands.command(name=COMMAND_RESET_CACHE)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def reset_cache(self, interaction: discord.Interaction):
         """
         An administrator can reset the cache for the guild
@@ -330,7 +330,7 @@ class ModBasic(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_GUILD_ENABLE_BOT_VOICE)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def enable_voice_bot(self, interaction: discord.Interaction, enable: bool):
         """Activate or deactivate the bot voice message"""
         if interaction.guild is None:
@@ -344,7 +344,7 @@ class ModBasic(commands.Cog):
         await interaction.response.send_message(f"The bot status to voice is {enable}", ephemeral=True)
 
     @app_commands.command(name=COMMAND_FORCE_SEND)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def force_send_daily(self, interaction: discord.Interaction):
         """Apply the schedule for user who scheduled using the /addschedule command"""
         if interaction.guild is None:
@@ -359,7 +359,7 @@ class ModBasic(commands.Cog):
         await interaction.followup.send("Force sending", ephemeral=True)
 
     @app_commands.command(name=COMMAND_TEST_JOIN)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def test_join(self, interaction: discord.Interaction):
         """
         Simulate a member joining the server for local testing.
@@ -381,7 +381,7 @@ class ModBasic(commands.Cog):
             await cog.on_member_join(fake_member)
 
     @app_commands.command(name=COMMAND_GUILD_VOICE_CHANNEL_CURRENT_ACTIVITY)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def check_activity(self, interaction: discord.Interaction):
         """Apply the schedule for user who scheduled using the /addschedule command"""
         if interaction.guild is None:
@@ -420,7 +420,7 @@ class ModBasic(commands.Cog):
             await interaction.followup.send(msg_str, ephemeral=True)
 
     @app_commands.command(name=COMMAND_DAILY_STATS)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def send_stats_to_server(self, interaction: discord.Interaction, stats_id: int):
         """
         Send a specific stats to the server
@@ -437,7 +437,7 @@ class ModBasic(commands.Cog):
         await interaction.followup.send(f"Generating stats for id {stats_id} completed!", ephemeral=True)
 
     @app_commands.command(name=COMMAND_GENERATE_AI_SUMMARY)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def generate_ai_summary(self, interaction: discord.Interaction, hours: int = 24):
         """
         Generate an AI summary of the matches.
@@ -478,7 +478,7 @@ class ModBasic(commands.Cog):
         await interaction.followup.send("Done", ephemeral=True)
 
     @app_commands.command(name=COMMAND_AI_CONTEXT_VIEW)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def view_ai_context(self, interaction: discord.Interaction):
         """
         Display the permanent AI context configured for this guild.
@@ -498,7 +498,7 @@ class ModBasic(commands.Cog):
 
     @app_commands.command(name=COMMAND_AI_CONTEXT_EDIT)
     @app_commands.describe(instruction="Describe how to add, rewrite, or remove permanent AI knowledge")
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def edit_ai_context(self, interaction: discord.Interaction, instruction: str):
         """
         Update the permanent AI context using a natural-language instruction.
@@ -532,7 +532,7 @@ class ModBasic(commands.Cog):
 
     @app_commands.command(name=COMMAND_AI_CONTEXT_CLEAR)
     @app_commands.describe(confirm="Set to true to clear the permanent AI context for this guild")
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def clear_ai_context(self, interaction: discord.Interaction, confirm: bool = False):
         """
         Clear the permanent AI context configured for this guild.
@@ -552,7 +552,7 @@ class ModBasic(commands.Cog):
         await interaction.response.send_message("Permanent AI context cleared.", ephemeral=True)
 
     @app_commands.command(name=COMMAND_MOD_BOT_PERMISSION)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def mod_bot_permission(self, interaction: discord.Interaction):
         """
         Check the bot permissions in the server.
@@ -616,7 +616,7 @@ class ModBasic(commands.Cog):
         member4="Fourth member (optional)",
         member5="Fifth member (optional)",
     )
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def test_match_start_gif(
         self,
         interaction: discord.Interaction,

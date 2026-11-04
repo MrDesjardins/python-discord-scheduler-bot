@@ -6,6 +6,7 @@ import io
 import discord
 from discord.ext import commands
 from discord import app_commands
+from deps.app_command_checks import admin_only
 from deps.analytic_visualizer import display_graph_cluster_people
 from deps.values import COMMAND_SHOW_COMMUNITY
 from deps.mybot import MyBot
@@ -18,7 +19,7 @@ class ModAnalytics(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name=COMMAND_SHOW_COMMUNITY)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def community_show_image(
         self,
         interaction: discord.Interaction,

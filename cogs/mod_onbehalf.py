@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import discord
 from discord.ext import commands
 from discord import app_commands
+from deps.app_command_checks import admin_only
 from deps.bot_common_actions import sync_member_current_rank_role
 from deps.bot_common_actions import (
     persist_siege_matches_cross_guilds,
@@ -51,7 +52,7 @@ class ModeratorOnUserBehalf(commands.Cog):
     def __init__(self, bot: MyBot):
         self.bot = bot
 
-    @commands.has_permissions(administrator=True)
+    @admin_only
     @app_commands.command(name=COMMAND_SET_USER_TIME_ZONE_OTHER_USER)
     async def set_user_time_zone_for_other_user(self, interaction: discord.Interaction, member: discord.Member):
         """Command to set the user timezone"""
@@ -61,7 +62,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         # Send a message with the buttons
         await interaction.followup.send("Please select a timezone:", view=view)
 
-    @commands.has_permissions(administrator=True)
+    @admin_only
     @app_commands.command(name=COMMAND_SET_USER_MAX_RANK_ACCOUNT_OTHER_USER)
     async def set_user_ubisoft_max_rank_for_other_user(
         self,
@@ -91,7 +92,7 @@ class ModeratorOnUserBehalf(commands.Cog):
             ephemeral=True,
         )
 
-    @commands.has_permissions(administrator=True)
+    @admin_only
     @app_commands.command(name=COMMAND_SET_USER_ACTIVE_ACCOUNT_OTHER_USER)
     async def set_user_ubisoft_active_account_for_other_user(
         self,
@@ -116,7 +117,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_SCHEDULE_ADD_USER)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     @app_commands.choices(time_voted=get_time_choices())
     async def set_schedule_user_today(
         self,
@@ -173,7 +174,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         await interaction.followup.send("User added", ephemeral=True)
 
     @app_commands.command(name=COMMAND_STATS_MATCHES)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def mod_stats(self, interaction: discord.Interaction, member: discord.Member) -> None:
         """Show the statistics for the moderator"""
         await interaction.response.defer(ephemeral=True)
@@ -186,7 +187,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         await interaction.followup.send("Stats queued available", ephemeral=True)
 
     @app_commands.command(name=COMMAND_STATS_ACTIVE_USER)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def mod_stats_active_users(self, interaction: discord.Interaction, days: int = 1):
         """Compute the statistic for the active user"""
         await interaction.response.defer(ephemeral=True)
@@ -198,7 +199,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         await interaction.followup.send("Done", ephemeral=True)
 
     @app_commands.command(name=COMMAND_USER_INFORMATION_ACTIVE_USER)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def mod_user_information_active_users(self, interaction: discord.Interaction, days: int = 1):
         """Compute the user information for the active user"""
         await interaction.response.defer(ephemeral=True)
@@ -209,7 +210,7 @@ class ModeratorOnUserBehalf(commands.Cog):
         await persist_user_full_information_cross_guilds(begin_time, end_time)
         await interaction.followup.send("Done", ephemeral=True)
 
-    @commands.has_permissions(administrator=True)
+    @admin_only
     @app_commands.command(name=COMMAND_SET_MAX_MMR)
     async def set_max_mmr(
         self,

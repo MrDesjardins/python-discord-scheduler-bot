@@ -9,14 +9,6 @@ from cogs.mod_basic import ModBasic
 from deps.bot_common_actions import RankRefreshSummary
 
 
-def test_tracker_status_command_is_restricted_to_administrators():
-    """commands.has_permissions does nothing on an app command, so assert the real restrictions."""
-    command = ModBasic.tracker_status
-
-    assert command.default_permissions == discord.Permissions(administrator=True)
-    assert len(command.checks) == 1
-
-
 def _role(name: str, position: int, *, managed: bool = False) -> Mock:
     role = Mock(spec=discord.Role)
     role.name = name

@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from ui.schedule_day_hours_view import ScheduleDayHours
+from deps.app_command_checks import admin_only
 from deps.functions import get_last_schedule_message
 from deps.functions_schedule import auto_assign_user_to_daily_question
 from deps.data_access import (
@@ -90,7 +91,7 @@ this new one will add on top of the previous schedule with the new hours for the
         await interaction.response.send_message(response, ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_APPLY)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def apply_schedule(self, interaction: discord.Interaction):
         """
         Apply the schedule for user who scheduled using the /addschedule command

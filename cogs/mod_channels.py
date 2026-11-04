@@ -5,6 +5,7 @@ Moderator command to set specific channels for the bot to interact with
 import discord
 from discord.ext import commands
 from discord import app_commands
+from deps.app_command_checks import admin_only
 from deps.bot_common_actions import send_daily_question_to_a_guild
 from deps.data_access import (
     data_access_get_analytics_report_text_channel_id,
@@ -60,7 +61,7 @@ class ModChannels(commands.Cog):
     def __init__(self, bot: MyBot):
         self.bot = bot
 
-    @commands.has_permissions(administrator=True)
+    @admin_only
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_SET_USER_NAME_GAME_CHANNEL)
     async def set_username_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
@@ -78,7 +79,7 @@ class ModChannels(commands.Cog):
             ephemeral=True,
         )
 
-    @commands.has_permissions(administrator=True)
+    @admin_only
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_GET_USER_NAME_GAME_CHANNEL)
     async def see_username_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
@@ -97,7 +98,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The username text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SET_GAMING_SESSION_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_gaming_session_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         An administrator can set the channel where the user name is shown
@@ -116,7 +117,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_SEE_GAMING_SESSION_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_gaming_session_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
@@ -137,7 +138,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_SET_NEW_USER_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_new_user_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         An administrator can set the channel where the user name is shown
@@ -156,7 +157,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_SEE_NEW_USER_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_new_user_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
@@ -174,7 +175,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The new user text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_SET_VOICE_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_voice_channels(self, interaction: discord.Interaction, channel: discord.VoiceChannel):
         """
         Set the voice channels to listen to the users in the voice channel
@@ -198,7 +199,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_RESET_VOICE_SELECTION)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def reset_voice_channels(self, interaction: discord.Interaction):
         """
         Set the voice channels to listen to the users in the voice channel
@@ -214,7 +215,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send("Deleted all configuration for voice channels", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_GET_VOICE_SELECTION)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_voice_channels(self, interaction: discord.Interaction):
         """
         Display the voice channels configured
@@ -238,7 +239,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The voice channels are: {names_txt} ", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_SET_SCHEDULE_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_schedule_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         An administrator can set the channel where the daily schedule message will be sent
@@ -258,7 +259,7 @@ class ModChannels(commands.Cog):
         await send_daily_question_to_a_guild(self.bot, guild)
 
     @app_commands.command(name=COMMAND_SCHEDULE_CHANNEL_GET_SCHEDULE_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_schedule_text_channel(self, interaction: discord.Interaction):
         """
         Display the text channel configured
@@ -278,7 +279,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The schedule text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_CHANNEL_SET_MAIN_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_main_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         An administrator can set the channel where the daily schedule message will be sent
@@ -298,7 +299,7 @@ class ModChannels(commands.Cog):
         await send_daily_question_to_a_guild(self.bot, guild)
 
     @app_commands.command(name=COMMAND_CHANNEL_GET_MAIN_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_main_text_channel(self, interaction: discord.Interaction):
         """
         Display the text channel configured
@@ -318,7 +319,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The main text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_CHANNEL_SET_AI_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_ai_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         An administrator can set the channel where the daily schedule message will be sent
@@ -337,7 +338,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_CHANNEL_GET_AI_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_ai_text_channel(self, interaction: discord.Interaction):
         """
         Display the text channel configured
@@ -357,7 +358,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The AI text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_CHANNEL_SET_ANALYTICS_REPORT_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_analytics_report_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         An administrator can set the channel where monthly analytics PDF reports will be sent.
@@ -376,7 +377,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_CHANNEL_GET_ANALYTICS_REPORT_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_analytics_report_text_channel(self, interaction: discord.Interaction):
         """
         Display the configured monthly analytics report channel.
@@ -396,7 +397,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The analytics report text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SET_CUSTOM_GAME_VOICE_CHANNELS)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_custom_game_voice_channels(
         self,
         interaction: discord.Interaction,
@@ -421,7 +422,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_SEE_CUSTOM_GAME_VOICE_CHANNELS)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_custom_game_voice_channels(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
@@ -439,7 +440,7 @@ class ModChannels(commands.Cog):
         await interaction.followup.send(f"The new user text channel is <#{channel_id}>", ephemeral=True)
 
     @app_commands.command(name=COMMAND_SET_PRIVATE_CHANNEL_CATEGORY)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_private_channel_category(self, interaction: discord.Interaction, category: discord.CategoryChannel):
         """Set the category where private voice channels will be created"""
         await interaction.response.defer(ephemeral=True)
@@ -454,7 +455,7 @@ class ModChannels(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_SEE_PRIVATE_CHANNEL_CATEGORY)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_private_channel_category(self, interaction: discord.Interaction):
         """Display the category configured for private voice channels"""
         await interaction.response.defer(ephemeral=True)

@@ -7,6 +7,7 @@ from typing import List
 import discord
 from discord.ext import commands
 from discord import app_commands
+from deps.app_command_checks import admin_only
 from deps.tournaments.tournament_data_access import (
     data_access_insert_tournament,
     fetch_tournament_active_to_interact_for_user,
@@ -47,7 +48,7 @@ class ModTournament(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name=COMMAND_TOURNAMENT_CHANNEL_SET_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def set_tournament_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel) -> None:
         """
         An administrator can set the channel where the tournament message will be sent
@@ -64,7 +65,7 @@ class ModTournament(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_TOURNAMENT_CHANNEL_GET_CHANNEL)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def see_tournament_text_channel(self, interaction: discord.Interaction):
         """Display the text channel configured"""
         await interaction.response.defer(ephemeral=True)
@@ -83,7 +84,7 @@ class ModTournament(commands.Cog):
 
     @app_commands.command(name=COMMAND_TOURNAMENT_CREATE_TOURNAMENT)
     @app_commands.describe(first_to="Number of rounds a player must win to win the game")
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def create_tournament(
         self,
         interaction: discord.Interaction,
@@ -139,7 +140,7 @@ class ModTournament(commands.Cog):
         await interaction.followup.send(f"Created tournament {name}", ephemeral=True)
 
     @app_commands.command(name=COMMAND_TOURNAMENT_START_TOURNAMENT)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def start_tournament_by_id(
         self,
         interaction: discord.Interaction,
@@ -228,7 +229,7 @@ class ModTournament(commands.Cog):
         )
 
     @app_commands.command(name=COMMAND_TOURNAMENT_END_TOURNAMENT)
-    @commands.has_permissions(administrator=True)
+    @admin_only
     async def send_end_tournament_by_mod(self, interaction: discord.Interaction, tournament_id: int):
         """
         Mod can display the winners and the bet leaderboard if the system didn't do it automatically

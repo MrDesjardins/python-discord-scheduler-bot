@@ -3,6 +3,7 @@
 import os
 import logging
 import discord
+from discord import app_commands
 from discord.ext import commands
 from deps.log import print_log, print_error_log
 from deps.tribemarkets import TribeMarketsClient
@@ -24,6 +25,14 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
         self.allowed_mentions = discord.AllowedMentions(everyone=False, roles=False, users=True)
         self.guild_emoji = {}  # Dict[str, Dict[str, str]]
+        self.tree.error(self.on_app_command_error)
+
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+        """Tell a member they are not allowed instead of letting Discord report that the bot did not respond."""
+        if isinstance(error, app_commands.MissingPermissions):
+            await interaction.response.send_message("Only an administrator can use this command.", ephemeral=True)
+            return
+        await app_commands.CommandTree.on_error(self.tree, interaction, error)
 
     async def setup_hook(self) -> None:
         """Load bot extensions during discord.py startup."""
