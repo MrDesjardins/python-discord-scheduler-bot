@@ -525,8 +525,7 @@ BROWSER_PROFILE_DIR=/home/<service-user>/.cache/gametimescheduler/chrome-profile
 ```
 
 The tracker request uses three fallbacks in order: (1) reuse the persistent browser clearance
-cookie, including an HTTP replay when a challenged page already has one; (2) run the automatic
-Cloudflare solver, clicking the Turnstile widget or press-and-hold and retrying with fresh cookies
+cookie; (2) run the automatic Cloudflare solver, clicking the Turnstile widget or press-and-hold and retrying with fresh cookies
 when a stale clearance loops; (3) offer the optional visible-browser window and then DM the owner
 for a human solve. `/modtrackerstatus` (administrator) runs a live probe instead of waiting for a
 DM.

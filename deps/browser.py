@@ -1,6 +1,7 @@
 """Browser manipulation functions"""
 
 import asyncio
+import os
 from typing import Any, List, Union
 from deps.browser_context_manager import BrowserContextManager
 from deps.browser_exceptions import (
@@ -21,6 +22,7 @@ from deps.models import (
     UserWithUserMatchInfo,
 )
 from deps.log import print_error_log, print_log, print_warning_log
+from deps.stats_cc import StatsCCClient, StatsCCUnavailable
 
 
 def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
@@ -28,6 +30,23 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
     Download the maximum information for matches with the goal to persist the data into the database
     """
     all_users_matches: List[UserWithUserMatchInfo] = []
+    # Explicit opt-in while stats.cc coverage is evaluated. Never turn absent
+    # overlay telemetry into an empty history and a false "nobody played" report.
+    if os.getenv("MATCH_STATS_PROVIDER", "tracker").lower() == "statscc":
+        remaining = []
+        with StatsCCClient() as client:
+            for user_queue in users_queued:
+                try:
+                    matches = client.download_matches(user_queue.user_info)
+                    all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
+                except StatsCCUnavailable as exc:
+                    print_warning_log(
+                        f"download_full_matches: stats.cc unavailable for {user_queue.user_info.display_name}: {exc}"
+                    )
+                    remaining.append(user_queue)
+        users_queued = remaining
+        if not users_queued:
+            return all_users_matches
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies
     # Then, in the loop, use the cookies to get the stats using the API
     try:

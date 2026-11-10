@@ -4,6 +4,8 @@ import getpass
 from pathlib import Path
 import socket
 
+import discord
+
 from deps.log import print_error_log, print_log
 from deps.mybot import MyBot
 from deps.tracker_pacing import (
@@ -35,12 +37,23 @@ def build_tracker_block_message(cooldown_seconds: float) -> str:
     )
 
 
+async def fetch_application_owner(bot: MyBot) -> discord.User:
+    """
+    The person who owns the Discord application. A team-owned application reports a team
+    pseudo-user as its owner, which Discord refuses to DM (error 50007), so use the team's owner.
+    """
+    app_info = await bot.application_info()
+    team_owner_id = app_info.team.owner_id if app_info.team else None
+    owner_id = team_owner_id or app_info.owner.id
+    return await bot.fetch_user(owner_id)
+
+
 async def send_tracker_block_alert(bot: MyBot) -> None:
     """DM the owner of the Discord application when a tracker.gg challenge is waiting for them."""
     if not take_tracker_attention_request():
         return
     try:
-        owner = (await bot.application_info()).owner
+        owner = await fetch_application_owner(bot)
         await owner.send(build_tracker_block_message(tracker_block_remaining_seconds()), view=TrackerBlockView())
         print_log("send_tracker_block_alert: Asked the bot owner to solve the tracker.gg challenge")
     except Exception as e:

@@ -1,0 +1,294 @@
+{
+  "match": {
+    "id": "3c3ed8fb-789b-4eee-a420-16c61bc48dbb",
+    "datacenter": "us-east-2",
+    "playlist": "ranked",
+    "mode": "ranked-bomb",
+    "map": "outback",
+    "end_reason": "finished",
+    "scores": [
+      4,
+      5
+    ],
+    "started_at": "2026-11-02T05:43:45.328Z",
+    "ended_at": "2026-11-02T06:21:52.376Z",
+    "ranked_session": {
+      "wins": 1,
+      "losses": 0,
+      "abandons": 0,
+      "rank_points_delta": 28,
+      "rank": "v7-platinum-ii",
+      "rank_points": 3388,
+      "created_at": "2026-11-02T06:22:26.886Z"
+    },
+    "player_summary": {
+      "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+      "username": "noSleep_rb6",
+      "team": 1,
+      "outcome": "win",
+      "rounds": 9,
+      "round_wins": 5,
+      "round_losses": 4,
+      "round_abandons": 0,
+      "round_survivals": 1,
+      "round_sole_survivals": 0,
+      "clutch_1v1_wins": 0,
+      "clutch_1v1_losses": 0,
+      "clutch_1v2_wins": 0,
+      "clutch_1v2_losses": 0,
+      "clutch_1v3_wins": 0,
+      "clutch_1v3_losses": 0,
+      "clutch_1v4_wins": 0,
+      "clutch_1v4_losses": 1,
+      "clutch_1v5_wins": 0,
+      "clutch_1v5_losses": 0,
+      "kills": 1,
+      "kills_2k": 0,
+      "kills_3k": 0,
+      "kills_4k": 0,
+      "kills_5k": 0,
+      "opening_kills": 1,
+      "closing_kills": 0,
+      "deaths": 8,
+      "opening_deaths": 0,
+      "closing_deaths": 1,
+      "trades": 0,
+      "suicides": 0,
+      "assists": 2,
+      "team_kills": 0,
+      "forgiven_team_kills": 0,
+      "team_deaths": 0,
+      "headshots": 1,
+      "headshot_only_rounds": 1
+    }
+  },
+  "detail": {
+    "id": "3c3ed8fb-789b-4eee-a420-16c61bc48dbb",
+    "rounds": [
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "valkyrie",
+            "kills": 0
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "valkyrie",
+            "kills": 0
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "alibi",
+            "kills": 1
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "ace",
+            "kills": 0
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "ace",
+            "kills": 0
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "fuze",
+            "kills": 0
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "azami",
+            "kills": 0
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "ace",
+            "kills": 0
+          }
+        ]
+      },
+      {
+        "player_summaries": [
+          {
+            "profile_id": "877a703b-0d29-4779-8fbf-ccd165c2b7f6",
+            "operator": "kapkan",
+            "kills": 0
+          }
+        ]
+      }
+    ],
+    "player_summaries": [
+      {
+        "outcome": "loss"
+      },
+      {
+        "outcome": "win"
+      },
+      {
+        "outcome": "win"
+      },
+      {
+        "outcome": "win"
+      },
+      {
+        "outcome": "loss"
+      },
+      {
+        "outcome": "win"
+      },
+      {
+        "outcome": "loss"
+      },
+      {
+        "outcome": "loss"
+      },
+      {
+        "outcome": "loss"
+      },
+      {
+        "outcome": "win"
+      }
+    ]
+  },
+  "config": {
+    "operators": {
+      "ace": {
+        "slug": "ace",
+        "display": "Ace",
+        "color": "#2B7F90",
+        "ctu": "nighthaven",
+        "side": "attacker",
+        "position": "attacker-core",
+        "difficulty": "low",
+        "playstyles": [
+          "attacker-breacher",
+          "attacker-utility-clearer"
+        ]
+      },
+      "azami": {
+        "slug": "azami",
+        "display": "Azami",
+        "color": "#3C63AD",
+        "ctu": "unaffiliated",
+        "side": "defender",
+        "position": "defender-anchor",
+        "difficulty": "high",
+        "playstyles": [
+          "defender-entry-denier",
+          "defender-supporter"
+        ]
+      },
+      "kapkan": {
+        "slug": "kapkan",
+        "display": "Kapkan",
+        "color": "#A62222",
+        "ctu": "spetsnaz",
+        "side": "defender",
+        "position": "defender-anchor",
+        "difficulty": "low",
+        "playstyles": [
+          "defender-trapper",
+          "defender-entry-denier"
+        ]
+      },
+      "fuze": {
+        "slug": "fuze",
+        "display": "Fuze",
+        "color": "#A62222",
+        "ctu": "spetsnaz",
+        "side": "attacker",
+        "position": "attacker-flank",
+        "difficulty": "low",
+        "playstyles": [
+          "attacker-utility-clearer"
+        ]
+      },
+      "alibi": {
+        "slug": "alibi",
+        "display": "Alibi",
+        "color": "#929637",
+        "ctu": "gis",
+        "side": "defender",
+        "position": "defender-roamer",
+        "difficulty": "high",
+        "playstyles": [
+          "defender-trapper",
+          "defender-intel-provider"
+        ]
+      },
+      "valkyrie": {
+        "slug": "valkyrie",
+        "display": "Valkyrie",
+        "color": "#BD8833",
+        "ctu": "navy",
+        "side": "defender",
+        "position": "defender-roamer",
+        "difficulty": "medium",
+        "playstyles": [
+          "defender-supporter",
+          "defender-intel-provider"
+        ]
+      }
+    },
+    "maps": {
+      "outback": {
+        "slug": "outback",
+        "display": "Outback",
+        "is_filterable": true
+      }
+    },
+    "ranks": {
+      "v7-platinum-ii": {
+        "slug": "v7-platinum-ii",
+        "display": "Platinum II",
+        "tier": "platinum",
+        "min_points": 3300,
+        "max_points": 3399,
+        "has_position": false
+      }
+    },
+    "datacenters": {
+      "us-east-2": {
+        "slug": "us-east-2",
+        "display": "us-east-2",
+        "family": "us-east"
+      }
+    },
+    "datacenter_families": {
+      "us-east": {
+        "slug": "us-east",
+        "display": "US East"
+      }
+    }
+  }
+}

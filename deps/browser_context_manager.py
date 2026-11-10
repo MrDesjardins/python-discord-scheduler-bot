@@ -12,7 +12,6 @@ import time
 from typing import Any, List, Optional, Union
 
 import psutil
-import requests
 from filelock import FileLock, Timeout as FileLockTimeout
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -359,65 +358,6 @@ class BrowserContextManager:
                 time.sleep(1.0)
         return self._json_is_ready()
 
-    def _read_clearance_identity(self, log_name: str) -> Optional[tuple[str, dict[str, str]]]:
-        """Return the browser's User-Agent and cookies, or None without a clearance cookie to replay."""
-        driver = self._active_driver()
-        try:
-            user_agent = driver.execute_script("return navigator.userAgent")
-            cookies = {c["name"]: c["value"] for c in driver.get_cookies() if c.get("name") and c.get("value")}
-        except Exception as e:
-            print_warning_log(f"{log_name}: Could not read browser cookies for the HTTP fallback: {e}")
-            return None
-        if "cf_clearance" not in cookies:
-            print_warning_log(f"{log_name}: HTTP fallback skipped (no Cloudflare clearance cookie yet).")
-            return None
-        return user_agent, cookies
-
-    def _http_fetch_json(self, url: str, log_name: str) -> Optional[Any]:
-        """
-        Replay the API URL over plain HTTP with the browser's User-Agent and cookies.
-
-        Selenium is only needed to earn the cf_clearance cookie; once it is set, an HTTP
-        request from the same IP and User-Agent returns the JSON even while the page itself
-        is stuck on the challenge. Without a clearance cookie the different TLS fingerprint
-        would just collect another challenge, so the fallback is skipped then.
-        """
-        if not self.config.cloudflare_http_fallback_enabled or not url:
-            return None
-        identity = self._read_clearance_identity(log_name)
-        if identity is None:
-            return None
-        user_agent, cookies = identity
-
-        headers = {
-            "User-Agent": user_agent,
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-        wait_before_request(log_name)
-        try:
-            response = requests.get(
-                url,
-                headers=headers,
-                cookies=cookies,
-                timeout=self.config.cloudflare_http_fallback_timeout_seconds,
-            )
-        except requests.RequestException as e:
-            print_warning_log(f"{log_name}: HTTP fallback failed: {e}")
-            return None
-        try:
-            data = response.json()
-        except ValueError:
-            print_warning_log(f"{log_name}: HTTP fallback returned non-JSON content (HTTP {response.status_code}).")
-            return None
-        # An error body (Warden block, unknown player) is what the browser would have rendered:
-        # the callers must see it to start the cooldown instead of solving a challenge for nothing.
-        if response.status_code != 200 and not (isinstance(data, dict) and data.get("errors")):
-            print_warning_log(f"{log_name}: HTTP fallback returned HTTP {response.status_code}.")
-            return None
-        print_log(f"{log_name}: Recovered the JSON over HTTP with the browser clearance cookie.")
-        return data
-
     def _wait_for_manual_cloudflare_solve(self, log_name: str) -> bool:
         """Allow a human already watching the live browser to complete the final fallback."""
         manual_wait = self.config.cloudflare_manual_wait_seconds
@@ -432,55 +372,46 @@ class BrowserContextManager:
         except WebDriverException:
             return False
 
-    def _solve_with_cloudflare_fallbacks(
-        self, log_name: str, url: str, cause: Optional[TimeoutException] = None
-    ) -> Optional[Any]:
+    def _solve_cloudflare_challenge(self, log_name: str, url: str, cause: Optional[TimeoutException] = None) -> None:
         """
-        Resolve a challenge in strict order: cookie replay, auto-solve, visible-browser help, owner DM.
+        Resolve a challenge in strict order: auto-solve, visible-browser help, owner DM.
 
-        The replay comes first because the solver resets the cookies, which must not burn a
-        still-valid clearance. ``_challenge_not_cleared`` requests the attention that
-        ``tracker_block_alert_task`` turns into the owner DM.
+        ``_challenge_not_cleared`` requests the attention that ``tracker_block_alert_task``
+        turns into the owner DM.
 
-        Returns the replayed JSON, or None when the browser page holds the JSON.
+        Reverses e2be2e9's HTTP cookie replay: production recovered 0 of 30 requests
+        that way, doubling traffic without clearing the challenge.
         """
         if self._json_is_ready():
-            return None
-        data = self._http_fetch_json(url, log_name)
-        if data is not None:
-            return data
+            return
         if self._attempt_cloudflare_solve(log_name, url):
-            return None
+            return
         if self._wait_for_manual_cloudflare_solve(log_name):
-            return None
+            return
         raise self._challenge_not_cleared(log_name) from cause
 
-    def _wait_for_json(self, log_name: str, url: str = "") -> Optional[Any]:
+    def _wait_for_json(self, log_name: str, url: str = "") -> Any:
         """
-        Fetch JSON using the three tracker.gg fallbacks in order.
+        Wait for the JSON the browser renders for the API URL and return it parsed.
 
-        1. Reuse the persistent browser clearance cookie through the normal page wait; a
-           challenge then gets one HTTP replay before any cookie is reset.
-        2. Run the automatic Cloudflare widget solver, including bounded reloads.
-        3. Offer the visible-browser manual window, then request the owner-DM human solve.
-
-        Returns parsed JSON when an HTTP cookie replay was needed, or None when the browser
-        page itself holds the JSON (the caller then reads page_source).
+        A Cloudflare challenge goes to the automatic solver first, then the visible-browser
+        manual window, then the owner-DM human solve.
         """
         driver = self._active_driver()
 
         if self._is_cloudflare_challenge():
-            return self._solve_with_cloudflare_fallbacks(log_name, url)
+            self._solve_cloudflare_challenge(log_name, url)
+            return self._extract_json_from_page(log_name)
 
         try:
             WebDriverWait(driver, self.config.element_wait_timeout_seconds).until(
                 lambda current_driver: bool(current_driver.find_elements(By.TAG_NAME, "pre"))
             )
-            return None
         except TimeoutException as e:
-            if self._is_cloudflare_challenge():
-                return self._solve_with_cloudflare_fallbacks(log_name, url, e)
-            raise BrowserTimeoutException(f"{log_name}: Timeout waiting for JSON data: {e}") from e
+            if not self._is_cloudflare_challenge():
+                raise BrowserTimeoutException(f"{log_name}: Timeout waiting for JSON data: {e}") from e
+            self._solve_cloudflare_challenge(log_name, url, e)
+        return self._extract_json_from_page(log_name)
 
     def _challenge_not_cleared(self, log_name: str) -> CloudflareChallengeNotClearedException:
         """Ask a human to solve the challenge the automatic fallbacks could not clear."""
@@ -1186,8 +1117,6 @@ class BrowserContextManager:
         driver.get(api_url)
         try:
             data = self._wait_for_json("probe", api_url)
-            if data is None:
-                data = self._extract_json_from_page("probe")
         except BrowserException:
             if self._is_cloudflare_challenge():
                 return {"state": "challenge", "detail": "Cloudflare challenge could not be solved"}
@@ -1218,8 +1147,6 @@ class BrowserContextManager:
         print_log(f"download_matches: Downloading matches for {ubisoft_user_name} using {api_url}")
 
         data = self._wait_for_json("download_matches", api_url)
-        if data is None:
-            data = self._extract_json_from_page("download_matches")
 
         print_log(f"download_matches: JSON found for {ubisoft_user_name}")
         check_tracker_response(data, "download_matches")
@@ -1274,8 +1201,6 @@ class BrowserContextManager:
         print_log(f"{log_name}: Downloading profile for {ubisoft_user_name} using {api_url}")
 
         data = self._wait_for_json(log_name, api_url)
-        if data is None:
-            data = self._extract_json_from_page(log_name)
 
         print_log(f"{log_name}: JSON found for {ubisoft_user_name}")
         check_tracker_response(data, log_name)
@@ -1320,8 +1245,6 @@ class BrowserContextManager:
         print_log(f"download_full_user_stats: Downloading stats for {ubisoft_user_name} using {api_url}")
 
         data = self._wait_for_json("download_full_user_stats", api_url)
-        if data is None:
-            data = self._extract_json_from_page("download_full_user_stats")
 
         print_log(f"download_full_user_stats: JSON found for {ubisoft_user_name}")
         check_tracker_response(data, "download_full_user_stats")
@@ -1362,8 +1285,6 @@ class BrowserContextManager:
         print_log(f"download_operator_stats: Downloading operator stats using {api_url}")
 
         data = self._wait_for_json("download_operator_stats", api_url)
-        if data is None:
-            data = self._extract_json_from_page("download_operator_stats")
 
         print_log(f"download_operator_stats: JSON found for UUID {r6_tracker_user_uuid}")
         check_tracker_response(data, "download_operator_stats")

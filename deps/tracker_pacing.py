@@ -7,9 +7,10 @@ from typing import Any
 from deps.browser_exceptions import TrackerBlockedException
 from deps.log import print_error_log, print_log
 
-# Random gap between two tracker.gg requests. Warden flagged the bot on 2026-11-02 with 3-12 s gaps.
-MIN_REQUEST_GAP_SECONDS = 20.0
-MAX_REQUEST_GAP_SECONDS = 50.0
+# Random gap between two tracker.gg requests. Warden flagged the bot on 2026-11-02 with 3-12 s gaps
+# and again on 2026-11-04 with 20-50 s gaps.
+MIN_REQUEST_GAP_SECONDS = 45.0
+MAX_REQUEST_GAP_SECONDS = 90.0
 # Pause all traffic after a block, escalating while tracker.gg keeps blocking: requests sent to a
 # blocked IP only keep it blocked.
 BLOCK_COOLDOWNS_SECONDS = (60 * 60, 2 * 60 * 60, 4 * 60 * 60, 6 * 60 * 60)

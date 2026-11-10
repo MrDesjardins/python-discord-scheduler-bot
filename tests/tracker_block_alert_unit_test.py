@@ -19,8 +19,24 @@ def reset_pacing_state(monkeypatch):
 def _bot_with_owner() -> tuple[MagicMock, AsyncMock]:
     owner = AsyncMock()
     bot = MagicMock()
-    bot.application_info = AsyncMock(return_value=MagicMock(owner=owner))
+    bot.application_info = AsyncMock(return_value=MagicMock(owner=MagicMock(id=7), team=None))
+    bot.fetch_user = AsyncMock(return_value=owner)
     return bot, owner
+
+
+async def test_owner_is_the_application_owner_without_a_team():
+    bot, owner = _bot_with_owner()
+
+    assert await tracker_block_alert.fetch_application_owner(bot) is owner
+    bot.fetch_user.assert_awaited_once_with(7)
+
+
+async def test_owner_of_a_team_application_is_the_team_owner_not_the_pseudo_user():
+    bot, owner = _bot_with_owner()
+    bot.application_info.return_value.team = MagicMock(owner_id=357)
+
+    assert await tracker_block_alert.fetch_application_owner(bot) is owner
+    bot.fetch_user.assert_awaited_once_with(357)
 
 
 def test_message_gives_the_command_and_the_cooldown():
