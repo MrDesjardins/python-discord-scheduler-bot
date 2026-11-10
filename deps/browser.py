@@ -53,7 +53,7 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
         with BrowserContextManager() as context:
             for user_queue in users_queued:
                 try:
-                    matches: List[UserFullMatchStats] = context.download_full_matches(user_queue)
+                    matches = context.download_full_matches(user_queue)
                     all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
                 except TRACKER_UNAVAILABLE_EXCEPTIONS:
                     raise  # Every remaining request would fail too
