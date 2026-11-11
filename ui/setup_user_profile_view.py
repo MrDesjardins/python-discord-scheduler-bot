@@ -91,7 +91,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
             print_error_log(f"Profile lookup failed for {self.view.member.id}: {exc}")
             await interaction.followup.send(
                 "Could not look up your Ubisoft account on stats.cc. Check the account names and try again shortly. "
-                "If this continues, ask a moderator to check the stats.cc API key and service.",
+                "If this continues, ask a moderator to check whether stats.cc is available.",
                 ephemeral=True,
             )
             return

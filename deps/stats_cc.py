@@ -121,6 +121,8 @@ class StatsCCClient:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "python-discord-scheduler-bot", "Accept": "application/json"})
+        # Anonymous profile lookups were verified live on 2026-11-10. Keep
+        # credentials optional so onboarding works while API access is pending.
         api_key = os.getenv("STATS_CC_API_KEY")
         if api_key:
             self.session.headers["x-api-key"] = api_key

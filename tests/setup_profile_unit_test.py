@@ -65,3 +65,19 @@ async def test_modal_replies_and_only_saves_resolved_profile(failure):
             assert "Could not look up" in interaction.followup.send.call_args.args[0]
         else:
             assert save.call_args.args == (123, "Player", "Player", "Player", PROFILE_ID, "UTC", 4500)
+
+
+@pytest.mark.parametrize("api_key", [None, "test-key"])
+def test_profile_http_lookup_supports_anonymous_and_optional_key(monkeypatch, api_key):
+    if api_key is None:
+        monkeypatch.delenv("STATS_CC_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("STATS_CC_API_KEY", api_key)
+    profile = {"id": PROFILE_ID, "ranked_season_records": {}}
+    config = {"seasons": {"current": {"started_at": "2026-01-01T00:00:00Z"}}}
+    with StatsCCClient() as client, patch.object(client.session, "get") as get, patch("deps.stats_cc.time.sleep"):
+        get.return_value.json.side_effect = [profile, config]
+        assert client.setup_profile("Player", "Player") == (PROFILE_ID, "UNRANKED", 0)
+        assert client.session.headers.get("x-api-key") == api_key
+        assert get.call_args_list[0].args == ("https://api.stats.cc/siege/v2/profiles/pc/Player",)
+        assert get.call_args_list[0].kwargs["timeout"] == 20
