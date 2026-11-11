@@ -849,3 +849,13 @@ SystemMaxUse=100M
 # Todos
 
 1. 
+
+### Profile setup via stats.cc
+
+`/setupprofile` resolves PC Ubisoft account names and current/peak ranks through
+stats.cc rather than the R6 Tracker browser. Configure `STATS_CC_API_KEY` in the
+bot environment with the `profiles` scope (and `matches` for the optional match
+history adapter). See https://api.stats.cc/siege/docs. Restart the bot after
+changing its environment. Profile lookup failures return a private message and
+leave the saved profile unchanged. Unknown names may need a retry after stats.cc
+finishes looking them up with Ubisoft.

@@ -1,9 +1,11 @@
 """Experimental stats.cc match-history adapter; no browser or tracker.gg cookies required."""
 
+import os
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
+from urllib.parse import quote
 
 import requests
 
@@ -119,6 +121,9 @@ class StatsCCClient:
     def __init__(self):
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "python-discord-scheduler-bot", "Accept": "application/json"})
+        api_key = os.getenv("STATS_CC_API_KEY")
+        if api_key:
+            self.session.headers["x-api-key"] = api_key
         self.config = None
         self.details = {}
         self.failed = False
@@ -146,6 +151,35 @@ class StatsCCClient:
                 # same failing HTTP request once for every queued player.
                 self.failed = True
                 raise StatsCCUnavailable(f"stats.cc request failed: {path}") from exc
+
+    def setup_profile(self, max_account: str, active_account: str) -> tuple[str, str, int]:
+        """Resolve identity and ranks without the browser that can stall profile setup."""
+        try:
+            active = self._get(f"profiles/pc/{quote(active_account, safe='')}")
+            highest = (
+                active
+                if max_account.casefold() == active_account.casefold()
+                else self._get(f"profiles/pc/{quote(max_account, safe='')}")
+            )
+            profile_id = str(UUID(active["id"]))
+            config = self._get("config")
+            now = datetime.now(timezone.utc)
+            # JSON object order is not season order. Using a previous season's
+            # rank after a reset would grant an incorrect current-season role.
+            seasons = {
+                k: v
+                for k, v in config["seasons"].items()
+                if datetime.fromisoformat(v["started_at"].replace("Z", "+00:00")) <= now
+            }
+            current = max(
+                seasons, key=lambda k: datetime.fromisoformat(seasons[k]["started_at"].replace("Z", "+00:00"))
+            )
+            record = active["ranked_season_records"].get(current)
+            rank = _display(config, "ranks", record["rank"]).upper() if record else "UNRANKED"
+            peak = max((r["max_rank_points"] for r in highest["ranked_season_records"].values()), default=0)
+            return profile_id, rank, peak
+        except (KeyError, TypeError, ValueError) as exc:
+            raise StatsCCUnavailable("Unsupported stats.cc profile response") from exc
 
     def download_matches(self, user: UserInfo) -> list[UserFullMatchStats]:
         """Fetch recent overlay matches. Empty/unsupported accounts must use another source."""

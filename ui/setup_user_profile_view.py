@@ -1,14 +1,16 @@
 """View for the user to configure their profile"""
 
+import asyncio
 from typing import Union
 import discord
 from deps.data_access import data_access_get_gaming_session_text_channel_id
-from deps.bot_common_actions import fetch_current_and_max_rank_for_accounts, set_member_role_from_current_rank
+from deps.bot_common_actions import set_member_role_from_current_rank
 from deps.analytic_data_access import upsert_user_info
 from deps.values import valid_time_zone_options
 from deps.mybot import MyBot
 from deps.siege import get_guild_rank_emoji
 from deps.log import print_error_log
+from deps.stats_cc import StatsCCClient
 
 timezones_options = [discord.SelectOption(label=timezone, value=timezone) for timezone in valid_time_zone_options]
 
@@ -71,23 +73,28 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
     async def on_submit(self, interaction: discord.Interaction):
         """Save the modal input values back to the view"""
 
-        self.view.max_rank_account = self.max_rank_account_input.value
-        self.view.active_account = (
-            self.active_account_input.value if self.active_account_input.value != "" else self.view.max_rank_account
-        )
+        self.view.max_rank_account = self.max_rank_account_input.value.strip()
+        self.view.active_account = self.active_account_input.value.strip() or self.view.max_rank_account
 
         # Ensure all required fields are filled out
         if not self.view.max_rank_account or not self.view.active_account or not self.view.user_timezone:
             await interaction.response.send_message("Please complete all fields.", ephemeral=True)
             return
 
-        # Acknowledge the submission and close the modal
-        await interaction.response.defer()  # This closes the modal after the submission
+        await interaction.response.defer(ephemeral=True, thinking=True)
 
-        # Fetch ranks before saving, then apply the Discord role after the profile is persisted.
-        current_rank, _, _, max_mmr = await fetch_current_and_max_rank_for_accounts(
-            self.view.max_rank_account, self.view.active_account
-        )
+        # Unlike the unguarded tracker lookup introduced in d68bded, a provider
+        # failure must produce a reply, and blocking HTTP must not stall Discord.
+        try:
+            profile_id, current_rank, max_mmr = await asyncio.to_thread(self.fetch_profile)
+        except Exception as exc:
+            print_error_log(f"Profile lookup failed for {self.view.member.id}: {exc}")
+            await interaction.followup.send(
+                "Could not look up your Ubisoft account on stats.cc. Check the account names and try again shortly. "
+                "If this continues, ask a moderator to check the stats.cc API key and service.",
+                ephemeral=True,
+            )
+            return
 
         # Perform the profile save actions
         try:
@@ -96,7 +103,7 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
                 self.view.member.display_name,
                 self.view.max_rank_account,
                 self.view.active_account,
-                None,  # Todo R6Tracker ID is part of the payload when fetching the rank. Add it here?
+                profile_id,
                 self.view.user_timezone,
                 max_mmr,
             )
@@ -121,3 +128,8 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
             f"✅ Profile saved, role adjusted to {get_guild_rank_emoji(self.view.bot.guild_emoji.get(self.view.guild.id, {}), current_rank)} {current_rank} and after completing a voice session you will get your stats for `{self.view.active_account}` in <#{channel_id}>.",
             ephemeral=True,
         )
+
+    def fetch_profile(self) -> tuple[str, str, int]:
+        """Keep the HTTP session and all its requests on the worker thread."""
+        with StatsCCClient() as client:
+            return client.setup_profile(self.view.max_rank_account, self.view.active_account)
