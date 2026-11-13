@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from dotenv import load_dotenv
+from selenium.common.exceptions import InvalidSessionIdException, NoSuchWindowException
 
 # Running this file directly makes deployment/ the import root; add the repository root so
 # it can use the same deps package as the bot.
@@ -22,6 +23,12 @@ def clearance_works(context: BrowserContextManager) -> bool:
     except BrowserException as e:
         print(f"Still not cleared: {e}")
         return False
+    except (InvalidSessionIdException, NoSuchWindowException) as e:
+        # Closing the window ends Chrome, so nothing was checked with tracker.gg.
+        raise SystemExit(
+            "The Chrome window was closed before the check, so nothing was tested. "
+            "Run this again and leave the window open; it closes by itself when the check is done."
+        ) from e
     return True
 
 
@@ -38,7 +45,7 @@ def main() -> None:
 
     profile_path = Path(profile_dir).expanduser()
     print(f"Using Chrome profile: {profile_path}")
-    print("A visible Chrome window should open on a tracker.gg profile page.")
+    print("A visible Chrome window should open on a tracker.gg profile page. Do not close it.")
 
     # ENV=dev keeps this maintenance command on the caller's forwarded display; the profile
     # itself is shared with production so the clearance cookie survives the bot's restart.

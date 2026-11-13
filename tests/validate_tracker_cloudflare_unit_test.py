@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from selenium.common.exceptions import InvalidSessionIdException
 
 from deployment.validate_tracker_cloudflare import clearance_works, main
 from deps.browser_exceptions import BrowserTimeoutException, TrackerBlockedException
@@ -38,3 +39,11 @@ def test_missing_display_stops_before_chrome_touches_the_shared_profile(monkeypa
         main()
 
     manager_class.assert_not_called()
+
+
+def test_closed_window_says_so_instead_of_crashing():
+    context = MagicMock()
+    context.download_current_season_rank.side_effect = InvalidSessionIdException("browser has closed the connection")
+
+    with pytest.raises(SystemExit, match="closed"):
+        clearance_works(context)

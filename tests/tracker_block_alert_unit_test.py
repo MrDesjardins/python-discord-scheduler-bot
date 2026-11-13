@@ -43,7 +43,7 @@ def test_message_gives_the_command_and_the_cooldown():
     message = tracker_block_alert.build_tracker_block_message(1800.0)
 
     assert "another 30 min" in message
-    assert "ssh -Y " in message
+    assert f"@{tracker_block_alert.BOT_SERVER_ADDRESS} " in message
     assert f"cd {tracker_block_alert.REPOSITORY_ROOT} && ENV=dev" in message
     assert "deployment/validate_tracker_cloudflare.py" in message
 

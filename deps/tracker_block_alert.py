@@ -2,7 +2,6 @@
 
 import getpass
 from pathlib import Path
-import socket
 
 import discord
 
@@ -16,6 +15,8 @@ from deps.tracker_pacing import (
 from ui.tracker_block_view import TrackerBlockView
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+# The PC cannot resolve the server hostname (mini-pc), so the DM gives its LAN address.
+BOT_SERVER_ADDRESS = "10.0.0.181"
 
 
 def build_tracker_block_message(cooldown_seconds: float) -> str:
@@ -26,7 +27,7 @@ def build_tracker_block_message(cooldown_seconds: float) -> str:
         else "tracker.gg requests are failing until it is solved."
     )
     command = (
-        f"ssh -Y {getpass.getuser()}@{socket.gethostname()} "
+        f"ssh -Y {getpass.getuser()}@{BOT_SERVER_ADDRESS} "
         f"'cd {REPOSITORY_ROOT} && ENV=dev .venv/bin/python deployment/validate_tracker_cloudflare.py'"
     )
     return (
