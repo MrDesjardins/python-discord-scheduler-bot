@@ -166,6 +166,7 @@ COMMAND_SEE_PRIVATE_CHANNEL_CATEGORY = "modseeprivatechannelcategory"
 
 ## Analytics
 COMMAND_SHOW_COMMUNITY = "modshowcommunity"
+COMMAND_SHOW_PLOT = "modplot"
 
 
 # -----------------------

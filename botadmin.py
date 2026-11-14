@@ -1,6 +1,6 @@
 #!uv run
 """Entry file for the Discord bot admin command"""
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 import subprocess
 import glob
 import os
@@ -11,6 +11,7 @@ import black
 from simple_term_menu import TerminalMenu
 from pylint import lint
 from deps.analytic_data_access import fetch_user_info
+from deps.analytic_time_range import PERIOD_LABELS, get_from_to_days
 from deps.analytic_visualizer import (
     display_graph_cluster_people,
     display_graph_cluster_people_3d_animated,
@@ -104,59 +105,12 @@ def local_menu():
     main()
 
 
-def get_from_to_days(menu_entry_index2: int) -> tuple[int, int]:
-    """Get the day from and to"""
-    if menu_entry_index2 == 0:
-        # From the last 30 days
-        from_day = 30
-        to_day = 0
-        return (from_day, to_day)
-    elif menu_entry_index2 == 1:
-        # Calendar month to date (not "last N days where N = day-of-month")
-        today = datetime.now().date()
-        first_of_month = date(today.year, today.month, 1)
-        from_day = max((today - first_of_month).days, 1)
-        to_day = 0
-        return (from_day, to_day)
-    elif menu_entry_index2 == 2:
-        # Get the current date
-        current_date = datetime.now()
-
-        # Determine the first day of the last month
-        first_day_of_this_month = datetime(current_date.year, current_date.month, 1)
-        last_month_last_day = first_day_of_this_month - timedelta(days=1)
-        last_month_first_day = datetime(last_month_last_day.year, last_month_last_day.month, 1)
-
-        # Calculate the number of days since the first and last day of the last month
-        from_day = (current_date - last_month_first_day).days
-        to_day = (current_date - last_month_last_day).days
-        return (from_day, to_day)
-    elif menu_entry_index2 == 3:
-        # Get the current date
-        current_date = datetime.now()
-
-        # Determine the first day of the last 3 months
-        three_months_ago = current_date - timedelta(days=90)
-        last_month_first_day = datetime(three_months_ago.year, three_months_ago.month, 1)
-        # Calculate the number of days since the first and last day of the last month
-        from_day = (current_date - last_month_first_day).days
-        to_day = 0
-        return (from_day, to_day)
-    elif menu_entry_index2 == 4:
-        # Since beginning of the year
-        from_day = (datetime.now() - datetime(datetime.now().year, 1, 1)).days
-        to_day = 0
-        return (from_day, to_day)
-    elif menu_entry_index2 == 5:
-        # Since September 21th, 2024
-        from_day = (datetime.now() - datetime(2024, 9, 21)).days
-        to_day = 0
-        return (from_day, to_day)
-    return (0, 0)
-
-
 def show_visualization_menu(time_choice: Optional[int] = None):
-    """Menu to choose the visualization"""
+    """Menu to choose the visualization
+
+    Keep the plot list and the calls below in sync with
+    `deps/analytic_plot_catalog.py`, which exposes the same graphs to Discord.
+    """
     options = [
         "[1] Community 2D",
         "[2] Community 3D",
@@ -177,14 +131,7 @@ def show_visualization_menu(time_choice: Optional[int] = None):
     ]
     if time_choice is None:
         terminal_menu2 = TerminalMenu(
-            [
-                "[1] Last 30 days",
-                "[2] Current month",
-                "[3] Last Month",
-                "[4] Last 3 months",
-                "[5] Since beginning of the year",
-                "[6] Since September 21th, 2024",
-            ],
+            [f"[{index + 1}] {label}" for index, label in enumerate(PERIOD_LABELS)],
             title="Days",
             show_shortcut_hints=True,
         )

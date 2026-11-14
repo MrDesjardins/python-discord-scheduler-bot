@@ -370,6 +370,10 @@ Turn on and off the feature that the bot goes into the voice channel to send a v
 
 Generate an image that is a network graph of the users and with whom they play the most.
 
+#### modplot
+
+Admin-only. Render any of the predefined `botadmin.py` visualizations directly in Discord and receive the PNG as an ephemeral reply. Pick `graph` and a `period` preset; `from_day_ago`/`to_day_ago` override the preset for a custom window. Graphs that need a person take `user`, and `modplot`'s outside-partner graph also takes `top`.
+
 #### modstatsmatches
 
 Display match statistics for a user over a configurable time window.

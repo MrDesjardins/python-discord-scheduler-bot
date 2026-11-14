@@ -22,6 +22,7 @@ ADMIN_COMMAND_CALLBACKS = (
     ("mod_channels", "set_voice_channels"),
     ("mod_channels", "see_ai_text_channel"),
     ("mod_analytics", "community_show_image"),
+    ("mod_analytics", "show_plot"),
     ("mod_tournament", "create_tournament"),
     ("mod_onbehalf", "mod_stats"),
     ("user_schedule", "apply_schedule"),
