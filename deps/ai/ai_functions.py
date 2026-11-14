@@ -16,16 +16,6 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from openai import OpenAI
-from deps.bet.bet_data_access import (
-    SELECT_BET_GAME,
-    SELECT_BET_USER_GAME,
-    SELECT_BET_USER_TOURNAMENT,
-    SELECT_LEDGER,
-    KEY_bet_game,
-    KEY_bet_ledger_entry,
-    KEY_bet_user_game,
-    KEY_bet_user_tournament,
-)
 from deps.data_access import (
     data_access_get_guild_ai_context,
     data_access_set_guild_ai_context,
@@ -34,15 +24,8 @@ from deps.data_access import (
     data_access_set_ai_daily_count,
 )
 from deps.analytic_data_access import (
-    KEY_USER_ACTIVITY,
-    KEY_USER_FULL_MATCH_INFO,
-    KEY_USER_FULL_STATS_INFO,
     KEY_USER_INFO,
-    SELECT_USER_FULL_MATCH_INFO,
-    SELECT_USER_FULL_STATS_INFO,
-    USER_ACTIVITY_SELECT_FIELD,
     USER_INFO_SELECT_FIELD,
-    data_access_fetch_user_full_match_info,
     data_access_fetch_user_matches_in_time_range,
     get_active_user_info,
     fetch_user_info,
@@ -50,17 +33,6 @@ from deps.analytic_data_access import (
 from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats
 from deps.log import print_ai_audit_log, print_error_log, print_log, print_warning_log
-from deps.tournaments.tournament_data_access import (
-    KEY_TOURNAMENT,
-    KEY_TOURNAMENT_GAME,
-    KEY_TOURNAMENT_TEAM_MEMBERS,
-    KEY_USER_TOURNAMENT,
-    SELECT_TOURNAMENT,
-    SELECT_TOURNAMENT_GAME,
-    SELECT_TOURNAMENT_TEAM_MEMBERS,
-    SELECT_USER_TOURNAMENT,
-)
-from deps.system_database import EVENT_CONNECT, EVENT_DISCONNECT
 from deps.functions import escape_discord_styling
 from deps.ai.graph_functions import (
     GraphResponse,
@@ -68,11 +40,16 @@ from deps.ai.graph_functions import (
     render_graph,
     validate_graph_plan,
 )
+from deps.ai import data_catalog, recipes, sql_validator, zero_row_diagnostics
+from deps.operator_mapping import ATTACKER_OPERATORS, DEFENDER_OPERATORS
+
+_OPERATOR_TOKENS = frozenset(name.casefold() for name in ATTACKER_OPERATORS | DEFENDER_OPERATORS)
 
 load_dotenv()
 
 THRESHOLD_GEMINI = 500
 THRESHOLD_RETRY_AI = 2
+GEMINI_MODEL = "gemini-3.8-flash"
 OPENAI_FALLBACK_MODELS = ["gpt-5.6-terra", "gpt-5.6-luna"]
 # Gemini SDK HTTP timeout in milliseconds (large prompts; avoids stuck sockets indefinitely)
 GEMINI_HTTP_TIMEOUT_MS = 4 * 60 * 1000
@@ -109,6 +86,9 @@ class BotAI:
         self.request_counter_per_day = {}
         self.request_counter_per_day[self.today_key()] = 0
         self.is_running_ai_query = False
+        # Set when the SQL path used a deterministic recipe, so the answer prompt can
+        # carry the recipe's accuracy caveat (e.g. per-match vs per-operator rounds).
+        self.last_sql_note = ""
 
     async def load_initial_value(self):
         """
@@ -248,7 +228,7 @@ class BotAI:
             key_len = len(gemini_key)
             prefix = gemini_key[:8] if key_len >= 8 else gemini_key
             print_log(f"ask_ai: GEMINI_API_KEY present: True, prefix: {prefix}... (len={key_len})")
-            print_log("ask_ai: Attempting to use Gemini API (model: gemini-2.5-flash)...")
+            print_log(f"ask_ai: Attempting to use Gemini API (model: {GEMINI_MODEL})...")
             client_gemini = genai.Client(
                 api_key=gemini_key,
                 http_options=types.HttpOptions(timeout=GEMINI_HTTP_TIMEOUT_MS),
@@ -256,13 +236,13 @@ class BotAI:
             print_log("ask_ai: Calling Gemini generate_content...")
             t_call = time.monotonic()
             response_gemini = client_gemini.models.generate_content(
-                model="gemini-2.5-flash", contents=question
+                model=GEMINI_MODEL, contents=question
             )
             elapsed = time.monotonic() - t_call
             print_log(f"ask_ai: Gemini generate_content finished in {elapsed:.2f}s")
 
             if hasattr(response_gemini, "text") and response_gemini.text:
-                print_log("ask_ai: SUCCESS - Using Gemini (gemini-2.5-flash) API response.")
+                print_log(f"ask_ai: SUCCESS - Using Gemini ({GEMINI_MODEL}) API response.")
                 return response_gemini.text
             print_error_log("ask_ai: Gemini response has no 'text' attribute or is empty. Falling back to GPT.")
             return None
@@ -332,14 +312,14 @@ class BotAI:
         should_try_gemini = not use_gpt and self.today_count() < THRESHOLD_GEMINI
 
         if should_try_gemini:
-            print_log("ask_ai: Will try Gemini (gemini-2.5-flash) first, then fallback to OpenAI")
+            print_log(f"ask_ai: Will try Gemini ({GEMINI_MODEL}) first, then fallback to OpenAI")
         else:
             print_log("ask_ai: Will use OpenAI directly (Gemini threshold exceeded or GPT requested)")
 
         if should_try_gemini:
             result = self._try_gemini(question)
             if result is not None:
-                self._finish_ai_audit(request_id, request_type, result, "gemini-2.5-flash")
+                self._finish_ai_audit(request_id, request_type, result, GEMINI_MODEL)
                 return result
 
         result = self._try_openai(question)
@@ -391,7 +371,7 @@ class BotAI:
                             timeout=phase_timeout,
                         )
                         if result is not None:
-                            self._finish_ai_audit(request_id, request_type, result, "gemini-2.5-flash")
+                            self._finish_ai_audit(request_id, request_type, result, GEMINI_MODEL)
                             return result
                     except asyncio.TimeoutError:
                         print_error_log(
@@ -880,6 +860,7 @@ class BotAI:
         result_sql = ""
         sql_context = message_user
         stats_question_unanswered = False
+        last_diagnosis = ""
         while try_count < THRESHOLD_RETRY_AI and result_sql == "":
             # Ask AI to generate a SQL query to fetch stats from the database
             sql_from_llm = await self.ask_ai_sql_for_stats(
@@ -902,7 +883,8 @@ class BotAI:
                     )
                     try_count += 1
                     continue
-                print_log(f"SQL query result: {result_sql}")
+                row_count = len(result_sql.splitlines()) if result_sql else 0
+                print_log(f"SQL query returned {row_count} row(s)")
                 if result_sql != "":
                     context += (
                         "You can use that information from our database to complete your answer: SQL Queries fields:\n"
@@ -910,10 +892,18 @@ class BotAI:
                     context += sql_from_llm
                     context += "SQL Query result:\n"
                     context += result_sql
+                    if self.last_sql_note:
+                        context += f"\nData caveat: {self.last_sql_note}"
                     stats_question_unanswered = False
                 else:
+                    # Diagnose which filter removed the data before asking for another query.
+                    # Without this the model guessed a fake limitation ("2026 is unavailable").
+                    last_diagnosis = zero_row_diagnostics.diagnose_zero_rows(clean_response)
                     sql_context += (
-                        "The previous SQL query you provided did not return any result. Please try again with a different query. Here is what you provided: "
+                        "The previous SQL query you provided did not return any result. "
+                        "Use this diagnosis to correct the query or to state the real limitation: "
+                        + last_diagnosis
+                        + " Here is what you provided: "
                         + clean_response
                     )
             try_count += 1
@@ -923,7 +913,7 @@ class BotAI:
             # clarifying question rather than letting the model deflect or guess.
             self.is_running_ai_query = False
             return await self.generate_clarifying_question(
-                guild_id, message_user, context_previous_messages
+                guild_id, message_user, context_previous_messages, diagnosis=last_diagnosis
             )
 
         context += "User question:" + message_user
@@ -1013,6 +1003,10 @@ class BotAI:
         """Resolve textual names to database identities before asking the model for SQL."""
         users_by_id = {user.id: user for user in resolved_mentions}
         normalized_message = message.casefold()
+        # "Doc" is both an operator and (in this server) a user's display name. When the
+        # message is explicitly about an operator, do not turn that token into a user
+        # constraint: it used to restrict "top Doc players" to the single user named Doc.
+        mentions_operator_word = bool(re.search(r"\boperators?\b", normalized_message))
         for user in fetch_user_info().values():
             aliases = {
                 alias.strip()
@@ -1023,6 +1017,8 @@ class BotAI:
                 )
                 if alias and alias.strip()
             }
+            if mentions_operator_word and any(alias.casefold() in _OPERATOR_TOKENS for alias in aliases):
+                continue
             if any(re.search(rf"(?<!\w){re.escape(alias.casefold())}(?!\w)", normalized_message) for alias in aliases):
                 users_by_id[user.id] = user
         return list(users_by_id.values())
@@ -1067,38 +1063,13 @@ class BotAI:
         require_canonical_identity: bool = False,
         require_kd_semantics: bool = False,
     ) -> str:
-        """Reject identity-unsafe SQL before it reaches the database."""
-        clean_sql = sql.strip().replace("```sql", "").replace("```", "").strip()
-        lowered = clean_sql.casefold()
-        if not (lowered.startswith("select") or lowered.startswith("with")):
-            raise ValueError("AI generated a non-read-only SQL statement")
-        if lowered.startswith("with") and re.search(r"\b(insert|update|delete|replace)\b", lowered):
-            raise ValueError("WITH queries may only contain a final SELECT")
-        if ";" in clean_sql.rstrip(";"):
-            raise ValueError("AI generated multiple SQL statements")
-        if require_canonical_identity:
-            if "user_info" not in lowered:
-                raise ValueError("Leaderboard/partner SQL must join user_info for canonical names")
-            if "ubisoft_username_active" not in lowered and "ubisoft_username_max" not in lowered:
-                raise ValueError("SQL must select a canonical Ubisoft username")
-            if "display_name" in lowered:
-                raise ValueError("SQL must not use Discord display_name as the answer identity")
-        if require_kd_semantics:
-            if "999999" in lowered:
-                raise ValueError("K/D SQL must not use an artificial zero-death K/D value")
-        for user in resolved_users:
-            display_name = (user.display_name or "").casefold()
-            if display_name and re.search(
-                rf"ubisoft_username\s*=\s*['\"]{re.escape(display_name)}['\"]", lowered
-            ):
-                raise ValueError(
-                    f"AI used Discord display name {user.display_name!r} as a Ubisoft username"
-                )
-            if ("user_full_match_info" in lowered or "user_info" in lowered) and str(user.id) not in clean_sql:
-                raise ValueError(
-                    f"AI query did not use resolved user_id {user.id} for {user.display_name!r}"
-                )
-        return clean_sql
+        """Repair safe SQL issues and reject identity-unsafe or unsupported SQL."""
+        return sql_validator.validate_and_normalize(
+            sql,
+            resolved_users,
+            require_canonical_identity=require_canonical_identity,
+            require_kd_semantics=require_kd_semantics,
+        )
 
     def parse_query_plan(self, response: str | None) -> dict | None:
         """Parse the deliberately small JSON contract used before SQL generation."""
@@ -1157,7 +1128,8 @@ class BotAI:
         self, message_user: str, user_id: int, resolved_mentions: List[UserInfo]
     ) -> str:
         """Build a compact prompt that separates intent recognition from SQL syntax."""
-        prompt = (
+        prompt = data_catalog.render_grounding() + "\n"
+        prompt += (
             "Classify the user's request for a Discord bot database lookup. Return JSON only. "
             "If the question can be answered without database data, set needs_sql to false. "
             "Otherwise set needs_sql to true and describe only the requested facts. "
@@ -1250,71 +1222,41 @@ class BotAI:
         return cleaned_discord
 
     def _planner_schema_domains(self, planned_domain: str) -> set[str]:
-        """Map a query-plan domain to the set of schema blocks the SQL prompt needs."""
-        if planned_domain == "general":
-            return {"matches", "activity"}
-        if planned_domain == "bets":
-            return {"tournaments"}
-        return {planned_domain}
+        """Map a query-plan domain to the catalog domains the SQL prompt needs."""
+        return set(data_catalog.domains_for_plan(planned_domain))
 
     def _domain_schema_text(self, domain: str) -> str:
-        """Return the prompt text describing the tables for a single query-plan domain."""
-        if domain == "matches":
-            text = f"Table name: `{KEY_USER_FULL_MATCH_INFO}`. "
-            text += f'The fields: {SELECT_USER_FULL_MATCH_INFO.replace(KEY_USER_FULL_MATCH_INFO + ".", "")}. '
-            text += f"Table name: `{KEY_USER_FULL_STATS_INFO}`. "
-            text += f'The fields: {SELECT_USER_FULL_STATS_INFO.replace(KEY_USER_FULL_STATS_INFO + ".", "")}. '
-            text += "Use the match_timestamp column to filter or group matches by date or date range. "
-            return text
-        if domain == "tournaments":
-            text = f"Table name: `{KEY_TOURNAMENT}`. "
-            text += f'The fields: {SELECT_TOURNAMENT.replace(KEY_TOURNAMENT + ".", "")}. '
-            text += f"Table name: `{KEY_USER_TOURNAMENT}`. "
-            text += f'The fields: {SELECT_USER_TOURNAMENT.replace(KEY_USER_TOURNAMENT + ".", "")}. '
-            text += f"Table name: `{KEY_TOURNAMENT_GAME}`. "
-            text += f'The fields: {SELECT_TOURNAMENT_GAME.replace(KEY_TOURNAMENT_GAME + ".", "")}. '
-            text += f"Table name: `{KEY_TOURNAMENT_TEAM_MEMBERS}`. "
-            text += f'The fields: {SELECT_TOURNAMENT_TEAM_MEMBERS.replace(KEY_TOURNAMENT_TEAM_MEMBERS + ".", "")}. '
-            text += f"Table name: `{KEY_bet_user_game}`."
-            text += f'The fields: {SELECT_BET_USER_GAME.replace(KEY_bet_user_game + ".", "")}. '
-            text += f"Table name: `{KEY_bet_user_tournament}`."
-            text += f'The fields: {SELECT_BET_USER_TOURNAMENT.replace(KEY_bet_user_tournament + ".", "")}. '
-            text += f"Table name: `{KEY_bet_game}`."
-            text += f'The fields: {SELECT_BET_GAME.replace(KEY_bet_game + ".", "")}. '
-            text += f"Table name: `{KEY_bet_ledger_entry}`."
-            text += f'The fields: {SELECT_LEDGER.replace(KEY_bet_ledger_entry + ".", "")}. '
-            return text
-        if domain == "activity":
-            text = f"Table name: `{KEY_USER_ACTIVITY}`."
-            text += f'The fields: {USER_ACTIVITY_SELECT_FIELD.replace(KEY_USER_ACTIVITY + ".", "")}. '
-            text += f"The field above has the field event that can be `{EVENT_CONNECT}` or `{EVENT_DISCONNECT}` which can be used to know when someone was online between a period of time. "
-            return text
-        return ""
+        """Render one catalog domain for the SQL prompt."""
+        return data_catalog.render_domain(domain)
 
     async def generate_clarifying_question(
         self,
         guild_id: Union[int, None],
         message_user: str,
         context_previous_messages: str,
+        diagnosis: str | None = None,
     ) -> str:
         """
         Build a single friendly clarifying question when a data request was recognized
         but could not be answered (ambiguous range, missing metric, no rows found).
         """
         fallback = (
-            "I couldn't pin down the data for that. Could you clarify the exact date range "
-            "(with the year), which player, and which stat you want me to compare?"
+            "I couldn't pin down the data for that. Could you clarify the exact date range, "
+            "which player, and which stat you want me to compare?"
         )
-        prompt = (
+        prompt = data_catalog.render_grounding() + "\n"
+        prompt += (
             "You are a Discord bot for a Rainbow Six Siege community. A user asked something that "
-            "needs data from the stats database, but the request is too ambiguous or no matching data "
-            "was found. Ask ONE short, friendly clarifying question so you can try again. Ask only "
-            "about what is missing: exact date range (including the year), which stat or metric, which "
-            "player or Ubisoft account, ranked vs standard. Do not apologize at length, do not explain "
-            "your limitations, and never invent data. Keep it under 300 characters.\n"
+            "needs data from the stats database, but the request could not be answered. Ask ONE short, "
+            "friendly clarifying question so you can try again. Ask only about what is missing: date "
+            "range, which stat or metric, which player or Ubisoft account, ranked vs standard. "
+            "Use the coverage facts above. Never claim a year or date range is unavailable unless "
+            "the coverage proves it, and never invent data. Keep it under 300 characters.\n"
             f"User question: {message_user}\n"
             f"Recent conversation:\n{context_previous_messages}"
         )
+        if diagnosis:
+            prompt += f"\nDatabase diagnosis of the empty result:\n{diagnosis}\n"
         try:
             prompt = await self.apply_guild_ai_context(guild_id, prompt)
             response = await self.ask_ai_async(prompt, request_type="clarifying_question")
@@ -1342,8 +1284,10 @@ class BotAI:
         # Also resolve plain-text names here. The Discord event path normally supplies
         # resolved mentions, but this keeps direct callers and tests safe as well.
         resolved_mentions = self.resolve_users_in_text(message_user, resolved_mentions)
+        self.last_sql_note = ""
         need_sql = False
-        context = "You are a bot that is asked to generate a SQL query to fetch stats from a database. "
+        context = data_catalog.render_grounding() + "\n"
+        context += "You are a bot that is asked to generate a SQL query to fetch stats from a database. "
         context += f"The user_id: `{str(user_id)}`. "
         context += f"The user question is: `{message_user}`"
         context += "Generate a SQL query that fetches data that is relevant to the user question. "
@@ -1359,6 +1303,24 @@ class BotAI:
             context += "Do not guess additional identities, do not merge users, and use exact user ids when filtering. "
             context += f"Resolved mentioned users: {self.summarize_users_list(resolved_mentions)}. "
             context += f"When filtering by mentioned users, restrict to these user ids: {resolved_user_ids}. "
+
+        # Deterministic recipes handle clear, high-traffic shapes without asking the model
+        # to write SQL. They are skipped whenever an identity was explicitly mentioned or
+        # safely resolved from text (operator words are excluded from text resolution).
+        recipe = recipes.try_build_recipe(
+            message_user, user_id, resolved_mentions, guild_id=guild_id
+        )
+        if recipe is not None:
+            try:
+                recipe_sql = self.validate_generated_sql(
+                    recipe.sql, [], require_canonical_identity=True
+                )
+            except ValueError as exc:
+                print_error_log(f"ask_ai_sql_for_stats: Recipe {recipe.name} rejected: {exc}")
+            else:
+                self.last_sql_note = recipe.note
+                print_log(f"ask_ai_sql_for_stats: Using deterministic recipe {recipe.name}")
+                return recipe_sql
 
         msg = message_user.lower()
         keywords_full_match_info = [
@@ -1461,6 +1423,10 @@ class BotAI:
                         added_domains.add(schema_domain)
                 try:
                     plan = self.validate_query_plan(parsed_plan, user_id, resolved_mentions)
+                    print_log(
+                        "ask_ai_sql_for_stats: validated query plan "
+                        + json.dumps(plan, sort_keys=True)
+                    )
                 except ValueError as e:
                     print_error_log(f"ask_ai_sql_for_stats: query plan rejected, continuing without it: {e}")
         except Exception as e:
