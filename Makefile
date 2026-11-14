@@ -13,6 +13,13 @@
 .PHONY: lint-mypy
 .PHONY: install-reps
 .PHONY: save-deps
+.PHONY: report-html
+
+REFERENCE_DATE ?= $(shell date -u +%Y-%m-%d)
+DATABASE ?= user_activity.db
+
+report-html:
+	uv run python scripts/generate_analytics_report.py --reference-date $(REFERENCE_DATE) --database $(DATABASE)
 
 test: unit-test integration-test
 
