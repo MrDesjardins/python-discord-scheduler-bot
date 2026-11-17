@@ -41,6 +41,13 @@ def test_recorded_match_matches_existing_tracker_fields(recorded, user):
     assert match.playstyle_rounds["attacker-breacher"] == 3
 
 
+def test_entry_fragger_alias_is_normalized_to_canonical_playstyle(recorded, user):
+    """Provider label drift must not create a leaderboard key nobody queries."""
+    recorded["config"]["operators"]["ace"]["playstyles"].append("attacker-fragger")
+    match = parse_match(recorded["match"], recorded["detail"], recorded["config"], user)
+    assert match.playstyle_rounds["attacker-entry-fragger"] == 3
+
+
 def test_statscc_is_the_default_provider(monkeypatch):
     monkeypatch.delenv("MATCH_STATS_PROVIDER", raising=False)
     assert match_stats_provider() == "statscc"

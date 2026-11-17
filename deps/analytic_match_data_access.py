@@ -137,8 +137,7 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
     # Todo: Batch insert
     last_match: Union[UserFullMatchStats, None] = None
     try:
-        with database_manager.data_access_transaction():
-            cursor = database_manager.get_cursor()
+        with database_manager.data_access_transaction() as cursor:
             for match in filtered_data:
                 last_match = match
                 cursor.execute(
@@ -309,10 +308,10 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
                 print_log(
                     f"insert_if_nonexistant_full_match_info: Inserted match {cursor.rowcount} for {user_info.display_name}. Match id {match.match_uuid} and user id {user_info.id}"
                 )
-        # stats.cc match objects carry per-round playstyle classifications. Store
-        # them only for newly inserted matches so repeated history fetches cannot
-        # inflate the aggregate.
-        upsert_stats_cc_playstyle_rounds(filtered_data)
+            # stats.cc match objects carry per-round playstyle classifications.
+            # Keep this in the same transaction as the match rows so a failure
+            # cannot commit matches while losing the leaderboard source data.
+            upsert_stats_cc_playstyle_rounds(filtered_data, cursor=cursor)
         # End transaction
     except Exception as e:
         if last_match is None:

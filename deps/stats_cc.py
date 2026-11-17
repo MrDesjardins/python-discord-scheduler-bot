@@ -4,6 +4,7 @@ import os
 import threading
 import time
 from collections import Counter
+from typing import Any
 from datetime import datetime, timezone
 from uuid import UUID
 from urllib.parse import quote
@@ -28,7 +29,11 @@ def stats_cc_is_primary() -> bool:
 
 def tracker_fallback_is_enabled() -> bool:
     """Whether a stats.cc failure may fall back to the legacy Tracker collector."""
-    return match_stats_provider() in {"tracker", "statscc_with_tracker_fallback"}
+    # stats.cc remains the primary source by default, but missing overlay telemetry
+    # must not silently discard a user's session. Keep Tracker as the compatibility
+    # fallback until all existing users have stats.cc coverage; ``statscc`` can still
+    # be made strict later by introducing an explicit no-fallback mode.
+    return match_stats_provider() in {"tracker", "statscc", "statscc_with_tracker_fallback"}
 
 
 class StatsCCUnavailable(Exception):
@@ -53,11 +58,18 @@ def parse_match(match: dict, detail: dict, config: dict, user: UserInfo) -> User
     if not rounds or len(rounds) < player["rounds"]:
         raise StatsCCUnavailable("Missing per-round player detail")
     operators = dict.fromkeys(_display(config, "operators", p["operator"]) for p in rounds if p.get("operator"))
-    playstyle_rounds = Counter(
-        playstyle
-        for player_round in rounds
-        for playstyle in config["operators"].get(player_round.get("operator"), {}).get("playstyles", [])
-    )
+    playstyle_rounds: Counter[str] = Counter()
+    for player_round in rounds:
+        operator = config["operators"].get(player_round.get("operator"), {})
+        for playstyle in operator.get("playstyles", []):
+            # stats.cc has used both the concise ``attacker-fragger`` label and
+            # Tracker's ``attacker-entry-fragger`` label in different config
+            # snapshots. Store one canonical key so the leaderboard never misses
+            # entry-fragger rounds because of provider naming drift.
+            normalized = str(playstyle).casefold().replace("_", "-")
+            if normalized == "attacker-fragger":
+                normalized = "attacker-entry-fragger"
+            playstyle_rounds[normalized] += 1
     ended = datetime.fromisoformat(match["ended_at"].replace("Z", "+00:00"))
     started = datetime.fromisoformat(match["started_at"].replace("Z", "+00:00"))
     if ended.tzinfo is None or started.tzinfo is None or ended < started:
