@@ -130,6 +130,17 @@ def test_opt_in_uses_statscc_without_opening_browser(recorded, user, monkeypatch
     assert result[0].match_stats == [match]
 
 
+def test_force_tracker_bypasses_statscc_for_recovery_paths(user, monkeypatch):
+    """Match-GIF and TribeMarkets recovery must be able to force the Tracker collector."""
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc")
+    queue = UserQueueForStats(user, 1, datetime.now(timezone.utc))
+    with patch("deps.browser.StatsCCClient") as client, patch("deps.browser.BrowserContextManager") as browser:
+        browser.return_value.__enter__.return_value.download_full_matches.return_value = []
+        download_full_matches([queue], force_tracker=True)
+    client.assert_not_called()
+    browser.return_value.__enter__.return_value.download_full_matches.assert_called_once_with(queue)
+
+
 def test_opt_in_falls_back_for_missing_telemetry(user, monkeypatch):
     monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc_with_tracker_fallback")
     queue = UserQueueForStats(user, 1, datetime.now(timezone.utc))

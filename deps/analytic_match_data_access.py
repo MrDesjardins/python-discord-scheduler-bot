@@ -309,9 +309,13 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
                     f"insert_if_nonexistant_full_match_info: Inserted match {cursor.rowcount} for {user_info.display_name}. Match id {match.match_uuid} and user id {user_info.id}"
                 )
             # stats.cc match objects carry per-round playstyle classifications.
-            # Keep this in the same transaction as the match rows so a failure
-            # cannot commit matches while losing the leaderboard source data.
-            upsert_stats_cc_playstyle_rounds(filtered_data, cursor=cursor)
+            # Upsert for every fetched match (not only the newly inserted rows) so a
+            # match row that committed before this table existed, or before a failed
+            # playstyle write, is healed on the next fetch instead of staying absent
+            # from the leaderboards forever. The write is idempotent (INSERT OR
+            # REPLACE on match_uuid/user_id/playstyle) and shares this transaction
+            # with the match rows so the two can never diverge.
+            upsert_stats_cc_playstyle_rounds(list_matches, cursor=cursor)
         # End transaction
     except Exception as e:
         if last_match is None:
@@ -448,11 +452,13 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
             # Keep the last known value of counters tracker.gg sometimes sends as 0.
             preserved_columns = ", ".join(PRESERVE_WHEN_API_ZERO_FIELDS)
             previous = cursor.execute(
-                f"SELECT {preserved_columns} FROM user_full_stats_info WHERE user_id = ?",
+                f"SELECT r6_tracker_user_uuid, {preserved_columns} FROM user_full_stats_info WHERE user_id = ?",
                 (user_info.id,),
             ).fetchone()
-            if previous is not None:
-                for field, previous_value in zip(PRESERVE_WHEN_API_ZERO_FIELDS, previous):
+            previous_uuid = previous[0] if previous is not None else None
+            incoming_uuid = user_information.r6_tracker_user_uuid
+            if previous is not None and previous_uuid and previous_uuid == incoming_uuid:
+                for field, previous_value in zip(PRESERVE_WHEN_API_ZERO_FIELDS, previous[1:]):
                     if previous_value and not getattr(user_information, field):
                         setattr(user_information, field, previous_value)
 

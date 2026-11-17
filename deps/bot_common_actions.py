@@ -558,13 +558,13 @@ MATCH_GIF_R6_TRACKER_MAX_ATTEMPTS = 3
 
 
 async def download_full_matches_remembering_ranks(
-    users: List[UserQueueForStats],
+    users: List[UserQueueForStats], force_tracker: bool = False
 ) -> List[UserWithUserMatchInfo]:
     """
     Download match histories and remember the rank they show, so the periodic rank
     refresh does not need one extra R6 Tracker profile request per member.
     """
-    fetched = await download_full_matches_async(users)
+    fetched = await download_full_matches_async(users, force_tracker=force_tracker)
     played_after = datetime.now(timezone.utc) - timedelta(seconds=R6_TRACKER_FETCH_MEMORY_SECONDS)
     for user_matches in fetched:
         ubisoft_user_name = user_matches.user_request_stats.user_info.ubisoft_username_active
@@ -628,7 +628,7 @@ async def _fetch_r6_tracker_for_match_gifs(
                 {**record, "attempts": int(record.get("attempts", 0)) + 1}, remaining_seconds
             )
     if queue:
-        for user_matches in await download_full_matches_remembering_ranks(list(queue.values())):
+        for user_matches in await download_full_matches_remembering_ranks(list(queue.values()), force_tracker=True):
             user_id = user_matches.user_request_stats.user_info.id
             matches_by_member.setdefault(user_id, []).extend(user_matches.match_stats)
 
@@ -742,7 +742,7 @@ async def reconcile_pending_tribemarkets(
             if user_info is not None and user_info.ubisoft_username_active is not None:
                 fetch_queue.append(UserQueueForStats(user_info, 0, datetime.now(timezone.utc)))
         if fetch_queue:
-            fetched = await download_full_matches_remembering_ranks(fetch_queue)
+            fetched = await download_full_matches_remembering_ranks(fetch_queue, force_tracker=True)
             for user_matches in fetched:
                 user_id = user_matches.user_request_stats.user_info.id
                 matches_by_member.setdefault(user_id, []).extend(user_matches.match_stats)

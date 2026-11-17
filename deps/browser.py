@@ -24,14 +24,20 @@ from deps.log import print_error_log, print_log, print_warning_log
 from deps.stats_cc import StatsCCClient, StatsCCUnavailable, stats_cc_is_primary, tracker_fallback_is_enabled
 
 
-def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
+def download_full_matches(
+    users_queued: List[UserQueueForStats], force_tracker: bool = False
+) -> List[UserWithUserMatchInfo]:
     """
     Download the maximum information for matches with the goal to persist the data into the database
+
+    ``force_tracker`` skips stats.cc entirely. Recovery paths (match-start GIFs and
+    TribeMarkets reconciliation) are documented as R6 Tracker fallbacks and must not
+    be starved by users who have no stats.cc overlay telemetry.
     """
     all_users_matches: List[UserWithUserMatchInfo] = []
     # stats.cc is the primary provider. In the explicit fallback mode, only users
     # without usable overlay telemetry continue to the legacy Tracker collector.
-    if stats_cc_is_primary():
+    if stats_cc_is_primary() and not force_tracker:
         remaining = []
         with StatsCCClient() as client:
             for user_queue in users_queued:
@@ -95,14 +101,16 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
     return all_users_matches
 
 
-async def download_full_matches_async(users_queue_stats: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
+async def download_full_matches_async(
+    users_queue_stats: List[UserQueueForStats], force_tracker: bool = False
+) -> List[UserWithUserMatchInfo]:
     """
     Run the blocking download_full_matches in another thread and perform a post-processing task
     in the main thread after completion.
     """
     try:
         # Offload the blocking task to a thread
-        return await asyncio.to_thread(download_full_matches, users_queue_stats)
+        return await asyncio.to_thread(download_full_matches, users_queue_stats, force_tracker)
     except Exception as e:
         print_error_log(f"download_full_matches_async: Error during match download: {e}")
         return []

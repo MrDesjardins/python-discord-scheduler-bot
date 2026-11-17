@@ -329,6 +329,39 @@ def test_update_keeps_last_non_zero_playstyle_and_round_wins(mock_log):
 
 
 @patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_update_does_not_copy_counters_to_a_new_active_account(mock_log):
+    """A new Ubisoft account must start with its own zero counters."""
+    data_1, _ = get_user_full_info_test_data()
+    mock_log.side_effect = None
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+        user_info.max_mmr,
+    )
+
+    first = parse_json_user_info(user_info.id, data_1)
+    insert_if_nonexistant_full_user_info(user_info, first)
+
+    second = parse_json_user_info(user_info.id, data_1)
+    second.r6_tracker_user_uuid = "a-different-account"
+    second.attacked_breacher_count = 0
+    second.attacked_breacher_percentage = 0.0
+    second.time_played_seconds = 0
+    insert_if_nonexistant_full_user_info(user_info, second)
+
+    result = data_access_fetch_user_full_user_info(user_info.id)
+    assert result is not None
+    assert result.r6_tracker_user_uuid == "a-different-account"
+    assert result.attacked_breacher_count == 0
+    assert result.time_played_seconds == 0
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
 def test_top_breacher_falls_back_to_breach_operator_rounds_and_skips_zeros(mock_log):
     """
     A profile with the playstyle counter is ranked by it. When tracker.gg omits the
@@ -734,6 +767,18 @@ def test_analytic_insert_and_fetch_full_match_info_for_user() -> None:
     result = data_access_fetch_user_full_match_info(user_info.id)
     assert result is not None
     assert len(result) == 1
+
+    # A match stored before the playstyle table existed (or whose playstyle write
+    # failed) is healed on the next fetch: the upsert runs for every fetched match,
+    # not only for newly inserted rows.
+    result[0].playstyle_rounds = {"attacker-breacher": 2}
+    insert_if_nonexistant_full_match_info(user_info, result)
+    playstyle_rows = (
+        database_manager.get_cursor()
+        .execute("SELECT match_uuid, playstyle_key, rounds_played FROM user_match_playstyle_rounds")
+        .fetchall()
+    )
+    assert playstyle_rows == [("match-uuid-1", "attacker-breacher", 2)]
 
 
 def test_fetch_tk() -> None:
