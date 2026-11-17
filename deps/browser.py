@@ -1,7 +1,6 @@
 """Browser manipulation functions"""
 
 import asyncio
-import os
 from typing import Any, List, Union
 from deps.browser_context_manager import BrowserContextManager
 from deps.browser_exceptions import (
@@ -22,7 +21,7 @@ from deps.models import (
     UserWithUserMatchInfo,
 )
 from deps.log import print_error_log, print_log, print_warning_log
-from deps.stats_cc import StatsCCClient, StatsCCUnavailable
+from deps.stats_cc import StatsCCClient, StatsCCUnavailable, stats_cc_is_primary, tracker_fallback_is_enabled
 
 
 def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWithUserMatchInfo]:
@@ -30,9 +29,9 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
     Download the maximum information for matches with the goal to persist the data into the database
     """
     all_users_matches: List[UserWithUserMatchInfo] = []
-    # Explicit opt-in while stats.cc coverage is evaluated. Never turn absent
-    # overlay telemetry into an empty history and a false "nobody played" report.
-    if os.getenv("MATCH_STATS_PROVIDER", "tracker").lower() == "statscc":
+    # stats.cc is the primary provider. In the explicit fallback mode, only users
+    # without usable overlay telemetry continue to the legacy Tracker collector.
+    if stats_cc_is_primary():
         remaining = []
         with StatsCCClient() as client:
             for user_queue in users_queued:
@@ -44,6 +43,8 @@ def download_full_matches(users_queued: List[UserQueueForStats]) -> List[UserWit
                         f"download_full_matches: stats.cc unavailable for {user_queue.user_info.display_name}: {exc}"
                     )
                     remaining.append(user_queue)
+        if not tracker_fallback_is_enabled():
+            return all_users_matches
         users_queued = remaining
         if not users_queued:
             return all_users_matches

@@ -11,7 +11,7 @@ import requests
 from deps.browser import download_full_matches
 from deps.data_access_data_class import UserInfo
 from deps.models import UserQueueForStats
-from deps.stats_cc import StatsCCClient, StatsCCUnavailable, parse_match
+from deps.stats_cc import StatsCCClient, StatsCCUnavailable, match_stats_provider, parse_match
 
 
 @pytest.fixture
@@ -38,6 +38,12 @@ def test_recorded_match_matches_existing_tracker_fields(recorded, user):
     assert set(match.operators.split(",")) == {"Fuze", "Valkyrie", "Azami", "Kapkan", "Ace", "Alibi"}
     assert match.kill_1_count == 1
     assert match.kd_ratio == 0.12
+    assert match.playstyle_rounds["attacker-breacher"] == 3
+
+
+def test_statscc_is_the_default_provider(monkeypatch):
+    monkeypatch.delenv("MATCH_STATS_PROVIDER", raising=False)
+    assert match_stats_provider() == "statscc"
 
 
 def test_zero_deaths_and_unranked_placement(recorded, user):
@@ -118,7 +124,7 @@ def test_opt_in_uses_statscc_without_opening_browser(recorded, user, monkeypatch
 
 
 def test_opt_in_falls_back_for_missing_telemetry(user, monkeypatch):
-    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc")
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc_with_tracker_fallback")
     queue = UserQueueForStats(user, 1, datetime.now(timezone.utc))
     with patch("deps.browser.StatsCCClient") as client, patch("deps.browser.BrowserContextManager") as browser:
         client.return_value.__enter__.return_value.download_matches.side_effect = StatsCCUnavailable("No telemetry")

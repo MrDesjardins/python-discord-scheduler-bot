@@ -1,13 +1,15 @@
 """Test that touch the bet and the database"""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 from unittest.mock import call, patch
 import pytest
 
 from deps.analytic_functions import compute_users_weights
 from deps.data_access_data_class import UserInfo
 from deps.analytic_data_access import (
+    data_access_fetch_top_breacher,
     data_access_fetch_tk_count_by_user,
     data_access_fetch_user_full_match_info,
     data_access_fetch_user_full_user_info,
@@ -27,6 +29,8 @@ from deps.functions_r6_tracker import (
 )
 from deps import analytic_data_access
 from deps import analytic_match_data_access
+from deps.operator_stats_data_access import upsert_operator_stats
+from deps.stats_cc_playstyle_data_access import upsert_stats_cc_playstyle_rounds
 
 fake_date = datetime(2024, 11, 1, 12, 30, 0, tzinfo=timezone.utc)
 CHANNEL1_ID = 100
@@ -279,6 +283,139 @@ def test_insert_if_nonexistant_user_full_stats_info_then_fetch_back(mock_log):
     assert result.quickmatch_kd_ratio == user_full_1.quickmatch_kd_ratio
     assert result.quickmatch_kill_per_match == user_full_1.quickmatch_kill_per_match
     assert result.quickmatch_win_percentage == user_full_1.quickmatch_win_percentage
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_update_keeps_last_non_zero_playstyle_and_round_wins(mock_log):
+    """
+    tracker.gg sometimes sends 0 for lifetime counters. A refresh must not erase the
+    previous non-zero values, while still updating the counters that did come back.
+    """
+    data_1, _ = get_user_full_info_test_data()
+    mock_log.side_effect = None
+    user_info = UserInfo(1, "DiscordName1", "ubi_1_max", "ubi_1_active", None, "US/Eastern", 0)
+    upsert_user_info(
+        user_info.id,
+        user_info.display_name,
+        user_info.ubisoft_username_max,
+        user_info.ubisoft_username_active,
+        None,
+        user_info.time_zone,
+        user_info.max_mmr,
+    )
+
+    first = parse_json_user_info(user_info.id, data_1)
+    insert_if_nonexistant_full_user_info(user_info, first)
+    expected_breacher = first.attacked_breacher_count
+    expected_fragger = first.attacked_fragger_count
+    expected_time = first.time_played_seconds
+
+    second = parse_json_user_info(user_info.id, data_1)
+    second.total_matches_played = 1234
+    second.attacked_breacher_count = 0
+    second.attacked_breacher_percentage = 0.0
+    second.attacked_fragger_count = 0
+    second.attacked_fragger_percentage = 0.0
+    second.time_played_seconds = 0
+
+    insert_if_nonexistant_full_user_info(user_info, second)
+
+    result = data_access_fetch_user_full_user_info(user_info.id)
+    assert result is not None
+    assert result.total_matches_played == 1234
+    assert result.attacked_breacher_count == expected_breacher
+    assert result.attacked_fragger_count == expected_fragger
+    assert result.time_played_seconds == expected_time
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_top_breacher_falls_back_to_breach_operator_rounds_and_skips_zeros(mock_log):
+    """
+    A profile with the playstyle counter is ranked by it. When tracker.gg omits the
+    counter, breach operator rounds are used. Users with neither are left out.
+    """
+    mock_log.side_effect = None
+    recently = datetime.now(timezone.utc)
+    from_date = recently.date() - timedelta(days=30)
+    data_1, _ = get_user_full_info_test_data()
+
+    users = []
+    for user_id, name in ((1, "Tracked"), (2, "OperatorOnly"), (3, "Nothing")):
+        upsert_user_info(user_id, name, None, None, None, "US/Eastern", 0)
+        insert_user_activity(user_id, name, CHANNEL1_ID, GUILD_ID, EVENT_CONNECT, recently)
+        users.append(UserInfo(user_id, name, None, None, None, "US/Eastern", 0))
+
+    tracked = parse_json_user_info(1, data_1)
+    tracked.r6_tracker_user_uuid = "uuid-tracked"
+    tracked.attacked_breacher_count = 500
+    insert_if_nonexistant_full_user_info(users[0], tracked)
+
+    operator_only = parse_json_user_info(2, data_1)
+    operator_only.r6_tracker_user_uuid = "uuid-operator"
+    operator_only.attacked_breacher_count = 0
+    insert_if_nonexistant_full_user_info(users[1], operator_only)
+    upsert_operator_stats(
+        [
+            {
+                "user_id": 2,
+                "operator_name": "thermite",
+                "session_type": "ranked",
+                "side": "attacker",
+                "gamemode": "pvp_ranked",
+                "matches_played": 10,
+                "matches_won": 6,
+                "matches_lost": 4,
+                "win_percentage": 60.0,
+                "time_played": 7200,
+                "rounds_played": 40,
+                "rounds_won": 25,
+                "rounds_lost": 15,
+                "round_win_pct": 62.5,
+                "kills": 20,
+                "deaths": 10,
+                "kd_ratio": 2.0,
+                "kills_per_game": 2.0,
+                "kills_per_round": 0.5,
+            }
+        ]
+    )
+
+    nothing = parse_json_user_info(3, data_1)
+    nothing.r6_tracker_user_uuid = "uuid-nothing"
+    nothing.attacked_breacher_count = 0
+    insert_if_nonexistant_full_user_info(users[2], nothing)
+
+    result = data_access_fetch_top_breacher(from_date, 10)
+
+    assert result == [("Tracked", 500), ("OperatorOnly", 40)]
+
+
+@patch.object(analytic_data_access, analytic_data_access.print_log.__name__)
+def test_stats_cc_playstyle_rounds_are_deduplicated_in_breacher_ranking(mock_log):
+    """Repeated stats.cc history fetches must not inflate the leaderboard."""
+    mock_log.side_effect = None
+    recently = datetime.now(timezone.utc)
+    user = UserInfo(1, "StatsCCPlayer", None, None, None, "US/Eastern", 0)
+    upsert_user_info(user.id, user.display_name, None, None, None, user.time_zone, user.max_mmr)
+    insert_user_activity(user.id, user.display_name, CHANNEL1_ID, GUILD_ID, EVENT_CONNECT, recently)
+
+    match = parse_json_user_info(user.id, get_user_full_info_test_data()[0])
+    match.r6_tracker_user_uuid = "uuid-statscc"
+    match.attacked_breacher_count = 0
+    match.attacked_fragger_count = 0
+    insert_if_nonexistant_full_user_info(user, match)
+
+    # Use a minimal stats.cc-like object to exercise the deduplication table.
+    match = SimpleNamespace(
+        match_uuid="statscc-match",
+        user_id=user.id,
+        playstyle_rounds={"attacker-breacher": 7},
+    )
+
+    upsert_stats_cc_playstyle_rounds([match])
+    upsert_stats_cc_playstyle_rounds([match])
+
+    assert data_access_fetch_top_breacher(recently.date() - timedelta(days=30), 10) == [("StatsCCPlayer", 7)]
 
 
 @patch.object(analytic_data_access, analytic_data_access.print_log.__name__)

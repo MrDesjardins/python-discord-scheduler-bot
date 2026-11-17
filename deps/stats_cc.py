@@ -3,6 +3,7 @@
 import os
 import threading
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from uuid import UUID
 from urllib.parse import quote
@@ -13,6 +14,21 @@ from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats
 
 API_ROOT = "https://api.stats.cc/siege/v2"
+
+
+def match_stats_provider() -> str:
+    """Return the configured match provider, defaulting to stats.cc."""
+    return os.getenv("MATCH_STATS_PROVIDER", "statscc").strip().lower()
+
+
+def stats_cc_is_primary() -> bool:
+    """Whether match collection should use stats.cc instead of Tracker."""
+    return match_stats_provider() in {"statscc", "statscc_with_tracker_fallback"}
+
+
+def tracker_fallback_is_enabled() -> bool:
+    """Whether a stats.cc failure may fall back to the legacy Tracker collector."""
+    return match_stats_provider() in {"tracker", "statscc_with_tracker_fallback"}
 
 
 class StatsCCUnavailable(Exception):
@@ -37,6 +53,11 @@ def parse_match(match: dict, detail: dict, config: dict, user: UserInfo) -> User
     if not rounds or len(rounds) < player["rounds"]:
         raise StatsCCUnavailable("Missing per-round player detail")
     operators = dict.fromkeys(_display(config, "operators", p["operator"]) for p in rounds if p.get("operator"))
+    playstyle_rounds = Counter(
+        playstyle
+        for player_round in rounds
+        for playstyle in config["operators"].get(player_round.get("operator"), {}).get("playstyles", [])
+    )
     ended = datetime.fromisoformat(match["ended_at"].replace("Z", "+00:00"))
     started = datetime.fromisoformat(match["started_at"].replace("Z", "+00:00"))
     if ended.tzinfo is None or started.tzinfo is None or ended < started:
@@ -101,6 +122,7 @@ def parse_match(match: dict, detail: dict, config: dict, user: UserInfo) -> User
         deaths_per_round=round(deaths / count, 2) if count else 0,
         assists_per_round=round(assists / count, 2) if count else 0,
         has_win=player["outcome"] == "win",
+        playstyle_rounds=dict(playstyle_rounds),
     )
     for size in range(1, 6):
         values[f"clutches_win_count_1v{size}"] = player[f"clutch_1v{size}_wins"]

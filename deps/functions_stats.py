@@ -170,12 +170,17 @@ The rollbacks that added points are not counted in this stats and will be shown 
     elif function_number == 22:
         msg = stats_count_breaching(day_30, last_30_days, 30)
         msg_instruction = (
-            "That stats is about using a breach entry operators, not the amount of time someone breached a wall."
+            "That stats is about using a breach entry operators, not the amount of time someone breached a wall. "
+            "The primary source is stats.cc playstyle rounds; legacy operator aggregates are used only when those rounds are unavailable."
         )
     elif function_number == 23:
         msg = stats_total_wallbangs(day_30, last_30_days, 30)
     elif function_number == 24:
         msg = stats_total_attacker_fragger(day_30, last_30_days, 30)
+        msg_instruction = (
+            "That stats is about rounds played as a front-line entry fragger. "
+            "The primary source is stats.cc playstyle rounds; legacy operator aggregates are used only when those rounds are unavailable."
+        )
     elif function_number == 25:
         msg = stats_total_time_playing_siege(day_30, last_30_days, 30)
         msg_instruction = "The time includes only the time in Siege using the active account currently associated with the user (/setmyactiveaccount or /setupprofile to change)."
@@ -458,7 +463,7 @@ def stats_count_breaching(day: int, last_x_day: date, top: int) -> str:
     """
     stats = data_access_fetch_top_breacher(last_x_day, top)
     return build_msg_2_columns(
-        "breaching count since account created",
+        "breach playstyle rounds collected",
         f"for people active in the last {day} days",
         ["Name", "Count"],
         stats,
@@ -486,7 +491,7 @@ def stats_total_attacker_fragger(day: int, last_x_day: date, top: int) -> str:
     """
     stats = data_access_fetch_attacker_fragger_count(last_x_day, top)
     return build_msg_2_columns(
-        "considered attacker fragger role since account created",
+        "entry-fragger playstyle rounds collected",
         f"for people active in the last {day} days",
         ["Name", "Count"],
         stats,
@@ -846,7 +851,8 @@ def build_msg_2_columns(
     """Build a message that has the user name and stats count"""
     col_name = 20
     col_width_count = 6
-    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    entry_count = min(top, len(stats_tuple))
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {entry_count} {stats_name} {info_time_str}\n```"
     msg += f"{columnize(cols_name[0], col_name)}" f"{columnize(cols_name[1], col_width_count)}\n"
     for i in range(start_index, len(stats_tuple)):
         stat = stats_tuple[i]
@@ -868,7 +874,8 @@ def build_msg_3_columns(
     """Build a message that has the user name and stats count"""
     col_name = 15
     col_width_count = 6
-    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    entry_count = min(top, len(stats_tuple))
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {entry_count} {stats_name} {info_time_str}\n```"
     msg += (
         f"{columnize(cols_name[0], col_name)}"
         f"{columnize(cols_name[1], col_name)}"
@@ -898,7 +905,8 @@ def build_msg_4_columns(
     """Build a message that has the user name and stats count"""
     col_name = 15
     col_width_count = 10
-    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {top} {stats_name} {info_time_str}\n```"
+    entry_count = min(top, len(stats_tuple))
+    msg = f"📊 **Stats of the day: {stats_name}**\nHere is the top {entry_count} {stats_name} {info_time_str}\n```"
     msg += (
         f"{columnize(cols_name[0], col_name)}"
         f"{columnize(cols_name[1], col_width_count)}"

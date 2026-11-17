@@ -1,8 +1,17 @@
-# Experimental stats.cc match provider
+# stats.cc match provider
 
-Set `MATCH_STATS_PROVIDER=statscc` in the bot environment and restart to opt in.
-The default remains `tracker`. This switches match-history collection only;
-profile and operator aggregate requests still use Tracker.
+The default match-history provider is now stats.cc. Set `MATCH_STATS_PROVIDER=tracker`
+to temporarily opt out and use Tracker for match history.
+
+stats.cc per-round operator classifications are also persisted and used for the
+breacher and entry-fragger leaderboards. This removes those leaderboards' dependency
+on Tracker's unreliable profile playstyle counters. The exact Tracker playstyle
+values are not available from stats.cc, so these leaderboards use the corresponding
+stats.cc playstyle rounds.
+
+The existing daily profile snapshot still runs for unrelated legacy metrics while
+those metrics are migrated to match telemetry. This prevents unrelated leaderboards
+from becoming stale during the provider migration.
 
 The client uses `https://api.stats.cc/siege/v2/profiles/{ubisoft-profile-id}/matches?playlist=ranked`,
 `/matches/{match-id}`, and `/config`. These are undocumented website endpoints,
@@ -34,5 +43,10 @@ all mapped fields survive SQLite insertion and retrieval.
   remove an existing role using an unranked placement record.
 - Operators are deduplicated in round order; order may differ from Tracker.
 
-This is an additional provider option, not a complete historical backfill tool.
-To revert, unset `MATCH_STATS_PROVIDER` or set it to `tracker` and restart.
+This is an incremental migration, not a complete historical backfill tool. Existing
+Tracker history remains available for other features and as a fallback while stats.cc
+coverage accumulates. To revert, set `MATCH_STATS_PROVIDER=tracker` and restart.
+
+The playstyle table starts empty on an existing installation; it fills as users' new
+stats.cc match histories are collected. The first fetch is intentionally limited to
+the provider's recent history, so older rounds are not reconstructed retroactively.

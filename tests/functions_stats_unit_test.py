@@ -37,6 +37,12 @@ def test_fit_code_block_message_on_real_stats_table():
     assert result.count(CODE_BLOCK_FENCE) == 2
 
 
+def test_build_msg_header_uses_actual_row_count():
+    """A short list is not announced as a top 30 list"""
+    msg = build_msg_2_columns("breaching count", "in the last 30 days", ["Name", "Count"], [("only", 5)], 30)
+    assert "Here is the top 1 breaching count" in msg
+
+
 def test_fit_code_block_message_without_code_block_is_cut():
     """A plain message is simply cut at the limit"""
     assert fit_code_block_message("a" * 3000) == "a" * 2000

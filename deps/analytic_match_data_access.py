@@ -24,6 +24,42 @@ from deps.data_access_data_class import UserInfo
 from deps.models import UserFullMatchStats, UserInformation
 from deps.system_database import database_manager
 from deps.log import print_error_log, print_log
+from deps.stats_cc_playstyle_data_access import upsert_stats_cc_playstyle_rounds
+
+# Lifetime counters that tracker.gg intermittently reports as 0 (observed: the attack/defender
+# round wins and every playstyle counter, and occasionally time played) even though they only
+# grow over the account's life. Keeping the last non-zero value when the API answers 0 stops a
+# single bad snapshot from permanently erasing the stored history. The playstyle counters in
+# that family feed the daily "top breacher / top fragger" stats.
+PRESERVE_WHEN_API_ZERO_FIELDS = (
+    "time_played_seconds",
+    "total_attacker_round_wins",
+    "total_defender_round_wins",
+    "attacked_breacher_count",
+    "attacked_breacher_percentage",
+    "attacked_fragger_count",
+    "attacked_fragger_percentage",
+    "attacked_intel_count",
+    "attacked_intel_percentage",
+    "attacked_roam_count",
+    "attacked_roam_percentage",
+    "attacked_support_count",
+    "attacked_support_percentage",
+    "attacked_utility_count",
+    "attacked_utility_percentage",
+    "defender_debuffer_count",
+    "defender_debuffer_percentage",
+    "defender_entry_denier_count",
+    "defender_entry_denier_percentage",
+    "defender_intel_count",
+    "defender_intel_percentage",
+    "defender_support_count",
+    "defender_support_percentage",
+    "defender_trapper_count",
+    "defender_trapper_percentage",
+    "defender_utility_denier_count",
+    "defender_utility_denier_percentage",
+)
 
 
 def data_access_fetch_recent_win_loss(user_id: int, match_count: int = 10) -> tuple[int, int]:
@@ -273,6 +309,10 @@ def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: lis
                 print_log(
                     f"insert_if_nonexistant_full_match_info: Inserted match {cursor.rowcount} for {user_info.display_name}. Match id {match.match_uuid} and user id {user_info.id}"
                 )
+        # stats.cc match objects carry per-round playstyle classifications. Store
+        # them only for newly inserted matches so repeated history fetches cannot
+        # inflate the aggregate.
+        upsert_stats_cc_playstyle_rounds(filtered_data)
         # End transaction
     except Exception as e:
         if last_match is None:
@@ -396,7 +436,8 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
     """
     Insert or update the user full stats info if it does not exist.
     This function checks if stats already exist for the user in the database
-    and inserts the new stats if they don't.
+    and inserts the new stats if they don't. A counter the API reports as 0 keeps
+    its previous non-zero value (see PRESERVE_WHEN_API_ZERO_FIELDS).
 
     Args:
         user_info: The UserInfo object containing the user's basic information
@@ -405,6 +446,17 @@ def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: 
     # Wrap DELETE + INSERT in transaction to prevent data loss on failure
     try:
         with database_manager.data_access_transaction() as cursor:
+            # Keep the last known value of counters tracker.gg sometimes sends as 0.
+            preserved_columns = ", ".join(PRESERVE_WHEN_API_ZERO_FIELDS)
+            previous = cursor.execute(
+                f"SELECT {preserved_columns} FROM user_full_stats_info WHERE user_id = ?",
+                (user_info.id,),
+            ).fetchone()
+            if previous is not None:
+                for field, previous_value in zip(PRESERVE_WHEN_API_ZERO_FIELDS, previous):
+                    if previous_value and not getattr(user_information, field):
+                        setattr(user_information, field, previous_value)
+
             # Check if a record for this user already exists and delete it
             query = """
                 DELETE FROM user_full_stats_info

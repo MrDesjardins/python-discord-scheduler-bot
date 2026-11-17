@@ -75,6 +75,7 @@ class DatabaseManager:
         """Drop all tables"""
         self.get_cursor().execute("DROP TABLE IF EXISTS user_following")
         self.get_cursor().execute("DROP TABLE IF EXISTS cache")
+        self.get_cursor().execute("DROP TABLE IF EXISTS user_match_playstyle_rounds")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_activity")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_info")
         self.get_cursor().execute("DROP TABLE IF EXISTS user_weights")
@@ -503,6 +504,9 @@ class DatabaseManager:
         # Add operator stats table
         self._migrate_add_operator_stats_table()
 
+        # Add stats.cc playstyle rounds table
+        self._migrate_add_user_match_playstyle_rounds_table()
+
         # Add moderation message archive tables
         self._migrate_add_message_archive_tables()
 
@@ -723,6 +727,30 @@ class DatabaseManager:
         )
         self.conn.commit()
         print_log("Migration complete: operator_stats table created")
+
+    def _migrate_add_user_match_playstyle_rounds_table(self):
+        """Store per-match stats.cc playstyle rounds so aggregates are deduplicated."""
+        print_log("Running migration: Create user match playstyle rounds table")
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_match_playstyle_rounds (
+                match_uuid TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                playstyle_key TEXT NOT NULL,
+                rounds_played INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (match_uuid, user_id, playstyle_key),
+                FOREIGN KEY (user_id) REFERENCES user_info(id) ON DELETE CASCADE
+            )
+            """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_user_match_playstyle_rounds_user
+            ON user_match_playstyle_rounds(user_id, playstyle_key)
+            """
+        )
+        self.conn.commit()
+        print_log("Migration complete: user match playstyle rounds table created")
 
     def _migrate_add_match_timestamp_index(self):
         """Add composite index for time-based match queries (user_id, match_timestamp)."""

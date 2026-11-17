@@ -121,6 +121,8 @@ class UserFullMatchStats:
         deaths_per_round: float,
         assists_per_round: float,
         has_win: bool,
+        operator_rounds: Optional[dict[str, int]] = None,
+        playstyle_rounds: Optional[dict[str, int]] = None,
     ):
         self.id = id
         self.user_id = user_id
@@ -175,6 +177,11 @@ class UserFullMatchStats:
         self.deaths_per_round = deaths_per_round
         self.assists_per_round = assists_per_round
         self.has_win = has_win
+        # stats.cc exposes the operator selected in every round. Keep these
+        # provider-specific aggregates on the in-memory match so persistence can
+        # build lifetime playstyle totals without depending on Tracker profile data.
+        self.operator_rounds = operator_rounds or {}
+        self.playstyle_rounds = playstyle_rounds or {}
 
     @staticmethod
     def from_db_row(row):

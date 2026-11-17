@@ -32,8 +32,9 @@ def test_browser_is_not_launched_while_blocked():
     "error",
     [TrackerBlockedException(3600), CloudflareChallengeNotClearedException("challenge was not cleared")],
 )
-def test_download_full_matches_stops_the_batch_when_tracker_is_unavailable(error):
+def test_download_full_matches_stops_the_batch_when_tracker_is_unavailable(error, monkeypatch):
     """Users after the failure are not requested and are left out so they stay queued"""
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "tracker")
     first, second, third = [
         UserQueueForStats(user, 100, datetime.now(timezone.utc)) for user in (mock_user1, mock_user2, mock_user3)
     ]
@@ -47,8 +48,9 @@ def test_download_full_matches_stops_the_batch_when_tracker_is_unavailable(error
     assert context.download_full_matches.call_count == 2
 
 
-def test_download_full_matches_continues_after_an_ordinary_timeout():
+def test_download_full_matches_continues_after_an_ordinary_timeout(monkeypatch):
     """A timeout that is not a challenge concerns one user only"""
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "tracker")
     first, second = [UserQueueForStats(user, 100, datetime.now(timezone.utc)) for user in (mock_user1, mock_user2)]
     with patch("deps.browser.BrowserContextManager") as mock_cm:
         context = mock_cm.return_value.__enter__.return_value
