@@ -142,7 +142,7 @@ async def send_daily_command_tip(guild: discord.Guild) -> None:
     if not channel_id:
         return
     channel = guild.get_channel(channel_id)
-    if channel is None:
+    if not isinstance(channel, discord.abc.Messageable):
         return
     key = f"DailyCommandTip:{guild.id}"
     state = await get_cache(False, key) or {}
