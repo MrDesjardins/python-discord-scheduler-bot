@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import pytest
 from deps.data_access_data_class import UserInfo
 from deps.functions_r6_tracker import (
+    _normalize_rank_name,
     get_user_gaming_session_stats,
     parse_json_current_season_rank,
     parse_json_from_full_matches,
@@ -1415,6 +1416,18 @@ def test_get_r6tracker_parse_current_season_rank_no_rank_is_unranked(test_data):
             segment["stats"]["rankPoints"]["value"] = 0
             segment["stats"]["rankPoints"]["metadata"]["name"] = "NO RANK"
     assert parse_json_current_season_rank(data) == ("Unranked", 0)
+
+
+def test_normalize_rank_name_handles_statscc_division_labels():
+    """stats.cc labels must collapse to the Discord tier, not fall through to Unranked.
+
+    Regression: a literal " " split left the non-breaking space in "Diamond\\xa0II"
+    intact, and "CHAMPIONS" has no matching role, so both became Unranked.
+    """
+    assert _normalize_rank_name("GOLD II", "Unranked") == "Gold"
+    assert _normalize_rank_name("DIAMOND\xa0II", "Unranked") == "Diamond"
+    assert _normalize_rank_name("CHAMPIONS", "Unranked") == "Champion"
+    assert _normalize_rank_name("NO RANK", "Unranked") == "Unranked"
 
 
 def test_get_r6tracker_parse_current_season_rank_invalid_shape_raises(test_data):

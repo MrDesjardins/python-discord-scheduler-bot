@@ -15,7 +15,33 @@ from deps.siege import (
     get_lfg_rank_role_mentions,
     get_lfg_user_mentions,
     get_user_rank_siege,
+    resolve_rank_role_name,
 )
+
+
+def test_resolve_rank_role_name_maps_division_labels_to_tier() -> None:
+    """stats.cc sends full divisions ("Gold II"); the role is the tier ("Gold").
+
+    Regression: comparing the raw label with siege_ranks fell through to Unranked,
+    so stats.cc profile setup gave members the Unranked role (d68bded + 92224ef).
+    """
+    assert resolve_rank_role_name("GOLD II") == "Gold"
+    assert resolve_rank_role_name("EMERALD V") == "Emerald"
+
+
+def test_resolve_rank_role_name_handles_nbsp_and_champion_plural() -> None:
+    """stats.cc pads some divisions with a non-breaking space and spells champion "Champions"."""
+    assert resolve_rank_role_name("DIAMOND\xa0II") == "Diamond"
+    assert resolve_rank_role_name("CHAMPIONS") == "Champion"
+    assert resolve_rank_role_name("CHAMPION") == "Champion"
+
+
+def test_resolve_rank_role_name_keeps_tier_and_no_rank() -> None:
+    """Base tiers pass through; no-rank labels stay Unranked."""
+    assert resolve_rank_role_name("Gold") == "Gold"
+    assert resolve_rank_role_name("NO RANK") == "Unranked"
+    assert resolve_rank_role_name("Unranked") == "Unranked"
+    assert resolve_rank_role_name(None) == "Unranked"
 
 
 def test_get_aggregation_siege_activity_no_data() -> None:

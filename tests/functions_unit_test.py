@@ -304,6 +304,32 @@ async def test_set_member_role_from_rank_with_role_to_remove_remove_all_possible
         )
 
 
+async def test_set_member_role_from_rank_accepts_statscc_division_label():
+    """A stats.cc label like "GOLD II" must apply the Gold role, not Unranked.
+
+    Regression: profile setup feeds stats.cc's full division into this function,
+    and the old resolver mapped it to Unranked, stripping the member's rank.
+    """
+    guild = Mock(spec=discord.Guild)
+    member = Mock(spec=discord.Member)
+    gold_role = Mock(spec=discord.Role, name="Gold")
+    unranked_role = Mock(spec=discord.Role, name="Unranked")
+    member.roles = [unranked_role]
+    member.add_roles = AsyncMock()
+    member.remove_roles = AsyncMock()
+
+    def mock_discord_get(roles, name):
+        return {"Gold": gold_role, "Unranked": unranked_role}.get(name)
+
+    with patch("deps.functions.discord.utils.get", side_effect=mock_discord_get):
+        await deps.functions.set_member_role_from_rank(guild, member, "GOLD II")
+
+    member.add_roles.assert_called_once_with(gold_role, reason="Bot assigned role based on rank from R6 Tracker")
+    member.remove_roles.assert_called_once_with(
+        unranked_role, reason="Bot removed prior rank roles before assigning Gold."
+    )
+
+
 async def test_set_member_role_from_rank_missing_target_role_preserves_existing_roles():
     """If the target role is missing, the function should fail before mutating roles."""
     guild = Mock(spec=discord.Guild)

@@ -45,10 +45,29 @@ def is_no_rank_role(role_name: str) -> bool:
     return role_name == NO_RANK_ROLE
 
 
-def resolve_rank_role_name(rank: str) -> str:
-    """Map API labels to the Discord rank role name."""
+def resolve_rank_role_name(rank: Optional[str]) -> str:
+    """Map API labels to the Discord rank role name.
+
+    Labels arrive in several spellings: Tracker.gg reports the tier alone
+    ("Gold"), stats.cc reports the full division ("Gold II") and its champion
+    tier as "Champions", and stats.cc pads a couple of divisions with a
+    non-breaking space ("Diamond\\xa0II"). Comparing the raw label against
+    ``siege_ranks`` therefore fell through to Unranked, so stats.cc profile
+    setup and rank refreshes stripped the member's rank role instead of
+    applying it (regression from d68bded's resolver when 92224ef made setup
+    feed stats.cc's full labels into it). Match on the tier token instead.
+    """
     if rank in siege_ranks:
         return rank
+    if not isinstance(rank, str):
+        return NO_RANK_ROLE
+    tokens = rank.split()  # split on any whitespace; stats.cc uses \xa0
+    token = tokens[0].lower() if tokens else ""
+    if token in ("champion", "champions"):
+        return "Champion"
+    for tier in siege_ranks:
+        if tier.lower() == token:
+            return tier
     return NO_RANK_ROLE
 
 

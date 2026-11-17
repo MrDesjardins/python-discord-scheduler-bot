@@ -116,22 +116,19 @@ async def test_setup_profile_syncs_current_season_rank_for_active_account() -> N
     interaction = _interaction(member, guild)
 
     with (
-        patch(
-            "ui.setup_user_profile_view.fetch_current_and_max_rank_for_accounts", new_callable=AsyncMock
-        ) as mock_fetch,
+        patch.object(modal, "fetch_profile", return_value=("profile-id", "Emerald", 4343)) as mock_fetch,
         patch("ui.setup_user_profile_view.upsert_user_info") as mock_upsert,
         patch("ui.setup_user_profile_view.set_member_role_from_current_rank", new_callable=AsyncMock) as mock_set_role,
         patch(
             "ui.setup_user_profile_view.data_access_get_gaming_session_text_channel_id", new_callable=AsyncMock
         ) as mock_channel,
     ):
-        mock_fetch.return_value = ("Emerald", 3839, "Diamond", 4343)
         mock_set_role.return_value = True
         mock_channel.return_value = 789
         await modal.on_submit(interaction)
 
-    mock_fetch.assert_awaited_once_with("max_ubi", "active_ubi")
-    mock_upsert.assert_called_once_with(member.id, "Player", "max_ubi", "active_ubi", None, "US/Eastern", 4343)
+    mock_fetch.assert_called_once_with()
+    mock_upsert.assert_called_once_with(member.id, "Player", "max_ubi", "active_ubi", "profile-id", "US/Eastern", 4343)
     mock_set_role.assert_awaited_once_with(guild, member, "Emerald")
 
 

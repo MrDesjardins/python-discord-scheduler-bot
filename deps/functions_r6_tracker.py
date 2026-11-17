@@ -163,7 +163,14 @@ def _normalize_rank_name(rank_name: Any, default: str = "Copper") -> str:
     normalized = rank_name.strip()
     if normalized == "" or normalized.upper() in ("NO RANK", "UNKNOWN", "UNRANKED"):
         return NO_RANK_ROLE
-    return normalized.split(" ")[0].lower().capitalize()
+    # Split on any whitespace: stats.cc pads some divisions with a non-breaking
+    # space ("Diamond\xa0II"), which a literal " " split leaves intact and then
+    # the role resolver cannot match. stats.cc also spells champion "Champions",
+    # which must collapse to the "Champion" role or those players land on Unranked.
+    token = normalized.split()[0].lower()
+    if token == "champions":
+        return "Champion"
+    return token.capitalize()
 
 
 def current_season_rank_from_matches(
