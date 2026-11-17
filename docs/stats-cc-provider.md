@@ -13,6 +13,26 @@ The existing daily profile snapshot still runs for unrelated legacy metrics whil
 those metrics are migrated to match telemetry. This prevents unrelated leaderboards
 from becoming stale during the provider migration.
 
+## Daily stats under stats.cc
+
+When stats.cc is the provider, the daily Tracker profile/operator refresh is skipped
+and `user_full_stats_info` is rebuilt from the collected match rows
+(`recompute_user_full_stats_info_from_matches`). This keeps every consumer of that
+snapshot working without Tracker: the match-start GIF, custom-match team balancing,
+`/userinfo`, and the AI catalog.
+
+Because stats.cc telemetry is ranked-only, the rebuilt counters are "collected"
+rather than lifetime, and the daily labels say so. Two daily stats are removed from
+the rotation under stats.cc:
+
+- **17 (all-mode match count)** would duplicate **18 (ranked match count)**.
+- **23 (wallbangs)** has no stats.cc source at all.
+
+Fields stats.cc does not expose (wallbangs, damage, headshots missed,
+attacker/defender round wins, arcade and quick-match splits) are written as 0 rather
+than carrying stale Tracker values.
+
+
 The client uses `https://api.stats.cc/siege/v2/profiles/{ubisoft-profile-id}/matches?playlist=ranked`,
 `/matches/{match-id}`, and `/config`. These are undocumented website endpoints,
 verified during the November 9, 2026 investigation. They may change.

@@ -7,6 +7,7 @@ from typing import Optional, Sequence, Union
 from datetime import date, datetime, timedelta, timezone
 import discord
 from deps.functions_date import get_now_eastern
+from deps.stats_cc import stats_cc_is_primary
 from deps.analytic_visualizer import display_user_top_operators
 from deps.analytic_functions import compute_users_voice_channel_time_sec, computer_users_voice_in_out
 from deps.analytic_data_access import (
@@ -53,6 +54,20 @@ DISCORD_MESSAGE_MAX_LENGTH = 2000
 CODE_BLOCK_FENCE = "```"
 
 
+def available_daily_stats_numbers() -> list[int]:
+    """Stat numbers that can be produced by the active match provider.
+
+    stats.cc telemetry is ranked-only and has no wallbang field, so under stats.cc:
+    - 17 (all-mode match count) would duplicate 18 (ranked match count)
+    - 23 (wallbangs) has no source at all
+    Skipping them keeps the rotation from posting an empty or duplicated table.
+    """
+    numbers = list(range(27))
+    if stats_cc_is_primary():
+        numbers = [number for number in numbers if number not in (17, 23)]
+    return numbers
+
+
 async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Optional[int] = None):
     """
     Send the daily schedule stats to a specific guild
@@ -81,7 +96,8 @@ async def send_daily_stats_to_a_guild(guild: discord.Guild, stats_number: Option
     if stats_number is not None:
         function_number = stats_number
     else:
-        function_number = get_rotated_number_from_current_day(27)
+        available_numbers = available_daily_stats_numbers()
+        function_number = available_numbers[get_rotated_number_from_current_day(len(available_numbers))]
     if function_number == 0:
         msg = stats_rank_match_count(day_30, last_30_days)
     elif function_number == 1:
@@ -387,13 +403,22 @@ def stats_best_worse_map(day: int, last_x_day: date, index: int = 0) -> tuple[st
     )
 
 
+def _lifetime_or_collected(lifetime: str, collected: str) -> str:
+    """Pick the honest label for the active provider.
+
+    Under stats.cc the profile snapshot is rebuilt from collected match rows, which
+    are ranked-only, so "since account created" would overstate the coverage.
+    """
+    return collected if stats_cc_is_primary() else lifetime
+
+
 def stats_top_matches(day: int, last_x_day: date, top: int) -> str:
     """
     Get the top matches played by users
     """
     stats = data_access_fetch_top_matches_played(last_x_day, top)
     return build_msg_2_columns(
-        "matches count since account created",
+        _lifetime_or_collected("matches count since account created", "matches collected"),
         f"for people active in the last {day} days",
         ["Name", "Count"],
         stats,
@@ -407,7 +432,7 @@ def stats_top_ranked_matches(day: int, last_x_day: date, top: int) -> str:
     """
     stats = data_access_fetch_top_ranked_matches_played(last_x_day, top)
     return build_msg_2_columns(
-        "ranked matches count since account created",
+        _lifetime_or_collected("ranked matches count since account created", "ranked matches collected"),
         f"for people active in the last {day} days",
         ["Name", "Count"],
         stats,
@@ -421,7 +446,7 @@ def stats_top_win_rate_ranked_matches(day: int, last_x_day: date, top: int) -> s
     """
     stats = data_access_fetch_top_win_rateranked_matches_played(last_x_day, top)
     return build_msg_2_columns(
-        "ranked win rate since account created",
+        _lifetime_or_collected("ranked win rate since account created", "ranked win rate collected"),
         f"for people active in the last {day} days",
         ["Name", "Count"],
         stats,
@@ -435,7 +460,7 @@ def stats_top_team_kill(day: int, last_x_day: date, top: int) -> str:
     """
     stats = data_access_fetch_top_team_kill(last_x_day, top)
     return build_msg_4_columns(
-        "team kill since account created",
+        _lifetime_or_collected("team kill since account created", "team kill collected"),
         f"for people active in the last {day} days",
         ["Name", "TK", "Matches", "%TK/Match"],
         stats,
@@ -449,7 +474,9 @@ def stats_average_kill_per_rank_match(day: int, last_x_day: date, top: int) -> s
     """
     stats = data_access_fetch_top_kill_per_match_rank(last_x_day, top)
     return build_msg_2_columns(
-        "average kill per match since account created",
+        _lifetime_or_collected(
+            "average kill per match since account created", "average kill per ranked match collected"
+        ),
         f"for people active in the last {day} days",
         ["Name", "Count"],
         stats,
@@ -505,7 +532,10 @@ def stats_total_time_playing_siege(day: int, last_x_day: date, top: int) -> str:
     """
     stats = data_access_fetch_time_played_siege(last_x_day, top)
     return build_msg_2_columns(
-        "is the total amount of hours played Siege (rank, unranked, etc)",
+        _lifetime_or_collected(
+            "is the total amount of hours played Siege (rank, unranked, etc)",
+            "is the total amount of hours in collected ranked matches",
+        ),
         f"for people active in the last {day} days",
         ["Name", "Hours"],
         stats,

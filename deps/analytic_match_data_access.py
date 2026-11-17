@@ -61,6 +61,24 @@ PRESERVE_WHEN_API_ZERO_FIELDS = (
     "defender_utility_denier_percentage",
 )
 
+# stats.cc playstyle keys (one canonical key per Ubisoft playstyle) mapped to the
+# lifetime counters stored on user_full_stats_info. A match-derived rebuild uses
+# these to fill the playstyle columns that Tracker used to provide.
+PLAYSTYLE_COUNT_FIELDS = {
+    "attacker-breacher": ("attacked_breacher_count", "attacked_breacher_percentage"),
+    "attacker-entry-fragger": ("attacked_fragger_count", "attacked_fragger_percentage"),
+    "attacker-intel-provider": ("attacked_intel_count", "attacked_intel_percentage"),
+    "attacker-roam-clearer": ("attacked_roam_count", "attacked_roam_percentage"),
+    "attacker-supporter": ("attacked_support_count", "attacked_support_percentage"),
+    "attacker-utility-clearer": ("attacked_utility_count", "attacked_utility_percentage"),
+    "defender-debuffer": ("defender_debuffer_count", "defender_debuffer_percentage"),
+    "defender-entry-denier": ("defender_entry_denier_count", "defender_entry_denier_percentage"),
+    "defender-intel-provider": ("defender_intel_count", "defender_intel_percentage"),
+    "defender-supporter": ("defender_support_count", "defender_support_percentage"),
+    "defender-trapper": ("defender_trapper_count", "defender_trapper_percentage"),
+    "defender-utility-denier": ("defender_utility_denier_count", "defender_utility_denier_percentage"),
+}
+
 
 def data_access_fetch_recent_win_loss(user_id: int, match_count: int = 10) -> tuple[int, int]:
     """
@@ -435,32 +453,38 @@ def data_access_fetch_user_matches_in_time_range(
     return matches_by_user
 
 
-def insert_if_nonexistant_full_user_info(user_info: UserInfo, user_information: UserInformation) -> None:
+def insert_if_nonexistant_full_user_info(
+    user_info: UserInfo, user_information: UserInformation, preserve_previous: bool = True
+) -> None:
     """
     Insert or update the user full stats info if it does not exist.
     This function checks if stats already exist for the user in the database
     and inserts the new stats if they don't. A counter the API reports as 0 keeps
-    its previous non-zero value (see PRESERVE_WHEN_API_ZERO_FIELDS).
+    its previous non-zero value (see PRESERVE_WHEN_API_ZERO_FIELDS) unless
+    ``preserve_previous`` is False, which the match-derived rebuild uses so fields
+    stats.cc cannot provide are cleared instead of left stale.
 
     Args:
         user_info: The UserInfo object containing the user's basic information
         user_information: The UserInformation object containing the detailed user statistics
+        preserve_previous: Keep last-known non-zero lifetime counters when the API answers 0
     """
     # Wrap DELETE + INSERT in transaction to prevent data loss on failure
     try:
         with database_manager.data_access_transaction() as cursor:
             # Keep the last known value of counters tracker.gg sometimes sends as 0.
-            preserved_columns = ", ".join(PRESERVE_WHEN_API_ZERO_FIELDS)
-            previous = cursor.execute(
-                f"SELECT r6_tracker_user_uuid, {preserved_columns} FROM user_full_stats_info WHERE user_id = ?",
-                (user_info.id,),
-            ).fetchone()
-            previous_uuid = previous[0] if previous is not None else None
-            incoming_uuid = user_information.r6_tracker_user_uuid
-            if previous is not None and previous_uuid and previous_uuid == incoming_uuid:
-                for field, previous_value in zip(PRESERVE_WHEN_API_ZERO_FIELDS, previous[1:]):
-                    if previous_value and not getattr(user_information, field):
-                        setattr(user_information, field, previous_value)
+            if preserve_previous:
+                preserved_columns = ", ".join(PRESERVE_WHEN_API_ZERO_FIELDS)
+                previous = cursor.execute(
+                    f"SELECT r6_tracker_user_uuid, {preserved_columns} FROM user_full_stats_info WHERE user_id = ?",
+                    (user_info.id,),
+                ).fetchone()
+                previous_uuid = previous[0] if previous is not None else None
+                incoming_uuid = user_information.r6_tracker_user_uuid
+                if previous is not None and previous_uuid and previous_uuid == incoming_uuid:
+                    for field, previous_value in zip(PRESERVE_WHEN_API_ZERO_FIELDS, previous[1:]):
+                        if previous_value and not getattr(user_information, field):
+                            setattr(user_information, field, previous_value)
 
             # Check if a record for this user already exists and delete it
             query = """
@@ -741,3 +765,100 @@ def data_access_fetch_user_full_user_info(user_id: int) -> Union[UserInformation
         return None
 
     return UserInformation.from_db_row(result)
+
+
+def recompute_user_full_stats_info_from_matches(
+    user_info: UserInfo, r6_tracker_user_uuid: Union[str, None] = None
+) -> None:
+    """Rebuild ``user_full_stats_info`` from the match rows we actually collected.
+
+    When stats.cc is the match provider, Tracker's profile endpoint is no longer
+    polled (it returned zeroed playstyle/round counters for most accounts). Other
+    features still read ``user_full_stats_info`` -- the match-start GIF, custom-match
+    team balancing, ``/userinfo``, and the AI catalog -- so the snapshot is rebuilt
+    from ``user_full_match_info`` plus ``user_match_playstyle_rounds``.
+
+    Match rows only cover what was collected (stats.cc telemetry is ranked-only), so
+    the counters are "collected" rather than lifetime. Fields stats.cc does not expose
+    (wallbangs, damage, headshots missed, attacker/defender round wins, arcade and
+    quick-match splits) are written as 0 instead of carrying stale Tracker values;
+    ``preserve_previous`` is disabled for the same reason.
+    """
+    cursor = database_manager.get_cursor()
+
+    def totals(ranked_only: bool) -> tuple[int, ...]:
+        where = "user_id = :user_id AND is_rollback = 0"
+        if ranked_only:
+            where += " AND LOWER(session_type) = 'ranked'"
+        return cursor.execute(
+            f"""
+            SELECT
+                COUNT(*),
+                COALESCE(SUM(CASE WHEN has_win THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(CASE WHEN has_win THEN 0 ELSE 1 END), 0),
+                COALESCE(SUM(CASE WHEN round_disconnected_count > 0 THEN 1 ELSE 0 END), 0),
+                COALESCE(SUM(match_duration_ms), 0) / 1000,
+                COALESCE(SUM(kill_count), 0),
+                COALESCE(SUM(death_count), 0),
+                COALESCE(SUM(head_shot_count), 0),
+                COALESCE(SUM(assist_count), 0),
+                COALESCE(SUM(tk_count), 0),
+                COALESCE(SUM(round_played_count), 0)
+            FROM user_full_match_info
+            WHERE {where}
+            """,
+            {"user_id": user_info.id},
+        ).fetchone()
+
+    matches, won, lost, abandoned, seconds, kills, deaths, headshots, assists, team_kills, rounds = totals(False)
+    r_matches, r_won, r_lost, r_abandoned = totals(True)[:4]
+    _, _, _, _, _, r_kills, r_deaths, _, _, _, _ = totals(True)
+
+    playstyle_totals = dict(
+        cursor.execute(
+            """
+            SELECT playstyle_key, SUM(rounds_played)
+            FROM user_match_playstyle_rounds
+            WHERE user_id = ?
+            GROUP BY playstyle_key
+            """,
+            (user_info.id,),
+        ).fetchall()
+    )
+
+    info = UserInformation(user_id=user_info.id, r6_tracker_user_uuid=r6_tracker_user_uuid or "")
+    info.total_matches_played = matches
+    info.total_matches_won = won
+    info.total_matches_lost = lost
+    info.total_matches_abandoned = abandoned
+    info.time_played_seconds = seconds
+    info.total_kills = kills
+    info.total_deaths = deaths
+    info.total_headshots = headshots
+    info.total_assists = assists
+    info.total_team_kills = team_kills
+    info.headshot_percentage = round(100 * headshots / kills, 2) if kills else 0.0
+    info.kd_ratio = round(kills / deaths, 2) if deaths else float(kills)
+    info.kill_per_match = round(kills / matches, 2) if matches else 0.0
+    info.kill_per_minute = round(kills / (seconds / 60), 2) if seconds else 0.0
+    info.win_percentage = round(100 * won / matches, 2) if matches else 0.0
+    info.rank_match_played = r_matches
+    info.rank_match_won = r_won
+    info.rank_match_lost = r_lost
+    info.rank_match_abandoned = r_abandoned
+    info.rank_kills_count = r_kills
+    info.rank_deaths_count = r_deaths
+    info.rank_kd_ratio = round(r_kills / r_deaths, 2) if r_deaths else float(r_kills)
+    info.rank_kill_per_match = round(r_kills / r_matches, 2) if r_matches else 0.0
+    info.rank_win_percentage = round(100 * r_won / r_matches, 2) if r_matches else 0.0
+
+    for playstyle, (count_field, percentage_field) in PLAYSTYLE_COUNT_FIELDS.items():
+        count = int(playstyle_totals.get(playstyle, 0))
+        setattr(info, count_field, count)
+        setattr(info, percentage_field, round(100 * count / rounds, 2) if rounds else 0.0)
+
+    insert_if_nonexistant_full_user_info(user_info, info, preserve_previous=False)
+    print_log(
+        f"recompute_user_full_stats_info_from_matches: Rebuilt stats for {user_info.display_name} "
+        f"from {matches} collected match(es)"
+    )

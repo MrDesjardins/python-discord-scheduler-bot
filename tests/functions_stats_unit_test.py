@@ -2,7 +2,24 @@
 Unit tests for the stats message helpers
 """
 
-from deps.functions_stats import CODE_BLOCK_FENCE, build_msg_2_columns, fit_code_block_message
+from deps.functions_stats import (
+    CODE_BLOCK_FENCE,
+    available_daily_stats_numbers,
+    build_msg_2_columns,
+    fit_code_block_message,
+)
+
+
+def test_available_daily_stats_numbers_skips_stats_stats_cc_cannot_produce(monkeypatch):
+    """17 would duplicate 18 and 23 has no stats.cc source, so both leave the rotation."""
+    monkeypatch.delenv("MATCH_STATS_PROVIDER", raising=False)
+    numbers = available_daily_stats_numbers()
+    assert numbers == [number for number in range(27) if number not in (17, 23)]
+
+
+def test_available_daily_stats_numbers_keeps_everything_under_tracker(monkeypatch):
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "tracker")
+    assert available_daily_stats_numbers() == list(range(27))
 
 
 def test_fit_code_block_message_short_message_unchanged():

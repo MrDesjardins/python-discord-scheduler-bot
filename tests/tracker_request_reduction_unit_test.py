@@ -122,3 +122,35 @@ async def test_rank_refresh_without_fetching_only_uses_known_ranks():
 
     assert summary.candidates == 1
     prefetch.assert_awaited_once_with([mock_user1.ubisoft_username_active])
+
+
+async def test_daily_profile_refresh_is_skipped_when_statscc_is_primary(monkeypatch):
+    """The Tracker profile/operator refresh must not run when stats.cc rebuilds the snapshot."""
+    monkeypatch.delenv("MATCH_STATS_PROVIDER", raising=False)
+    now = datetime.now(timezone.utc)
+    with (
+        patch.object(bot_common_actions, "download_full_user_information_async", AsyncMock()) as download,
+        patch.object(bot_common_actions, "fetch_and_persist_operator_stats", AsyncMock()) as operators,
+        patch.object(bot_common_actions, "get_active_user_info") as active,
+    ):
+        await bot_common_actions.persist_user_full_information_cross_guilds(now - timedelta(days=1), now)
+
+    download.assert_not_awaited()
+    operators.assert_not_awaited()
+    active.assert_not_called()
+
+
+async def test_daily_profile_refresh_still_runs_under_tracker_mode(monkeypatch):
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "tracker")
+    now = datetime.now(timezone.utc)
+    with (
+        patch.object(bot_common_actions, "get_active_user_info", return_value=[]),
+        patch.object(
+            bot_common_actions, "download_full_user_information_async", AsyncMock(return_value=[])
+        ) as download,
+        patch.object(bot_common_actions, "fetch_and_persist_operator_stats", AsyncMock()) as operators,
+    ):
+        await bot_common_actions.persist_user_full_information_cross_guilds(now - timedelta(days=1), now)
+
+    download.assert_awaited_once()
+    operators.assert_awaited_once()

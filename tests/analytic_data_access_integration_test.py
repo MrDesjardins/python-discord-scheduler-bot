@@ -19,6 +19,7 @@ from deps.analytic_data_access import (
     insert_if_nonexistant_full_match_info,
     insert_if_nonexistant_full_user_info,
     insert_user_activity,
+    recompute_user_full_stats_info_from_matches,
     upsert_user_info,
 )
 from deps.system_database import DATABASE_NAME, DATABASE_NAME_TEST, EVENT_CONNECT, EVENT_DISCONNECT, database_manager
@@ -359,6 +360,108 @@ def test_update_does_not_copy_counters_to_a_new_active_account(mock_log):
     assert result.r6_tracker_user_uuid == "a-different-account"
     assert result.attacked_breacher_count == 0
     assert result.time_played_seconds == 0
+
+
+def _match_for_recompute(match_uuid: str, has_win: bool, kills: int, deaths: int, tk: int, rounds: int):
+    return UserFullMatchStats(
+        id=None,
+        user_id=1,
+        match_uuid=match_uuid,
+        match_timestamp=fake_date,
+        match_duration_ms=1_800_000,
+        data_center="US East",
+        session_type="Ranked",
+        map_name="Villa",
+        is_surrender=False,
+        is_forfeit=False,
+        is_rollback=False,
+        r6_tracker_user_uuid="uuid-recompute",
+        ubisoft_username="ubi",
+        operators="Ace",
+        round_played_count=rounds,
+        round_won_count=rounds if has_win else 0,
+        round_lost_count=0 if has_win else rounds,
+        round_disconnected_count=0,
+        kill_count=kills,
+        death_count=deaths,
+        assist_count=0,
+        head_shot_count=0,
+        tk_count=tk,
+        ace_count=0,
+        first_kill_count=0,
+        first_death_count=0,
+        clutches_win_count=0,
+        clutches_loss_count=0,
+        clutches_win_count_1v1=0,
+        clutches_win_count_1v2=0,
+        clutches_win_count_1v3=0,
+        clutches_win_count_1v4=0,
+        clutches_win_count_1v5=0,
+        clutches_lost_count_1v1=0,
+        clutches_lost_count_1v2=0,
+        clutches_lost_count_1v3=0,
+        clutches_lost_count_1v4=0,
+        clutches_lost_count_1v5=0,
+        kill_1_count=0,
+        kill_2_count=0,
+        kill_3_count=0,
+        kill_4_count=0,
+        kill_5_count=0,
+        rank_points=3000,
+        rank_name="Gold",
+        points_gained=10,
+        rank_previous=2990,
+        kd_ratio=0,
+        head_shot_percentage=0,
+        kills_per_round=0,
+        deaths_per_round=0,
+        assists_per_round=0,
+        has_win=has_win,
+    )
+
+
+def test_recompute_user_full_stats_info_from_matches():
+    """The profile snapshot is rebuilt from collected match + playstyle rows."""
+    user_info = UserInfo(1, "Rebuilt", None, "ubi", "uuid-recompute", "UTC", 0)
+    matches = [
+        _match_for_recompute("m1", True, 10, 5, 1, 5),
+        _match_for_recompute("m2", False, 4, 6, 1, 4),
+    ]
+    insert_if_nonexistant_full_match_info(user_info, matches)
+    upsert_stats_cc_playstyle_rounds(
+        [
+            SimpleNamespace(match_uuid="m1", user_id=1, playstyle_rounds={"attacker-breacher": 2}),
+            SimpleNamespace(
+                match_uuid="m2",
+                user_id=1,
+                playstyle_rounds={"attacker-breacher": 1, "attacker-entry-fragger": 3},
+            ),
+        ]
+    )
+
+    recompute_user_full_stats_info_from_matches(user_info, "uuid-recompute")
+
+    result = data_access_fetch_user_full_user_info(user_info.id)
+    assert result is not None
+    assert result.total_matches_played == 2
+    assert result.total_matches_won == 1
+    assert result.total_matches_lost == 1
+    assert result.time_played_seconds == 3600
+    assert result.total_kills == 14
+    assert result.total_deaths == 11
+    assert result.total_team_kills == 2
+    assert result.win_percentage == 50.0
+    assert result.kill_per_match == 7.0
+    assert result.rank_match_played == 2
+    assert result.rank_win_percentage == 50.0
+    assert result.rank_kill_per_match == 7.0
+    assert result.attacked_breacher_count == 3
+    assert result.attacked_breacher_percentage == 33.33
+    assert result.attacked_fragger_count == 3
+    assert result.attacked_fragger_percentage == 33.33
+    # Fields stats.cc cannot provide are cleared instead of carrying stale values.
+    assert result.total_wall_bang == 0
+    assert result.total_damage == 0
 
 
 @patch.object(analytic_data_access, analytic_data_access.print_log.__name__)

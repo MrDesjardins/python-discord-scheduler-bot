@@ -27,6 +27,7 @@ from deps.analytic_data_access import (
     get_active_user_info,
     insert_if_nonexistant_full_match_info,
     insert_if_nonexistant_full_user_info,
+    recompute_user_full_stats_info_from_matches,
 )
 from deps.data_access_data_class import UserInfo
 from deps.operator_stats_data_access import upsert_operator_stats
@@ -146,6 +147,7 @@ from deps.functions_r6_tracker import (
     get_user_gaming_session_stats,
     parse_operator_stats_from_json,
 )
+from deps.stats_cc import stats_cc_is_primary
 from deps.functions_schedule import (
     adjust_reaction,
     get_daily_embed_message,
@@ -583,6 +585,17 @@ def _matches_by_member(fetched_users: List[UserWithUserMatchInfo]) -> dict[int, 
     return matches
 
 
+def _rebuild_user_stats_from_matches(user_info: UserInfo, match_stats: List[UserFullMatchStats]) -> None:
+    """Refresh the profile snapshot from collected match rows while stats.cc is the provider.
+
+    With no fetched matches there is nothing new to aggregate and rebuilding would
+    zero a user whose collection simply returned empty, so this is skipped.
+    """
+    if not stats_cc_is_primary() or not match_stats:
+        return
+    recompute_user_full_stats_info_from_matches(user_info, match_stats[0].r6_tracker_user_uuid)
+
+
 async def _statscc_reports_live_score(record: dict[str, Any]) -> bool:
     """True while stats.cc is streaming the score of this GIF's match (it will post the final itself)."""
     pending = await data_access_get_pending_match_start_gif_message(record["guild_id"], record["voice_channel_id"])
@@ -956,6 +969,7 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
             data_access_mark_r6tracker_matches_fetched(
                 user_stats.user_request_stats.user_info.id, R6_TRACKER_FETCH_MEMORY_SECONDS
             )
+            _rebuild_user_stats_from_matches(user_stats.user_request_stats.user_info, user_stats.match_stats)
         except Exception as e:
             print_error_log(f"post_queued_user_stats: Error persisting the data: {e}")
     try:
@@ -1297,6 +1311,7 @@ async def persist_siege_matches_cross_guilds(
         try:
             insert_if_nonexistant_full_match_info(user_info, match_stats)
             data_access_mark_r6tracker_matches_fetched(user_info.id, R6_TRACKER_FETCH_MEMORY_SECONDS)
+            _rebuild_user_stats_from_matches(user_info, match_stats)
         except Exception as e:
             print_error_log(f"persist_siege_matches_cross_guilds: Error saving the match info: {e}")
             continue
@@ -1510,6 +1525,18 @@ async def persist_user_full_information_cross_guilds(from_time: datetime, to_tim
     """
     Fetch and persist the user full information between two dates
     """
+
+    if stats_cc_is_primary():
+        # stats.cc is the match provider, so the profile snapshot is rebuilt from
+        # collected match rows (see recompute_user_full_stats_info_from_matches).
+        # Do not open the Tracker browser for a profile endpoint that returns zeroed
+        # playstyle/round counters, and do not fetch Tracker operator aggregates that
+        # only exist as a fallback for the stats.cc playstyle rounds.
+        print_log(
+            "persist_user_full_information_cross_guilds: Skipping Tracker profile/operator refresh; "
+            "stats.cc is primary"
+        )
+        return
 
     # Get the list of user who were active between the time
     users: List[UserInfo] = get_active_user_info(from_time, to_time)

@@ -69,6 +69,7 @@ from deps.analytic_match_data_access import (
     insert_if_nonexistant_full_user_info,
     data_access_fetch_user_full_user_info,
     data_access_fetch_recent_win_loss,
+    recompute_user_full_stats_info_from_matches,
 )
 
 # Re-export leaderboard functions
@@ -160,6 +161,7 @@ __all__ = [
     "data_access_fetch_users_full_match_info",
     "data_access_fetch_user_matches_in_time_range",
     "insert_if_nonexistant_full_user_info",
+    "recompute_user_full_stats_info_from_matches",
     "data_access_fetch_user_full_user_info",
     # Leaderboard functions
     "data_access_fetch_tk_count_by_user",
