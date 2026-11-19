@@ -133,19 +133,27 @@ def get_guild_rank_emoji(guild_emoji: dict[str, str], emoji_name: str) -> str:
     Extract the full emoji code for Discord to use from the emoji name and the guild emoji dictionary
     which contain the unique ID for the emoji
     """
+    entry = get_guild_rank_emoji_entry(guild_emoji, emoji_name)
+    return f"<:{entry[0]}:{entry[1]}>" if entry else "N/A"
+
+
+def get_guild_rank_emoji_entry(guild_emoji: dict[str, str], emoji_name: str) -> Optional[tuple[str, str]]:
+    """
+    ``(emoji name, emoji id)`` of the rank's custom emoji, falling back to the no-rank / Copper emoji;
+    None when the guild has none of them. The id is what Discord's CDN needs to serve the icon image.
+    """
     if guild_emoji is None:
         # Should never happen
         guild_emoji = {}
 
     display_name = resolve_rank_role_name(emoji_name)
     if display_name in siege_ranks and display_name in guild_emoji:
-        emoji_id = guild_emoji[display_name]
-        return f"<:{display_name}:{emoji_id}>"
+        return display_name, guild_emoji[display_name]
 
     for fallback_name in (NO_RANK_ROLE, "Copper"):
         if fallback_name in guild_emoji:
-            return f"<:{fallback_name}:{guild_emoji[fallback_name]}>"
-    return "N/A"
+            return fallback_name, guild_emoji[fallback_name]
+    return None
 
 
 def get_siege_activity(member: discord.Member) -> Optional[discord.Activity]:

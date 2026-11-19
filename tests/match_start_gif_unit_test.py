@@ -27,7 +27,8 @@ def patched_data():
     map_stats = UserMapStats(matches=10, wins=6, top_operators=[("Ash", 12), ("Mira", 8)])
     with (
         patch.object(gif, "download_avatar", _fake_avatar),
-        patch.object(gif, "get_user_rank_emoji", lambda emoji, member: "Gold"),
+        patch.object(gif, "get_user_rank_siege", lambda member: "Gold"),
+        patch.object(gif, "download_custom_emoji", AsyncMock(return_value=Image.new("RGBA", (48, 48), "#FFD700"))),
         patch.object(gif, "data_access_fetch_users_operators", return_value=[]),
         patch.object(gif, "build_player_value_lookup", return_value={}),
         patch.object(gif, "data_access_fetch_team_stats", return_value=(20, 0.55)),
@@ -117,3 +118,37 @@ def test_format_operators_and_record() -> None:
 @pytest.mark.parametrize("win_rate, color", [(60, gif.COLOR_WIN), (50, "white"), (30, gif.COLOR_LOSS)])
 def test_win_rate_color(win_rate: float, color: str) -> None:
     assert gif._win_rate_color(win_rate) == color
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("map_name", ["Villa", None, "Not A Real Map"])
+async def test_static_summary_renders_with_and_without_map_artwork(patched_data, map_name: str | None) -> None:
+    members = [_member(1, "A"), _member(2, "B")]
+    result = StatsCcRankedMatchEndResult(
+        won=True, our_score=4, their_score=1, map_name=map_name, is_match_complete=True
+    )
+
+    png = await gif.generate_match_end_static_summary(members, result)
+
+    assert png is not None
+    assert Image.open(io.BytesIO(png)).size == (gif.FRAME_WIDTH, gif.BANNER_HEIGHT + gif.SUMMARY_SQUAD_HEIGHT)
+
+
+@pytest.mark.asyncio
+async def test_static_summary_without_members_returns_none() -> None:
+    result = StatsCcRankedMatchEndResult(won=True, our_score=4, their_score=1, is_match_complete=True)
+
+    assert await gif.generate_match_end_static_summary([], result) is None
+
+
+@pytest.mark.asyncio
+async def test_rank_icon_is_the_guild_emoji_of_the_members_rank(patched_data) -> None:
+    icon = await gif._download_rank_icon({"Gold": 123, "Unranked": 9}, _member(1, "A"))
+
+    assert icon is not None
+    gif.download_custom_emoji.assert_awaited_once_with("123", gif.RANK_ICON_SIZE)  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_rank_icon_is_none_when_the_guild_has_no_rank_emoji(patched_data) -> None:
+    assert await gif._download_rank_icon({}, _member(1, "A")) is None

@@ -38,9 +38,10 @@ from deps.player_value_display import (
     PLAYER_VALUE_LEGEND,
     build_player_value_lookup,
     download_avatar,
+    download_custom_emoji,
     format_player_value_line,
 )
-from deps.siege import StatsCcRankedMatchEndResult, get_user_rank_emoji
+from deps.siege import StatsCcRankedMatchEndResult, get_guild_rank_emoji_entry, get_user_rank_siege
 from deps.log import print_error_log
 
 FRAME_DURATION_MS = 4000
@@ -61,6 +62,11 @@ COLOR_LOSS = "#ED4245"
 COLOR_TIE = "#FEE75C"
 
 BANNER_HEIGHT = 300
+RANK_ICON_SIZE = 48
+COLOR_RANK = "#7289DA"
+SUMMARY_SQUAD_HEIGHT = 250
+SUMMARY_AVATAR_SIZE = 120
+SUMMARY_AVATAR_SPACING = 180
 MAP_TOP_OPERATORS = 5
 RECENT_FORM_MATCHES = 10
 
@@ -174,66 +180,52 @@ def _create_match_result_frame(result: StatsCcRankedMatchEndResult) -> Image.Ima
     return img
 
 
+def _draw_summary_header(img: Image.Image, result: StatsCcRankedMatchEndResult) -> None:
+    """Map artwork (dimmed) with the final result on top."""
+    banner = _map_banner(result.map_name, (FRAME_WIDTH, BANNER_HEIGHT)) if result.map_name else None
+    if banner is not None:
+        img.paste(ImageEnhance.Brightness(banner).enhance(0.4), (0, 0))
+    draw = ImageDraw.Draw(img)
+    headline, color = match_result_final_plain_summary(result, spaced_hyphen=True)
+    draw.text((FRAME_WIDTH // 2, 125), headline, fill=color, font=_font(92), anchor="mm")
+    sub = f"Map: {result.map_name}" if result.map_name else "Ranked match result"
+    draw.text((FRAME_WIDTH // 2, 225), sub, fill="#DCDDDE", font=_font(36), anchor="mm")
+
+
 async def generate_match_end_static_summary(
     members: List[discord.Member],
     result: StatsCcRankedMatchEndResult,
 ) -> Optional[bytes]:
     """
-    Single static PNG: participant avatars + display names and final score (no animation).
+    Static PNG for a finished match: map artwork, final score and the squad's avatars with names.
 
     Used when stats.cc reports ``Match Ending:`` so the Discord post stops cycling GIF frames.
     """
     if not members:
         return None
     members = members[:5]
-    width = 800
-    row_top = 200
-    avatar_size = 72 if len(members) >= 4 else 88
-    spacing = 140 if len(members) <= 3 else 118
-    height = max(540, row_top + avatar_size + 60)
-
-    img = Image.new("RGB", (width, height), color=COLOR_BG_RESULT)
+    img = Image.new("RGB", (FRAME_WIDTH, BANNER_HEIGHT + SUMMARY_SQUAD_HEIGHT), color=COLOR_BG)
+    _draw_summary_header(img, result)
     draw = ImageDraw.Draw(img)
-    font_path = "./fonts/Minecraft.ttf"
-    try:
-        font_head: Any = ImageFont.truetype(font_path, 54)
-        font_sub: Any = ImageFont.truetype(font_path, 24)
-        font_name: Any = ImageFont.truetype(font_path, 20)
-    except Exception as e:
-        print_error_log(f"generate_match_end_static_summary: Failed to load font: {e}")
-        font_head = ImageFont.load_default()
-        font_sub = ImageFont.load_default()
-        font_name = ImageFont.load_default()
 
-    headline, head_color = match_result_final_plain_summary(result, spaced_hyphen=True)
-    draw.text((width // 2, 52), headline, fill=head_color, font=font_head, anchor="mm")
-    sub = "Ranked match result (stats.cc)"
-    if result.map_name:
-        sub = f"Map: {result.map_name}"
-    draw.text((width // 2, 128), sub, fill="#B9BBBE", font=font_sub, anchor="mm")
-
-    total_w = (len(members) - 1) * spacing + avatar_size
-    start_x = (width - total_w) // 2
+    avatars = await _download_avatars(members)
+    row_width = (len(members) - 1) * SUMMARY_AVATAR_SPACING + SUMMARY_AVATAR_SIZE
+    start_x = (FRAME_WIDTH - row_width) // 2
+    top = BANNER_HEIGHT + 40
     for i, member in enumerate(members):
-        x = start_x + i * spacing
-        try:
-            av = await download_avatar(member)
-            av = av.resize((avatar_size, avatar_size), Image.Resampling.LANCZOS)
-            if av.mode == "RGBA":
-                img.paste(av, (x, row_top), av)
-            else:
-                img.paste(av, (x, row_top))
-        except Exception as e:
-            print_error_log(f"generate_match_end_static_summary: avatar for {member.display_name}: {e}")
-        name = member.display_name
-        if len(name) > 14:
-            name = name[:14] + "..."
-        draw.text((x + avatar_size // 2, row_top + avatar_size + 8), name, fill="white", font=font_name, anchor="mt")
+        x = start_x + i * SUMMARY_AVATAR_SPACING
+        _paste_avatar(img, avatars[member.id], (x, top), SUMMARY_AVATAR_SIZE)
+        draw.text(
+            (x + SUMMARY_AVATAR_SIZE // 2, top + SUMMARY_AVATAR_SIZE + 14),
+            _truncate(member.display_name, 11),
+            fill="white",
+            font=_font(24),
+            anchor="mt",
+        )
 
     try:
         buf = io.BytesIO()
         img.save(buf, format="PNG", optimize=True)
-        buf.seek(0)
         return buf.getvalue()
     except Exception as e:
         print_error_log(f"generate_match_end_static_summary: Failed to encode PNG: {e}")
@@ -351,7 +343,7 @@ async def generate_match_start_gif(
                     member,
                     avatars[member.id],
                     user_operator_map,
-                    guild_emoji,
+                    await _download_rank_icon(guild_emoji, member),
                     player_value_lookup,
                     map_name,
                     map_stats.get(member.id),
@@ -516,22 +508,41 @@ def _draw_recent_form(draw: ImageDraw.ImageDraw, results: Sequence[bool], x: int
         draw.text((left + chip // 2, y + chip // 2), "W" if won else "L", fill="white", font=_font(24), anchor="mm")
 
 
+async def _download_rank_icon(guild_emoji: dict, member: discord.Member) -> Optional[Image.Image]:
+    """The member's rank icon (the guild's custom rank emoji), or None when the guild has none."""
+    entry = get_guild_rank_emoji_entry(guild_emoji, get_user_rank_siege(member))
+    return await download_custom_emoji(str(entry[1]), RANK_ICON_SIZE) if entry else None
+
+
+def _draw_rank(
+    img: Image.Image, draw: ImageDraw.ImageDraw, rank: str, icon: Optional[Image.Image], xy: Tuple[int, int]
+) -> None:
+    """Rank icon followed by the rank name; plain ``Rank: <name>`` text without an icon."""
+    x, y = xy
+    if icon is None:
+        draw.text((x, y + 4), f"Rank: {rank}", fill=COLOR_RANK, font=_font(30))
+        return
+    img.paste(icon, (x, y), icon)
+    draw.text((x + RANK_ICON_SIZE + 12, y + RANK_ICON_SIZE // 2), rank, fill=COLOR_RANK, font=_font(30), anchor="lm")
+
+
 def _draw_player_header(
+    img: Image.Image,
     draw: ImageDraw.ImageDraw,
     member: discord.Member,
-    guild_emoji: dict,
+    rank_icon: Optional[Image.Image],
     value_line: str,
     time_zone: Optional[str],
 ) -> None:
     draw.text((220, 30), _truncate(member.display_name, 18), fill="white", font=_font(46))
-    draw.text((220, 92), f"Rank: {get_user_rank_emoji(guild_emoji, member)}", fill="#7289DA", font=_font(30))
+    _draw_rank(img, draw, get_user_rank_siege(member), rank_icon, (220, 88))
     if time_zone:
         try:
             time_str = datetime.now(pytz.timezone(time_zone)).strftime("%I:%M %p")
-            draw.text((220, 134), f"{time_zone} - {time_str}", fill=COLOR_MUTED, font=_font(26))
+            draw.text((220, 142), f"{time_zone} - {time_str}", fill=COLOR_MUTED, font=_font(26))
         except Exception as e:
             print_error_log(f"_create_player_frame: Failed to get timezone for {member.display_name}: {e}")
-    draw.text((220, 172), value_line, fill=COLOR_GOLD, font=_font(28))
+    draw.text((220, 174), value_line, fill=COLOR_GOLD, font=_font(28))
 
 
 def _fetch_player_numbers(member: discord.Member) -> Tuple[float, float, int, List[bool]]:
@@ -585,7 +596,7 @@ async def _create_player_frame(
     member: discord.Member,
     avatar: Image.Image,
     user_operator_map: dict,
-    guild_emoji: dict,
+    rank_icon: Optional[Image.Image],
     player_value_lookup: PlayerValueLookup,
     map_name: Optional[str],
     map_stats: Optional[UserMapStats],
@@ -597,7 +608,7 @@ async def _create_player_frame(
         member: Discord member
         avatar: Downloaded avatar
         user_operator_map: Dictionary mapping display names to operator stats
-        guild_emoji: Dictionary of guild emojis
+        rank_icon: The member's rank icon, when it could be downloaded
         player_value_lookup: user_id -> (mmr, position, value), see ``build_player_value_lookup``
         map_name: Map being played, when known
         map_stats: This player's record on ``map_name``
@@ -612,9 +623,10 @@ async def _create_player_frame(
     _paste_avatar(img, avatar, (30, 30), 170)
     user_profile = await fetch_user_info_by_user_id(member.id)
     _draw_player_header(
+        img,
         draw,
         member,
-        guild_emoji,
+        rank_icon,
         format_player_value_line(player_value_lookup, member.id),
         user_profile.time_zone if user_profile else None,
     )

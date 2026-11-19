@@ -5,7 +5,7 @@ summary banner so both stay visually consistent and share one code path.
 """
 
 import io
-from typing import Dict, Tuple, cast
+from typing import Dict, Optional, Tuple, cast
 
 import aiohttp
 import discord
@@ -69,3 +69,24 @@ async def download_avatar(member: discord.Member, size: int = 100) -> Image.Imag
         print_error_log(f"download_avatar: Failed to download avatar for {member.display_name}: {e}")
 
     return Image.new("RGB", (size, size), "#23272A")
+
+
+# Custom emojis never change once uploaded, so each id is downloaded once per process.
+_emoji_bytes_cache: Dict[str, bytes] = {}
+
+
+async def download_custom_emoji(emoji_id: str, size: int = 64) -> Optional[Image.Image]:
+    """A Discord custom emoji (e.g. a rank icon) as an RGBA image, or None when it cannot be downloaded."""
+    key = str(emoji_id)
+    if key not in _emoji_bytes_cache:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"https://cdn.discordapp.com/emojis/{key}.png?size=128") as resp:
+                    if resp.status != 200:
+                        return None
+                    _emoji_bytes_cache[key] = await resp.read()
+        except Exception as e:
+            print_error_log(f"download_custom_emoji: Failed to download emoji {key}: {e}")
+            return None
+    image = cast(Image.Image, Image.open(io.BytesIO(_emoji_bytes_cache[key]))).convert("RGBA")
+    return image.resize((size, size), Image.Resampling.LANCZOS)
