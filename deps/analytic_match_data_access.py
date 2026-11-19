@@ -12,15 +12,18 @@ Functions:
 - data_access_fetch_user_full_user_info: Fetch user's overall statistics
 """
 
+from collections import Counter
 from datetime import datetime
 import json
-from typing import Union, List
+from typing import Iterable, Union, List
 
 from deps.analytic_constants import (
     SELECT_USER_FULL_MATCH_INFO,
     SELECT_USER_FULL_STATS_INFO,
 )
+from deps.analytic_models import UserMapStats
 from deps.data_access_data_class import UserInfo
+from deps.map_images import map_slug
 from deps.models import UserFullMatchStats, UserInformation
 from deps.system_database import database_manager
 from deps.log import print_error_log, print_log
@@ -105,6 +108,49 @@ def data_access_fetch_recent_win_loss(user_id: int, match_count: int = 10) -> tu
     """
     result = database_manager.get_cursor().execute(query, {"user_id": user_id, "match_count": match_count}).fetchone()
     return (result[0] or 0, result[1] or 0)
+
+
+def data_access_fetch_recent_results(user_id: int, match_count: int = 10) -> list[bool]:
+    """Win (True) / loss (False) of the user's last N matches, most recent first."""
+    query = """
+        SELECT has_win
+        FROM user_full_match_info
+        WHERE user_id = :user_id AND is_rollback = 0
+        ORDER BY match_timestamp DESC
+        LIMIT :match_count
+    """
+    rows = database_manager.get_cursor().execute(query, {"user_id": user_id, "match_count": match_count}).fetchall()
+    return [bool(row[0]) for row in rows]
+
+
+def summarize_map_matches(rows: Iterable[tuple[str, bool, str]], map_name: str, top_operators: int = 5) -> UserMapStats:
+    """Aggregate ``(map_name, has_win, operators)`` rows into the record and top operators on ``map_name``.
+
+    Map names are compared by slug because stats.cc, R6 Tracker and our DB spell some maps differently.
+    ``operators`` is the comma separated list of operators played, one entry per round.
+    """
+    target = map_slug(map_name)
+    matches = 0
+    wins = 0
+    operator_counts: Counter[str] = Counter()
+    for row_map, has_win, operators in rows:
+        if map_slug(row_map) != target:
+            continue
+        matches += 1
+        wins += 1 if has_win else 0
+        operator_counts.update(name.strip() for name in (operators or "").split(",") if name.strip())
+    return UserMapStats(matches=matches, wins=wins, top_operators=operator_counts.most_common(top_operators))
+
+
+def data_access_fetch_user_map_stats(user_id: int, map_name: str, top_operators: int = 5) -> UserMapStats:
+    """Ranked win rate and top operators of one user on one map (rollbacks excluded)."""
+    query = """
+        SELECT map_name, has_win, operators
+        FROM user_full_match_info
+        WHERE user_id = :user_id AND is_rollback = 0
+    """
+    rows = database_manager.get_cursor().execute(query, {"user_id": user_id}).fetchall()
+    return summarize_map_matches(((row[0], row[1], row[2]) for row in rows), map_name, top_operators)
 
 
 def insert_if_nonexistant_full_match_info(user_info: UserInfo, list_matches: list[UserFullMatchStats]) -> None:

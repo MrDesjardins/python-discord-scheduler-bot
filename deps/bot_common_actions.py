@@ -1719,7 +1719,17 @@ async def send_match_start_gif(
         # Generate GIF
         print_log(f"send_match_start_gif: Generating GIF for {len(vc_channel.members)} members in {vc_channel.name}")
         members_for_gif = list(vc_channel.members[:5])
-        gif_bytes = await generate_match_start_gif(members_for_gif, guild_id, bot.guild_emoji.get(guild_id, {}))
+        map_name = next(
+            (
+                inferred_map
+                for member in members_for_gif
+                if (inferred_map := infer_map_name(getattr(get_statscc_activity(member), "details", None)))
+            ),
+            None,
+        )
+        gif_bytes = await generate_match_start_gif(
+            members_for_gif, guild_id, bot.guild_emoji.get(guild_id, {}), map_name=map_name
+        )
 
         if not gif_bytes:
             print_log("send_match_start_gif: GIF generation returned no data")
@@ -1777,14 +1787,6 @@ async def send_match_start_gif(
         market: MatchMarket | None = None
         if TRIBEMARKETS_ENABLED:
             try:
-                map_name = next(
-                    (
-                        inferred_map
-                        for member in members_for_gif
-                        if (inferred_map := infer_map_name(getattr(get_statscc_activity(member), "details", None)))
-                    ),
-                    None,
-                )
                 market = await asyncio.wait_for(
                     TribeMarketsClient().create_match_market(
                         guild_id=guild_id,

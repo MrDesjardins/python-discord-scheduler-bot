@@ -45,15 +45,16 @@ def format_player_value_line(lookup: Dict[int, Tuple[int, int, float]], user_id:
     return f"MMR {mmr} | #{position} | {value:.1f}"
 
 
-async def download_avatar(member: discord.Member) -> Image.Image:
+async def download_avatar(member: discord.Member, size: int = 100) -> Image.Image:
     """
-    Download and resize a Discord member's avatar to 100x100.
+    Download and resize a Discord member's avatar to ``size`` x ``size`` (100x100 by default).
 
     Args:
         member: Discord member
+        size: Side of the square result in pixels
 
     Returns:
-        PIL Image object (100x100 pixels), gray placeholder on failure
+        PIL Image object (``size`` x ``size`` pixels), gray placeholder on failure
     """
     avatar_url = member.avatar.url if member.avatar else member.default_avatar.url
 
@@ -63,8 +64,8 @@ async def download_avatar(member: discord.Member) -> Image.Image:
                 if resp.status == 200:
                     data = await resp.read()
                     avatar_img = cast(Image.Image, Image.open(io.BytesIO(data)))
-                    return avatar_img.resize((100, 100), Image.Resampling.LANCZOS)
+                    return avatar_img.resize((size, size), Image.Resampling.LANCZOS)
     except Exception as e:
         print_error_log(f"download_avatar: Failed to download avatar for {member.display_name}: {e}")
 
-    return Image.new("RGB", (100, 100), "#23272A")
+    return Image.new("RGB", (size, size), "#23272A")
