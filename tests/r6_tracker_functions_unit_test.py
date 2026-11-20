@@ -1427,6 +1427,9 @@ def test_normalize_rank_name_handles_statscc_division_labels():
     assert _normalize_rank_name("GOLD II", "Unranked") == "Gold"
     assert _normalize_rank_name("DIAMOND\xa0II", "Unranked") == "Diamond"
     assert _normalize_rank_name("CHAMPIONS", "Unranked") == "Champion"
+    assert _normalize_rank_name("LEGEND", "Unranked") == "Legend"
+    assert _normalize_rank_name("LEGEND DIVISION", "Unranked") == "Legend"
+    assert _normalize_rank_name("legend-division", "Unranked") == "Legend"
     assert _normalize_rank_name("NO RANK", "Unranked") == "Unranked"
 
 

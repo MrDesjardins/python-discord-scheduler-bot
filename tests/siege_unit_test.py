@@ -12,8 +12,10 @@ from deps.siege import (
     get_aggregation_siege_activity,
     format_lfg_message,
     get_guild_rank_emoji,
+    get_guild_rank_emoji_entry,
     get_lfg_rank_role_mentions,
     get_lfg_user_mentions,
+    get_user_rank_emoji,
     get_user_rank_siege,
     resolve_rank_role_name,
 )
@@ -34,6 +36,14 @@ def test_resolve_rank_role_name_handles_nbsp_and_champion_plural() -> None:
     assert resolve_rank_role_name("DIAMOND\xa0II") == "Diamond"
     assert resolve_rank_role_name("CHAMPIONS") == "Champion"
     assert resolve_rank_role_name("CHAMPION") == "Champion"
+
+
+def test_resolve_rank_role_name_maps_legend_division_labels() -> None:
+    """Legend Division is its own leaderboard; its labels must resolve to the Legend role."""
+    assert resolve_rank_role_name("LEGEND") == "Legend"
+    assert resolve_rank_role_name("Legend") == "Legend"
+    assert resolve_rank_role_name("Legend Division") == "Legend"
+    assert resolve_rank_role_name("legend-division") == "Legend"
 
 
 def test_resolve_rank_role_name_keeps_tier_and_no_rank() -> None:
@@ -70,10 +80,35 @@ def test_get_user_rank_siege_prefers_highest_rank_role() -> None:
     assert get_user_rank_siege(member) == "Bronze"
 
 
+def test_get_user_rank_siege_prefers_legend_over_champion() -> None:
+    """A member carrying both ladder roles must resolve to the top Legend Division rank."""
+    champion_role = SimpleNamespace(name="Champion")
+    legend_role = SimpleNamespace(name="Legend")
+    member = Mock(bot=False, roles=[champion_role, legend_role])
+
+    assert get_user_rank_siege(member) == "Legend"
+
+
+def test_get_user_rank_emoji_uses_highest_role_not_discord_order() -> None:
+    """The displayed icon follows the resolved highest rank, even if Champion is listed first."""
+    champion_role = SimpleNamespace(name="Champion")
+    legend_role = SimpleNamespace(name="Legend")
+    member = Mock(bot=False, roles=[champion_role, legend_role])
+
+    assert get_user_rank_emoji({"Champion": "111", "Legend": "222"}, member) == "<:Legend:222>"
+
+
 def test_get_guild_rank_emoji_uses_unranked_icon() -> None:
     """Unranked rank displays the Unranked guild emoji."""
     guild_emoji = {"Unranked": "1234567890"}
     assert get_guild_rank_emoji(guild_emoji, "Unranked") == "<:Unranked:1234567890>"
+
+
+def test_get_guild_rank_emoji_uses_legend_icon_and_entry() -> None:
+    """The Legend emoji is resolved by name for both message text and the match GIF image."""
+    guild_emoji = {"Legend": "222", "Unranked": "1234567890"}
+    assert get_guild_rank_emoji(guild_emoji, "LEGEND") == "<:Legend:222>"
+    assert get_guild_rank_emoji_entry(guild_emoji, "Legend Division") == ("Legend", "222")
 
 
 def test_get_lfg_rank_role_mentions_unranked_only() -> None:
@@ -110,10 +145,20 @@ def test_get_adjacent_rank_names_uses_ranked_queue_compatibility_table() -> None
         "Emerald",
         "Diamond",
         "Champion",
+        "Legend",
     ]
-    assert get_adjacent_rank_names("Emerald") == ["Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"]
-    assert get_adjacent_rank_names("Diamond") == ["Gold", "Platinum", "Emerald", "Diamond", "Champion"]
-    assert get_adjacent_rank_names("Champion") == ["Platinum", "Emerald", "Diamond", "Champion"]
+    assert get_adjacent_rank_names("Emerald") == [
+        "Silver",
+        "Gold",
+        "Platinum",
+        "Emerald",
+        "Diamond",
+        "Champion",
+        "Legend",
+    ]
+    assert get_adjacent_rank_names("Diamond") == ["Gold", "Platinum", "Emerald", "Diamond", "Champion", "Legend"]
+    assert get_adjacent_rank_names("Champion") == ["Platinum", "Emerald", "Diamond", "Champion", "Legend"]
+    assert get_adjacent_rank_names("Legend") == ["Platinum", "Emerald", "Diamond", "Champion", "Legend"]
 
 
 def test_get_adjacent_rank_names_boundaries() -> None:

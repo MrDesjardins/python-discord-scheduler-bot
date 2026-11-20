@@ -170,6 +170,8 @@ def _normalize_rank_name(rank_name: Any, default: str = "Copper") -> str:
     token = normalized.split()[0].lower()
     if token == "champions":
         return "Champion"
+    if token in ("legend", "legends", "legend-division"):
+        return "Legend"
     return token.capitalize()
 
 

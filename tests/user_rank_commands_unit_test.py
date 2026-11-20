@@ -129,7 +129,7 @@ async def test_setup_profile_syncs_current_season_rank_for_active_account() -> N
 
     mock_fetch.assert_called_once_with()
     mock_upsert.assert_called_once_with(member.id, "Player", "max_ubi", "active_ubi", "profile-id", "US/Eastern", 4343)
-    mock_set_role.assert_awaited_once_with(guild, member, "Emerald")
+    mock_set_role.assert_awaited_once_with(guild, member, "Emerald", allow_legend_demotion=True)
 
 
 async def test_moderator_set_active_account_syncs_current_season_rank() -> None:

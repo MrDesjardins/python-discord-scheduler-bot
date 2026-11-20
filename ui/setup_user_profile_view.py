@@ -114,7 +114,9 @@ class SetupUserProfileModal(discord.ui.Modal, title="User Profile Setup"):
                 ephemeral=True,
             )
             return
-        if not await set_member_role_from_current_rank(self.view.guild, self.view.member, current_rank):
+        if not await set_member_role_from_current_rank(
+            self.view.guild, self.view.member, current_rank, allow_legend_demotion=True
+        ):
             await interaction.followup.send(
                 "❌ Profile saved, but I could not adjust your rank role. Please contact a moderator.",
                 ephemeral=True,

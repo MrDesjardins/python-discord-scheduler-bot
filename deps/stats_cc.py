@@ -44,6 +44,32 @@ def _display(config: dict, group: str, slug: str) -> str:
     return config[group][slug]["display"]
 
 
+def _current_season_slug(config: dict, now: datetime) -> str:
+    """Return the live season slug from its start timestamp, not the JSON key order."""
+    seasons = {
+        k: v
+        for k, v in config["seasons"].items()
+        if datetime.fromisoformat(v["started_at"].replace("Z", "+00:00")) <= now
+    }
+    return max(seasons, key=lambda k: datetime.fromisoformat(seasons[k]["started_at"].replace("Z", "+00:00")))
+
+
+def _current_rank_display_and_points(config: dict, profile: dict, season: str) -> tuple[str, int]:
+    """Current-season rank label and points, preferring the Legend Division record.
+
+    Legend Division is a separate ladder: stats.cc publishes it in
+    ``legend_season_records`` only while the player is in it, and the normal
+    ``ranked_season_records`` keeps showing that same player's Champion rank.
+    Reading only the normal record therefore assigns Champion to a Legend player
+    (verified with ObeyGN on 2026-11-20). Check the Legend record first.
+    """
+    for records_name in ("legend_season_records", "ranked_season_records"):
+        record = (profile.get(records_name) or {}).get(season)
+        if record:
+            return (_display(config, "ranks", record["rank"]).upper(), int(record.get("rank_points", 0) or 0))
+    return ("UNRANKED", 0)
+
+
 def parse_match(match: dict, detail: dict, config: dict, user: UserInfo) -> UserFullMatchStats:
     """Translate a finished ranked match, rejecting incomplete or mismatched records."""
     profile_id = user.r6_tracker_active_id
@@ -200,22 +226,26 @@ class StatsCCClient:
             profile_id = str(UUID(active["id"]))
             config = self._get("config")
             now = datetime.now(timezone.utc)
-            # JSON object order is not season order. Using a previous season's
-            # rank after a reset would grant an incorrect current-season role.
-            seasons = {
-                k: v
-                for k, v in config["seasons"].items()
-                if datetime.fromisoformat(v["started_at"].replace("Z", "+00:00")) <= now
-            }
-            current = max(
-                seasons, key=lambda k: datetime.fromisoformat(seasons[k]["started_at"].replace("Z", "+00:00"))
-            )
-            record = active["ranked_season_records"].get(current)
-            rank = _display(config, "ranks", record["rank"]).upper() if record else "UNRANKED"
+            current = _current_season_slug(config, now)
+            rank, _ = _current_rank_display_and_points(config, active, current)
             peak = max((r["max_rank_points"] for r in highest["ranked_season_records"].values()), default=0)
             return profile_id, rank, peak
         except (KeyError, TypeError, ValueError) as exc:
             raise StatsCCUnavailable("Unsupported stats.cc profile response") from exc
+
+    def current_season_ranks(self, accounts: list[str]) -> dict[str, tuple[str, int]]:
+        """Current-season ranks for several accounts, using one HTTP session and one config read.
+
+        Used by the rank-role refresh to see Legend Division, which Tracker and our
+        ranked match rows cannot report.
+        """
+        config = self._get("config")
+        current = _current_season_slug(config, datetime.now(timezone.utc))
+        result: dict[str, tuple[str, int]] = {}
+        for account in accounts:
+            profile = self._get(f"profiles/pc/{quote(account, safe='')}")
+            result[account] = _current_rank_display_and_points(config, profile, current)
+        return result
 
     def download_matches(self, user: UserInfo) -> list[UserFullMatchStats]:
         """Fetch recent overlay matches. Empty/unsupported accounts must use another source."""

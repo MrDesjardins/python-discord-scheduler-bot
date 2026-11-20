@@ -1,6 +1,7 @@
 """Test Functions"""
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import call, patch, Mock, AsyncMock
 import discord
 import pytest
@@ -353,6 +354,50 @@ async def test_set_member_role_from_rank_missing_target_role_preserves_existing_
     member.remove_roles.assert_not_called()
 
 
+async def test_set_member_role_from_rank_keeps_legend_against_stale_normal_rank():
+    """Tracker and ranked match rows report Legend players as Champion; that must not demote them."""
+    guild = Mock(spec=discord.Guild)
+    member = Mock(spec=discord.Member)
+    member.display_name = "Legend Player"
+    legend_role = SimpleNamespace(name="Legend")
+    champion_role = SimpleNamespace(name="Champion")
+    member.roles = [legend_role]
+    member.add_roles = AsyncMock()
+    member.remove_roles = AsyncMock()
+
+    with patch(
+        "deps.functions.discord.utils.get",
+        side_effect=lambda roles, name: {"Legend": legend_role, "Champion": champion_role}.get(name),
+    ):
+        await deps.functions.set_member_role_from_rank(guild, member, "CHAMPION")
+
+    member.add_roles.assert_not_called()
+    member.remove_roles.assert_not_called()
+
+
+async def test_set_member_role_from_rank_allows_verified_legend_demotion():
+    """A Legend-aware stats.cc read may remove Legend when the player left that ladder."""
+    guild = Mock(spec=discord.Guild)
+    member = Mock(spec=discord.Member)
+    member.display_name = "Former Legend"
+    legend_role = SimpleNamespace(name="Legend")
+    champion_role = SimpleNamespace(name="Champion")
+    member.roles = [legend_role]
+    member.add_roles = AsyncMock()
+    member.remove_roles = AsyncMock()
+
+    with patch(
+        "deps.functions.discord.utils.get",
+        side_effect=lambda roles, name: {"Legend": legend_role, "Champion": champion_role}.get(name),
+    ):
+        await deps.functions.set_member_role_from_rank(guild, member, "CHAMPION", allow_legend_demotion=True)
+
+    member.add_roles.assert_awaited_once_with(champion_role, reason="Bot assigned role based on rank from R6 Tracker")
+    member.remove_roles.assert_awaited_once_with(
+        legend_role, reason="Bot removed prior rank roles before assigning Champion."
+    )
+
+
 async def test_sync_member_current_rank_role_uses_current_rank():
     """Current-season rank sync assigns the fetched current rank role."""
     guild = Mock(spec=discord.Guild)
@@ -490,6 +535,52 @@ async def test_refresh_current_rank_roles_db_only_excludes_connected_voice_users
     mock_fetch_rank.assert_awaited_once_with("ubi", force_fetch=False)
     mock_set_role.assert_awaited_once_with(guild, db_member, "Gold")
     mock_notify.assert_awaited_once_with(bot, summary)
+
+
+async def test_refresh_current_rank_roles_uses_statscc_legend_record():
+    """A normal-ladder Champion is checked against stats.cc and gets the Legend role when present."""
+    bot = Mock(spec=MyBot)
+    guild = Mock(spec=discord.Guild)
+    guild.id = 1
+    guild.name = "Guild"
+    bot.guilds = [guild]
+
+    champion_role = SimpleNamespace(name="Champion")
+    member = Mock(spec=discord.Member)
+    member.id = 123
+    member.display_name = "Obey"
+    member.mention = "<@123>"
+    member.roles = [champion_role]
+    guild.get_member.return_value = member
+
+    begin_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    end_time = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    with (
+        patch("deps.bot_common_actions.get_active_user_info", return_value=[_user_info(123, "Obey")]),
+        patch("deps.bot_common_actions.data_access_prefetch_r6tracker_current_season_ranks", new_callable=AsyncMock),
+        patch(
+            "deps.bot_common_actions.fetch_current_season_rank_for_account",
+            new_callable=AsyncMock,
+            return_value=("Champion", 4510),
+        ),
+        patch(
+            "deps.bot_common_actions.fetch_statscc_current_season_ranks",
+            new_callable=AsyncMock,
+            return_value={"ubi": ("LEGEND", 4883)},
+        ) as mock_statscc,
+        patch(
+            "deps.bot_common_actions.set_member_role_from_current_rank", new_callable=AsyncMock, return_value=True
+        ) as mock_set_role,
+        patch("deps.bot_common_actions.post_rank_change_notifications", new_callable=AsyncMock),
+    ):
+        summary = await deps.bot_common_actions.refresh_current_rank_roles_cross_guilds(
+            begin_time, end_time, bot, guild=guild, include_connected_voice=False
+        )
+
+    mock_statscc.assert_awaited_once_with(["ubi"])
+    mock_set_role.assert_awaited_once_with(guild, member, "LEGEND", allow_legend_demotion=True)
+    assert summary.changes[0].old_rank == "Champion"
+    assert summary.changes[0].new_rank == "Legend"
 
 
 async def test_post_rank_change_notifications_posts_to_main_siege_channel():

@@ -147,7 +147,7 @@ from deps.functions_r6_tracker import (
     get_user_gaming_session_stats,
     parse_operator_stats_from_json,
 )
-from deps.stats_cc import stats_cc_is_primary
+from deps.stats_cc import StatsCCClient, StatsCCUnavailable, stats_cc_is_primary
 from deps.functions_schedule import (
     adjust_reaction,
     get_daily_embed_message,
@@ -495,15 +495,44 @@ async def fetch_current_season_rank_for_account(
     return await data_access_get_r6tracker_current_season_rank(ubisoft_active_account, force_fetch)
 
 
+def _fetch_statscc_current_season_ranks_sync(accounts: List[str]) -> dict[str, tuple[str, int]]:
+    with StatsCCClient() as client:
+        return client.current_season_ranks(accounts)
+
+
+async def fetch_statscc_current_season_ranks(accounts: List[str]) -> dict[str, tuple[str, int]]:
+    """stats.cc profile ranks for several accounts, including the Legend Division record.
+
+    The normal ranked sources (Tracker and our ranked match rows) cannot see the
+    Legend ladder, so rank refresh asks stats.cc when a Champion/Legend member is
+    involved. Blocking HTTP stays on a worker thread.
+    """
+    unique_accounts = list(dict.fromkeys(account for account in accounts if account))
+    if not unique_accounts:
+        return {}
+    try:
+        return await asyncio.to_thread(_fetch_statscc_current_season_ranks_sync, unique_accounts)
+    except StatsCCUnavailable as e:
+        print_warning_log(f"fetch_statscc_current_season_ranks: stats.cc unavailable: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        print_warning_log(f"fetch_statscc_current_season_ranks: unexpected error: {e}")
+    return {}
+
+
 async def set_member_role_from_current_rank(
     guild: discord.Guild,
     member: discord.Member,
     current_rank: str,
+    *,
+    allow_legend_demotion: bool = False,
 ) -> bool:
     """Apply an already-fetched current rank to a guild member."""
     print_log(f"set_member_role_from_current_rank: Setting current rank for {member.display_name}: {current_rank}")
     try:
-        await set_member_role_from_rank(guild, member, current_rank)
+        if allow_legend_demotion:
+            await set_member_role_from_rank(guild, member, current_rank, allow_legend_demotion=True)
+        else:
+            await set_member_role_from_rank(guild, member, current_rank)
     except Exception as e:
         print_error_log(f"set_member_role_from_current_rank: Error setting role for {member.display_name}: {e}")
         return False
@@ -1380,12 +1409,13 @@ async def refresh_current_rank_roles_cross_guilds(  # pylint: disable=too-many-a
         [user.ubisoft_username_active for user in users if user.ubisoft_username_active is not None]
     )
 
+    current_ranks: dict[int, tuple[str, int]] = {}
     for user_info in users:
         if user_info.ubisoft_username_active is None:
             summary.skipped_no_account += 1
             continue
         try:
-            current_rank, _ = await fetch_current_season_rank_for_account(
+            current_ranks[user_info.id] = await fetch_current_season_rank_for_account(
                 user_info.ubisoft_username_active,
                 force_fetch=False,
             )
@@ -1394,7 +1424,34 @@ async def refresh_current_rank_roles_cross_guilds(  # pylint: disable=too-many-a
                 f"refresh_current_rank_roles_cross_guilds: Error fetching current rank for {user_info.display_name}: {e}"
             )
             summary.failed += 1
+
+    # Legend Division is a separate top ladder that Tracker and our ranked match
+    # rows report as Champion. Only Champion+ players can enter it, so ask
+    # stats.cc for those accounts; the profile's legend_season_records is the
+    # authority (present only while the player is Legend). This both promotes
+    # new Legend players and allows a real Legend -> Champion drop.
+    verified_with_statscc: set[int] = set()
+    if stats_cc_is_primary():
+        accounts_to_verify = [
+            user_info.ubisoft_username_active
+            for user_info in users
+            if user_info.id in current_ranks
+            and user_info.ubisoft_username_active is not None
+            and resolve_rank_role_name(current_ranks[user_info.id][0]) == "Champion"
+        ]
+        statscc_ranks = await fetch_statscc_current_season_ranks(accounts_to_verify)
+        for user_info in users:
+            if user_info.ubisoft_username_active is None:
+                continue
+            verified_rank = statscc_ranks.get(user_info.ubisoft_username_active)
+            if verified_rank is not None:
+                current_ranks[user_info.id] = verified_rank
+                verified_with_statscc.add(user_info.id)
+
+    for user_info in users:
+        if user_info.id not in current_ranks:
             continue
+        current_rank, _ = current_ranks[user_info.id]
         found_member = False
         for target_guild in guilds_to_refresh:
             member = target_guild.get_member(user_info.id)
@@ -1404,7 +1461,13 @@ async def refresh_current_rank_roles_cross_guilds(  # pylint: disable=too-many-a
             old_rank = get_user_rank_siege(member)
             new_rank = resolve_rank_role_name(current_rank)
             try:
-                if await set_member_role_from_current_rank(target_guild, member, current_rank):
+                if user_info.id in verified_with_statscc:
+                    applied = await set_member_role_from_current_rank(
+                        target_guild, member, current_rank, allow_legend_demotion=True
+                    )
+                else:
+                    applied = await set_member_role_from_current_rank(target_guild, member, current_rank)
+                if applied:
                     summary.updated += 1
                     if old_rank != new_rank:
                         summary.changes.append(

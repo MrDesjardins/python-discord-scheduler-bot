@@ -20,6 +20,7 @@ from deps.values import (
 from deps.mybot import MyBot
 from deps.siege import resolve_rank_role_name, siege_ranks
 from deps.functions_date import get_now_eastern
+from deps.log import print_log
 
 
 def get_time_choices() -> List[app_commands.Choice]:
@@ -68,12 +69,25 @@ def most_common(lst) -> str | None:
     return max(set(lst), key=lst.count)
 
 
-async def set_member_role_from_rank(guild: discord.Guild, member: discord.Member, rank: str) -> None:
+async def set_member_role_from_rank(
+    guild: discord.Guild, member: discord.Member, rank: str, *, allow_legend_demotion: bool = False
+) -> None:
     """Set the user role based on the rank."""
     rank = resolve_rank_role_name(rank)
     role = discord.utils.get(guild.roles, name=rank)
     if role is None:
         raise ValueError(f"The guild does not have a role named '{rank}'.")
+
+    # Legend Division is a different, top-only ladder; the normal ranked ladder
+    # (Tracker and our ranked match rows) keeps reporting Champion for the same
+    # player. Those stale sources must not strip the Legend role. Only a
+    # Legend-aware stats.cc profile read passes allow_legend_demotion=True.
+    if rank != "Legend" and not allow_legend_demotion and any(r.name == "Legend" for r in member.roles):
+        print_log(
+            f"set_member_role_from_rank: Keeping Legend role for {member.display_name}; "
+            f"the {rank} rank came from the normal ranked ladder."
+        )
+        return
 
     roles_to_remove = []
     for r_name in siege_ranks:

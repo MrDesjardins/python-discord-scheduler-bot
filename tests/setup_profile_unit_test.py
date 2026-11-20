@@ -23,6 +23,48 @@ def test_setup_current_season_and_peak_are_distinct():
         assert get.call_args_list[0].args == ("profiles/pc/Active",)
 
 
+def test_setup_prefers_current_season_legend_division_record():
+    """Legend Division overrides the normal ranked Champion record for the same player."""
+    config = {
+        "seasons": {"current": {"started_at": "2026-01-01T00:00:00Z"}},
+        "ranks": {"champion": {"display": "Champions"}, "legend": {"display": "Legend"}},
+    }
+    active = {
+        "id": PROFILE_ID,
+        "ranked_season_records": {"current": {"rank": "champion", "rank_points": 4510, "max_rank_points": 4510}},
+        "legend_season_records": {"current": {"rank": "legend", "rank_points": 4883, "max_rank_points": 5000}},
+    }
+    with StatsCCClient() as client, patch.object(client, "_get", side_effect=[active, config]):
+        assert client.setup_profile("ObeyGN", "ObeyGN") == (PROFILE_ID, "LEGEND", 4510)
+
+
+def test_current_season_ranks_returns_legend_and_normal_tiers():
+    """The batch rank read used by role refresh sees both ladders."""
+    config = {
+        "seasons": {"current": {"started_at": "2026-01-01T00:00:00Z"}},
+        "ranks": {
+            "champion": {"display": "Champions"},
+            "diamond-ii": {"display": "Diamond\xa0II"},
+            "legend": {"display": "Legend"},
+        },
+    }
+    legend_profile = {
+        "id": PROFILE_ID,
+        "ranked_season_records": {"current": {"rank": "champion", "rank_points": 4510}},
+        "legend_season_records": {"current": {"rank": "legend", "rank_points": 4883}},
+    }
+    normal_profile = {
+        "id": "normal",
+        "ranked_season_records": {"current": {"rank": "diamond-ii", "rank_points": 4300}},
+        "legend_season_records": {},
+    }
+    with StatsCCClient() as client, patch.object(client, "_get", side_effect=[config, legend_profile, normal_profile]):
+        assert client.current_season_ranks(["ObeyGN", "Normal"]) == {
+            "ObeyGN": ("LEGEND", 4883),
+            "Normal": ("DIAMOND\xa0II", 4300),
+        }
+
+
 def test_no_current_season_record_is_unranked_and_same_account_fetched_once():
     profile = {"id": PROFILE_ID, "ranked_season_records": {"old": {"max_rank_points": 4500}}}
     config = {"seasons": {"current": {"started_at": "2026-01-01T00:00:00Z"}}}

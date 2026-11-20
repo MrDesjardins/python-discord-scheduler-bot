@@ -13,6 +13,7 @@ from deps.log import print_log
 NO_RANK_ROLE = "Unranked"
 
 siege_ranks = [
+    "Legend",
     "Champion",
     "Diamond",
     "Emerald",
@@ -26,17 +27,30 @@ siege_ranks = [
 
 # Competitive tiers used for LFG pings; Unranked is handled separately.
 RANKED_LFG_RANKS = siege_ranks[:-1]
-QUEUE_RANK_ORDER = ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"]
+QUEUE_RANK_ORDER = [
+    "Copper",
+    "Bronze",
+    "Silver",
+    "Gold",
+    "Platinum",
+    "Emerald",
+    "Diamond",
+    "Champion",
+    "Legend",
+]
 
+# Legend Division is a separate top ladder: its players also keep a normal
+# ranked rank, so they can queue with the same ranks as a Champion.
 QUEUE_COMPATIBLE_RANKS = {
     "Copper": ["Copper", "Bronze", "Silver", "Gold"],
     "Bronze": ["Copper", "Bronze", "Silver", "Gold", "Platinum"],
     "Silver": ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald"],
     "Gold": ["Copper", "Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond"],
-    "Platinum": ["Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"],
-    "Emerald": ["Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion"],
-    "Diamond": ["Gold", "Platinum", "Emerald", "Diamond", "Champion"],
-    "Champion": ["Platinum", "Emerald", "Diamond", "Champion"],
+    "Platinum": ["Bronze", "Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion", "Legend"],
+    "Emerald": ["Silver", "Gold", "Platinum", "Emerald", "Diamond", "Champion", "Legend"],
+    "Diamond": ["Gold", "Platinum", "Emerald", "Diamond", "Champion", "Legend"],
+    "Champion": ["Platinum", "Emerald", "Diamond", "Champion", "Legend"],
+    "Legend": ["Platinum", "Emerald", "Diamond", "Champion", "Legend"],
 }
 
 
@@ -65,6 +79,8 @@ def resolve_rank_role_name(rank: Optional[str]) -> str:
     token = tokens[0].lower() if tokens else ""
     if token in ("champion", "champions"):
         return "Champion"
+    if token in ("legend", "legends", "legend-division"):
+        return "Legend"
     for tier in siege_ranks:
         if tier.lower() == token:
             return tier
@@ -74,6 +90,7 @@ def resolve_rank_role_name(rank: Optional[str]) -> str:
 def get_color_for_rank(member: discord.Member) -> int:
     """Return a color per rank"""
     color_map = {
+        "Legend": 0xFFD700,  # Gold
         "Champion": 0xFFC0CB,  # Pink
         "Diamond": 0x800080,  # Purple
         "Emerald": 0x008000,  # Green
@@ -112,7 +129,7 @@ def get_user_rank_siege(user: discord.Member) -> str:
 def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> str:
     """
     Check the user's roles to determine their rank
-    The function assumes a specific 8 roles with 8 emojis which might not be the case for your server
+    The function assumes the server has the standard rank roles and emojis, which might not be the case for your server
     """
     if guild_emoji is None:
         # Should never happen
@@ -121,11 +138,10 @@ def get_user_rank_emoji(guild_emoji: dict[str, str], user: discord.Member) -> st
     if user is None:
         return get_guild_rank_emoji(guild_emoji, NO_RANK_ROLE)
 
-    for role in user.roles:
-        if role.name in siege_ranks or is_no_rank_role(role.name):
-            return get_guild_rank_emoji(guild_emoji, role.name)
-
-    return get_guild_rank_emoji(guild_emoji, NO_RANK_ROLE)
+    # Use get_user_rank_siege so a member temporarily carrying both Legend and
+    # Champion (before role cleanup, or if role order is not by position) shows
+    # the highest rank instead of whichever role Discord lists first.
+    return get_guild_rank_emoji(guild_emoji, get_user_rank_siege(user))
 
 
 def get_guild_rank_emoji(guild_emoji: dict[str, str], emoji_name: str) -> str:
