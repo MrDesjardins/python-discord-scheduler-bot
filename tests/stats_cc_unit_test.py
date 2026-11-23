@@ -131,14 +131,50 @@ def test_opt_in_uses_statscc_without_opening_browser(recorded, user, monkeypatch
 
 
 def test_force_tracker_bypasses_statscc_for_recovery_paths(user, monkeypatch):
-    """Match-GIF and TribeMarkets recovery must be able to force the Tracker collector."""
-    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc")
+    """In the fallback mode, match-GIF and TribeMarkets recovery can force the Tracker collector."""
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc_with_tracker_fallback")
     queue = UserQueueForStats(user, 1, datetime.now(timezone.utc))
     with patch("deps.browser.StatsCCClient") as client, patch("deps.browser.BrowserContextManager") as browser:
         browser.return_value.__enter__.return_value.download_full_matches.return_value = []
         download_full_matches([queue], force_tracker=True)
     client.assert_not_called()
     browser.return_value.__enter__.return_value.download_full_matches.assert_called_once_with(queue)
+
+
+def test_strict_statscc_ignores_force_tracker(recorded, user, monkeypatch):
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc")
+    queue = UserQueueForStats(user, 1, datetime.now(timezone.utc))
+    match = parse_match(recorded["match"], recorded["detail"], recorded["config"], user)
+    with patch("deps.browser.StatsCCClient") as client, patch("deps.browser.BrowserContextManager") as browser:
+        client.return_value.__enter__.return_value.download_matches.return_value = [match]
+        result = download_full_matches([queue], force_tracker=True)
+    browser.assert_not_called()
+    assert result[0].match_stats == [match]
+
+
+def test_strict_statscc_reports_no_stats_instead_of_tracker(user, monkeypatch):
+    """A user without stats.cc ranked data (never played ranked) gets an empty history, never tracker.gg."""
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc")
+    queue = UserQueueForStats(user, 1, datetime.now(timezone.utc))
+    with patch("deps.browser.StatsCCClient") as client, patch("deps.browser.BrowserContextManager") as browser:
+        stats_cc = client.return_value.__enter__.return_value
+        stats_cc.failed = False
+        stats_cc.download_matches.side_effect = StatsCCUnavailable("No completed ranked matches")
+        result = download_full_matches([queue])
+    browser.assert_not_called()
+    assert len(result) == 1 and result[0].match_stats == []
+
+
+def test_strict_statscc_keeps_user_queued_when_http_fails(user, monkeypatch):
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "statscc")
+    queue = UserQueueForStats(user, 1, datetime.now(timezone.utc))
+    with patch("deps.browser.StatsCCClient") as client, patch("deps.browser.BrowserContextManager") as browser:
+        stats_cc = client.return_value.__enter__.return_value
+        stats_cc.failed = True
+        stats_cc.download_matches.side_effect = StatsCCUnavailable("stats.cc request failed: config")
+        result = download_full_matches([queue])
+    browser.assert_not_called()
+    assert not result
 
 
 def test_opt_in_falls_back_for_missing_telemetry(user, monkeypatch):

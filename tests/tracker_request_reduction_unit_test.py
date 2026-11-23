@@ -30,6 +30,7 @@ async def test_queue_is_held_without_fetching_while_tracker_blocks():
     queued = UserQueueForStats(mock_user1, 100, datetime.now(timezone.utc) - timedelta(minutes=10))
     with (
         patch.object(bot_common_actions, "data_access_get_list_member_stats", AsyncMock(return_value=[queued])),
+        patch.object(bot_common_actions, "tracker_gg_is_used", return_value=True),
         patch.object(bot_common_actions, "tracker_block_remaining_seconds", return_value=1800.0),
         patch.object(bot_common_actions, "download_full_matches_async", AsyncMock()) as download,
         patch.object(bot_common_actions, "data_access_increment_member_stats_attempts", AsyncMock()) as attempts,
@@ -40,11 +41,29 @@ async def test_queue_is_held_without_fetching_while_tracker_blocks():
     attempts.assert_not_awaited()
 
 
+async def test_statscc_only_queue_is_not_held_by_a_tracker_block():
+    """stats.cc never touches tracker.gg, so a leftover tracker block must not delay anyone's stats"""
+    queued = UserQueueForStats(mock_user1, 100, datetime.now(timezone.utc) - timedelta(minutes=10))
+    with (
+        patch.object(bot_common_actions, "data_access_get_list_member_stats", AsyncMock(return_value=[queued])),
+        patch.object(bot_common_actions, "tracker_gg_is_used", return_value=False),
+        patch.object(bot_common_actions, "tracker_block_remaining_seconds", return_value=1800.0),
+        patch.object(bot_common_actions, "is_browser_busy", return_value=True),
+        patch.object(bot_common_actions, "download_full_matches_async", AsyncMock(return_value=[])) as download,
+        patch.object(bot_common_actions, "send_channel_list_stats", AsyncMock()),
+        patch.object(bot_common_actions, "data_access_increment_member_stats_attempts", AsyncMock()),
+    ):
+        await post_queued_user_stats()
+
+    download.assert_awaited_once()
+
+
 async def test_queue_waits_without_burning_attempts_while_the_browser_is_busy():
     """The daily collection can hold the browser for many minutes; queued users must not be dropped"""
     queued = UserQueueForStats(mock_user1, 100, datetime.now(timezone.utc) - timedelta(minutes=10))
     with (
         patch.object(bot_common_actions, "data_access_get_list_member_stats", AsyncMock(return_value=[queued])),
+        patch.object(bot_common_actions, "tracker_gg_is_used", return_value=True),
         patch.object(bot_common_actions, "is_browser_busy", return_value=True),
         patch.object(bot_common_actions, "download_full_matches_async", AsyncMock()) as download,
         patch.object(bot_common_actions, "data_access_increment_member_stats_attempts", AsyncMock()) as attempts,

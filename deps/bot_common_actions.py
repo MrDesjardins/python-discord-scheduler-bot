@@ -147,7 +147,7 @@ from deps.functions_r6_tracker import (
     get_user_gaming_session_stats,
     parse_operator_stats_from_json,
 )
-from deps.stats_cc import StatsCCClient, StatsCCUnavailable, stats_cc_is_primary
+from deps.stats_cc import StatsCCClient, StatsCCUnavailable, stats_cc_is_primary, tracker_gg_is_used
 from deps.functions_schedule import (
     adjust_reaction,
     get_daily_embed_message,
@@ -650,7 +650,7 @@ async def _fetch_r6_tracker_for_match_gifs(
     records: list[dict[str, Any]], matches_by_member: dict[int, list[UserFullMatchStats]]
 ) -> None:
     """Fetch R6 Tracker history for GIFs old enough to be finished that stats.cc is not handling."""
-    if tracker_block_remaining_seconds() > 0:
+    if tracker_gg_is_used() and tracker_block_remaining_seconds() > 0:
         return  # Do not burn the GIFs' attempts while every request would be refused
     now = datetime.now(timezone.utc)
     queue: dict[int, UserQueueForStats] = {}
@@ -982,9 +982,9 @@ async def post_queued_user_stats(check_time_delay: bool = True) -> None:
     if len(users) == 0:
         return
 
-    if tracker_block_remaining_seconds() > 0 or is_browser_busy():
+    if tracker_gg_is_used() and (tracker_block_remaining_seconds() > 0 or is_browser_busy()):
         # Keep everyone queued without burning their attempts; they are posted once the block
-        # lifts or the long daily collection releases the browser
+        # lifts or the long daily collection releases the browser. stats.cc needs neither.
         return
 
     # Accumulate all the stats for all the users before posting them

@@ -21,7 +21,39 @@ from deps.models import (
     UserWithUserMatchInfo,
 )
 from deps.log import print_error_log, print_log, print_warning_log
-from deps.stats_cc import StatsCCClient, StatsCCUnavailable, stats_cc_is_primary, tracker_fallback_is_enabled
+from deps.stats_cc import (
+    StatsCCClient,
+    StatsCCUnavailable,
+    stats_cc_is_primary,
+    tracker_fallback_is_enabled,
+    tracker_gg_is_used,
+)
+
+
+def _download_matches_from_stats_cc(
+    users_queued: List[UserQueueForStats], all_users_matches: List[UserWithUserMatchInfo]
+) -> List[UserQueueForStats]:
+    """Collect stats.cc histories into ``all_users_matches``; return the users stats.cc could not serve.
+
+    Without the tracker fallback, a user stats.cc has nothing for (e.g. never played ranked)
+    gets an empty history so the caller reports "no stats" instead of retrying forever.
+    A failed HTTP batch (block, 429) leaves the user out so they stay queued for a retry.
+    """
+    remaining = []
+    with StatsCCClient() as client:
+        for user_queue in users_queued:
+            try:
+                matches = client.download_matches(user_queue.user_info)
+                all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
+            except StatsCCUnavailable as exc:
+                print_warning_log(
+                    f"download_full_matches: stats.cc unavailable for {user_queue.user_info.display_name}: {exc}"
+                )
+                if tracker_fallback_is_enabled():
+                    remaining.append(user_queue)
+                elif not client.failed:
+                    all_users_matches.append(UserWithUserMatchInfo(user_queue, []))
+    return remaining
 
 
 def download_full_matches(
@@ -30,28 +62,12 @@ def download_full_matches(
     """
     Download the maximum information for matches with the goal to persist the data into the database
 
-    ``force_tracker`` skips stats.cc entirely. Recovery paths (match-start GIFs and
-    TribeMarkets reconciliation) are documented as R6 Tracker fallbacks and must not
-    be starved by users who have no stats.cc overlay telemetry.
+    ``force_tracker`` skips stats.cc for recovery paths (match-start GIFs and TribeMarkets
+    reconciliation), but only in a mode that allows tracker.gg: ``statscc`` never contacts it.
     """
     all_users_matches: List[UserWithUserMatchInfo] = []
-    # stats.cc is the primary provider. In the explicit fallback mode, only users
-    # without usable overlay telemetry continue to the legacy Tracker collector.
-    if stats_cc_is_primary() and not force_tracker:
-        remaining = []
-        with StatsCCClient() as client:
-            for user_queue in users_queued:
-                try:
-                    matches = client.download_matches(user_queue.user_info)
-                    all_users_matches.append(UserWithUserMatchInfo(user_queue, matches))
-                except StatsCCUnavailable as exc:
-                    print_warning_log(
-                        f"download_full_matches: stats.cc unavailable for {user_queue.user_info.display_name}: {exc}"
-                    )
-                    remaining.append(user_queue)
-        if not tracker_fallback_is_enabled():
-            return all_users_matches
-        users_queued = remaining
+    if stats_cc_is_primary() and not (force_tracker and tracker_gg_is_used()):
+        users_queued = _download_matches_from_stats_cc(users_queued, all_users_matches)
         if not users_queued:
             return all_users_matches
     # Before the loop, start the browser and do a request to the R6 tracker to get the cookies

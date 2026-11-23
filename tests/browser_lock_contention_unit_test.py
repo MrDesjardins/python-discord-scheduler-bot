@@ -36,8 +36,9 @@ def test_lock_timeout_raises_contention_without_circuit_breaker_failure():
     mock_lock.acquire.assert_called_once()
 
 
-def test_download_full_matches_returns_empty_on_lock_contention():
+def test_download_full_matches_returns_empty_on_lock_contention(monkeypatch):
     """Lock contention aborts the batch quietly so the users stay queued for the next cycle"""
+    monkeypatch.setenv("MATCH_STATS_PROVIDER", "tracker")
     user_queue = UserQueueForStats(mock_user1, 100, datetime.now(timezone.utc))
     with patch("deps.browser.BrowserContextManager") as mock_cm:
         mock_cm.return_value.__enter__.side_effect = BrowserLockContentionException("busy")

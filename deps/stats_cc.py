@@ -28,12 +28,15 @@ def stats_cc_is_primary() -> bool:
 
 
 def tracker_fallback_is_enabled() -> bool:
-    """Whether a stats.cc failure may fall back to the legacy Tracker collector."""
-    # stats.cc remains the primary source by default, but missing overlay telemetry
-    # must not silently discard a user's session. Keep Tracker as the compatibility
-    # fallback until all existing users have stats.cc coverage; ``statscc`` can still
-    # be made strict later by introducing an explicit no-fallback mode.
-    return match_stats_provider() in {"tracker", "statscc", "statscc_with_tracker_fallback"}
+    """Whether a stats.cc failure may fall back to the legacy Tracker collector (explicit opt-in only)."""
+    # ``statscc`` is strict: tracker.gg blocks the bot with Warden challenges, and one
+    # user without stats.cc data must not trigger escalating blocks for everyone.
+    return match_stats_provider() == "statscc_with_tracker_fallback"
+
+
+def tracker_gg_is_used() -> bool:
+    """Whether match collection may contact tracker.gg at all."""
+    return not stats_cc_is_primary() or tracker_fallback_is_enabled()
 
 
 class StatsCCUnavailable(Exception):
