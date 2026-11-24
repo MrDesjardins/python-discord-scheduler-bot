@@ -2,12 +2,12 @@
 Custom Discord UI components for handling command completion.
 """
 
-from typing import Callable
+from typing import Callable, Optional
 import discord
 
 
 class CompleteCommandView(discord.ui.View):
-    def __init__(self, author_id: int, on_move_into_team_channels: Callable, on_move_back_lobby:Callable, timeout: int = 900):
+    def __init__(self, author_id: int, on_move_into_team_channels: Callable, on_move_back_lobby: Callable, timeout: Optional[float] = None):
         super().__init__(timeout=timeout)
         self.author_id = author_id
         self.on_move_into_team_channels = on_move_into_team_channels
