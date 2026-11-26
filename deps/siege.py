@@ -639,14 +639,34 @@ def get_lfg_rank_role_mentions(guild: discord.Guild, members: List[discord.Membe
     """
     Return role mentions that can queue with every ranked member in the voice channel.
     """
-    return " ".join(role.mention for role in get_lfg_compatible_rank_roles(guild, members))
+    return ", ".join(role.mention for role in get_lfg_compatible_rank_roles(guild, members))
 
 
-def format_lfg_message(users_text: str, rank_mentions: str, body: str) -> str:
-    """Build an LFG message with players and the voice channel on the primary line."""
-    if rank_mentions:
-        return f"{users_text} {body}\nRanks: {rank_mentions}"
-    return f"{users_text} {body}"
+def format_lfg_message(
+    users_text: str,
+    rank_mentions: str,
+    needed: int,
+    voice_channel_mention: str,
+    current_count: int,
+) -> str:
+    """Build a compact, block-style LFG message.
+
+    Readers scan an LFG post for three things: how many are missing, who is
+    already sitting in voice, and which ranks get pinged. The old single
+    sentence ("@A, @B are in the voice channel: ... and need N more people")
+    buried those facts and read like prose. This layout puts the headline first
+    and gives each fact its own labelled line, with players above the ping so
+    the human names lead and the role mentions land as the call to action.
+    """
+    target = current_count + needed
+    pinging = rank_mentions if rank_mentions else "_none compatible_"
+    lines = [
+        f"🎮 **Looking for {needed} more** · {current_count}/{target} in voice",
+        f"> 🔊 **Voice:** {voice_channel_mention}",
+        f"> 👥 **Players:** {users_text}",
+        f"> 📣 **Pinging:** {pinging}",
+    ]
+    return "\n".join(lines)
 
 
 def get_lfg_allowed_mentions(rank_roles: List[discord.Role]) -> discord.AllowedMentions:

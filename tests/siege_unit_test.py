@@ -178,10 +178,10 @@ def test_get_lfg_rank_role_mentions_uses_group_compatibility_intersection() -> N
     member_2 = Mock(bot=False, roles=[platinum_role])
 
     assert get_lfg_rank_role_mentions(guild, [member_1]) == (
-        "<@&Gold> <@&Platinum> <@&Emerald> <@&Diamond> <@&Champion>"
+        "<@&Gold>, <@&Platinum>, <@&Emerald>, <@&Diamond>, <@&Champion>"
     )
     assert get_lfg_rank_role_mentions(guild, [member_1, member_2]) == (
-        "<@&Gold> <@&Platinum> <@&Emerald> <@&Diamond> <@&Champion>"
+        "<@&Gold>, <@&Platinum>, <@&Emerald>, <@&Diamond>, <@&Champion>"
     )
 
 
@@ -199,14 +199,19 @@ def test_get_lfg_rank_role_mentions_returns_empty_when_group_has_no_compatible_r
     assert get_lfg_rank_role_mentions(guild, [copper_member, champion_member]) == ""
 
 
-def test_format_lfg_message_puts_rank_mentions_on_a_secondary_line() -> None:
-    """LFG messages prioritize players and the voice channel over rank role pings."""
-    assert (
-        format_lfg_message("@Alice, @Bob", "<@&Gold> <@&Platinum>", "are looking for 2 teammates to play in <#123>")
-        == "@Alice, @Bob are looking for 2 teammates to play in <#123>\nRanks: <@&Gold> <@&Platinum>"
+def test_format_lfg_message_is_a_labelled_block() -> None:
+    """LFG messages lead with the count, then list players above the rank pings."""
+    assert format_lfg_message("@Alice, @Bob", "<@&Gold>, <@&Platinum>", 2, "<#123>", 3) == (
+        "🎮 **Looking for 2 more** · 3/5 in voice\n"
+        "> 🔊 **Voice:** <#123>\n"
+        "> 👥 **Players:** @Alice, @Bob\n"
+        "> 📣 **Pinging:** <@&Gold>, <@&Platinum>"
     )
-    assert format_lfg_message("@Alice", "", "is in the voice channel: <#123> and need 4 more people.") == (
-        "@Alice is in the voice channel: <#123> and need 4 more people."
+    assert format_lfg_message("@Alice", "", 4, "<#123>", 1) == (
+        "🎮 **Looking for 4 more** · 1/5 in voice\n"
+        "> 🔊 **Voice:** <#123>\n"
+        "> 👥 **Players:** @Alice\n"
+        "> 📣 **Pinging:** _none compatible_"
     )
 
 

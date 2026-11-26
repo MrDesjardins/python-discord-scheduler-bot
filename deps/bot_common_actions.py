@@ -1247,10 +1247,16 @@ async def send_automatic_lfg_message(bot: MyBot, guild_id: int, voice_channel_id
             list_users = get_lfg_user_mentions(bot, human_members, guild_id)
             rank_roles = get_lfg_compatible_rank_roles(vc_channel.guild, human_members)
             rank_mentions = get_lfg_rank_role_mentions(vc_channel.guild, human_members)
-            lfg_body = f"are looking for {needed_user} teammates to play in <#{voice_channel_id}>"
-            print_log(f"🎮 {list_users} {rank_mentions} {lfg_body}".strip())
+            lfg_message = format_lfg_message(
+                list_users,
+                rank_mentions,
+                needed_user,
+                f"<#{voice_channel_id}>",
+                len(human_members),
+            )
+            print_log(lfg_message)
             await channel.send(
-                f"🎮 {format_lfg_message(list_users, rank_mentions, lfg_body)}",
+                lfg_message,
                 allowed_mentions=get_lfg_allowed_mentions(rank_roles),
             )
             data_access_set_last_bot_message_in_main_text_channel(guild_id, voice_channel_id, current_time)

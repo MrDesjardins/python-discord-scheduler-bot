@@ -361,12 +361,14 @@ class UserFeatures(commands.Cog):
                         guild = voice_channel.guild
                         rank_roles = get_lfg_compatible_rank_roles(guild, human_members)
                         rank_mentions = get_lfg_rank_role_mentions(guild, human_members)
-                        lfg_body = (
-                            f"{'are' if current_count > 1 else 'is'} in the voice channel: "
-                            f"<#{voice_channel.id}> and need {missing_count} more people."
-                        )
                         await interaction.followup.send(
-                            format_lfg_message(list_members_in_voice_channel, rank_mentions, lfg_body),
+                            format_lfg_message(
+                                list_members_in_voice_channel,
+                                rank_mentions,
+                                missing_count,
+                                f"<#{voice_channel.id}>",
+                                current_count,
+                            ),
                             allowed_mentions=get_lfg_allowed_mentions(rank_roles),
                         )
                 else:
