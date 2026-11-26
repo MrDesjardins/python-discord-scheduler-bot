@@ -504,6 +504,9 @@ class DatabaseManager:
         # Add operator stats table
         self._migrate_add_operator_stats_table()
 
+        # Add TribeMarkets pending-match table (delayed reconciliation)
+        self._migrate_add_tribemarkets_pending_match_table()
+
         # Add stats.cc playstyle rounds table
         self._migrate_add_user_match_playstyle_rounds_table()
 
@@ -648,7 +651,12 @@ class DatabaseManager:
         print_log("Migration complete: message archive tables created")
 
     def _migrate_add_operator_stats_table(self):
-        """Create operator_stats table for storing per-operator statistics."""
+        """Create operator_stats table for storing per-operator statistics.
+
+        These rows are a lifetime snapshot captured by the Tracker fallback; the
+        daily capture is skipped while stats.cc is the primary provider, so
+        last_updated can legitimately be old on a stats.cc-led deployment.
+        """
         print_log("Running migration: Create operator_stats table")
         self.cursor.execute(
             """
@@ -679,7 +687,31 @@ class DatabaseManager:
             )
         """
         )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_operator_stats_user
+            ON operator_stats(user_id)
+        """
+        )
+        self.cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_operator_stats_operator
+            ON operator_stats(operator_name, session_type)
+        """
+        )
+        self.conn.commit()
+        print_log("Migration complete: operator_stats table created")
 
+    def _migrate_add_tribemarkets_pending_match_table(self):
+        """Create the TribeMarkets pending-match table used by delayed reconciliation.
+
+        This DDL used to live inside ``_migrate_add_operator_stats_table`` (it
+        was appended there in 00393e72), which coupled an unrelated feature to
+        the operator-stats migration. It has its own migration now so the two
+        can evolve independently; ``CREATE TABLE IF NOT EXISTS`` keeps it a
+        no-op on databases where the table already exists.
+        """
+        print_log("Running migration: Create tribemarkets_pending_match table")
         # TribeMarkets markets outlive the Discord presence event that creates
         # them.  Keep their reconciliation state in SQLite instead of only in
         # the two-hour cache used by the GIF lifecycle.  This table is also
@@ -713,20 +745,8 @@ class DatabaseManager:
             ON tribemarkets_pending_match(status, started_at)
             """
         )
-        self.cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_operator_stats_user
-            ON operator_stats(user_id)
-        """
-        )
-        self.cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_operator_stats_operator
-            ON operator_stats(operator_name, session_type)
-        """
-        )
         self.conn.commit()
-        print_log("Migration complete: operator_stats table created")
+        print_log("Migration complete: tribemarkets_pending_match table created")
 
     def _migrate_add_user_match_playstyle_rounds_table(self):
         """Store per-match stats.cc playstyle rounds so aggregates are deduplicated."""
