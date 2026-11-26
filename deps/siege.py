@@ -459,6 +459,19 @@ def _is_statscc_ranked_in_progress_detail(detail: Optional[str]) -> bool:
     return casefold_startswith(detail, _STATSCC_MATCH_PREFIXES) or casefold_startswith(detail, ("Ranked on ",))
 
 
+def is_statscc_ranked_match_start(before: Optional[str], after: Optional[str]) -> bool:
+    """True when ``after`` is the first ``Picking Operators`` of a genuinely new ranked match.
+
+    Single source of truth for the ``looking_ranked_match`` aggregation and the
+    match-start GIF grace check. A transition from ``In round:``, ``Ranked on
+    <map>`` or ``Match Ending:`` is the next round of the match already being
+    tracked, never a new match.
+    """
+    return casefold_startswith(after, ("Picking Operators: Ranked",)) and not _is_statscc_ranked_in_progress_detail(
+        before
+    )
+
+
 def _is_statscc_detail(detail: Optional[str]) -> bool:
     """Return True if the detail string matches stats.cc patterns (distinct from native Siege patterns)."""
     if detail is None:
@@ -534,7 +547,7 @@ def get_aggregation_statscc_activity(
         # from a state that is not already inside a ranked match. Between rounds the
         # player passes through "In round: ...", "Ranked on <map>", etc.; only a genuine
         # new match comes from queue / menu / warmup / a bare "Ranked" handoff.
-        if casefold_startswith(aft, ("Picking Operators: Ranked",)) and not _is_statscc_ranked_in_progress_detail(bef):
+        if is_statscc_ranked_match_start(bef, aft):
             looking_ranked_match += 1
         # NOTE: We don't count "In Queue" as looking_ranked_match for stats.cc
         # because stats.cc doesn't specify which mode (ranked/standard/deathmatch/etc.)

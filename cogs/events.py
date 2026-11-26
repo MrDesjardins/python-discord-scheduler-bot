@@ -48,6 +48,8 @@ from deps.data_access import (
     data_access_get_last_match_start_gif_time,
     data_access_set_last_match_start_gif_time,
     data_access_clear_last_match_start_gif_time,
+    data_access_get_last_match_start_gif_finished_map,
+    data_access_clear_last_match_start_gif_finished_map,
 )
 from deps.log import print_log, print_warning_log, print_error_log
 from deps.message_archive_data_access import (
@@ -78,8 +80,10 @@ from deps.siege import (
     get_statscc_activity,
     get_user_rank_siege,
     is_statscc_ranked_detail,
+    is_statscc_ranked_match_start,
     parse_statscc_ranked_score_from_activity,
 )
+from deps.tribemarkets import infer_map_name
 from deps.follow_functions import send_private_notification_following_user
 
 load_dotenv()
@@ -125,6 +129,19 @@ def _ranked_match_participant_ids(user_activities: dict[int, Any]) -> set[int]:
             or _is_ranked_match_activity(getattr(transition, "after", None))
         )
     }
+
+
+def _ranked_match_start_map(user_activities: dict[int, Any]) -> str | None:
+    """Map of a ranked match that is genuinely starting now, when stats.cc names one."""
+    for transition in user_activities.values():
+        if transition is None:
+            continue
+        after = getattr(transition, "after", None)
+        if is_statscc_ranked_match_start(getattr(transition, "before", None), after):
+            map_name = infer_map_name(after)
+            if map_name:
+                return map_name
+    return None
 
 
 def _match_start_fingerprint(guild_id: int, channel_id: int, member_ids: Any) -> str:
@@ -1015,6 +1032,25 @@ class MyEventsCog(commands.Cog):
                     rate_limited = last_time is not None and (datetime.now(timezone.utc) - last_time) <= timedelta(
                         minutes=MATCH_START_GIF_DEDUPLICATION_MINUTES
                     )
+                    if rate_limited:
+                        finished_map = await data_access_get_last_match_start_gif_finished_map(guild_id, channel_id)
+                        new_match_map = _ranked_match_start_map(user_activities)
+                        # Prod 2026-11-26 04:21: the Kanal final re-anchored the dedup window
+                        # with a 2-minute post-match grace, then a real Fortress match started
+                        # 1m47s later and lost its GIF entirely. The grace (added in 1394782)
+                        # only exists to swallow stats.cc's stale "Picking Operators" blip for
+                        # the match that just ended, and that blip carries the finished map. A
+                        # different map is a genuinely new match and must not be suppressed.
+                        if (
+                            finished_map
+                            and new_match_map
+                            and finished_map.strip().casefold() != new_match_map.strip().casefold()
+                        ):
+                            print_log(
+                                f"Match start GIF grace bypassed for new match on {new_match_map} in guild "
+                                f"{guild_id}, channel {channel_id} (previous match was on {finished_map})."
+                            )
+                            rate_limited = False
                     pending_started_at: datetime | None = None
                     if pending is not None and pending.get("started_at"):
                         with suppress(ValueError, TypeError):
@@ -1062,6 +1098,9 @@ class MyEventsCog(commands.Cog):
 
                         reserved_at = datetime.now(timezone.utc)
                         await data_access_set_last_match_start_gif_time(guild_id, channel_id, reserved_at)
+                        # A fresh GIF now owns the dedup window: the previous match's map
+                        # must not be able to bypass this window with a stale comparison.
+                        data_access_clear_last_match_start_gif_finished_map(guild_id, channel_id)
                         print_log(
                             f"Reserved match start GIF send for guild {guild_id}, channel {channel_id} at {reserved_at.isoformat()}."
                         )
@@ -1077,6 +1116,7 @@ class MyEventsCog(commands.Cog):
                             print_log(f"Posted match start GIF for guild {guild_id}, channel {channel_id}.")
                         else:
                             data_access_clear_last_match_start_gif_time(guild_id, channel_id)
+                            data_access_clear_last_match_start_gif_finished_map(guild_id, channel_id)
                             print_log(
                                 f"Match start GIF send did not post for guild {guild_id}, channel {channel_id}. Reservation cleared."
                             )

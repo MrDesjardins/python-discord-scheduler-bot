@@ -58,6 +58,7 @@ KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_LOBBY = "GuildCustomGameVoiceChannelLobby"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM1 = "GuildCustomGameVoiceChannelTeam1"
 KEY_GUILD_CUSTOM_GAME_VOICE_CHANNEL_TEAM2 = "GuildCustomGameVoiceChannelTeam2"
 KEY_LAST_MATCH_START_GIF = "LastMatchStartGif"
+KEY_LAST_MATCH_START_GIF_FINISHED_MAP = "LastMatchStartGifFinishedMap"
 KEY_PENDING_MATCH_START_GIF = "PendingMatchStartGif"
 KEY_MATCH_GIF_AWAITING_RESULT = "MatchGifAwaitingResult"
 KEY_GUILD_PRIVATE_CHANNEL_CATEGORY = "GuildPrivateChannelCategory"
@@ -717,6 +718,28 @@ async def data_access_set_last_match_start_gif_time(guild_id: int, channel_id: i
 def data_access_clear_last_match_start_gif_time(guild_id: int, channel_id: int) -> None:
     """Clear the match start GIF send reservation for a specific voice channel."""
     key = f"{KEY_LAST_MATCH_START_GIF}:{guild_id}:{channel_id}"
+    remove_cache(False, key)
+
+
+async def data_access_get_last_match_start_gif_finished_map(guild_id: int, channel_id: int) -> Optional[str]:
+    """Map of the last match whose final result re-anchored the GIF dedup window.
+
+    Used to tell a genuinely new match (different map) from a stale post-match
+    "Picking Operators" blip for the match that just ended.
+    """
+    key = f"{KEY_LAST_MATCH_START_GIF_FINISHED_MAP}:{guild_id}:{channel_id}"
+    return await get_cache(False, key)
+
+
+async def data_access_set_last_match_start_gif_finished_map(guild_id: int, channel_id: int, map_name: str) -> None:
+    """Remember the finished match's map for the post-match grace check."""
+    key = f"{KEY_LAST_MATCH_START_GIF_FINISHED_MAP}:{guild_id}:{channel_id}"
+    set_cache(False, key, map_name, ONE_HOUR_TTL)
+
+
+def data_access_clear_last_match_start_gif_finished_map(guild_id: int, channel_id: int) -> None:
+    """Clear the finished-map marker once a new GIF reserves the channel."""
+    key = f"{KEY_LAST_MATCH_START_GIF_FINISHED_MAP}:{guild_id}:{channel_id}"
     remove_cache(False, key)
 
 

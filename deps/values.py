@@ -78,8 +78,10 @@ MATCH_START_GIF_DEDUPLICATION_MINUTES = 20
 # Once the previous match's final result has posted, only this slice of the
 # deduplication window is kept: long enough to swallow the stray
 # "Picking Operators: Ranked" presence blips stats.cc emits for a minute or two
-# after a match, short enough that the squad's very next match still gets its own
-# GIF and its own TribeMarkets market instead of overwriting the finished one.
+# after a match. Those blips repeat the finished match's map, so a start on a
+# DIFFERENT map bypasses the grace immediately (prod 2026-11-26: a Fortress match
+# began 1m47s after the Kanal final and was wrongly suppressed for its whole
+# duration). A same-map start inside the grace stays suppressed as the blip case.
 MATCH_START_GIF_POST_MATCH_GRACE_MINUTES = 2
 
 # Kill switch for the TribeMarkets integration: no market creation, no result

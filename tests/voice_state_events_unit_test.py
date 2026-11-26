@@ -683,6 +683,99 @@ class TestMatchStartGif:
         mock_send_gif.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_new_match_on_different_map_bypasses_post_match_grace(self, mock_bot, mock_guild):
+        """Prod 2026-11-26: a Fortress match started 1m47s after the Kanal final."""
+
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+        user_activities = {
+            111: ActivityTransition("Ranked", "Picking Operators: Ranked on Fortress"),
+            222: ActivityTransition("Ranked", "Picking Operators: Ranked on Fortress"),
+        }
+        # Inside the 20-minute dedup window, but in the 2-minute post-match grace.
+        grace_anchor = datetime.now(timezone.utc) - timedelta(minutes=19)
+
+        with (
+            patch("cogs.events.asyncio.sleep", AsyncMock()),
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch("cogs.events.data_access_get_pending_match_start_gif_message", AsyncMock(return_value=None)),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=grace_anchor)),
+            patch(
+                "cogs.events.data_access_get_last_match_start_gif_finished_map",
+                AsyncMock(return_value="Kanal"),
+            ),
+            patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()) as mock_set_time,
+            patch("cogs.events.data_access_clear_last_match_start_gif_finished_map") as mock_clear_map,
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock(return_value=True)) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+        mock_send_gif.assert_awaited_once()
+        mock_set_time.assert_awaited_once()
+        mock_clear_map.assert_called_once_with(guild_id, channel_id)
+
+    @pytest.mark.asyncio
+    async def test_same_map_start_inside_post_match_grace_is_suppressed(self, mock_bot, mock_guild):
+        """The grace still swallows a stale Picking blip that repeats the finished map."""
+
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+        user_activities = {
+            111: ActivityTransition("Ranked", "Picking Operators: Ranked on Fortress"),
+            222: ActivityTransition("Ranked", "Picking Operators: Ranked on Fortress"),
+        }
+        grace_anchor = datetime.now(timezone.utc) - timedelta(minutes=19)
+
+        with (
+            patch("cogs.events.asyncio.sleep", AsyncMock()),
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch("cogs.events.data_access_get_pending_match_start_gif_message", AsyncMock(return_value=None)),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=grace_anchor)),
+            patch(
+                "cogs.events.data_access_get_last_match_start_gif_finished_map",
+                AsyncMock(return_value="Fortress"),
+            ),
+            patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()) as mock_set_time,
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock(return_value=True)) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+        mock_send_gif.assert_not_awaited()
+        mock_set_time.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_start_inside_post_match_grace_without_finished_map_is_suppressed(self, mock_bot, mock_guild):
+        """Without a recorded finished map the grace stays conservative."""
+
+        cog = MyEventsCog(mock_bot)
+        guild_id = mock_guild.id
+        channel_id = 333333333
+        user_activities = {
+            111: ActivityTransition("Ranked", "Picking Operators: Ranked on Fortress"),
+            222: ActivityTransition("Ranked", "Picking Operators: Ranked on Fortress"),
+        }
+        grace_anchor = datetime.now(timezone.utc) - timedelta(minutes=19)
+
+        with (
+            patch("cogs.events.asyncio.sleep", AsyncMock()),
+            patch("cogs.events.data_access_get_voice_user_list", AsyncMock(return_value=user_activities)),
+            patch("cogs.events.data_access_get_pending_match_start_gif_message", AsyncMock(return_value=None)),
+            patch("cogs.events.data_access_get_last_match_start_gif_time", AsyncMock(return_value=grace_anchor)),
+            patch(
+                "cogs.events.data_access_get_last_match_start_gif_finished_map",
+                AsyncMock(return_value=None),
+            ),
+            patch("cogs.events.data_access_set_last_match_start_gif_time", AsyncMock()) as mock_set_time,
+            patch("deps.bot_common_actions.send_match_start_gif", AsyncMock(return_value=True)) as mock_send_gif,
+        ):
+            await cog.send_match_start_gif_debounced_cancellable_task(guild_id, channel_id)
+
+        mock_send_gif.assert_not_awaited()
+        mock_set_time.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_multiple_users_looking_for_ranked(self, mock_bot, mock_guild):
         """Verify GIF is sent when multiple users are looking for ranked"""
 
@@ -1209,6 +1302,9 @@ class TestMatchStartGif:
             patch("deps.bot_common_actions.data_access_get_message", AsyncMock(return_value=msg)),
             patch("deps.bot_common_actions.data_access_clear_pending_match_start_gif_message") as mock_clear,
             patch("deps.bot_common_actions.data_access_set_last_match_start_gif_time", AsyncMock()) as mock_set_time,
+            patch(
+                "deps.bot_common_actions.data_access_set_last_match_start_gif_finished_map", AsyncMock()
+            ) as mock_set_map,
         ):
             await try_update_match_start_gif_with_result(mock_bot, mock_guild, voice_id)
 
@@ -1220,6 +1316,9 @@ class TestMatchStartGif:
         # cannot spawn a phantom GIF/market before the next match.
         mock_set_time.assert_awaited_once()
         assert mock_set_time.await_args.args[:2] == (mock_guild.id, voice_id)
+        # The finished map is remembered so the grace can let a different-map
+        # next match through (prod 2026-11-26 Fortress-after-Kanal regression).
+        mock_set_map.assert_awaited_once_with(mock_guild.id, voice_id, "Clubhouse")
 
     @pytest.mark.asyncio
     async def test_try_update_does_not_recover_from_undecided_stored_score(self, mock_bot, mock_guild):

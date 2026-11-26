@@ -59,6 +59,8 @@ from deps.data_access import (
     data_access_list_match_gifs_awaiting_result,
     data_access_set_match_gif_awaiting_result,
     data_access_set_last_match_start_gif_time,
+    data_access_set_last_match_start_gif_finished_map,
+    data_access_clear_last_match_start_gif_finished_map,
     data_access_get_r6tracker_current_season_rank,
     data_access_prefetch_r6tracker_current_season_ranks,
     data_access_get_r6tracker_max_rank,
@@ -2268,6 +2270,17 @@ async def try_update_match_start_gif_with_result(bot: MyBot, guild: discord.Guil
                 minutes=MATCH_START_GIF_DEDUPLICATION_MINUTES - MATCH_START_GIF_POST_MATCH_GRACE_MINUTES
             )
             await data_access_set_last_match_start_gif_time(guild.id, voice_channel_id, grace_anchor)
+            # The grace only swallows a same-map blip. Remember which map just
+            # finished so the next start can tell a stale "Picking Operators" blip
+            # for this match from a genuinely new match on a different map. Prod
+            # 2026-11-26: a Fortress match started 1m47s after the Kanal final and
+            # was suppressed for the whole match because only the time was checked.
+            if parsed_result.map_name:
+                await data_access_set_last_match_start_gif_finished_map(
+                    guild.id, voice_channel_id, parsed_result.map_name
+                )
+            else:
+                data_access_clear_last_match_start_gif_finished_map(guild.id, voice_channel_id)
         if parsed_result.is_match_complete and (
             market is None or (market.result_submitted and market.settlement_complete)
         ):
