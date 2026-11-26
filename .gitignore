@@ -186,3 +186,6 @@ player_values_*.csv
 # log_autofix.py local checkpoint/occurrence state and triage reports
 scripts/.log_autofix_state.json
 artifacts/log-autofix/
+
+# Machine-local Claude Code permission allow-list (absolute paths, per user)
+.claude/settings.local.json
